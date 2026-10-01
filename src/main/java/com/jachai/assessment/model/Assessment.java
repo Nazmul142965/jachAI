@@ -17,6 +17,7 @@ public record Assessment(
         int durationMinutes,
         int passingPercentage,
         List<String> questionIds,
+        ResultReleasePolicy resultReleasePolicy,
         AssessmentStatus status,
         int latestVersion,
         Instant createdAt,
@@ -24,6 +25,6 @@ public record Assessment(
 
     public Assessment published(int version) {
         return new Assessment(id, organizationId, authorUserId, title, durationMinutes,
-                passingPercentage, questionIds, AssessmentStatus.PUBLISHED, version, createdAt, revision);
+                passingPercentage, questionIds, resultReleasePolicy, AssessmentStatus.PUBLISHED, version, createdAt, revision);
     }
 }

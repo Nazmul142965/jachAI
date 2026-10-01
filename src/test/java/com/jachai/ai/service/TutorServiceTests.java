@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.jachai.ai.dto.TutorRequest;
 import com.jachai.assessment.model.AssessmentVersion;
+import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
@@ -45,14 +46,14 @@ class TutorServiceTests {
     private Attempt submitted() {
         return new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
                 Instant.now().minusSeconds(120), Instant.now().minusSeconds(60),
-                AttemptStatus.SUBMITTED, Map.of(), Instant.now(), 50, false, 1L);
+                AttemptStatus.SUBMITTED, Map.of(), Instant.now(), 50, false, Instant.now(), 1L);
     }
 
     @Test
     void activeRetryBlocksTutor() {
         Attempt active = new Attempt("retry", "org-a", "assignment", "assessment:1", "learner", 2,
                 Instant.now(), Instant.now().plusSeconds(600), AttemptStatus.IN_PROGRESS,
-                Map.of(), null, null, null, 0L);
+                Map.of(), null, null, null, null, 0L);
         when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
                 .thenReturn(Optional.of(submitted()));
         when(attempts.findByOrganizationIdAndUserIdAndStatus("org-a", "learner", AttemptStatus.IN_PROGRESS))
@@ -70,7 +71,7 @@ class TutorServiceTests {
         when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
                 .thenReturn(Optional.of(submitted()));
         when(versions.get("org-a", "assessment:1")).thenReturn(new AssessmentVersion(
-                "assessment:1", "org-a", "assessment", 1, "Java", 20, 60,
+                "assessment:1", "org-a", "assessment", 1, "Java", 20, 60, ResultReleasePolicy.IMMEDIATE,
                 List.of(new AssessmentVersion.QuestionSnapshot("q1", "Records", "Secret question",
                         QuestionType.SINGLE_CHOICE, List.of(new Question.Option("SECRET_KEY", "Secret answer")),
                         Set.of("SECRET_KEY"))), Instant.now()));
@@ -83,5 +84,24 @@ class TutorServiceTests {
         verify(ai).generate(eq(AiUseCase.TUTOR), any(), prompt.capture());
         assertFalse(prompt.getValue().contains("SECRET_KEY"));
         assertFalse(prompt.getValue().contains("Secret question"));
+    }
+
+    @Test
+    void unreleasedManualResultBlocksTutorBeforeAiUsage() {
+        Attempt pending = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now().minusSeconds(120), Instant.now().minusSeconds(60), AttemptStatus.SUBMITTED,
+                Map.of(), Instant.now(), 50, false, null, 1L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(pending));
+        when(versions.get("org-a", "assessment:1")).thenReturn(new AssessmentVersion(
+                "assessment:1", "org-a", "assessment", 1, "Java", 20, 60,
+                ResultReleasePolicy.MANUAL, List.of(), Instant.now()));
+
+        ApiException error = assertThrows(ApiException.class, () -> service().explain("learner", "org-a",
+                "attempt", new TutorRequest("Explain records")));
+
+        assertEquals("TUTOR_NOT_READY", error.code());
+        verify(quota, never()).consume(any(), any());
+        verify(ai, never()).generate(any(), any(), any());
     }
 }

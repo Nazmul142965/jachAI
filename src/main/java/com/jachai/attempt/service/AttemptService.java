@@ -1,6 +1,7 @@
 package com.jachai.attempt.service;
 
 import com.jachai.assessment.model.AssessmentVersion;
+import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.ResultView;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.LinkedHashMap;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -73,7 +75,7 @@ public class AttemptService {
         int attemptNumber = previous.stream().mapToInt(Attempt::attemptNumber).max().orElse(0) + 1;
         Attempt attempt = new Attempt(UUID.randomUUID().toString(), organizationId, assignmentId,
                 version.id(), userId, attemptNumber, now, deadline, AttemptStatus.IN_PROGRESS,
-                Map.of(), null, null, null, null);
+                Map.of(), null, null, null, null, null);
         try {
             attempts.insert(attempt);
         } catch (DuplicateKeyException exception) {
@@ -110,10 +112,10 @@ public class AttemptService {
         requireParticipant(userId, organizationId);
         Attempt attempt = ownAttempt(userId, organizationId, attemptId);
         if (attempt.status() == AttemptStatus.SUBMITTED) {
-            return result(attempt);
+            return result(attempt, version(organizationId, attempt.assessmentVersionId()));
         }
         AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
-        return result(finalizeAttempt(attempt, version, Instant.now()));
+        return result(finalizeAttempt(attempt, version, Instant.now()), version);
     }
 
     public ResultView result(String userId, String organizationId, String attemptId) {
@@ -122,7 +124,26 @@ public class AttemptService {
         if (attempt.status() != AttemptStatus.SUBMITTED) {
             throw new ApiException(HttpStatus.CONFLICT, "RESULT_PENDING", "Attempt is not submitted");
         }
-        return result(attempt);
+        return result(attempt, version(organizationId, attempt.assessmentVersionId()));
+    }
+
+    public ResultView releaseResult(String actorId, String organizationId, String attemptId) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN,
+                OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+        Attempt attempt = attempts.findByIdAndOrganizationId(attemptId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attempt not found"));
+        if (attempt.status() != AttemptStatus.SUBMITTED) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESULT_PENDING", "Attempt is not submitted");
+        }
+        AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
+        if (attempt.resultReleasedAt() != null) {
+            return result(attempt, version);
+        }
+        try {
+            return result(attempts.save(attempt.releaseResult(Instant.now())), version);
+        } catch (OptimisticLockingFailureException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "RELEASE_CONFLICT", "Result changed concurrently; reload it");
+        }
     }
 
     private Attempt finalizeAttempt(Attempt attempt, AssessmentVersion version, Instant now) {
@@ -131,7 +152,8 @@ public class AttemptService {
                         attempt.answers().getOrDefault(question.questionId(), Set.of())))
                 .count();
         int percentage = (int) Math.round(correct * 100.0 / version.questions().size());
-        Attempt submitted = attempt.submitted(now, percentage, percentage >= version.passingPercentage());
+        Attempt submitted = attempt.submitted(now, percentage, percentage >= version.passingPercentage(),
+                version.resultReleasePolicy() != ResultReleasePolicy.MANUAL);
         try {
             return attempts.save(submitted);
         } catch (OptimisticLockingFailureException exception) {
@@ -160,8 +182,25 @@ public class AttemptService {
                 .toList());
     }
 
-    private ResultView result(Attempt attempt) {
-        return new ResultView(attempt.id(), attempt.percentage(), attempt.passed(), attempt.submittedAt());
+    private ResultView result(Attempt attempt, AssessmentVersion version) {
+        boolean released = attempt.resultReleasedAt() != null
+                || version.resultReleasePolicy() != ResultReleasePolicy.MANUAL;
+        if (!released) {
+            return new ResultView(attempt.id(), false, null, null, attempt.submittedAt(), null, List.of());
+        }
+        Map<String, int[]> topicCounts = new LinkedHashMap<>();
+        for (AssessmentVersion.QuestionSnapshot question : version.questions()) {
+            int[] counts = topicCounts.computeIfAbsent(question.topic(), ignored -> new int[2]);
+            counts[1]++;
+            if (question.correctOptionIds().equals(attempt.answers().getOrDefault(question.questionId(), Set.of()))) {
+                counts[0]++;
+            }
+        }
+        List<ResultView.TopicScore> topics = topicCounts.entrySet().stream()
+                .map(entry -> new ResultView.TopicScore(entry.getKey(), entry.getValue()[0], entry.getValue()[1]))
+                .toList();
+        return new ResultView(attempt.id(), true, attempt.percentage(), attempt.passed(),
+                attempt.submittedAt(), attempt.resultReleasedAt(), topics);
     }
 
     private void requireParticipant(String userId, String organizationId) {

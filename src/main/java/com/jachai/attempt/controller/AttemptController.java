@@ -57,4 +57,10 @@ public class AttemptController {
             @PathVariable String organizationId, @PathVariable String attemptId) {
         return attempts.result(jwt.getSubject(), organizationId, attemptId);
     }
+
+    @PostMapping("/attempts/{attemptId}/release")
+    public ResultView release(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String attemptId) {
+        return attempts.releaseResult(jwt.getSubject(), organizationId, attemptId);
+    }
 }

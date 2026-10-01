@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface AttemptRepository extends MongoRepository<Attempt, String> {
+    Optional<Attempt> findByIdAndOrganizationId(String id, String organizationId);
     Optional<Attempt> findByIdAndOrganizationIdAndUserId(String id, String organizationId, String userId);
     List<Attempt> findByAssignmentIdAndOrganizationIdAndUserId(
             String assignmentId, String organizationId, String userId);

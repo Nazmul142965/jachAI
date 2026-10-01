@@ -30,6 +30,7 @@ public record Attempt(
         Instant submittedAt,
         Integer percentage,
         Boolean passed,
+        Instant resultReleasedAt,
         @Version Long revision) {
 
     public Attempt withAnswer(String questionId, Set<String> selected) {
@@ -37,12 +38,18 @@ public record Attempt(
         next.put(questionId, Set.copyOf(selected));
         return new Attempt(id, organizationId, assignmentId, assessmentVersionId, userId,
                 attemptNumber, startedAt, deadline, status, Map.copyOf(next), submittedAt,
-                percentage, passed, revision);
+                percentage, passed, resultReleasedAt, revision);
     }
 
-    public Attempt submitted(Instant when, int score, boolean pass) {
+    public Attempt submitted(Instant when, int score, boolean pass, boolean releaseImmediately) {
         return new Attempt(id, organizationId, assignmentId, assessmentVersionId, userId,
                 attemptNumber, startedAt, deadline, AttemptStatus.SUBMITTED, answers,
-                when, score, pass, revision);
+                when, score, pass, releaseImmediately ? when : null, revision);
+    }
+
+    public Attempt releaseResult(Instant when) {
+        return new Attempt(id, organizationId, assignmentId, assessmentVersionId, userId,
+                attemptNumber, startedAt, deadline, status, answers,
+                submittedAt, percentage, passed, when, revision);
     }
 }

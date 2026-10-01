@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.model.AssessmentVersion;
+import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.repository.AssessmentVersionRepository;
 import com.jachai.organization.service.TenantAccessService;
@@ -37,7 +38,7 @@ class AssessmentServiceTests {
     @Test
     void publicationFreezesApprovedQuestionAndAnswerKey() {
         var assessment = new Assessment("a1", "org-a", "teacher", "Java basics", 30, 70,
-                List.of("q1"), AssessmentStatus.DRAFT, 0, Instant.now(), null);
+                List.of("q1"), ResultReleasePolicy.MANUAL, AssessmentStatus.DRAFT, 0, Instant.now(), null);
         var question = new Question("q1", "org-a", "teacher", "Java", "Which is a record?",
                 QuestionType.SINGLE_CHOICE,
                 List.of(new Question.Option("a", "Immutable carrier"), new Question.Option("b", "Thread")),
@@ -49,6 +50,7 @@ class AssessmentServiceTests {
                 .publish("teacher", "org-a", "a1");
 
         assertEquals(1, result.version());
+        assertEquals(ResultReleasePolicy.MANUAL, result.resultReleasePolicy());
         assertEquals(Set.of("a"), result.questions().getFirst().correctOptionIds());
         ArgumentCaptor<AssessmentVersion> saved = ArgumentCaptor.forClass(AssessmentVersion.class);
         verify(versions).insert(saved.capture());
@@ -59,7 +61,7 @@ class AssessmentServiceTests {
     @Test
     void publicationCannotReadQuestionFromAnotherTenant() {
         var assessment = new Assessment("a1", "org-a", "teacher", "Java basics", 30, 70,
-                List.of("q-other"), AssessmentStatus.DRAFT, 0, Instant.now(), null);
+                List.of("q-other"), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.DRAFT, 0, Instant.now(), null);
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
         ApiException error = assertThrows(ApiException.class, () ->
                 new AssessmentService(assessments, versions, questions, access)

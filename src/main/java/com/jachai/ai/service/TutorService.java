@@ -3,6 +3,7 @@ package com.jachai.ai.service;
 import com.jachai.ai.dto.TutorReply;
 import com.jachai.ai.dto.TutorRequest;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
@@ -48,7 +49,12 @@ public class TutorService {
             throw new ApiException(HttpStatus.CONFLICT, "TUTOR_NOT_READY",
                     "AI tutor is unavailable during an active attempt");
         }
-        String topics = versions.get(organizationId, attempt.assessmentVersionId()).questions().stream()
+        var version = versions.get(organizationId, attempt.assessmentVersionId());
+        if (version.resultReleasePolicy() == ResultReleasePolicy.MANUAL && attempt.resultReleasedAt() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "TUTOR_NOT_READY",
+                    "AI tutor is available after the result is released");
+        }
+        String topics = version.questions().stream()
                 .map(question -> question.topic()).distinct().limit(8)
                 .collect(Collectors.joining(", "));
         quota.consume(organizationId, userId);

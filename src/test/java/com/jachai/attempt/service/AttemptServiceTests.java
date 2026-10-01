@@ -2,6 +2,7 @@ package com.jachai.attempt.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jachai.assessment.model.AssessmentVersion;
+import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.ResultView;
@@ -44,7 +46,11 @@ class AttemptServiceTests {
     }
 
     private AssessmentVersion version() {
-        return new AssessmentVersion("assessment:1", "org-a", "assessment", 1, "Java", 20, 60,
+        return version(ResultReleasePolicy.IMMEDIATE);
+    }
+
+    private AssessmentVersion version(ResultReleasePolicy policy) {
+        return new AssessmentVersion("assessment:1", "org-a", "assessment", 1, "Java", 20, 60, policy,
                 List.of(new AssessmentVersion.QuestionSnapshot("q1", "Java", "Which option is correct?",
                         QuestionType.SINGLE_CHOICE,
                         List.of(new Question.Option("a", "One"), new Question.Option("b", "Two")),
@@ -71,7 +77,7 @@ class AttemptServiceTests {
     void submitUsesPublishedAnswerKeyAndIsServerScored() {
         Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
                 Instant.now().minusSeconds(60), Instant.now().plusSeconds(60), AttemptStatus.IN_PROGRESS,
-                Map.of("q1", Set.of("a")), null, null, null, 0L);
+                Map.of("q1", Set.of("a")), null, null, null, null, 0L);
         when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
                 .thenReturn(Optional.of(attempt));
         when(versions.get("org-a", "assessment:1")).thenReturn(version());
@@ -80,6 +86,7 @@ class AttemptServiceTests {
         ResultView result = service().submit("learner", "org-a", "attempt");
 
         assertEquals(100, result.percentage());
+        assertEquals(1, result.topics().getFirst().correct());
         ArgumentCaptor<Attempt> saved = ArgumentCaptor.forClass(Attempt.class);
         verify(attempts).save(saved.capture());
         assertEquals(AttemptStatus.SUBMITTED, saved.getValue().status());
@@ -89,12 +96,60 @@ class AttemptServiceTests {
     void answerCannotBeChangedAfterServerDeadline() {
         Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
                 Instant.now().minusSeconds(3600), Instant.now().minusSeconds(1), AttemptStatus.IN_PROGRESS,
-                Map.of(), null, null, null, 0L);
+                Map.of(), null, null, null, null, 0L);
         when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
                 .thenReturn(Optional.of(attempt));
 
         ApiException error = assertThrows(ApiException.class,
                 () -> service().saveAnswer("learner", "org-a", "attempt", "q1", Set.of("a")));
         assertEquals("ATTEMPT_CLOSED", error.code());
+    }
+
+    @Test
+    void manualPolicyHidesScoreUntilStaffReleasesIt() {
+        Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now().minusSeconds(60), Instant.now().plusSeconds(60), AttemptStatus.IN_PROGRESS,
+                Map.of("q1", Set.of("a")), null, null, null, null, 0L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(attempt));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+        when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ResultView pending = service().submit("learner", "org-a", "attempt");
+
+        assertFalse(pending.released());
+        assertNull(pending.percentage());
+        assertEquals(List.of(), pending.topics());
+
+        Attempt submitted = attempt.submitted(Instant.now(), 100, true, false);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a")).thenReturn(Optional.of(submitted));
+        ResultView released = service().releaseResult("teacher", "org-a", "attempt");
+        assertEquals(100, released.percentage());
+        assertEquals("Java", released.topics().getFirst().topic());
+    }
+
+    @Test
+    void releaseCannotReadAnotherTenantAttempt() {
+        ApiException error = assertThrows(ApiException.class,
+                () -> service().releaseResult("teacher", "org-a", "foreign-attempt"));
+        assertEquals("NOT_FOUND", error.code());
+        verify(attempts).findByIdAndOrganizationId("foreign-attempt", "org-a");
+    }
+
+    @Test
+    void candidateResultEndpointKeepsManualScoreHidden() {
+        Attempt submitted = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now().minusSeconds(60), Instant.now(), AttemptStatus.SUBMITTED,
+                Map.of("q1", Set.of("a")), Instant.now(), 100, true, null, 1L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(submitted));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+
+        ResultView view = service().result("learner", "org-a", "attempt");
+
+        assertFalse(view.released());
+        assertNull(view.passed());
+        assertNull(view.percentage());
+        assertEquals(List.of(), view.topics());
     }
 }

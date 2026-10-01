@@ -19,6 +19,7 @@ public record AssessmentVersion(
         String title,
         int durationMinutes,
         int passingPercentage,
+        ResultReleasePolicy resultReleasePolicy,
         List<QuestionSnapshot> questions,
         Instant publishedAt) {
 

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jachai.assessment.model.AssessmentVersion;
+import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.repository.AssessmentVersionRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,7 +31,8 @@ class PublishedVersionStoreTests {
     @Mock ValueOperations<String, String> values;
 
     private AssessmentVersion snapshot() {
-        return new AssessmentVersion("a:1", "org-a", "a", 1, "Java", 30, 60, List.of(), Instant.now());
+        return new AssessmentVersion("a:1", "org-a", "a", 1, "Java", 30, 60,
+                ResultReleasePolicy.IMMEDIATE, List.of(), Instant.now());
     }
 
     private PublishedVersionStore store(boolean enabled) {

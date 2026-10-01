@@ -6,11 +6,11 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 
 - Email registration, verification, login, refresh rotation, logout of a refresh session, and single-use password reset by email.
 - Organization creation and memberships; roles and tenant checks are enforced in services.
-- Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment, timed attempts, answer saving, and deterministic scoring.
+- Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment, timed attempts, answer saving, deterministic scoring, manual/immediate result release, and topic-level result breakdown.
 - Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
 - AI question drafting via Gemini (`AI_PROVIDER=google-genai`), post-attempt Academy tutoring via Groq (`AI_TUTOR_PROVIDER=groq`), or local Ollama for both (`AI_PROVIDER=ollama`). AI drafts still require human approval. AI request quota counters are in Redis; AI fails closed if Redis is unavailable.
 
-Not yet complete: candidate/instructor frontend, certificate verification, Academy/Talent modules, email jobs, result-release policy, immediate access-token revocation, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
+Not yet complete: candidate/instructor frontend, certificate verification, Academy/Talent modules, email jobs, organization-wide result-policy settings, immediate access-token revocation, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -39,7 +39,9 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 | Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members` |
 | Questions | `GET/POST /organizations/{orgId}/questions`, `POST .../questions/{id}/approve` |
 | Assessments | `GET/POST /organizations/{orgId}/assessments`, `POST .../assessments/{id}/publish` |
-| Attempts | `GET .../assignments/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result` |
+| Attempts | `GET .../assignments/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result`, `POST .../attempts/{id}/release` (staff only) |
 | AI | `POST /organizations/{orgId}/ai/question-drafts`, `POST /organizations/{orgId}/attempts/{id}/tutor` |
 
 The test profile disables MongoDB autoconfiguration and uses mocks for API smoke tests. Unit tests cover assessment/attempt rules, tenant checks, cache behavior, and AI draft/tutor boundaries. A live MongoDB/Redis/provider integration test has not yet been completed.
+
+When creating an assessment, set `resultReleasePolicy` to `MANUAL` to keep its score, pass state, and topic breakdown hidden until an organization admin, instructor, or recruiter calls the release route. Omit it or use `IMMEDIATE` for score release on submit. The policy is frozen into the published version. Manual-policy Academy tutoring also waits for release. The result API returns `released: false` with null score/pass and empty topics while pending.

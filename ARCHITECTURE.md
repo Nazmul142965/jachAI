@@ -224,3 +224,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 - Foundation code lives under `shared`; other domain packages appear when their first workflow is implemented.
 - `/api/v1/health` is application liveness. Actuator health includes MongoDB readiness; the local `mongo-smoke` profile performs an opt-in temporary save/read/delete check.
 - Until identity and tenant authorization are implemented in Phase 2, all API paths except health are closed. No temporary application user or password is created.
+
+## Phase 3 implementation decisions
+
+- Each assessment has a result-release policy (`IMMEDIATE` by default for compatibility, or `MANUAL`) frozen in its published version. Under `MANUAL`, submit is still final and server-scored, but candidate-facing score, pass state, and topic breakdown remain hidden until staff explicitly releases that attempt. Academy tutoring also waits for manual release. A later organization-wide policy setting may override the authoring default; changing existing published versions is not allowed.

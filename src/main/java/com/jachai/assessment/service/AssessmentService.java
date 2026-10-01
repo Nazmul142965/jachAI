@@ -4,6 +4,7 @@ import com.jachai.assessment.dto.CreateAssessmentRequest;
 import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.model.AssessmentVersion;
+import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.repository.AssessmentVersionRepository;
 import com.jachai.organization.model.OrganizationRole;
@@ -48,7 +49,9 @@ public class AssessmentService {
         }
         return assessments.save(new Assessment(UUID.randomUUID().toString(), organizationId, userId,
                 request.title().trim(), request.durationMinutes(), request.passingPercentage(),
-                List.copyOf(request.questionIds()), AssessmentStatus.DRAFT, 0, Instant.now(), null));
+                List.copyOf(request.questionIds()),
+                request.resultReleasePolicy() == null ? ResultReleasePolicy.IMMEDIATE : request.resultReleasePolicy(),
+                AssessmentStatus.DRAFT, 0, Instant.now(), null));
     }
 
     public List<Assessment> list(String userId, String organizationId) {
@@ -77,7 +80,8 @@ public class AssessmentService {
         int nextVersion = assessment.latestVersion() + 1;
         AssessmentVersion version = new AssessmentVersion(assessment.id() + ":" + nextVersion,
                 organizationId, assessment.id(), nextVersion, assessment.title(),
-                assessment.durationMinutes(), assessment.passingPercentage(), List.copyOf(snapshots), Instant.now());
+                assessment.durationMinutes(), assessment.passingPercentage(), assessment.resultReleasePolicy(),
+                List.copyOf(snapshots), Instant.now());
         try {
             versions.insert(version);
         } catch (DuplicateKeyException exception) {
