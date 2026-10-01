@@ -10,8 +10,9 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
 - AI question drafting via Gemini (`AI_PROVIDER=google-genai`), post-attempt Academy tutoring via Groq (`AI_TUTOR_PROVIDER=groq`), or local Ollama for both (`AI_PROVIDER=ollama`). AI drafts still require human approval. AI request quota counters are in Redis; AI fails closed if Redis is unavailable.
 - Academy certificate issuance after a passing, released result; learner certificate listing, staff revocation, and minimal public code verification.
+- An in-progress responsive browser dashboard for registration/login, workspaces, authoring, assignments, attempts, results, and certificates. HTML pages are rendered from `src/main/resources/templates` by a small MVC page controller; CSS/JavaScript live in `src/main/resources/static` and call the REST API.
 
-Not yet complete: candidate/instructor frontend, full Academy/Talent modules, certificate email/verification UI and audit trail, email jobs, organization-wide result-policy settings, immediate access-token revocation, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
+Not yet complete: full frontend review queues and Talent views, full Academy/Talent modules, certificate email/verification UI and audit trail, email jobs, organization-wide result-policy settings, immediate access-token revocation, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -28,6 +29,8 @@ $env:MONGODB_URI = 'mongodb://localhost:27017/jachai_local'
 
 `GET /api/v1/health` checks app liveness only. `GET /actuator/health` includes infrastructure readiness when the related health indicators are enabled. To perform an opt-in MongoDB save/read/delete check, use the `local,mongo-smoke` profiles.
 
+Open `/` for the dashboard. Spring MVC renders the HTML templates; API controllers remain REST-only. The browser keeps access/refresh tokens in memory, so a page reload signs you out. The dashboard is an early workflow UI, not a production-complete frontend.
+
 For Redis caching, set `REDIS_HOST`, `REDIS_PORT`, and `CACHE_ENABLED=true`. For Gemini drafts, set `AI_PROVIDER=google-genai` and `GEMINI_API_KEY`. For Groq tutoring as well, set `AI_TUTOR_PROVIDER=groq` and `GROQ_API_KEY`. For local Ollama instead, set `AI_PROVIDER=ollama`, `AI_TUTOR_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`. AI operations also need Redis for quotas. Provider models and Groq base URL are configurable; see `.env.example`. Do not enable cloud billing just to run this project.
 
 ## Main API routes
@@ -40,7 +43,7 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 | Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members` |
 | Questions | `GET/POST /organizations/{orgId}/questions`, `POST .../questions/{id}/approve` |
 | Assessments | `GET/POST /organizations/{orgId}/assessments`, `POST .../assessments/{id}/publish` |
-| Attempts | `GET .../assignments/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result`, `POST .../attempts/{id}/release` (staff only) |
+| Attempts | `GET .../assignments/mine`, `GET .../assignments/{id}/attempts/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result`, `POST .../attempts/{id}/release` (staff only) |
 | AI | `POST /organizations/{orgId}/ai/question-drafts`, `POST /organizations/{orgId}/attempts/{id}/tutor` |
 | Academy certificates | `POST /organizations/{orgId}/attempts/{id}/certificate` (staff), `GET /organizations/{orgId}/certificates/mine` (learner), `POST /organizations/{orgId}/certificates/{id}/revoke` (staff), `GET /public/certificates/{verificationCode}` (public) |
 

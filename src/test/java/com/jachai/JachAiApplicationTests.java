@@ -4,6 +4,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.hamcrest.Matchers.containsString;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,7 +65,20 @@ class JachAiApplicationTests {
     @Test
     void resetPageIsPublic() throws Exception {
         mvc.perform(get("/reset-password.html"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Reset your password")));
+    }
+
+    @Test
+    void dashboardTemplateAndStaticAssetsArePublic() throws Exception {
+        mvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Technical assessment workspace")));
+        mvc.perform(get("/verify-email.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("JachAI email verification")));
+        mvc.perform(get("/app.js")).andExpect(status().isOk());
+        mvc.perform(get("/app.css")).andExpect(status().isOk());
     }
 
     @Test

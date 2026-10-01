@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>JachAI · Assess with confidence</title>
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
+    <span class="topbar-note">Technical assessment workspace</span>
+    <button id="logout" class="button quiet hidden" type="button">Sign out</button>
+  </header>
+  <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+
+  <main id="auth" class="auth-layout">
+    <section class="hero">
+      <p class="eyebrow">Built for meaningful evaluation</p>
+      <h1>Skills deserve more than a score.</h1>
+      <p>Build reviewed assessments, invite your people, understand their strengths, and verify what they have achieved.</p>
+      <div class="hero-points"><span>01&nbsp; Create</span><span>02&nbsp; Assess</span><span>03&nbsp; Verify</span></div>
+    </section>
+    <section class="auth-card card" aria-label="Account access">
+      <div class="tabs" role="tablist" aria-label="Account action">
+        <button id="login-tab" class="tab active" type="button" role="tab" aria-selected="true">Sign in</button>
+        <button id="register-tab" class="tab" type="button" role="tab" aria-selected="false">Create account</button>
+      </div>
+      <form id="login-form" class="stack">
+        <h2>Welcome back</h2><p class="muted">Sign in with your verified email.</p>
+        <label>Email<input name="email" type="email" autocomplete="email" required></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="button primary" type="submit">Sign in</button>
+        <a class="inline-link" href="/reset-password.html">Forgot your password?</a>
+      </form>
+      <form id="register-form" class="stack hidden">
+        <h2>Start a workspace</h2><p class="muted">Verify your email before signing in.</p>
+        <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
+        <label>Email<input name="email" type="email" autocomplete="email" required></label>
+        <label>Password <small>(at least 12 characters)</small><input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+        <button class="button primary" type="submit">Create account</button>
+      </form>
+    </section>
+  </main>
+
+  <main id="app" class="workspace hidden">
+    <aside class="sidebar">
+      <p class="eyebrow">Workspace</p>
+      <label class="select-label" for="organization-select">Organization</label>
+      <select id="organization-select" aria-label="Active organization"></select>
+      <p id="workspace-role" class="role-badge"></p>
+      <nav id="workspace-nav" class="side-nav" aria-label="Workspace sections"></nav>
+      <div class="sidebar-foot">Your work is saved to your organization's workspace.</div>
+    </aside>
+    <div class="content">
+      <div class="page-head"><div><p class="eyebrow">JachAI workspace</p><h1 id="page-title">Overview</h1><p id="page-subtitle" class="muted"></p></div></div>
+
+      <section id="empty-org" class="card panel hidden">
+        <h2>Create your first organization</h2><p class="muted">Academy is for learning and certificates. Talent is for hiring assessments.</p>
+        <form id="create-org-form" class="form-row">
+          <label>Name<input name="name" minlength="2" maxlength="120" required placeholder="Your organization"></label>
+          <label>Module<select name="type"><option value="ACADEMY">Academy</option><option value="TALENT">Talent</option></select></label>
+          <button class="button primary" type="submit">Create workspace</button>
+        </form>
+      </section>
+
+      <section id="overview-view" class="view hidden">
+        <div class="overview-grid">
+          <article class="card feature"><span class="feature-icon">01</span><h2>Build with care</h2><p>Review every question before publishing an assessment.</p></article>
+          <article class="card feature"><span class="feature-icon">02</span><h2>Trust the result</h2><p>Server-timed attempts and versioned scoring protect the assessment lifecycle.</p></article>
+          <article class="card feature"><span class="feature-icon">03</span><h2>Share achievement</h2><p>Release results deliberately and verify Academy certificates publicly.</p></article>
+        </div>
+        <div class="card panel"><h2>What would you like to do?</h2><p id="overview-hint" class="muted"></p></div>
+      </section>
+
+      <section id="members-view" class="view hidden">
+        <div class="card panel"><h2>Add a registered member</h2><p class="muted">The person must register and verify their email first.</p>
+          <form id="add-member-form" class="form-row"><label>Email<input name="email" type="email" required></label><label>Role<select id="member-role" name="role"></select></label><button class="button primary" type="submit">Add member</button></form>
+        </div><div class="card panel"><h2>Active members</h2><div id="members-list" class="item-list"></div></div>
+      </section>
+
+      <section id="questions-view" class="view hidden">
+        <div class="card panel"><div class="section-heading"><div><h2>Question bank</h2><p class="muted">Drafts need a human review before publication.</p></div></div><div id="questions-list" class="item-list"></div></div>
+        <div class="card panel"><h2>Create a question</h2>
+          <form id="question-form" class="stack"><div class="form-row"><label>Topic<input name="topic" maxlength="80" required placeholder="e.g. Java collections"></label><label>Type<select name="type"><option value="SINGLE_CHOICE">Single choice</option><option value="MULTIPLE_CHOICE">Multiple choice</option></select></label></div>
+            <label>Question<textarea name="prompt" rows="3" maxlength="4000" required></textarea></label>
+            <div class="option-grid"><label>Option A<input name="A" required></label><label>Option B<input name="B" required></label><label>Option C<input name="C" required></label><label>Option D<input name="D" required></label></div>
+            <fieldset><legend>Correct option(s)</legend><label class="check"><input type="checkbox" name="correct" value="A"> A</label><label class="check"><input type="checkbox" name="correct" value="B"> B</label><label class="check"><input type="checkbox" name="correct" value="C"> C</label><label class="check"><input type="checkbox" name="correct" value="D"> D</label></fieldset>
+            <button class="button primary" type="submit">Save draft</button></form>
+        </div>
+        <div class="card panel"><h2>AI-assisted draft</h2><p class="muted">An available AI provider and quota are required. Generated questions remain drafts.</p>
+          <form id="ai-draft-form" class="stack"><div class="form-row"><label>Topic<input name="topic" maxlength="80" required></label><label>Type<select name="type"><option value="SINGLE_CHOICE">Single choice</option><option value="MULTIPLE_CHOICE">Multiple choice</option></select></label></div><label>Brief<textarea name="brief" rows="2" maxlength="1200" required placeholder="What should this question test?"></textarea></label><button class="button secondary" type="submit">Generate draft</button></form>
+        </div>
+      </section>
+
+      <section id="assessments-view" class="view hidden">
+        <div class="card panel"><h2>Assessments</h2><div id="assessments-list" class="item-list"></div></div>
+        <div class="card panel"><h2>Create an assessment</h2><p class="muted">Only approved questions can be published.</p>
+          <form id="assessment-form" class="stack"><label>Title<input name="title" maxlength="150" required></label><div class="form-row"><label>Duration (minutes)<input name="durationMinutes" type="number" min="1" max="180" value="30" required></label><label>Pass mark (%)<input name="passingPercentage" type="number" min="0" max="100" value="60" required></label><label>Result release<select name="resultReleasePolicy"><option value="IMMEDIATE">On submission</option><option value="MANUAL">After staff release</option></select></label></div><fieldset><legend>Approved questions</legend><div id="assessment-questions" class="choice-list"></div></fieldset><button class="button primary" type="submit">Create draft assessment</button></form>
+        </div>
+        <div class="card panel"><h2>Assign a published assessment</h2><p class="muted">The recipient must already be an active member of this organization.</p>
+          <form id="assignment-form" class="stack"><div class="form-row"><label>Assessment<select id="assign-assessment" name="assessmentId" required></select></label><label>Recipient user ID<input name="userId" required placeholder="Copy from Members"></label><label>Attempts allowed<input name="attemptsAllowed" type="number" min="1" max="5" value="1" required></label></div><div class="form-row"><label>Available from<input name="availableFrom" type="datetime-local" required></label><label>Available until<input name="availableUntil" type="datetime-local" required></label></div><button class="button secondary" type="submit">Assign assessment</button></form>
+        </div>
+        <div class="card panel"><h2>Review outcomes</h2><p class="muted">Use an attempt ID from the learner until a staff review queue is available.</p><div class="form-row"><label>Attempt ID<input id="review-attempt-id" placeholder="Attempt ID"></label><button id="release-result" class="button secondary" type="button">Release result</button><button id="issue-certificate" class="button secondary" type="button">Issue certificate</button></div><div id="review-output" class="result-box hidden"></div></div>
+      </section>
+
+      <section id="attempts-view" class="view hidden"><div class="card panel"><h2>My assignments</h2><div id="assignments-list" class="item-list"></div></div><div id="attempt-panel" class="card panel hidden"></div><div id="result-panel" class="card panel hidden"></div></section>
+
+      <section id="certificates-view" class="view hidden"><div class="card panel"><h2>My certificates</h2><div id="certificates-list" class="item-list"></div></div></section>
+    </div>
+  </main>
+</body>
+</html>
