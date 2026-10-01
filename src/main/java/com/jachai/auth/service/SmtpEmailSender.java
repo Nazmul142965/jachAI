@@ -27,4 +27,15 @@ final class SmtpEmailSender implements EmailSender {
                 + verificationUrl + "\n\nThis link expires in 24 hours.");
         mailSender.send(mail);
     }
+
+    @Override
+    public void sendPasswordReset(String recipient, String displayName, String resetUrl) {
+        SimpleMailMessage mail = new SimpleMailMessage();
+        mail.setFrom(from);
+        mail.setTo(recipient);
+        mail.setSubject("Reset your JachAI password");
+        mail.setText("Hello " + displayName + ",\n\nReset your password using this link:\n"
+                + resetUrl + "\n\nThis link expires in 30 minutes. If you did not request it, ignore this email.");
+        mailSender.send(mail);
+    }
 }

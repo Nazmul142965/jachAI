@@ -8,6 +8,7 @@ import com.jachai.auth.service.AuthService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +43,9 @@ public class AuthController {
 
     public record ResendRequest(@NotBlank @Email String email) { }
     public record RefreshRequest(@NotBlank String refreshToken) { }
+    public record RequestResetRequest(@NotBlank @Email String email) { }
+    public record ResetPasswordRequest(@NotBlank String token,
+                                       @NotBlank @Size(min = 12, max = 128) String newPassword) { }
 
     @PostMapping("/resend-verification")
     public ResponseEntity<Map<String, String>> resend(@Valid @RequestBody ResendRequest request) {
@@ -57,6 +61,20 @@ public class AuthController {
     @PostMapping("/refresh")
     public AuthResponse refresh(@Valid @RequestBody RefreshRequest request) {
         return auth.refresh(request.refreshToken());
+    }
+
+    @PostMapping("/request-password-reset")
+    public ResponseEntity<Map<String, String>> requestPasswordReset(
+            @Valid @RequestBody RequestResetRequest request) {
+        auth.requestPasswordReset(request.email());
+        return ResponseEntity.accepted().body(Map.of("message",
+                "If the account is eligible, a reset email has been sent"));
+    }
+
+    @PostMapping("/reset-password")
+    public Map<String, String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        auth.resetPassword(request.token(), request.newPassword());
+        return Map.of("message", "Password reset. Sign in with your new password");
     }
 
     @PostMapping("/logout")

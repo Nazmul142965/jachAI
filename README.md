@@ -4,13 +4,13 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 
 ## Current workflows
 
-- Email registration, verification, login, refresh rotation, and logout of a refresh session.
+- Email registration, verification, login, refresh rotation, logout of a refresh session, and single-use password reset by email.
 - Organization creation and memberships; roles and tenant checks are enforced in services.
 - Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment, timed attempts, answer saving, and deterministic scoring.
 - Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
 - AI question drafting via Gemini (`AI_PROVIDER=google-genai`), post-attempt Academy tutoring via Groq (`AI_TUTOR_PROVIDER=groq`), or local Ollama for both (`AI_PROVIDER=ollama`). AI drafts still require human approval. AI request quota counters are in Redis; AI fails closed if Redis is unavailable.
 
-Not yet complete: candidate/instructor frontend, certificate verification, Academy/Talent modules, password reset, email jobs, result-release policy, access-token revocation, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
+Not yet complete: candidate/instructor frontend, certificate verification, Academy/Talent modules, email jobs, result-release policy, immediate access-token revocation, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -35,7 +35,7 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 
 | Area | Routes |
 | --- | --- |
-| Auth | `POST /auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/refresh`, `/auth/logout` |
+| Auth | `POST /auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/request-password-reset`, `/auth/reset-password` |
 | Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members` |
 | Questions | `GET/POST /organizations/{orgId}/questions`, `POST .../questions/{id}/approve` |
 | Assessments | `GET/POST /organizations/{orgId}/assessments`, `POST .../assessments/{id}/publish` |

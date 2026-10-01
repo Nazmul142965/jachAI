@@ -15,4 +15,10 @@ final class LocalEmailSender implements EmailSender {
         // Development only: use the link from the local console to finish registration.
         log.info("Development verification email for {}: {}", recipient, verificationUrl);
     }
+
+    @Override
+    public void sendPasswordReset(String recipient, String displayName, String resetUrl) {
+        // Development only: production uses SMTP and never logs reset links.
+        log.info("Development password reset email for {}: {}", recipient, resetUrl);
+    }
 }

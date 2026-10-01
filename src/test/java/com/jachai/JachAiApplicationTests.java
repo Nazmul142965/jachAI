@@ -1,6 +1,7 @@
 package com.jachai;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,6 +53,20 @@ class JachAiApplicationTests {
         mvc.perform(get("/api/v1/organizations"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void resetPageIsPublic() throws Exception {
+        mvc.perform(get("/reset-password.html"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void resetRequestIsPublicButValidated() throws Exception {
+        mvc.perform(post("/api/v1/auth/request-password-reset")
+                        .contentType("application/json")
+                        .content("{\"email\":\"not-an-email\"}"))
+                .andExpect(status().isBadRequest());
     }
 
 }

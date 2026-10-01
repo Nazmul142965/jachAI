@@ -4,9 +4,11 @@ import com.jachai.auth.dto.AuthResponse;
 import com.jachai.auth.dto.LoginRequest;
 import com.jachai.auth.dto.RegisterRequest;
 import com.jachai.auth.model.EmailVerificationToken;
+import com.jachai.auth.model.PasswordResetToken;
 import com.jachai.auth.model.RefreshSession;
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.EmailVerificationTokenRepository;
+import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Duration;
@@ -25,9 +27,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService {
     private static final Duration VERIFICATION_LIFETIME = Duration.ofHours(24);
+    private static final Duration RESET_LIFETIME = Duration.ofMinutes(30);
     private static final Duration REFRESH_LIFETIME = Duration.ofDays(30);
     private final UserRepository users;
     private final EmailVerificationTokenRepository tokens;
+    private final PasswordResetTokenRepository resetTokens;
     private final MongoTemplate mongo;
     private final PasswordEncoder passwords;
     private final EmailSender emailSender;
@@ -35,10 +39,12 @@ public class AuthService {
     private final String publicBaseUrl;
 
     public AuthService(UserRepository users, EmailVerificationTokenRepository tokens,
+                       PasswordResetTokenRepository resetTokens,
                        MongoTemplate mongo, PasswordEncoder passwords, EmailSender emailSender,
                        JwtService jwt, @Value("${app.public-base-url}") String publicBaseUrl) {
         this.users = users;
         this.tokens = tokens;
+        this.resetTokens = resetTokens;
         this.mongo = mongo;
         this.passwords = passwords;
         this.emailSender = emailSender;
@@ -109,6 +115,38 @@ public class AuthService {
     public void logout(String rawToken) {
         mongo.findAndRemove(Query.query(Criteria.where("tokenHash").is(TokenSecrets.hash(rawToken))),
                 RefreshSession.class);
+    }
+
+    public void requestPasswordReset(String email) {
+        users.findByEmail(normalizeEmail(email))
+                .filter(user -> user.emailVerified() && !user.disabled())
+                .ifPresent(user -> {
+                    resetTokens.deleteByUserId(user.id());
+                    String raw = TokenSecrets.generate();
+                    resetTokens.save(new PasswordResetToken(UUID.randomUUID().toString(),
+                            TokenSecrets.hash(raw), user.id(), Instant.now().plus(RESET_LIFETIME)));
+                    emailSender.sendPasswordReset(user.email(), user.displayName(),
+                            publicBaseUrl + "/reset-password.html?token=" + raw);
+                });
+    }
+
+    public void resetPassword(String rawToken, String newPassword) {
+        PasswordResetToken token = mongo.findAndRemove(
+                Query.query(Criteria.where("tokenHash").is(TokenSecrets.hash(rawToken))),
+                PasswordResetToken.class);
+        if (token == null || !token.expiresAt().isAfter(Instant.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
+        }
+        User user = users.findById(token.userId()).orElseThrow(() ->
+                new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired"));
+        if (!user.emailVerified() || user.disabled()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
+        }
+        resetTokens.deleteByUserId(user.id());
+        // Revoke every refresh session before changing the password. Existing access JWTs
+        // remain valid for at most their short lifetime until Redis revocation is added.
+        mongo.remove(Query.query(Criteria.where("userId").is(user.id())), RefreshSession.class);
+        users.save(user.withPasswordHash(passwords.encode(newPassword)));
     }
 
     private AuthResponse issueSession(String userId) {

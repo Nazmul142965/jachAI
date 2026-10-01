@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public record RefreshSession(
         @Id String id,
         @Indexed(unique = true) String tokenHash,
-        String userId,
+        @Indexed String userId,
         Instant createdAt,
-        Instant expiresAt) {
+        @Indexed(expireAfter = "0s") Instant expiresAt) {
 }

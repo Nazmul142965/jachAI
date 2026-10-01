@@ -10,5 +10,5 @@ public record EmailVerificationToken(
         @Id String id,
         @Indexed(unique = true) String tokenHash,
         String userId,
-        Instant expiresAt) {
+        @Indexed(expireAfter = "0s") Instant expiresAt) {
 }

@@ -12,9 +12,11 @@ import static org.mockito.Mockito.when;
 import com.jachai.auth.dto.LoginRequest;
 import com.jachai.auth.dto.RegisterRequest;
 import com.jachai.auth.model.EmailVerificationToken;
+import com.jachai.auth.model.PasswordResetToken;
 import com.jachai.auth.model.RefreshSession;
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.EmailVerificationTokenRepository;
+import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
@@ -33,6 +36,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 class AuthServiceTests {
     @Mock UserRepository users;
     @Mock EmailVerificationTokenRepository tokens;
+    @Mock PasswordResetTokenRepository resetTokens;
     @Mock MongoTemplate mongo;
     @Mock EmailSender emailSender;
     @Mock JwtService jwt;
@@ -40,7 +44,7 @@ class AuthServiceTests {
 
     @BeforeEach
     void setUp() {
-        service = new AuthService(users, tokens, mongo, new BCryptPasswordEncoder(),
+        service = new AuthService(users, tokens, resetTokens, mongo, new BCryptPasswordEncoder(),
                 emailSender, jwt, "http://localhost:8080");
     }
 
@@ -97,5 +101,59 @@ class AuthServiceTests {
         ArgumentCaptor<RefreshSession> saved = ArgumentCaptor.forClass(RefreshSession.class);
         verify(mongo).insert(saved.capture());
         assertEquals(TokenSecrets.hash(response.refreshToken()), saved.getValue().tokenHash());
+    }
+
+    @Test
+    void unknownPasswordResetEmailHasNoObservableAction() {
+        service.requestPasswordReset("unknown@example.com");
+
+        verify(resetTokens, never()).save(any());
+        verify(emailSender, never()).sendPasswordReset(any(), any(), any());
+    }
+
+    @Test
+    void passwordResetEmailStoresOnlyTokenHash() {
+        when(users.findByEmail("test@example.com")).thenReturn(Optional.of(new User(
+                "u1", "test@example.com", "Test", "hash", true, false, Instant.now())));
+
+        service.requestPasswordReset(" Test@Example.com ");
+
+        ArgumentCaptor<PasswordResetToken> token = ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(resetTokens).save(token.capture());
+        assertEquals("u1", token.getValue().userId());
+        assertEquals(64, token.getValue().tokenHash().length());
+        verify(emailSender).sendPasswordReset(eq("test@example.com"), eq("Test"),
+                org.mockito.ArgumentMatchers.contains("reset-password.html?token="));
+    }
+
+    @Test
+    void expiredResetTokenCannotChangePassword() {
+        when(mongo.findAndRemove(any(Query.class), eq(PasswordResetToken.class)))
+                .thenReturn(new PasswordResetToken("id", "hash", "u1", Instant.now().minusSeconds(1)));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.resetPassword("expired-token", "new-long-password-123"));
+
+        assertEquals("INVALID_TOKEN", error.code());
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void successfulResetChangesHashAndRevokesRefreshSessions() {
+        User user = new User("u1", "test@example.com", "Test", "old-hash",
+                true, false, Instant.now());
+        when(mongo.findAndRemove(any(Query.class), eq(PasswordResetToken.class)))
+                .thenReturn(new PasswordResetToken("id", TokenSecrets.hash("raw-reset"),
+                        "u1", Instant.now().plusSeconds(300)));
+        when(users.findById("u1")).thenReturn(Optional.of(user));
+
+        service.resetPassword("raw-reset", "new-long-password-123");
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(users).save(saved.capture());
+        assertTrue(new BCryptPasswordEncoder().matches("new-long-password-123",
+                saved.getValue().passwordHash()));
+        verify(mongo).remove(any(Query.class), eq(RefreshSession.class));
+        verify(resetTokens).deleteByUserId("u1");
     }
 }

@@ -18,4 +18,8 @@ public record User(
     public User verified() {
         return new User(id, email, displayName, passwordHash, true, disabled, createdAt);
     }
+
+    public User withPasswordHash(String newPasswordHash) {
+        return new User(id, email, displayName, newPasswordHash, emailVerified, disabled, createdAt);
+    }
 }

@@ -16,6 +16,9 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 
 @Configuration
 public class JwtConfig {
@@ -37,7 +40,16 @@ public class JwtConfig {
     JwtDecoder jwtDecoder(SecretKey jwtSigningKey) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSigningKey)
                 .macAlgorithm(MacAlgorithm.HS256).build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer("jachai"));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer("jachai"), token -> {
+                    if (!"access".equals(token.getClaimAsString("purpose"))
+                            || token.getSubject() == null || token.getSubject().isBlank()
+                            || token.getId() == null || token.getId().isBlank()) {
+                        return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token",
+                                "JWT is not a JachAI access token", null));
+                    }
+                    return OAuth2TokenValidatorResult.success();
+                }));
         return decoder;
     }
 
