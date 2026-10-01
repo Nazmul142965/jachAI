@@ -1,0 +1,31 @@
+package com.jachai.attempt.controller;
+
+import com.jachai.attempt.dto.CreateAssignmentRequest;
+import com.jachai.attempt.model.Assignment;
+import com.jachai.attempt.service.AssignmentService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/organizations/{organizationId}/assessments/{assessmentId}/assignments")
+public class AssignmentController {
+    private final AssignmentService assignments;
+
+    public AssignmentController(AssignmentService assignments) { this.assignments = assignments; }
+
+    @PostMapping
+    public ResponseEntity<Assignment> create(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String assessmentId,
+            @Valid @RequestBody CreateAssignmentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(assignments.assign(jwt.getSubject(), organizationId, assessmentId, request));
+    }
+}

@@ -1,0 +1,226 @@
+# JachAI — Product Vision and Architecture
+
+Status: Working specification for implementation. Update this file when a product decision changes.
+
+## 1. Product vision
+
+JachAI is a multi-tenant SaaS platform for technical assessment and skill verification. One assessment engine serves two products:
+
+- **JachAI Academy** helps training institutes and bootcamps assess learners, identify weak topics, provide instructor feedback and AI tutoring, and issue verifiable certificates.
+- **JachAI Talent** helps companies invite candidates to role-specific assessments, compare results, review attempt integrity signals, and make shortlist decisions.
+
+An organization buys access to one or both modules. Each organization has its own users, assessments, attempts, reports, and subscription entitlements. The platform runs as one Spring Boot application with clearly separated domain modules; microservices are out of scope.
+
+The product's central promise is a trustworthy assessment lifecycle: create, publish, invite, attempt, score, review, report, and verify. AI assists people within that lifecycle; it does not control official scores or publish unreviewed questions.
+
+## 2. Product boundaries
+
+### Shared core
+
+Organization workspaces, membership and roles, question bank, assessment versions, invitations and assignments, timed attempts, deterministic scoring, topic-level analytics, integrity telemetry, audit history, notifications, subscription entitlements, and REST APIs.
+
+### Academy module
+
+Courses and batches, learner assignments, progress reports, instructor feedback, instructor–learner messaging, AI Tutor after an attempt, and certificate issuance and public verification.
+
+### Talent module
+
+Hiring campaigns, recruiter invitations, candidate comparison, reviewer notes, integrity review, shortlist decisions, and candidate reports. Certificates are optional here and are not the primary outcome.
+
+### Explicitly outside the first release
+
+Live code execution, video or face proctoring, automated cheating verdicts, advanced live chat infrastructure, and a full applicant tracking system. These require substantial additional security and product work.
+
+## 3. Users and permissions
+
+Roles are scoped to an organization, except for platform administration. A person may belong to more than one organization with different roles.
+
+| Role | Scope | Main capabilities |
+| --- | --- | --- |
+| `PLATFORM_ADMIN` | Entire JachAI platform | Manage plans, support operations, and platform health; access to tenant content should be exceptional and audited. |
+| `ORG_ADMIN` | One organization | Manage workspace, memberships, module access, billing, and organization settings. |
+| `INSTRUCTOR` | Academy organization | Manage question drafts and assessments; assign learners; review results and provide feedback. |
+| `LEARNER` | Academy organization | Take assigned assessments, view released results, use AI Tutor, and view certificates. |
+| `RECRUITER` | Talent organization | Manage campaigns and assessments, invite candidates, review results, and shortlist. |
+| `CANDIDATE` | Talent organization | Take invited assessments and view only the results released to them. |
+
+Prefer a `Membership` document (`userId`, `organizationId`, role, status) over one global role stored on `User`. Every authorization decision must consider both role and active organization.
+
+## 4. Technical architecture
+
+- Java 21 and Spring Boot 3.x.
+- Spring Web REST API, Spring Security, Bean Validation, Spring Data MongoDB, Spring Data Redis, Spring Mail, and Spring AI.
+- MongoDB Atlas for durable product data. Local MongoDB may be used for development or tests.
+- Redis for short-lived cache entries, rate limits, one-time coordination where needed, and revoked access-token IDs. MongoDB remains the source of truth.
+- A responsive HTML/CSS/Bootstrap/JavaScript frontend that calls the REST API. It may initially be served from Spring Boot's static resources on the same origin. The API must not depend on server-rendered pages.
+- SMTP or a transactional email provider behind an `EmailSender` interface. Provider credentials come from environment variables.
+- Stripe test mode for paid subscriptions in a later phase; access decisions come from verified webhook events, not from a browser redirect.
+
+Use a modular monolith and package by domain. Controllers call services; services enforce business rules and use repositories. DTOs (prefer Java records where appropriate) cross API boundaries. Mongo documents never serve directly as public responses.
+
+```text
+com.jachai
+  shared/        configuration, errors, tenant context, audit, email, utilities
+  auth/          registration, email verification, login, refresh, password reset
+  organization/  workspaces, membership, roles, invitations
+  question/      question bank, topics, AI question drafts
+  assessment/    assessment authoring, publishing, immutable versions
+  attempt/       timed sessions, answers, scoring, telemetry
+  academy/       courses, batches, learner feedback, tutor, certificates
+  talent/        campaigns, candidate review, comparison, shortlist
+  messaging/     instructor–learner conversations
+  billing/       plans, entitlements, subscription, Stripe webhook
+  ai/            provider adapter, prompts, limits, usage records
+```
+
+Within each module, use `controller`, `service`, `repository`, `model`, and `dto` folders only where they improve clarity. Avoid creating empty packages in advance.
+
+## 5. Tenant isolation: mandatory rule
+
+Every organization-owned document contains `organizationId`. The authenticated request resolves an active organization from a verified membership. Services and repositories include that organization ID in every read, update, and delete. A client-supplied `organizationId` never grants access by itself.
+
+For example, fetch an assessment with `findByIdAndOrganizationId(id, activeOrganizationId)`, not `findById(id)`. Check the same rule for nested resources such as answers, messages, reports, and certificate administration. Platform-public endpoints, such as certificate verification, expose only a deliberately limited public view.
+
+Use compound indexes for frequent tenant queries and uniqueness rules (for example, organization plus assessment slug). Write tests where organization A cannot read or mutate organization B's data.
+
+## 6. Core data model
+
+| Document | Purpose and important fields |
+| --- | --- |
+| `User` | Global identity, email, password hash, email verification state, account status. |
+| `Organization` | Tenant name, type (`ACADEMY` or `TALENT`), settings, status. A tenant may later enable both modules. |
+| `Membership` | User, organization, role, status, invitation metadata. |
+| `Question` | Tenant, topic, type, difficulty, content, answer/rubric, draft/review status. Keep answers out of candidate APIs. |
+| `Assessment` | Tenant, owner, title, configuration, draft/published state, current version. |
+| `AssessmentVersion` | Immutable published instructions, duration, passing rules, selected question snapshots, grading rules. |
+| `Assignment` / `Invitation` | Recipient or invite token, assessment version, availability window, attempt limit, status. |
+| `Attempt` | Tenant, candidate, assessment version, server start/deadline, state, answer snapshots, score breakdown, timestamps. |
+| `TelemetryEvent` | Tenant, attempt, event type, server receipt time, client context, severity hint. |
+| `Certificate` | Tenant, learner, attempt, assessment version, unique verification code, issue/revocation state. |
+| `Course` / `Batch` | Academy grouping for learning and reporting. |
+| `HiringCampaign` / `ReviewDecision` | Talent grouping, reviewer notes, shortlist outcome. |
+| `Conversation` / `ChatMessage` | Academy instructor–learner messages, tenant-scoped and access-controlled. |
+| `Subscription` / `Plan` | Tenant billing state and feature entitlements. |
+| `EmailJob` | Template, recipient, delivery state, retry count; never store provider credentials. |
+| `AuditEvent` | Actor, tenant, action, target, timestamp, useful change metadata. |
+
+Keep documents bounded. For long-running attempts or high-volume telemetry, store events separately rather than growing one Mongo document without limit. Create indexes for email, membership lookups, tenant-scoped listings, invitation tokens, certificate codes, and attempt deadlines. Use unique indexes where uniqueness is a business rule.
+
+## 7. Assessment lifecycle and scoring
+
+1. Instructor or recruiter drafts questions. AI-generated questions remain drafts until a human reviews them.
+2. An assessment is configured and published as an immutable `AssessmentVersion`. Editing later creates a new version.
+3. A learner/candidate receives an assignment or invitation. The server validates availability, membership/invite, attempt limit, and module entitlement.
+4. The server starts an attempt and records the deadline. The client timer is visual only; the server decides whether an answer is on time.
+5. Answers are saved with validation and an attempt state check. Submitting is idempotent and cannot change a finalized result.
+6. Objective questions are scored by deterministic rules against the published version. Manual-review questions enter a review queue. AI may suggest feedback but cannot silently set official scores.
+7. Result release follows organization policy. Topic-level breakdown and weak areas use the versioned question/topic data.
+8. Academy certificates are issued only after the required pass/review conditions. Verification shows status and minimal public details.
+
+For the first release, support single-choice and multiple-choice questions. Add short-answer manual review after the core attempt flow works. Do not implement an unsafe code runner inside the API server.
+
+Telemetry records tab visibility changes, fullscreen exits, copy/paste attempts, suspicious timing, and optional IP/user-agent signals. It is evidence for human review, not proof of cheating. Avoid collecting unnecessary personal data.
+
+## 8. Authentication and security
+
+- Registration requires email verification before normal access. Use a random, single-use, expiring verification token; store only its hash in MongoDB or Redis.
+- Passwords use an adaptive hash such as BCrypt. Add password-reset tokens with the same single-use and expiry rules.
+- REST API authentication uses short-lived JWT access tokens and rotated refresh tokens. Bind refresh sessions to a user/device record; revoke on logout or security events.
+- Redis stores revoked access-token `jti` values until their original expiry when immediate logout is required. A missing Redis connection must not silently bypass an enforced revocation check.
+- Validate JWT issuer, signature, expiry, and token purpose. Never trust a role or tenant ID merely because it appears in a client request.
+- Apply endpoint authorization and service-level ownership checks. Rate-limit login, reset, invite, AI, and public verification endpoints.
+- Keep secrets out of the repository and logs. Use environment variables and secret management in deployment.
+- Audit role changes, assessment publishing, score overrides, certificate actions, and billing transitions.
+
+## 9. AI design
+
+Expose AI through a small internal interface such as `AiService`, with provider-specific configuration. Select a provider per use case, not per individual request:
+
+- Local development: Ollama can handle both use cases with `OLLAMA_BASE_URL` and an explicitly selected model.
+- Cloud demo: Gemini handles instructor question drafts; Groq handles short Academy tutor explanations. Official scoring never calls either model.
+
+Use provider-specific variables such as `GROQ_API_KEY` and `GEMINI_API_KEY`; an Ollama endpoint uses a base URL. Start with two bounded use cases: instructor question drafting and post-attempt AI Tutor explanations. AI Tutor must not reveal answers during an active assessment. Include usage limits per organization, input/output length limits, timeouts, logging without secrets, and a graceful unavailable state. Validate structured question output before saving it as a draft. Never place AI-generated questions directly into a published assessment. The Atlas Free cluster is a hard 0.5 GB limit including indexes: do not persist full AI request/response logs by default, keep any future tutor history short with TTL, and monitor logical storage before it approaches the limit. No paid cloud tier is enabled by application code.
+
+## 10. Email and messaging
+
+Email is a product feature, not only a registration detail. Initial templates: verify email and reset password. Later: organization invitation, assessment invitation/reminder, result released, certificate issued, and billing notices.
+
+Implement `EmailSender` so a local test sender and a production provider can be swapped. Create email jobs when an event occurs, then send asynchronously with retries and delivery status. Never use email delivery success as the sole source of truth for an assessment or payment state.
+
+Teacher–student messaging belongs to Academy. Store conversations/messages in MongoDB, require tenant and participant access checks, and start with REST endpoints plus periodic frontend refresh. WebSocket can be added when real-time delivery is actually needed. AI Tutor conversations are separate from human messaging and have their own usage and retention rules.
+
+## 11. Billing and entitlements
+
+The product can begin with manually assigned plans so the assessment engine can be completed first. Plans grant explicit features and quotas: Academy, Talent, AI usage, active assessments, invitations, certificate issuance, and retention. Check entitlements on the server, not just in the UI.
+
+When Stripe is added, use test mode first. Store Stripe customer/subscription IDs and verified webhook event IDs. Verify the webhook signature with `STRIPE_WEBHOOK_SECRET`, process events idempotently, and update subscription state from webhook events. A successful browser checkout redirect is not proof of payment.
+
+## 12. Configuration
+
+Read connection strings and secrets from environment variables. Provide an `.env.example` containing names and non-secret examples only; do not commit a real `.env` file.
+
+| Variable | Use |
+| --- | --- |
+| `MONGODB_URI` | MongoDB Atlas or local connection URI, including database name. |
+| `REDIS_HOST`, `REDIS_PORT` | Redis connection for local or cloud deployment; add username/password/TLS variables as required by the chosen host. |
+| `JWT_SECRET` | Strong signing secret for the selected HMAC algorithm. |
+| `AI_PROVIDER` | `none`, `ollama`, or `google-genai` for question drafts; `ollama` also supports local tutor testing. |
+| `AI_TUTOR_PROVIDER` | Optional tutor override: `groq` for cloud demo, or `ollama` locally. |
+| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Local AI configuration. |
+| `GROQ_API_KEY`, `GROQ_BASE_URL`, `GROQ_MODEL` | Groq configuration when selected. |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Gemini configuration when selected. |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | SMTP configuration when mail delivery is enabled. |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe test/live credentials when billing is implemented. |
+| `APP_PUBLIC_BASE_URL` | Origin used in email and certificate links. |
+
+Use local, test, and production profiles for behavior and infrastructure settings. Fail startup for missing secrets required by an enabled feature; allow disabled future features to remain unconfigured. Do not hardcode Atlas, Redis, SMTP, AI, or Stripe credentials.
+
+## 13. API and frontend conventions
+
+Use versioned endpoints under `/api/v1`. A representative shape is:
+
+```text
+POST   /api/v1/auth/register
+POST   /api/v1/auth/verify-email
+POST   /api/v1/auth/login
+POST   /api/v1/auth/refresh
+POST   /api/v1/organizations
+GET    /api/v1/organizations/{orgId}/assessments
+POST   /api/v1/organizations/{orgId}/assessments
+POST   /api/v1/organizations/{orgId}/assessments/{id}/publish
+POST   /api/v1/attempts/{assignmentId}/start
+PUT    /api/v1/attempts/{attemptId}/answers/{questionId}
+POST   /api/v1/attempts/{attemptId}/submit
+GET    /api/v1/attempts/{attemptId}/result
+GET    /api/v1/public/certificates/{verificationCode}
+POST   /api/v1/billing/stripe/webhook
+```
+
+The organization path is context, not authorization: verify membership and scope every query. Use validation, consistent error responses, pagination for lists, and server-generated timestamps. The frontend should consume the same API that an external client could use. Same-origin static pages are acceptable initially and simplify the first deployment.
+
+## 14. Build sequence and acceptance gates
+
+1. **Foundation:** Inspect existing code; establish package layout, profiles, Mongo connection, validation, global errors, health check, Git ignore rules, and test setup. Prove a small Mongo save/read works in a non-production environment.
+2. **Identity and tenants:** Register, email verification, login/refresh/logout, organizations, memberships, roles, and tenant isolation tests.
+3. **Assessment engine:** Question bank, draft/publish flow, immutable versions, assignment/invitation, timed attempt, answer saving, deterministic scoring, result release.
+4. **Academy:** Courses/batches, weak-topic report, feedback, certificate issue/verify, instructor–learner messaging, AI Tutor.
+5. **Talent:** Campaigns, candidate invites, review notes, comparison, shortlist, integrity review.
+6. **SaaS operations:** Redis cache/rate limits/revocation, plan entitlements, Stripe test-mode billing, email expansion, deployment, observability.
+
+At each phase, implement one vertical workflow end to end, add tests for business rules and cross-tenant access, run the relevant build/tests, and document how to try it. Do not claim completion from a successful application startup alone.
+
+## 15. Engineering rules for implementation agents
+
+- Inspect the repository and any `AGENTS.md` before changing code. Preserve existing user work and conventions unless there is a clear reason to change them.
+- Keep the single-application architecture and REST-first boundary.
+- Never expose answer keys in candidate-facing payloads before result release.
+- Never rely on the browser timer, browser role checks, or browser payment status for server decisions.
+- Keep current work small enough to compile and verify. Explain changed files, tests, and unresolved dependencies at handoff.
+- Keep configuration examples free of real secrets. Do not print credentials or connection URIs in logs or chat.
+- Record new product decisions in this document so future agents have durable context.
+
+## Phase 1 implementation decisions
+
+- Foundation code lives under `shared`; other domain packages appear when their first workflow is implemented.
+- `/api/v1/health` is application liveness. Actuator health includes MongoDB readiness; the local `mongo-smoke` profile performs an opt-in temporary save/read/delete check.
+- Until identity and tenant authorization are implemented in Phase 2, all API paths except health are closed. No temporary application user or password is created.
