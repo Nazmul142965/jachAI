@@ -70,6 +70,7 @@ class AttemptServiceTests {
         assertEquals("q1", view.questions().getFirst().id());
         assertFalse(new ObjectMapper().findAndRegisterModules()
                 .writeValueAsString(view).contains("correctOptionIds"));
+        assertEquals(Map.of(), view.savedAnswers());
         verify(attempts).insert(any(Attempt.class));
     }
 
@@ -151,5 +152,52 @@ class AttemptServiceTests {
         assertNull(view.passed());
         assertNull(view.percentage());
         assertEquals(List.of(), view.topics());
+    }
+
+    @Test
+    void learnerCannotListAttemptsForAnotherUsersAssignment() {
+        ApiException error = assertThrows(ApiException.class,
+                () -> service().myAttempts("learner", "org-a", "foreign-assignment"));
+
+        assertEquals("NOT_FOUND", error.code());
+        verify(assignments).findByIdAndOrganizationIdAndAssignedUserId(
+                "foreign-assignment", "org-a", "learner");
+    }
+
+    @Test
+    void learnerCanFindPreviousAttemptsForOwnAssignment() {
+        Instant now = Instant.now();
+        when(assignments.findByIdAndOrganizationIdAndAssignedUserId("assignment", "org-a", "learner"))
+                .thenReturn(Optional.of(new Assignment("assignment", "org-a", "assessment",
+                        "assessment:1", "learner", 2, now.minusSeconds(60), now.plusSeconds(900), now)));
+        Attempt finished = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(40), now.plusSeconds(20), AttemptStatus.SUBMITTED,
+                Map.of("q1", Set.of("a")), now, 100, true, now, 1L);
+        when(attempts.findByAssignmentIdAndOrganizationIdAndUserId("assignment", "org-a", "learner"))
+                .thenReturn(List.of(finished));
+
+        var result = service().myAttempts("learner", "org-a", "assignment");
+
+        assertEquals("attempt", result.getFirst().id());
+        assertEquals(AttemptStatus.SUBMITTED, result.getFirst().status());
+    }
+
+    @Test
+    void resumedAttemptIncludesOwnSavedAnswersWithoutKey() {
+        Instant now = Instant.now();
+        when(assignments.findByIdAndOrganizationIdAndAssignedUserId("assignment", "org-a", "learner"))
+                .thenReturn(Optional.of(new Assignment("assignment", "org-a", "assessment",
+                        "assessment:1", "learner", 2, now.minusSeconds(60), now.plusSeconds(900), now)));
+        Attempt inProgress = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(30), now.plusSeconds(600), AttemptStatus.IN_PROGRESS,
+                Map.of("q1", Set.of("b")), null, null, null, null, 1L);
+        when(attempts.findByAssignmentIdAndOrganizationIdAndUserId("assignment", "org-a", "learner"))
+                .thenReturn(List.of(inProgress));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version());
+
+        AttemptView result = service().start("learner", "org-a", "assignment");
+
+        assertEquals(Set.of("b"), result.savedAnswers().get("q1"));
+        assertFalse(result.questions().getFirst().options().getFirst().text().contains("correctOptionIds"));
     }
 }

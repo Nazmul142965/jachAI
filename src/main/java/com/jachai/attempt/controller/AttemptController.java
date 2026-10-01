@@ -1,6 +1,7 @@
 package com.jachai.attempt.controller;
 
 import com.jachai.attempt.dto.AttemptView;
+import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.dto.SaveAnswerRequest;
 import com.jachai.attempt.model.Assignment;
@@ -29,6 +30,12 @@ public class AttemptController {
     @GetMapping("/assignments/mine")
     public List<Assignment> mine(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId) {
         return attempts.myAssignments(jwt.getSubject(), organizationId);
+    }
+
+    @GetMapping("/assignments/{assignmentId}/attempts/mine")
+    public List<AttemptSummary> myAttempts(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String assignmentId) {
+        return attempts.myAttempts(jwt.getSubject(), organizationId, assignmentId);
     }
 
     @PostMapping("/assignments/{assignmentId}/attempts")

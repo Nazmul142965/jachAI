@@ -4,6 +4,7 @@ import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.dto.AttemptView;
+import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
@@ -45,6 +46,14 @@ public class AttemptService {
     public List<Assignment> myAssignments(String userId, String organizationId) {
         requireParticipant(userId, organizationId);
         return assignments.findByOrganizationIdAndAssignedUserId(organizationId, userId);
+    }
+
+    public List<AttemptSummary> myAttempts(String userId, String organizationId, String assignmentId) {
+        requireParticipant(userId, organizationId);
+        ownAssignment(userId, organizationId, assignmentId);
+        return attempts.findByAssignmentIdAndOrganizationIdAndUserId(assignmentId, organizationId, userId)
+                .stream().sorted(Comparator.comparingInt(Attempt::attemptNumber))
+                .map(AttemptSummary::from).toList();
     }
 
     public AttemptView start(String userId, String organizationId, String assignmentId) {
