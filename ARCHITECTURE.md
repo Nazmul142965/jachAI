@@ -228,3 +228,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Phase 3 implementation decisions
 
 - Each assessment has a result-release policy (`IMMEDIATE` by default for compatibility, or `MANUAL`) frozen in its published version. Under `MANUAL`, submit is still final and server-scored, but candidate-facing score, pass state, and topic breakdown remain hidden until staff explicitly releases that attempt. Academy tutoring also waits for manual release. A later organization-wide policy setting may override the authoring default; changing existing published versions is not allowed.
+
+## Phase 4 implementation decisions
+
+- An Academy instructor or organization admin issues one certificate per passing, released attempt. Issue is idempotent; revocation is terminal for that attempt, so it cannot mint a fresh valid code afterward. Learners can list their own certificates. Public verification exposes organization/assessment names and issue/revocation dates, not learner identifiers. Email delivery, audit trail, public rate limits, and UI are separate required work before production.

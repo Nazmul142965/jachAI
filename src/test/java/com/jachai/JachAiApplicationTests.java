@@ -23,6 +23,10 @@ import com.jachai.attempt.service.AttemptService;
 import com.jachai.organization.service.MembershipService;
 import com.jachai.ai.service.QuestionDraftService;
 import com.jachai.ai.service.TutorService;
+import com.jachai.academy.service.CertificateService;
+import com.jachai.academy.dto.CertificateVerificationView;
+import static org.mockito.Mockito.when;
+import java.time.Instant;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -40,6 +44,7 @@ class JachAiApplicationTests {
     @MockitoBean MembershipService membershipService;
     @MockitoBean QuestionDraftService questionDraftService;
     @MockitoBean TutorService tutorService;
+    @MockitoBean CertificateService certificateService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
@@ -67,6 +72,18 @@ class JachAiApplicationTests {
                         .contentType("application/json")
                         .content("{\"email\":\"not-an-email\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void certificateVerificationIsPublicAndContainsOnlyVerificationData() throws Exception {
+        when(certificateService.verify("public-code")).thenReturn(new CertificateVerificationView(
+                "public-code", true, "Example Academy", "Java Basics", Instant.now(), null));
+
+        mvc.perform(get("/api/v1/public/certificates/public-code"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true))
+                .andExpect(jsonPath("$.assessmentTitle").value("Java Basics"))
+                .andExpect(jsonPath("$.learnerUserId").doesNotExist());
     }
 
 }

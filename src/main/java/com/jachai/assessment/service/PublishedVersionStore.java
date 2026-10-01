@@ -12,7 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-/** Only published, immutable snapshots are cached. Authorization happens before this lookup. */
+/** Only published, immutable snapshots are cached. Callers enforce their own access policy. */
 @Service
 public class PublishedVersionStore {
     private static final Duration TTL = Duration.ofHours(6);
