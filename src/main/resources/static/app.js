@@ -1,6 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
-  questions: [], assessments: [], campaigns: [], academyCourses: [], academyBatches: [],
+  questions: [], campaigns: [], academyCourses: [], academyBatches: [],
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
   selectedQuestionIds: new Set(),
   timer: null, activeConversationId: null, messageRefresh: null,
@@ -187,12 +187,17 @@ async function showView(key) {
   if (key === 'members') await loadMembers();
   if (key === 'questions') await loadQuestions();
   if (key === 'assessments') {
-    await loadApprovedQuestions(); await loadAssessments(); await loadReviewQueue(0);
+    await loadApprovedQuestions(); await loadAssessments();
+    await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
+    await loadReviewQueue(0);
     await loadOrganizationSettings();
   }
   if (key === 'academy') await loadAcademyCatalog();
   if (key === 'messages') await loadMessaging();
-  if (key === 'campaigns') { await loadAssessments(); await loadCampaigns(); await loadTalentCandidates(); }
+  if (key === 'campaigns') {
+    await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
+    await loadCampaigns(); await loadTalentCandidates();
+  }
   if (key === 'attempts') await loadAssignments();
   if (key === 'certificates') await loadCertificates();
 }
@@ -359,20 +364,27 @@ async function loadApprovedQuestions(pageNumber = 0) {
 function updateSelectedQuestionCount() {
   $('#selected-question-count').textContent = `${state.selectedQuestionIds.size} selected (maximum 100)`;
 }
-async function loadAssessments() {
-  state.assessments = await request(ownOrg('/assessments'));
-  setList('#assessments-list', state.assessments.map((assessment) => item(assessment.title,
+async function loadAssessments(pageNumber = 0) {
+  const page = await request(ownOrg(`/assessments?page=${pageNumber}`));
+  setList('#assessments-list', (page.content || []).map((assessment) => item(assessment.title,
     `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
     assessment.status === 'DRAFT' ? [button('Publish', async () => {
       await request(ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/publish`), { method: 'POST' });
-      notice('Assessment published.'); await loadAssessments();
+      notice('Assessment published.'); await loadAssessments(page.number);
+      await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
     })] : [])), 'No assessments yet.');
-  const select = $('#assign-assessment');
-  select.replaceChildren(...state.assessments.filter((assessment) => assessment.status === 'PUBLISHED')
-    .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
-  const campaignSelect = $('#campaign-assessment');
-  campaignSelect.replaceChildren(...state.assessments.filter((assessment) => assessment.status === 'PUBLISHED')
-    .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
+  renderPageControls('#assessments-pagination', page, loadAssessments);
+}
+async function loadPublishedAssessments(selectSelector, paginationSelector, pageNumber = 0) {
+  const page = await request(ownOrg(`/assessments?status=PUBLISHED&page=${pageNumber}`));
+  const select = $(selectSelector);
+  const previousSelection = select.value;
+  select.replaceChildren(...(page.content || []).map((assessment) => {
+    const option = node('option', assessment.title); option.value = assessment.id; return option;
+  }));
+  if ([...select.options].some((option) => option.value === previousSelection)) select.value = previousSelection;
+  renderPageControls(paginationSelector, page,
+    (nextPage) => loadPublishedAssessments(selectSelector, paginationSelector, nextPage));
 }
 async function loadReviewQueue(pageNumber) {
   const page = await request(ownOrg(`/attempts/review/pending?page=${pageNumber}`));
@@ -663,10 +675,7 @@ async function loadAcademyCatalog() {
     await loadMyBatches();
     return;
   }
-  await loadAssessments();
-  $('#batch-assessment-select').replaceChildren(...state.assessments
-    .filter((assessment) => assessment.status === 'PUBLISHED')
-    .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
+  await loadPublishedAssessments('#batch-assessment-select', '#batch-assessment-select-pagination');
   await loadAcademyCourses();
 }
 

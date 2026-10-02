@@ -33,6 +33,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
 class AssessmentServiceTests {
@@ -46,6 +49,32 @@ class AssessmentServiceTests {
     private AssessmentService service() {
         return new AssessmentService(assessments, versions, questions, access, entitlements,
                 organizationSettings);
+    }
+
+    @Test
+    void assessmentDirectoryReadsOnlyRequestedTenantPage() {
+        var pageable = PageRequest.of(2, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        when(assessments.findByOrganizationId("org-a", pageable))
+                .thenReturn(new PageImpl<Assessment>(List.of(), pageable, 41));
+
+        var result = service().list("teacher", "org-a", null, pageable);
+
+        assertEquals(2, result.getNumber());
+        assertEquals(3, result.getTotalPages());
+        verify(assessments).findByOrganizationId("org-a", pageable);
+    }
+
+    @Test
+    void publishedAssessmentSelectorIsTenantScopedAndStatusFiltered() {
+        var pageable = PageRequest.of(1, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        when(assessments.findByOrganizationIdAndStatus("org-b", AssessmentStatus.PUBLISHED, pageable))
+                .thenReturn(new PageImpl<Assessment>(List.of(), pageable, 21));
+
+        var result = service().list("recruiter", "org-b", AssessmentStatus.PUBLISHED, pageable);
+
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getTotalPages());
+        verify(assessments).findByOrganizationIdAndStatus("org-b", AssessmentStatus.PUBLISHED, pageable);
     }
 
     @Test

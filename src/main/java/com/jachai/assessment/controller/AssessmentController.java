@@ -2,10 +2,16 @@ package com.jachai.assessment.controller;
 
 import com.jachai.assessment.dto.CreateAssessmentRequest;
 import com.jachai.assessment.model.Assessment;
+import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.service.AssessmentService;
 import jakarta.validation.Valid;
-import java.util.List;
 import java.util.Map;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Validated
 @RequestMapping("/api/v1/organizations/{organizationId}/assessments")
 public class AssessmentController {
     private final AssessmentService assessments;
@@ -25,8 +32,11 @@ public class AssessmentController {
     public AssessmentController(AssessmentService assessments) { this.assessments = assessments; }
 
     @GetMapping
-    public List<Assessment> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId) {
-        return assessments.list(jwt.getSubject(), organizationId);
+    public Page<Assessment> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(required = false) AssessmentStatus status) {
+        return assessments.list(jwt.getSubject(), organizationId, status,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
     }
 
     @PostMapping

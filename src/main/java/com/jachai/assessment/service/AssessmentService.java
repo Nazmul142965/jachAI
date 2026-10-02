@@ -21,6 +21,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -53,9 +55,11 @@ public class AssessmentService {
                 AssessmentStatus.DRAFT, 0, Instant.now(), null));
     }
 
-    public List<Assessment> list(String userId, String organizationId) {
+    public Page<Assessment> list(String userId, String organizationId,
+                                 AssessmentStatus status, Pageable pageable) {
         requireAuthor(userId, organizationId);
-        return assessments.findByOrganizationId(organizationId);
+        return status == null ? assessments.findByOrganizationId(organizationId, pageable)
+                : assessments.findByOrganizationIdAndStatus(organizationId, status, pageable);
     }
 
     public AssessmentVersion publish(String userId, String organizationId, String assessmentId) {
