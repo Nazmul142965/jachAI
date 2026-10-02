@@ -6,12 +6,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.auth.model.User;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.model.Assignment;
@@ -44,9 +49,17 @@ class AttemptServiceTests {
     @Mock AttemptRepository attempts;
     @Mock PublishedVersionStore versions;
     @Mock TenantAccessService access;
+    @Mock UserRepository users;
+    @Mock EmailSender emailSender;
 
     private AttemptService service() {
-        return new AttemptService(assignments, attempts, versions, access);
+        return new AttemptService(assignments, attempts, versions, access, users, emailSender,
+                "https://jachai.example/");
+    }
+
+    private void recipient() {
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner", "learner@example.com",
+                "Learner", null, true, false, 0, Instant.now())));
     }
 
     private AssessmentVersion version() {
@@ -87,6 +100,7 @@ class AttemptServiceTests {
                 .thenReturn(Optional.of(attempt));
         when(versions.get("org-a", "assessment:1")).thenReturn(version());
         when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        recipient();
 
         ResultView result = service().submit("learner", "org-a", "attempt");
 
@@ -95,6 +109,8 @@ class AttemptServiceTests {
         ArgumentCaptor<Attempt> saved = ArgumentCaptor.forClass(Attempt.class);
         verify(attempts).save(saved.capture());
         assertEquals(AttemptStatus.SUBMITTED, saved.getValue().status());
+        verify(emailSender).sendResultReleased("attempt", "learner@example.com", "Learner",
+                "https://jachai.example/");
     }
 
     @Test
@@ -125,12 +141,50 @@ class AttemptServiceTests {
         assertFalse(pending.released());
         assertNull(pending.percentage());
         assertEquals(List.of(), pending.topics());
+        verify(emailSender, never()).sendResultReleased(any(), any(), any(), any());
 
         Attempt submitted = attempt.submitted(Instant.now(), 100, true, false);
         when(attempts.findByIdAndOrganizationId("attempt", "org-a")).thenReturn(Optional.of(submitted));
+        recipient();
         ResultView released = service().releaseResult("teacher", "org-a", "attempt");
         assertEquals(100, released.percentage());
         assertEquals("Java", released.topics().getFirst().topic());
+        verify(emailSender).sendResultReleased("attempt", "learner@example.com", "Learner",
+                "https://jachai.example/");
+    }
+
+    @Test
+    void notificationFailureDoesNotUndoReleasedResult() {
+        Attempt submitted = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now().minusSeconds(60), Instant.now(), AttemptStatus.SUBMITTED,
+                Map.of(), Instant.now(), 0, false, null, 1L);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a")).thenReturn(Optional.of(submitted));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+        when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        recipient();
+        doThrow(new IllegalStateException("mail unavailable")).when(emailSender)
+                .sendResultReleased(any(), any(), any(), any());
+
+        ResultView released = service().releaseResult("teacher", "org-a", "attempt");
+
+        assertEquals(true, released.released());
+        verify(attempts).save(any(Attempt.class));
+    }
+
+    @Test
+    void repeatedReleaseRetriesNotificationWithoutChangingResult() {
+        Instant now = Instant.now();
+        Attempt released = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(60), now, AttemptStatus.SUBMITTED, Map.of(), now, 80, true, now, 2L);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a")).thenReturn(Optional.of(released));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+        recipient();
+
+        assertEquals(true, service().releaseResult("teacher", "org-a", "attempt").released());
+
+        verify(attempts, never()).save(any(Attempt.class));
+        verify(emailSender).sendResultReleased("attempt", "learner@example.com", "Learner",
+                "https://jachai.example/");
     }
 
     @Test

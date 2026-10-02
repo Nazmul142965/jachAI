@@ -42,6 +42,8 @@ $env:MONGODB_URI = 'mongodb://localhost:27017/jachai_local'
 
 `GET /api/v1/health` checks app liveness only. `GET /actuator/health/liveness` is the Actuator liveness probe; `GET /actuator/health/readiness` checks MongoDB and Redis in the production profile. To perform an opt-in MongoDB save/read/delete check, use the `local,mongo-smoke` profiles. Deployment prerequisites and remaining release gates are in [DEPLOYMENT.md](DEPLOYMENT.md).
 
+When a learner or candidate's assessment result becomes visible, an email job sends a sign-in link and directs them to “My assessments.” It does not reveal the score in email. Manual-release assessments send this only after staff release the result; automatic-release assessments send it after submission. The outbox uses one durable job per attempt and rechecks result visibility and the current recipient address before delivery. SMTP delivery has not been verified live.
+
 Open `/` for the dashboard. Spring MVC renders the HTML templates; API controllers remain REST-only. The browser keeps access/refresh tokens in memory, so a page reload signs you out. The dashboard is an early workflow UI, not a production-complete frontend.
 
 For Redis caching, set `REDIS_HOST`, `REDIS_PORT`, and `CACHE_ENABLED=true`. For Gemini drafts, set `AI_PROVIDER=google-genai` and `GEMINI_API_KEY`. For Groq tutoring as well, set `AI_TUTOR_PROVIDER=groq` and `GROQ_API_KEY`. For local Ollama instead, set `AI_PROVIDER=ollama`, `AI_TUTOR_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`. AI operations also need Redis for quotas. Provider models and Groq base URL are configurable; see `.env.example`. Do not enable cloud billing just to run this project.

@@ -9,4 +9,5 @@ public interface EmailSender {
                                   String campaignTitle, String invitationUrl, Instant expiresAt);
     void sendCertificateIssued(String certificateId, String recipient, String displayName,
                                String verificationUrl);
+    void sendResultReleased(String attemptId, String recipient, String displayName, String signInUrl);
 }

@@ -13,12 +13,16 @@ import com.jachai.auth.model.User;
 import com.jachai.academy.repository.CertificateRepository;
 import com.jachai.academy.model.Certificate;
 import com.jachai.academy.model.CertificateStatus;
+import com.jachai.attempt.model.Attempt;
+import com.jachai.attempt.model.AttemptStatus;
+import com.jachai.attempt.repository.AttemptRepository;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.talent.model.CampaignEmailInvitation;
 import com.jachai.talent.repository.CampaignEmailInvitationRepository;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -30,10 +34,11 @@ class EmailLinkGuardTests {
     @Mock PasswordResetTokenRepository resetTokens;
     @Mock CampaignEmailInvitationRepository invitations;
     @Mock CertificateRepository certificates;
+    @Mock AttemptRepository attempts;
     @Mock UserRepository users;
 
     private EmailLinkGuard guard() {
-        return new EmailLinkGuard(verificationTokens, resetTokens, invitations, certificates, users);
+        return new EmailLinkGuard(verificationTokens, resetTokens, invitations, certificates, attempts, users);
     }
 
     @Test
@@ -88,5 +93,36 @@ class EmailLinkGuardTests {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
                 "other@example.com", "Learner", null, "https://example.test/certificates/code",
                 Instant.now().plusSeconds(3600), "cert")));
+    }
+
+    @Test
+    void resultEmailRequiresReleasedAttemptAndCurrentRecipient() {
+        Instant now = Instant.now();
+        Attempt released = new Attempt("attempt", "org", "assignment", "version", "learner", 1,
+                now.minusSeconds(60), now, AttemptStatus.SUBMITTED, Map.of(), now, 80, true, now, 1L);
+        when(attempts.findById("attempt")).thenReturn(Optional.of(released));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
+                "learner@example.com", "Learner", null, true, false, 0, now)));
+
+        assertTrue(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
+                "learner@example.com", "Learner", null, "https://example.test/",
+                now.plusSeconds(3600), "attempt")));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
+                "other@example.com", "Learner", null, "https://example.test/",
+                now.plusSeconds(3600), "attempt")));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
+                "learner@example.com", "Learner", null, "https://example.test/other",
+                now.plusSeconds(3600), "attempt")));
+    }
+
+    @Test
+    void pendingResultEmailIsNotDelivered() {
+        Instant now = Instant.now();
+        when(attempts.findById("attempt")).thenReturn(Optional.of(new Attempt("attempt", "org",
+                "assignment", "version", "learner", 1, now.minusSeconds(60), now,
+                AttemptStatus.SUBMITTED, Map.of(), now, 80, true, null, 1L)));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
+                "learner@example.com", "Learner", null, "https://example.test/",
+                now.plusSeconds(3600), "attempt")));
     }
 }

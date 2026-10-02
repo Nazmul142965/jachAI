@@ -52,6 +52,18 @@ public class QueuedEmailSender implements EmailSender {
         }
     }
 
+    @Override
+    public void sendResultReleased(String attemptId, String recipient, String displayName, String signInUrl) {
+        EmailPayload payload = new EmailPayload(EmailJobType.RESULT_RELEASED,
+                recipient, displayName, null, signInUrl,
+                Instant.now().plus(Duration.ofDays(7)), attemptId);
+        try {
+            enqueue("result-released:" + attemptId, payload, null);
+        } catch (DuplicateKeyException ignored) {
+            // A released attempt has only one notification, even after retries.
+        }
+    }
+
     private void enqueue(EmailPayload payload) {
         enqueue(UUID.randomUUID().toString(), payload, Instant.now().plus(RECORD_RETENTION));
     }

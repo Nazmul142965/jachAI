@@ -3,6 +3,8 @@ package com.jachai.attempt.service;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
@@ -24,6 +26,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.LinkedHashMap;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -33,18 +37,27 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class AttemptService {
     private final AssignmentRepository assignments;
     private final AttemptRepository attempts;
     private final PublishedVersionStore versions;
     private final TenantAccessService access;
+    private final UserRepository users;
+    private final EmailSender emailSender;
+    private final String publicBaseUrl;
 
     public AttemptService(AssignmentRepository assignments, AttemptRepository attempts,
-                          PublishedVersionStore versions, TenantAccessService access) {
+                          PublishedVersionStore versions, TenantAccessService access,
+                          UserRepository users, EmailSender emailSender,
+                          @Value("${app.public-base-url}") String publicBaseUrl) {
         this.assignments = assignments;
         this.attempts = attempts;
         this.versions = versions;
         this.access = access;
+        this.users = users;
+        this.emailSender = emailSender;
+        this.publicBaseUrl = publicBaseUrl;
     }
 
     public List<Assignment> myAssignments(String userId, String organizationId) {
@@ -125,6 +138,7 @@ public class AttemptService {
         requireParticipant(userId, organizationId);
         Attempt attempt = ownAttempt(userId, organizationId, attemptId);
         if (attempt.status() == AttemptStatus.SUBMITTED) {
+            queueReleasedEmail(attempt);
             return result(attempt, version(organizationId, attempt.assessmentVersionId()));
         }
         AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
@@ -150,10 +164,13 @@ public class AttemptService {
         }
         AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
         if (attempt.resultReleasedAt() != null) {
+            queueReleasedEmail(attempt);
             return result(attempt, version);
         }
         try {
-            return result(attempts.save(attempt.releaseResult(Instant.now())), version);
+            Attempt released = attempts.save(attempt.releaseResult(Instant.now()));
+            queueReleasedEmail(released);
+            return result(released, version);
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "RELEASE_CONFLICT", "Result changed concurrently; reload it");
         }
@@ -183,9 +200,24 @@ public class AttemptService {
         Attempt submitted = attempt.submitted(now, percentage, percentage >= version.passingPercentage(),
                 version.resultReleasePolicy() != ResultReleasePolicy.MANUAL);
         try {
-            return attempts.save(submitted);
+            Attempt saved = attempts.save(submitted);
+            queueReleasedEmail(saved);
+            return saved;
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "SUBMIT_CONFLICT", "Attempt changed concurrently; reload result");
+        }
+    }
+
+    private void queueReleasedEmail(Attempt attempt) {
+        if (attempt.resultReleasedAt() == null) return;
+        try {
+            users.findById(attempt.userId()).ifPresent(user ->
+                    emailSender.sendResultReleased(attempt.id(), user.email(), user.displayName(),
+                            publicBaseUrl.replaceAll("/+$", "") + "/"));
+        } catch (RuntimeException exception) {
+            // The released result remains authoritative; a submit/release retry repairs the notification.
+            log.warn("Result email enqueue failed for attempt {}: {}",
+                    attempt.id(), exception.getClass().getSimpleName());
         }
     }
 

@@ -49,6 +49,12 @@ final class SmtpEmailSender implements EmailTransport {
                         + ",\n\nYour certificate has been issued. View and verify it here:\n"
                         + payload.url() + "\n\nIf you did not expect this message, contact your institute.");
             }
+            case RESULT_RELEASED -> {
+                mail.setSubject("Your JachAI assessment result is available");
+                mail.setText("Hello " + payload.displayName()
+                        + ",\n\nYour assessment result is available. Sign in and open My assessments to view it:\n"
+                        + payload.url() + "\n\nIf you did not expect this message, contact your organization.");
+            }
         }
         mailSender.send(mail);
     }

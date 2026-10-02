@@ -5,6 +5,8 @@ import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.academy.model.CertificateStatus;
 import com.jachai.academy.repository.CertificateRepository;
+import com.jachai.attempt.model.AttemptStatus;
+import com.jachai.attempt.repository.AttemptRepository;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.talent.repository.CampaignEmailInvitationRepository;
@@ -27,11 +29,15 @@ public class EmailLinkGuard {
     private final PasswordResetTokenRepository resetTokens;
     private final CampaignEmailInvitationRepository invitations;
     private final CertificateRepository certificates;
+    private final AttemptRepository attempts;
     private final UserRepository users;
 
     public boolean isCurrent(EmailPayload payload) {
         if (payload.type() == EmailJobType.CERTIFICATE_ISSUED) {
             return currentCertificate(payload);
+        }
+        if (payload.type() == EmailJobType.RESULT_RELEASED) {
+            return currentResult(payload);
         }
         String token = tokenFrom(payload.url(),
                 payload.type() == EmailJobType.ASSESSMENT_INVITATION
@@ -47,7 +53,24 @@ public class EmailLinkGuard {
             case ASSESSMENT_INVITATION -> invitations.findByTokenHash(hash)
                     .filter(value -> value.acceptedAt() == null && value.expiresAt().isAfter(now)).isPresent();
             case CERTIFICATE_ISSUED -> false;
+            case RESULT_RELEASED -> false;
         };
+    }
+
+    private boolean currentResult(EmailPayload payload) {
+        if (payload.resourceId() == null) return false;
+        try {
+            URI url = URI.create(payload.url());
+            if (!"/".equals(url.getPath()) || url.getQuery() != null) return false;
+            return attempts.findById(payload.resourceId())
+                    .filter(attempt -> attempt.status() == AttemptStatus.SUBMITTED
+                            && attempt.resultReleasedAt() != null)
+                    .flatMap(attempt -> users.findById(attempt.userId()))
+                    .filter(user -> user.email().equalsIgnoreCase(payload.recipient()))
+                    .isPresent();
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private boolean currentCertificate(EmailPayload payload) {

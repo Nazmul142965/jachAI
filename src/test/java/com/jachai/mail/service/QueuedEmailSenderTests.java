@@ -70,4 +70,28 @@ class QueuedEmailSenderTests {
         new QueuedEmailSender(jobs, cipher).sendCertificateIssued("cert-1", "learner@example.com",
                 "Learner", "https://example.test/certificates/code");
     }
+
+    @Test
+    void resultEmailUsesPermanentDeterministicJobId() {
+        when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
+        new QueuedEmailSender(jobs, cipher).sendResultReleased("attempt-1", "learner@example.com",
+                "Learner", "https://example.test/");
+
+        ArgumentCaptor<EmailPayload> payload = ArgumentCaptor.forClass(EmailPayload.class);
+        verify(cipher).seal(org.mockito.ArgumentMatchers.eq("result-released:attempt-1"), payload.capture());
+        assertEquals(EmailJobType.RESULT_RELEASED, payload.getValue().type());
+        assertEquals("attempt-1", payload.getValue().resourceId());
+        ArgumentCaptor<EmailJob> job = ArgumentCaptor.forClass(EmailJob.class);
+        verify(jobs).insert(job.capture());
+        assertEquals(null, job.getValue().expiresAt());
+    }
+
+    @Test
+    void repeatedResultEmailIgnoresExistingJob() {
+        when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
+        doThrow(new DuplicateKeyException("already queued")).when(jobs).insert(any(EmailJob.class));
+
+        new QueuedEmailSender(jobs, cipher).sendResultReleased("attempt-1", "learner@example.com",
+                "Learner", "https://example.test/");
+    }
 }
