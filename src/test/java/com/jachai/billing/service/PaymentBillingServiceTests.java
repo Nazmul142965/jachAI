@@ -122,6 +122,41 @@ class PaymentBillingServiceTests {
     }
 
     @Test
+    void reconciliationCannotReadAnotherOrganizationsOrder() {
+        when(orders.findByIdAndOrganizationId(ORDER_ID, "other-org")).thenReturn(Optional.empty());
+
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().reconcile("admin", "other-org", ORDER_ID)).code());
+        verify(access).requireRole("admin", "other-org", OrganizationRole.ORG_ADMIN);
+        verify(orders, never()).findById(ORDER_ID);
+    }
+
+    @Test
+    void sslCheckoutCannotBeGrantedByAdminReconciliationWithoutGatewayReference() {
+        when(orders.findByIdAndOrganizationId(ORDER_ID, "org")).thenReturn(Optional.of(readyOrder()));
+
+        assertEquals("PAYMENT_NOT_VERIFIED", assertThrows(ApiException.class,
+                () -> service().reconcile("admin", "org", ORDER_ID)).code());
+        verify(subscriptions, never()).save(any(Subscription.class));
+    }
+
+    @Test
+    void adminCanRecoverCompletedBkashPaymentAfterLostBrowserCallback() {
+        PaymentOrder ready = new PaymentOrder(ORDER_ID, "org", "admin", PaymentProvider.BKASH,
+                PaymentOrderStatus.CHECKOUT_READY, new BigDecimal("100.00"), "payment12345",
+                null, null, Instant.now(), null, null, 1L);
+        when(orders.findByIdAndOrganizationId(ORDER_ID, "org")).thenReturn(Optional.of(ready));
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(ready));
+        when(bkash.verify(ready, "payment12345"))
+                .thenReturn(new BkashSandboxGateway.VerifiedPayment("payment12345", "trx123"));
+        when(orders.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertEquals(PaymentOrderStatus.APPLIED,
+                service().reconcile("admin", "org", ORDER_ID).status());
+        verify(subscriptions).save(any(Subscription.class));
+    }
+
+    @Test
     void verifiedSandboxPaymentAppliesOneTeamTermAndPersistsOrderHistory() {
         PaymentOrder ready = readyOrder();
         when(orders.findById(ORDER_ID)).thenReturn(Optional.of(ready));

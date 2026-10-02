@@ -195,7 +195,12 @@ async function loadEntitlements() {
   const payments = await request(ownOrg('/billing/orders?page=0'));
   setList('#payment-history', (payments.content || []).map((order) => item(
     `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
-    `${order.id} · ${new Date(order.createdAt).toLocaleString()}`)),
+    `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
+    (order.provider === 'BKASH' && order.status === 'CHECKOUT_READY') || order.status === 'VERIFIED'
+      ? [button('Check payment', async () => {
+          await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/reconcile`), { method: 'POST' });
+          await loadEntitlements();
+        })] : [])),
   'No demo transactions yet.');
 }
 function item(title, meta, actions = []) {

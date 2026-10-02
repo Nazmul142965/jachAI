@@ -59,4 +59,11 @@ public class PaymentBillingController {
                                   @PathVariable String orderId) {
         return billing.order(jwt.getSubject(), organizationId, orderId);
     }
+
+    @PostMapping("/orders/{orderId}/reconcile")
+    public PaymentOrderView reconcile(@AuthenticationPrincipal Jwt jwt,
+                                      @PathVariable String organizationId,
+                                      @PathVariable String orderId) {
+        return billing.reconcile(jwt.getSubject(), organizationId, orderId);
+    }
 }

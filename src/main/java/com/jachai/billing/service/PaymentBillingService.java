@@ -107,6 +107,24 @@ public class PaymentBillingService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Payment order not found"));
     }
 
+    public PaymentOrderView reconcile(String actorId, String organizationId, String orderId) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
+        PaymentOrder order = orders.findByIdAndOrganizationId(orderId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Payment order not found"));
+        if (order.status() == PaymentOrderStatus.APPLIED) return PaymentOrderView.from(order);
+        if (order.status() == PaymentOrderStatus.CREATED) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_READY", "Checkout has not started");
+        }
+        if (order.provider() == PaymentProvider.BKASH) {
+            return verifyBkashCallback(order.id(), order.gatewaySessionId());
+        }
+        if (order.status() == PaymentOrderStatus.VERIFIED) {
+            return verifySslCallback(order.id(), order.gatewayValidationId());
+        }
+        throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_VERIFIED",
+                "Waiting for a verified SSLCOMMERZ callback");
+    }
+
     public PaymentOrderView verifySslCallback(String orderId, String validationId) {
         return verifyCallback(orderId, validationId, PaymentProvider.SSLCOMMERZ);
     }
