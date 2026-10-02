@@ -2,6 +2,8 @@ package com.jachai.talent.service;
 
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.repository.AssignmentRepository;
+import com.jachai.billing.model.UsageMetric;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.EmailSender;
@@ -51,6 +53,7 @@ public class CampaignEmailInvitationService {
     private final UserRepository users;
     private final TenantAccessService access;
     private final EmailSender emailSender;
+    private final EntitlementService entitlements;
     @Value("${app.public-base-url}") private String publicBaseUrl;
 
     public EmailInvitationView invite(String actorId, String organizationId, String campaignId,
@@ -93,10 +96,16 @@ public class CampaignEmailInvitationService {
             throw new ApiException(HttpStatus.CONFLICT, "INVITATION_WINDOW_CHANGED",
                     "An invitation already exists with different availability; use its original window");
         }
+        String reservation = existing == null
+                ? entitlements.reserve(organizationId, UsageMetric.INVITATION) : null;
         try {
             invitation = existing == null ? invitations.insert(invitation) : invitations.save(invitation);
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
+            entitlements.refund(reservation);
             throw new ApiException(HttpStatus.CONFLICT, "INVITATION_CONFLICT", "Invitation changed concurrently; retry");
+        } catch (RuntimeException exception) {
+            entitlements.refund(reservation);
+            throw exception;
         }
         String url = publicBaseUrl + "/?invitation="
                 + URLEncoder.encode(rawToken, StandardCharsets.UTF_8);

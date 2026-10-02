@@ -14,6 +14,8 @@ import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.billing.model.UsageMetric;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
@@ -54,6 +56,7 @@ public class BatchAssessmentService {
     private final AttemptRepository attempts;
     private final OrganizationRepository organizations;
     private final TenantAccessService access;
+    private final EntitlementService entitlements;
 
     public BatchAssessmentView create(String actorId, String organizationId, String courseId,
                                       String batchId, CreateBatchAssessmentRequest request) {
@@ -153,19 +156,35 @@ public class BatchAssessmentService {
         Assignment assignment = new Assignment(id, assessment.organizationId(), assessment.assessmentId(),
                 assessment.assessmentVersionId(), null, assessment.id(), learnerUserId,
                 assessment.attemptsAllowed(), assessment.availableFrom(), assessment.availableUntil(), Instant.now());
+        Assignment present = assignments.findByIdAndOrganizationIdAndAssignedUserId(
+                id, assessment.organizationId(), learnerUserId).orElse(null);
+        if (present != null) {
+            verifyExisting(assessment, present);
+            return false;
+        }
+        String reservation = entitlements.reserve(assessment.organizationId(), UsageMetric.INVITATION);
         try {
             assignments.insert(assignment);
             return true;
         } catch (DuplicateKeyException exception) {
+            entitlements.refund(reservation);
             Assignment existing = assignments.findByIdAndOrganizationIdAndAssignedUserId(
                             id, assessment.organizationId(), learnerUserId)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "ASSIGNMENT_CONFLICT",
                             "Assignment ID is already in use"));
-            if (!assessment.id().equals(existing.batchAssessmentId())) {
-                throw new ApiException(HttpStatus.CONFLICT, "ASSIGNMENT_CONFLICT",
-                        "Assignment ID is already in use");
-            }
+            verifyExisting(assessment, existing);
             return false;
+        } catch (RuntimeException exception) {
+            entitlements.refund(reservation);
+            throw exception;
+        }
+    }
+
+    private void verifyExisting(BatchAssessment assessment, Assignment existing) {
+        if (!assessment.id().equals(existing.batchAssessmentId())
+                || !assessment.assessmentVersionId().equals(existing.assessmentVersionId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "ASSIGNMENT_CONFLICT",
+                    "Assignment ID is already in use");
         }
     }
 

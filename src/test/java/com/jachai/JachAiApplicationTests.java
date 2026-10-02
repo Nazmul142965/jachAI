@@ -35,6 +35,7 @@ import com.jachai.messaging.service.AcademyMessagingService;
 import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.talent.service.CampaignEmailInvitationService;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
@@ -67,6 +68,7 @@ class JachAiApplicationTests {
     @MockitoBean AcademyMessagingService academyMessagingService;
     @MockitoBean TalentCampaignService talentCampaignService;
     @MockitoBean CampaignEmailInvitationService campaignEmailInvitationService;
+    @MockitoBean EntitlementService entitlementService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
@@ -119,6 +121,12 @@ class JachAiApplicationTests {
     void emailInvitationAcceptanceRequiresAuthentication() throws Exception {
         mvc.perform(post("/api/v1/talent/email-invitations/accept")
                         .contentType("application/json").content("{\"token\":\"opaque\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void billingEntitlementsRequireAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/billing/entitlements"))
                 .andExpect(status().isUnauthorized());
     }
 

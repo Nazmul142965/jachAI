@@ -16,6 +16,7 @@ import com.jachai.academy.repository.CertificateRepository;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
@@ -40,9 +41,10 @@ class CertificateServiceTests {
     @Mock OrganizationRepository organizations;
     @Mock PublishedVersionStore versions;
     @Mock TenantAccessService access;
+    @Mock EntitlementService entitlements;
 
     private CertificateService service() {
-        return new CertificateService(certificates, attempts, organizations, versions, access);
+        return new CertificateService(certificates, attempts, organizations, versions, access, entitlements);
     }
 
     private Organization academy() {

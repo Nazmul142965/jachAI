@@ -125,6 +125,7 @@ async function setOrganization() {
     return;
   }
   const role = state.organization.myRole;
+  $('#plan-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#academy-feedback-panel').classList.toggle('hidden', state.organization.type !== 'ACADEMY');
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
   $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
@@ -160,6 +161,7 @@ async function showView(key) {
     certificates: 'Certificates' };
   $('#page-title').textContent = names[key];
   $('#page-subtitle').textContent = state.organization.name;
+  if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') await loadEntitlements();
   if (key === 'members') await loadMembers();
   if (key === 'questions') await loadQuestions();
   if (key === 'assessments') { await loadQuestions(); await loadAssessments(); }
@@ -168,6 +170,14 @@ async function showView(key) {
   if (key === 'campaigns') { await loadAssessments(); await loadCampaigns(); await loadTalentCandidates(); }
   if (key === 'attempts') await loadAssignments();
   if (key === 'certificates') await loadCertificates();
+}
+async function loadEntitlements() {
+  const plan = await request(ownOrg('/billing/entitlements'));
+  setList('#plan-details', [
+    item(`${plan.tier} plan`, `${state.organization.type} workspace · ${plan.retentionDays}-day message and telemetry retention`),
+    item('Assessments & invitations', `${plan.maxPublishedAssessments} published assessments · ${plan.monthlyInvitations} invitations per month`),
+    item('AI & certificates', `${plan.dailyUserAiRequests} AI requests per user/day · ${plan.monthlyCertificates} certificates per month`)
+  ], 'Plan details are unavailable.');
 }
 function item(title, meta, actions = []) {
   const wrapper = node('div', '', 'item');

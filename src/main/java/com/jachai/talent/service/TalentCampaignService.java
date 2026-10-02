@@ -3,6 +3,8 @@ package com.jachai.talent.service;
 import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.repository.AssessmentRepository;
+import com.jachai.billing.model.UsageMetric;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.dto.CreateAssignmentRequest;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
@@ -51,6 +53,7 @@ public class TalentCampaignService {
     private final AttemptRepository attempts;
     private final OrganizationRepository organizations;
     private final TenantAccessService access;
+    private final EntitlementService entitlements;
 
     public CampaignView create(String actorId, String organizationId, CreateCampaignRequest request) {
         requireTalentStaff(actorId, organizationId);
@@ -97,10 +100,15 @@ public class TalentCampaignService {
         Assignment assignment = new Assignment(assignmentId, organizationId, campaign.assessmentId(),
                 campaign.assessmentVersionId(), campaignId, null, request.userId(), request.attemptsAllowed(),
                 request.availableFrom(), request.availableUntil(), Instant.now());
+        String reservation = entitlements.reserve(organizationId, UsageMetric.INVITATION);
         try {
             return CampaignInviteView.from(assignments.insert(assignment));
         } catch (DuplicateKeyException exception) {
+            entitlements.refund(reservation);
             throw new ApiException(HttpStatus.CONFLICT, "ALREADY_INVITED", "Candidate is already invited to this campaign");
+        } catch (RuntimeException exception) {
+            entitlements.refund(reservation);
+            throw exception;
         }
     }
 

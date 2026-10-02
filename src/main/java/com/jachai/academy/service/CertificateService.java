@@ -8,6 +8,8 @@ import com.jachai.academy.repository.CertificateRepository;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.billing.model.UsageMetric;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
@@ -38,6 +40,7 @@ public class CertificateService {
     private final OrganizationRepository organizations;
     private final PublishedVersionStore versions;
     private final TenantAccessService access;
+    private final EntitlementService entitlements;
 
     public List<CertificateView> mine(String learnerId, String organizationId) {
         access.requireRole(learnerId, organizationId, OrganizationRole.LEARNER);
@@ -69,14 +72,19 @@ public class CertificateService {
                 attempt.userId(), attempt.id(), attempt.assessmentVersionId(),
                 Base64.getUrlEncoder().withoutPadding().encodeToString(token),
                 CertificateStatus.ISSUED, Instant.now(), null, null);
+        String reservation = entitlements.reserve(organizationId, UsageMetric.CERTIFICATE);
         try {
             return CertificateView.from(certificates.insert(certificate));
         } catch (DuplicateKeyException exception) {
+            entitlements.refund(reservation);
             return certificates.findByAttemptIdAndOrganizationId(attemptId, organizationId)
                     .filter(saved -> saved.status() == CertificateStatus.ISSUED)
                     .map(CertificateView::from)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "CERTIFICATE_CONFLICT",
                             "Certificate was created concurrently; retry"));
+        } catch (RuntimeException exception) {
+            entitlements.refund(reservation);
+            throw exception;
         }
     }
 

@@ -22,6 +22,7 @@ import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
@@ -59,12 +60,13 @@ class BatchAssessmentServiceTests {
     @Mock AttemptRepository attempts;
     @Mock OrganizationRepository organizations;
     @Mock TenantAccessService access;
+    @Mock EntitlementService entitlements;
     BatchAssessmentService service;
 
     @BeforeEach
     void setUp() {
         service = new BatchAssessmentService(batchAssessments, enrollments, batches, assessments,
-                versions, assignments, attempts, organizations, access);
+                versions, assignments, attempts, organizations, access, entitlements);
     }
 
     @Test
@@ -133,8 +135,6 @@ class BatchAssessmentServiceTests {
     void duplicateDistributionIsIdempotentWhenAssignmentMatches() {
         when(batchAssessments.findByOrganizationIdAndBatchId("org-a", "batch-a"))
                 .thenReturn(List.of(batchAssessment()));
-        when(assignments.insert(any(Assignment.class)))
-                .thenThrow(new DuplicateKeyException("exists"));
         when(assignments.findByIdAndOrganizationIdAndAssignedUserId(
                 any(), eq("org-a"), eq("learner")))
                 .thenAnswer(call -> Optional.of(new Assignment(call.getArgument(0), "org-a",
@@ -144,6 +144,7 @@ class BatchAssessmentServiceTests {
         service.syncLearner(enrollment());
 
         verify(assignments).findByIdAndOrganizationIdAndAssignedUserId(any(), eq("org-a"), eq("learner"));
+        verify(entitlements, never()).reserve(any(), any());
     }
 
     @Test

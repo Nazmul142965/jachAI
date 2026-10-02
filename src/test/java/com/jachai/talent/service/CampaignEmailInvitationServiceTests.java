@@ -14,6 +14,7 @@ import com.jachai.attempt.repository.AssignmentRepository;
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.EmailSender;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.organization.model.Membership;
 import com.jachai.organization.model.Organization;
 import com.jachai.organization.model.OrganizationRole;
@@ -48,10 +49,11 @@ class CampaignEmailInvitationServiceTests {
     @Mock UserRepository users;
     @Mock TenantAccessService access;
     @Mock EmailSender emailSender;
+    @Mock EntitlementService entitlements;
 
     private CampaignEmailInvitationService service() {
         var result = new CampaignEmailInvitationService(invitations, campaigns, organizations,
-                memberships, assignments, users, access, emailSender);
+                memberships, assignments, users, access, emailSender, entitlements);
         ReflectionTestUtils.setField(result, "publicBaseUrl", "https://jachai.example");
         return result;
     }

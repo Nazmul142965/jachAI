@@ -7,6 +7,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Email registration, verification, login, refresh rotation, access-token/refresh-session logout, and single-use password reset by email. Password reset invalidates earlier access and refresh tokens through a per-user security version.
 - MongoDB-backed email outbox for verification, reset, and Talent invitation links. Queue payloads are encrypted at rest, processed with bounded retries, and discarded after delivery, expiry, or five failed attempts. The worker checks that each link token is still current before sending.
 - Redis-backed fixed-window request limits for registration/login/reset/refresh, certificate verification, invitations, and AI bursts. Redis keys contain HMAC digests instead of raw IP addresses or email addresses; production fails closed if Redis cannot enforce a limit.
+- Organization-level `FREE`/`TEAM` plan entitlements with server-side gates for published assessments, invitations (including batch distribution), AI daily use, and certificate issuance. An organization admin can see its limits in the dashboard. Missing or inactive subscription state falls back to `FREE`; only a verified billing update should grant `TEAM`.
 - Organization creation and memberships; roles and tenant checks are enforced in services.
 - Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment, timed attempts, answer saving, deterministic scoring, manual/immediate result release, and topic-level result breakdown.
 - Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
@@ -20,7 +21,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Talent hiring campaigns tied to a frozen assessment version, existing-member or email candidate invitations, staff-only candidate comparison, reviewer notes, and hold/shortlist/reject decisions. An email recipient registers or signs in with the same verified address before accepting; acceptance creates candidate membership and a frozen assignment.
 - Talent attempt integrity signals (tab visibility, optional fullscreen exit, copy/paste, and client-reported answer-save timing) stored separately from attempts. Recruiters can inspect an evidence-only summary and paged events after submission; no automatic cheating decision is made.
 
-Not yet complete: full frontend review queues, full Academy/Talent modules, certificate email/verification UI and audit trail, organization-wide result-policy settings, live revocation verification, Stripe billing, full integration/load testing, and deployment. The outbox and rate limits still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
+Not yet complete: full frontend review queues, full Academy/Talent modules, certificate email/verification UI and audit trail, organization-wide result-policy settings, live revocation verification, Stripe billing, quota reconciliation/backfill, full integration/load testing, and deployment. The outbox, rate limits, and quota counters still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -45,6 +46,8 @@ For Redis caching, set `REDIS_HOST`, `REDIS_PORT`, and `CACHE_ENABLED=true`. For
 
 Request limits are off by default in local development (`RATE_LIMIT_ENABLED=false`) and on in production. They require Redis. If Redis is unavailable while enabled, protected requests return 503 rather than bypassing protection. Login is limited by both client IP and normalized email; reset and registration are similarly scoped. Invitation and AI burst limits use organization plus actor ID; AI still has its daily quota. IP comes from the socket address, not untrusted `X-Forwarded-For`; when deploying behind a reverse proxy, configure a trusted proxy strategy and verify that real client addresses are distinguishable before relying on IP limits. The fixed-window counters and Redis failure mode have unit tests but have not yet been tested against a live Redis instance.
 
+Plans are per organization, so an Academy and a Talent workspace can be billed separately. `FREE` allows 3 published assessments, 30 invitations/month, 5 AI requests/user/day (30/organization/day), and 30 certificates/month; `TEAM` raises those limits. Both currently retain chat and telemetry for 90 days. Usage slots are reserved with an atomic MongoDB counter before a guarded write and refunded on handled write failures. This does not yet reconcile historical data or a process crash between reservation and write, so counters need migration/reconciliation before production. There is no public API to grant a paid plan; Stripe webhook processing is still required, and a browser redirect must not upgrade an organization.
+
 ## Main API routes
 
 All routes below start with `/api/v1`. Except registration, verification, login, refresh, and health, they require a Bearer access token. Organization routes additionally check membership and role.
@@ -65,6 +68,7 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 | Talent | `GET/POST /organizations/{orgId}/talent/campaigns`, `POST .../campaigns/{id}/close`, `POST .../campaigns/{id}/invitations`, `GET .../campaigns/{id}/candidates`, `PUT .../campaigns/{id}/candidates/{candidateId}/review` |
 | Talent email invitations | `POST /organizations/{orgId}/talent/campaigns/{id}/email-invitations` (staff), `POST /talent/email-invitations/accept` (signed-in recipient) |
 | Talent integrity | `POST /organizations/{orgId}/attempts/{id}/telemetry` (own active Talent attempt), `GET /organizations/{orgId}/talent/attempts/{id}/integrity`, `GET .../integrity/events?page=0` (Talent staff, submitted attempt) |
+| Plan entitlements | `GET /organizations/{orgId}/billing/entitlements` (organization admin) |
 
 The test profile disables MongoDB autoconfiguration and uses mocks for API smoke tests. Unit tests cover assessment/attempt rules, tenant checks, cache behavior, and AI draft/tutor boundaries. A live MongoDB/Redis/provider integration test has not yet been completed.
 

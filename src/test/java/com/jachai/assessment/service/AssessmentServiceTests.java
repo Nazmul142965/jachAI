@@ -3,6 +3,7 @@ package com.jachai.assessment.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +13,8 @@ import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.repository.AssessmentVersionRepository;
+import com.jachai.billing.model.UsageMetric;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.model.Question;
 import com.jachai.question.model.QuestionStatus;
@@ -27,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 @ExtendWith(MockitoExtension.class)
 class AssessmentServiceTests {
@@ -34,6 +38,7 @@ class AssessmentServiceTests {
     @Mock AssessmentVersionRepository versions;
     @Mock QuestionRepository questions;
     @Mock TenantAccessService access;
+    @Mock EntitlementService entitlements;
 
     @Test
     void publicationFreezesApprovedQuestionAndAnswerKey() {
@@ -46,7 +51,7 @@ class AssessmentServiceTests {
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
         when(questions.findByIdAndOrganizationId("q1", "org-a")).thenReturn(Optional.of(question));
 
-        AssessmentVersion result = new AssessmentService(assessments, versions, questions, access)
+        AssessmentVersion result = new AssessmentService(assessments, versions, questions, access, entitlements)
                 .publish("teacher", "org-a", "a1");
 
         assertEquals(1, result.version());
@@ -64,8 +69,41 @@ class AssessmentServiceTests {
                 List.of("q-other"), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.DRAFT, 0, Instant.now(), null);
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
         ApiException error = assertThrows(ApiException.class, () ->
-                new AssessmentService(assessments, versions, questions, access)
+                new AssessmentService(assessments, versions, questions, access, entitlements)
                         .publish("teacher", "org-a", "a1"));
         assertEquals("QUESTION_MISSING", error.code());
+    }
+
+    @Test
+    void exhaustedPlanStopsPublicationBeforeWritingVersion() {
+        var assessment = new Assessment("a1", "org-a", "teacher", "Java basics", 30, 70,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.DRAFT, 0, Instant.now(), null);
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
+        when(entitlements.reserve("org-a", UsageMetric.PUBLISHED_ASSESSMENT))
+                .thenThrow(new ApiException(org.springframework.http.HttpStatus.CONFLICT,
+                        "PLAN_LIMIT_REACHED", "Plan limit reached"));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                new AssessmentService(assessments, versions, questions, access, entitlements)
+                        .publish("teacher", "org-a", "a1"));
+
+        assertEquals("PLAN_LIMIT_REACHED", error.code());
+        verify(versions, never()).insert(any(AssessmentVersion.class));
+    }
+
+    @Test
+    void failedVersionInsertRefundsReservedPlanSlot() {
+        var assessment = new Assessment("a1", "org-a", "teacher", "Java basics", 30, 70,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.DRAFT, 0, Instant.now(), null);
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
+        when(entitlements.reserve("org-a", UsageMetric.PUBLISHED_ASSESSMENT)).thenReturn("bucket");
+        when(versions.insert(any(AssessmentVersion.class))).thenThrow(new DuplicateKeyException("exists"));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                new AssessmentService(assessments, versions, questions, access, entitlements)
+                        .publish("teacher", "org-a", "a1"));
+
+        assertEquals("PUBLISH_CONFLICT", error.code());
+        verify(entitlements).refund("bucket");
     }
 }

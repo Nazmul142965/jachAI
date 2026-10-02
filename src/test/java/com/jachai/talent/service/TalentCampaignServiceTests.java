@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.model.ResultReleasePolicy;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.attempt.dto.CreateAssignmentRequest;
 import com.jachai.attempt.model.Assignment;
@@ -53,10 +54,11 @@ class TalentCampaignServiceTests {
     @Mock AttemptRepository attempts;
     @Mock OrganizationRepository organizations;
     @Mock TenantAccessService access;
+    @Mock EntitlementService entitlements;
 
     private TalentCampaignService service() {
         return new TalentCampaignService(campaigns, decisions, assessments, assignments,
-                attempts, organizations, access);
+                attempts, organizations, access, entitlements);
     }
 
     private Organization talent() {

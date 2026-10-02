@@ -1,5 +1,7 @@
 package com.jachai.ai.service;
 
+import com.jachai.billing.dto.PlanEntitlements;
+import com.jachai.billing.service.EntitlementService;
 import com.jachai.shared.error.ApiException;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -14,13 +16,19 @@ import org.springframework.stereotype.Service;
 public class AiQuotaService {
     private static final Duration KEY_LIFETIME = Duration.ofDays(2);
     private final StringRedisTemplate redis;
+    private final EntitlementService entitlements;
 
     public void consume(String organizationId, String userId) {
+        PlanEntitlements plan = entitlements.plan(organizationId);
+        if (!plan.aiEnabled()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "PLAN_FEATURE_UNAVAILABLE", "AI is not available on this plan");
+        }
         String day = LocalDate.now(ZoneOffset.UTC).toString();
         try {
             long organizationUses = increment("jachai:ai:org:" + organizationId + ":" + day);
             long userUses = increment("jachai:ai:user:" + organizationId + ":" + userId + ":" + day);
-            if (organizationUses > 200 || userUses > 25) {
+            if (organizationUses > plan.dailyOrganizationAiRequests()
+                    || userUses > plan.dailyUserAiRequests()) {
                 throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "AI_QUOTA_EXCEEDED",
                         "Daily AI request limit reached");
             }
