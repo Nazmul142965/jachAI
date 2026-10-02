@@ -31,6 +31,8 @@ Use JDK 21, Maven, and a MongoDB instance. Set environment variables in your ter
 
 Required: `JWT_SECRET` (at least 32 UTF-8 bytes). `MONGODB_URI` defaults to a local database under the local profile. The production profile requires `MONGODB_URI` and SMTP settings.
 
+Platform administration is separately bootstrapped with optional `PLATFORM_ADMIN_USER_IDS`, a comma-separated list of existing verified JachAI user IDs. Find your own ID with authenticated `GET /api/v1/platform/me`, then set the variable in the IntelliJ run configuration and restart. An empty value grants nobody platform access. The current platform endpoints expose only paginated organization metadata and an exact-ID user lookup; they do not grant tenant content access, change accounts, or modify paid plans. Keep the allowlist limited to trusted accounts and protect those accounts with strong credentials. Dynamic grants, support actions, and audited exceptional tenant-content access remain unimplemented.
+
 Email jobs use `MAIL_JOB_ENCRYPTION_KEY` when set, otherwise a key derived from `JWT_SECRET`. Keep the chosen key stable until queued jobs are drained; changing it makes pending payloads unreadable. Use a separate 32+ byte random mail key in production. The worker polls every 15 seconds by default (`MAIL_OUTBOX_POLL_MS`). Local development prints links to the console only after the worker processes the queued job. Email delivery is at-least-once: a crash after SMTP accepted a message but before MongoDB marks it sent can cause a duplicate. Failed jobs retain only metadata for 30 days, not the encrypted link payload.
 
 ```powershell
