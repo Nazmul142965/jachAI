@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
-  questions: [], assessments: [], campaigns: [], activeAttempt: null, timer: null, view: 'overview' };
-const views = ['overview', 'members', 'questions', 'assessments', 'campaigns', 'attempts', 'certificates'];
+  questions: [], assessments: [], campaigns: [], academyCourses: [], activeAttempt: null, timer: null, view: 'overview' };
+const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'campaigns', 'attempts', 'certificates'];
 
 function node(tag, text = '', className = '') {
   const element = document.createElement(tag);
@@ -100,10 +100,14 @@ async function setOrganization() {
   }
   const role = state.organization.myRole;
   $('#academy-feedback-panel').classList.toggle('hidden', state.organization.type !== 'ACADEMY');
+  $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
+  $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
   const pages = [['overview', 'Overview']];
   if (role === 'ORG_ADMIN') pages.push(['members', 'Members']);
   if (staff) pages.push(['questions', 'Question bank'], ['assessments', 'Assessments']);
+  if (state.organization.type === 'ACADEMY' && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role))
+    pages.push(['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']);
   if (staff && state.organization.type === 'TALENT') pages.push(['campaigns', 'Hiring campaigns']);
   if (['LEARNER', 'CANDIDATE'].includes(role)) pages.push(['attempts', 'My assessments']);
   if (role === 'LEARNER' && state.organization.type === 'ACADEMY') pages.push(['certificates', 'Certificates']);
@@ -122,13 +126,14 @@ async function showView(key) {
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
   for (const tab of $('#workspace-nav').children) tab.classList.toggle('active', tab.dataset.view === key);
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
-    assessments: 'Assessments', campaigns: 'Hiring campaigns', attempts: 'My assessments',
+    assessments: 'Assessments', academy: 'Courses & batches', campaigns: 'Hiring campaigns', attempts: 'My assessments',
     certificates: 'Certificates' };
   $('#page-title').textContent = names[key];
   $('#page-subtitle').textContent = state.organization.name;
   if (key === 'members') await loadMembers();
   if (key === 'questions') await loadQuestions();
   if (key === 'assessments') { await loadQuestions(); await loadAssessments(); }
+  if (key === 'academy') await loadAcademyCatalog();
   if (key === 'campaigns') { await loadAssessments(); await loadCampaigns(); await loadTalentCandidates(); }
   if (key === 'attempts') await loadAssignments();
   if (key === 'certificates') await loadCertificates();
@@ -347,6 +352,64 @@ async function loadCertificates() {
   'No certificates yet.');
 }
 
+async function loadAcademyCatalog() {
+  if (state.organization.myRole === 'LEARNER') {
+    const page = await request(ownOrg('/academy/batches/mine?page=0'));
+    setList('#my-batches-list', (page.content || []).map((enrollment) => item(
+      `${enrollment.courseName} · ${enrollment.batchName}`,
+      `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
+    'You are not enrolled in a batch yet.');
+    return;
+  }
+  const page = await request(ownOrg('/academy/courses?page=0'));
+  state.academyCourses = page.content || [];
+  setList('#courses-list', state.academyCourses.map((course) => item(course.name,
+    course.description || `Course ID: ${course.id}`)), 'No courses yet.');
+  const select = $('#academy-course-select');
+  const selected = select.value;
+  select.replaceChildren(...state.academyCourses.map((course) => {
+    const option = node('option', course.name); option.value = course.id; return option;
+  }));
+  if (state.academyCourses.some((course) => course.id === selected)) select.value = selected;
+  await loadAcademyBatches();
+}
+
+async function loadAcademyBatches() {
+  const courseId = $('#academy-course-select').value;
+  if (!courseId) {
+    setList('#batches-list', [], 'Create a course first.');
+    $('#academy-batch-select').replaceChildren();
+    setList('#batch-learners-list', [], 'Select a batch to see its learners.');
+    return;
+  }
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches?page=0`));
+  const batches = page.content || [];
+  setList('#batches-list', batches.map((batch) => item(batch.name,
+    `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`)),
+  'No batches for this course yet.');
+  const select = $('#academy-batch-select');
+  const selected = select.value;
+  select.replaceChildren(...batches.map((batch) => {
+    const option = node('option', batch.name); option.value = batch.id; return option;
+  }));
+  if (batches.some((batch) => batch.id === selected)) select.value = selected;
+  await loadAcademyBatchLearners();
+}
+
+async function loadAcademyBatchLearners() {
+  const courseId = $('#academy-course-select').value;
+  const batchId = $('#academy-batch-select').value;
+  if (!courseId || !batchId) {
+    setList('#batch-learners-list', [], 'Select a batch to see its learners.');
+    return;
+  }
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners?page=0`));
+  setList('#batch-learners-list', (page.content || []).map((enrollment) => item(
+    `Learner ${enrollment.learnerUserId}`,
+    `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
+  'No learners enrolled yet.');
+}
+
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#register-tab').addEventListener('click', () => switchAuth('register'));
 function switchAuth(which) {
@@ -452,6 +515,34 @@ $('#publish-feedback').addEventListener('click', () => run(async () => {
   $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}.`;
   $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
 }));
+$('#academy-course-select').addEventListener('change', () => run(loadAcademyBatches));
+$('#academy-batch-select').addEventListener('change', () => run(loadAcademyBatchLearners));
+$('#course-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = new FormData(event.currentTarget);
+  await request(ownOrg('/academy/courses'), { method: 'POST',
+    body: { name: form.get('name').trim(), description: form.get('description').trim() } });
+  event.currentTarget.reset(); await loadAcademyCatalog(); notice('Course created.');
+}); });
+$('#batch-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const courseId = $('#academy-course-select').value;
+  if (!courseId) throw new Error('Create a course first.');
+  const form = new FormData(event.currentTarget);
+  const startsAt = new Date(form.get('startsAt')).toISOString();
+  const endsAt = new Date(form.get('endsAt')).toISOString();
+  if (endsAt <= startsAt) throw new Error('Batch end must follow start.');
+  await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches`), { method: 'POST',
+    body: { name: form.get('name').trim(), startsAt, endsAt } });
+  event.currentTarget.reset(); await loadAcademyBatches(); notice('Batch created.');
+}); });
+$('#enrollment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const courseId = $('#academy-course-select').value;
+  const batchId = $('#academy-batch-select').value;
+  if (!courseId || !batchId) throw new Error('Create and select a batch first.');
+  const form = new FormData(event.currentTarget);
+  await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners`),
+    { method: 'POST', body: { learnerUserId: form.get('learnerUserId').trim() } });
+  event.currentTarget.reset(); await loadAcademyBatchLearners(); notice('Learner enrolled.');
+}); });
 $('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   await request(ownOrg('/talent/campaigns'), { method: 'POST',

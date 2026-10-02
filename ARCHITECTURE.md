@@ -244,3 +244,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Academy feedback implementation decision
 
 - One instructor feedback document is scoped to an Academy organization and submitted attempt. Staff can revise a private draft; publishing requires the result to be released and makes the text immutable. Only the attempt owner can read published feedback. This is narrative guidance, not an AI-generated score or a score override. A staff review queue, notifications, and audit events remain separate work.
+
+## Academy course and batch implementation decision
+
+- Courses are unique by normalized name within an Academy organization; batches are unique by normalized name within a course. A batch has a start/end window. Staff enroll only verified, active learner members; repeat enrollment is idempotent. Enrollment stores immutable course/batch display names so learner listing needs one tenant-scoped query. Renaming is not supported yet. Batch assessment assignments and cohort progress reporting must be built on this grouping before calling the Academy module complete.

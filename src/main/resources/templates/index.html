@@ -109,6 +109,19 @@
         </div>
       </section>
 
+      <section id="academy-view" class="view hidden">
+        <div id="academy-staff-panel">
+          <div class="card panel"><h2>Courses</h2><p class="muted">Group learners into batches for an Academy course.</p><div id="courses-list" class="item-list"></div>
+            <form id="course-form" class="stack"><label>Course name<input name="name" maxlength="120" required></label><label>Description<textarea name="description" rows="2" maxlength="2000"></textarea></label><button class="button primary" type="submit">Create course</button></form>
+          </div>
+          <div class="card panel"><h2>Batches</h2><label>Course<select id="academy-course-select" required></select></label><div id="batches-list" class="item-list"></div>
+            <form id="batch-form" class="stack"><label>Batch name<input name="name" maxlength="120" required></label><div class="form-row"><label>Starts<input name="startsAt" type="datetime-local" required></label><label>Ends<input name="endsAt" type="datetime-local" required></label></div><button class="button secondary" type="submit">Create batch</button></form>
+          </div>
+          <div class="card panel"><h2>Enroll a learner</h2><p class="muted">The learner must already be a verified, active member of this Academy workspace.</p><form id="enrollment-form" class="form-row"><label>Batch<select id="academy-batch-select" required></select></label><label>Learner user ID<input name="learnerUserId" required placeholder="Copy from Members"></label><button class="button secondary" type="submit">Enroll learner</button></form><div id="batch-learners-list" class="item-list"></div></div>
+        </div>
+        <div id="academy-learner-panel" class="card panel hidden"><h2>My batches</h2><div id="my-batches-list" class="item-list"></div></div>
+      </section>
+
       <section id="campaigns-view" class="view hidden">
         <div class="card panel"><h2>Hiring campaigns</h2><p class="muted">Each campaign uses a frozen published assessment version.</p><div id="campaigns-list" class="item-list"></div></div>
         <div class="card panel"><h2>Create a campaign</h2>
