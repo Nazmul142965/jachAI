@@ -10,8 +10,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
-import java.util.List;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import jakarta.validation.constraints.Min;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.validation.annotation.Validated;
@@ -27,9 +28,10 @@ public class CertificateController {
     private final CertificateService certificates;
 
     @GetMapping("/certificates/mine")
-    public List<CertificateView> mine(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId) {
-        return certificates.mine(jwt.getSubject(), organizationId);
+    public Page<CertificateView> mine(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+        return certificates.mine(jwt.getSubject(), organizationId,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "issuedAt", "id")));
     }
 
     @PostMapping("/attempts/{attemptId}/certificate")

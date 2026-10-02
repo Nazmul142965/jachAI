@@ -29,7 +29,6 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -59,10 +59,10 @@ public class CertificateService {
     private final EmailSender emailSender;
     @Value("${app.public-base-url}") private String publicBaseUrl;
 
-    public List<CertificateView> mine(String learnerId, String organizationId) {
+    public Page<CertificateView> mine(String learnerId, String organizationId, Pageable pageable) {
         access.requireRole(learnerId, organizationId, OrganizationRole.LEARNER);
-        return certificates.findByOrganizationIdAndLearnerUserId(organizationId, learnerId).stream()
-                .map(CertificateView::from).toList();
+        return certificates.findByOrganizationIdAndLearnerUserId(organizationId, learnerId, pageable)
+                .map(CertificateView::from);
     }
 
     public CertificateView issue(String actorId, String organizationId, String attemptId) {

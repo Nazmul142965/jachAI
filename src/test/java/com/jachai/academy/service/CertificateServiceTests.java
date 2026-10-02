@@ -197,14 +197,16 @@ class CertificateServiceTests {
 
     @Test
     void learnerOnlySeesOwnTenantCertificates() {
-        when(certificates.findByOrganizationIdAndLearnerUserId("org-a", "learner"))
-                .thenReturn(List.of(issued()));
+        var pageable = PageRequest.of(1, 20, Sort.by(Sort.Direction.DESC, "issuedAt", "id"));
+        when(certificates.findByOrganizationIdAndLearnerUserId("org-a", "learner", pageable))
+                .thenReturn(new PageImpl<>(List.of(issued()), pageable, 21));
 
-        var result = service().mine("learner", "org-a");
+        var result = service().mine("learner", "org-a", pageable);
 
-        assertEquals(1, result.size());
-        assertEquals("random-code", result.getFirst().verificationCode());
-        verify(certificates).findByOrganizationIdAndLearnerUserId("org-a", "learner");
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getTotalPages());
+        assertEquals("random-code", result.getContent().getFirst().verificationCode());
+        verify(certificates).findByOrganizationIdAndLearnerUserId("org-a", "learner", pageable);
     }
 
     @Test

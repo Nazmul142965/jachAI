@@ -58,6 +58,20 @@ class AttemptServiceTests {
                 "https://jachai.example/");
     }
 
+    @Test
+    void participantAssignmentsAreTenantScopedAndPaged() {
+        var pageable = PageRequest.of(1, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        when(assignments.findByOrganizationIdAndAssignedUserId("org-a", "learner", pageable))
+                .thenReturn(new PageImpl<Assignment>(List.of(), pageable, 21));
+
+        var result = service().myAssignments("learner", "org-a", pageable);
+
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getTotalPages());
+        verify(access).requireRole("learner", "org-a", OrganizationRole.LEARNER, OrganizationRole.CANDIDATE);
+        verify(assignments).findByOrganizationIdAndAssignedUserId("org-a", "learner", pageable);
+    }
+
     private void recipient() {
         when(users.findById("learner")).thenReturn(Optional.of(new User("learner", "learner@example.com",
                 "Learner", null, true, false, 0, Instant.now())));

@@ -35,6 +35,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -61,9 +62,9 @@ public class AttemptService {
         this.publicBaseUrl = publicBaseUrl;
     }
 
-    public List<Assignment> myAssignments(String userId, String organizationId) {
+    public Page<Assignment> myAssignments(String userId, String organizationId, Pageable pageable) {
         requireParticipant(userId, organizationId);
-        return assignments.findByOrganizationIdAndAssignedUserId(organizationId, userId);
+        return assignments.findByOrganizationIdAndAssignedUserId(organizationId, userId, pageable);
     }
 
     public List<AttemptSummary> myAttempts(String userId, String organizationId, String assignmentId) {

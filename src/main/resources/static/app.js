@@ -531,12 +531,13 @@ async function loadReviewAudit(campaignId, candidateId, pageNumber, target) {
   controls.append(previous, node('span', `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`, 'muted'), next);
   target.append(controls);
 }
-async function loadAssignments() {
-  const assignments = await request(ownOrg('/assignments/mine'));
-  setList('#assignments-list', assignments.map((assignment) => item(
+async function loadAssignments(pageNumber = 0) {
+  const page = await request(ownOrg(`/assignments/mine?page=${pageNumber}`));
+  setList('#assignments-list', (page.content || []).map((assignment) => item(
     `Assessment assignment`, `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()} · ${assignment.attemptsAllowed} attempt(s)`,
     [button('Start / resume', () => startAttempt(assignment.id)),
       button('Attempt history', () => showHistory(assignment.id))])), 'No assignments yet.');
+  renderPageControls('#assignments-pagination', page, loadAssignments);
 }
 async function showHistory(assignmentId) {
   const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts/mine`));
@@ -661,13 +662,14 @@ function renderResult(result) {
   }
   panel.classList.remove('hidden'); panel.scrollIntoView({ behavior: 'smooth' });
 }
-async function loadCertificates() {
-  const certificates = await request(ownOrg('/certificates/mine'));
-  setList('#certificates-list', certificates.map((certificate) => item(
+async function loadCertificates(pageNumber = 0) {
+  const page = await request(ownOrg(`/certificates/mine?page=${pageNumber}`));
+  setList('#certificates-list', (page.content || []).map((certificate) => item(
     certificate.status === 'ISSUED' ? 'Verified achievement' : 'Revoked certificate',
     `Code: ${certificate.verificationCode} · Issued ${new Date(certificate.issuedAt).toLocaleDateString()}`,
     [button('Verify publicly', () => window.open(`/certificates/${encodeURIComponent(certificate.verificationCode)}`, '_blank', 'noopener'))])),
   'No certificates yet.');
+  renderPageControls('#certificates-pagination', page, loadCertificates);
 }
 
 async function loadAcademyCatalog() {
