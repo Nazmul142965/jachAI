@@ -239,7 +239,11 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Phase 5 implementation decisions
 
-- A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. External email invitations, integrity telemetry, and audit history remain required follow-up work.
+- A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. External email invitations and audit history remain required follow-up work.
+
+## Talent integrity telemetry implementation decision
+
+- The active candidate may record tab visibility, optional fullscreen exit, copy/paste, and answer-save events for their own campaign attempt. The server stamps receipt time and verifies candidate, tenant, campaign assignment, status, and deadline. Events live in a separate `attempt_telemetry` collection with tenant/attempt/time index and 90-day TTL; a 200-unexpired-event count guard limits growth but is not an atomic hard cap. Talent staff may inspect a submitted attempt's summary and paged events. Rapid answer intervals are calculated only from client-reported answer-save events. Nothing here blocks the attempt or produces an automated cheating verdict. IP, user agent, clipboard contents, and keystrokes are not stored. Signals are untrusted and require human interpretation; live TTL/index and browser behavior remain unverified.
 
 ## Academy feedback implementation decision
 

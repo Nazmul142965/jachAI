@@ -22,6 +22,7 @@ import com.jachai.assessment.service.AssessmentService;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.service.AssignmentService;
 import com.jachai.attempt.service.AttemptService;
+import com.jachai.attempt.service.IntegrityTelemetryService;
 import com.jachai.organization.service.MembershipService;
 import com.jachai.ai.service.QuestionDraftService;
 import com.jachai.ai.service.TutorService;
@@ -52,6 +53,7 @@ class JachAiApplicationTests {
     @MockitoBean PublishedVersionStore publishedVersionStore;
     @MockitoBean AssignmentService assignmentService;
     @MockitoBean AttemptService attemptService;
+    @MockitoBean IntegrityTelemetryService integrityTelemetryService;
     @MockitoBean MembershipService membershipService;
     @MockitoBean QuestionDraftService questionDraftService;
     @MockitoBean TutorService tutorService;
@@ -97,6 +99,15 @@ class JachAiApplicationTests {
     @Test
     void academyMessagingRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/organizations/org-a/messaging/conversations"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void integrityTelemetryRequiresAuthentication() throws Exception {
+        mvc.perform(post("/api/v1/organizations/org-a/attempts/attempt-a/telemetry")
+                        .contentType("application/json").content("{\"type\":\"TAB_HIDDEN\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/organizations/org-a/talent/attempts/attempt-a/integrity"))
                 .andExpect(status().isUnauthorized());
     }
 

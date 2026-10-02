@@ -248,7 +248,17 @@ async function compareCandidates(campaignId) {
         { method: 'PUT', body: { attemptId: candidate.attemptId, decision: select.value, note: noteInput.value } });
       notice('Review saved.'); await compareCandidates(campaignId);
     }); });
-    const wrapper = node('div', '', 'card panel'); wrapper.append(info, form); return wrapper;
+    const integrityPanel = node('div', '', 'item-list');
+    const integrityButton = button('Integrity signals', async () => {
+      const report = await request(ownOrg(`/talent/attempts/${encodeURIComponent(candidate.attemptId)}/integrity`));
+      const counts = Object.entries(report.eventCounts || {})
+        .map(([type, count]) => `${type.replaceAll('_', ' ').toLowerCase()}: ${count}`).join(' · ');
+      integrityPanel.replaceChildren(
+        node('p', `${report.totalEvents} recorded events · ${report.clientReportedRapidAnswerIntervals} rapid answer intervals`, 'item-meta'),
+        node('p', counts || 'No signals recorded.'),
+        node('p', report.interpretation, 'muted'));
+    });
+    const wrapper = node('div', '', 'card panel'); wrapper.append(info, form, integrityButton, integrityPanel); return wrapper;
   });
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
   $('#campaign-candidates-panel').classList.remove('hidden');
@@ -278,9 +288,37 @@ async function startAttempt(assignmentId) {
   $('#result-panel').classList.add('hidden');
   renderAttempt();
 }
+function talentAttemptActive() {
+  return state.organization?.type === 'TALENT' && state.organization.myRole === 'CANDIDATE'
+    && state.activeAttempt && Date.now() < Date.parse(state.activeAttempt.deadline);
+}
+async function sendTelemetry(type, questionId) {
+  if (!talentAttemptActive()) return;
+  const attemptId = state.activeAttempt.id;
+  try {
+    await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/telemetry`),
+      { method: 'POST', body: { type, ...(questionId ? { questionId } : {}) } });
+  } catch (_) { /* Optional signals must never block the assessment. */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (talentAttemptActive()) void sendTelemetry(document.hidden ? 'TAB_HIDDEN' : 'TAB_VISIBLE');
+});
+document.addEventListener('fullscreenchange', () => {
+  if (state.attemptFullscreen && !document.fullscreenElement) {
+    state.attemptFullscreen = false;
+    void sendTelemetry('FULLSCREEN_EXIT');
+  }
+});
+$('#attempt-panel').addEventListener('copy', () => { void sendTelemetry('COPY_ATTEMPT'); });
+$('#attempt-panel').addEventListener('paste', () => { void sendTelemetry('PASTE_ATTEMPT'); });
 function renderAttempt() {
   const attempt = state.activeAttempt;
   const panel = $('#attempt-panel'); panel.replaceChildren(node('h2', 'Assessment in progress'));
+  if (talentAttemptActive() && document.fullscreenEnabled) {
+    panel.append(button('Use fullscreen (optional)', async () => {
+      await panel.requestFullscreen(); state.attemptFullscreen = true;
+    }));
+  }
   const timer = node('p', '', 'pill warn'); panel.append(timer);
   const updateTimer = () => {
     const seconds = Math.max(0, Math.ceil((Date.parse(attempt.deadline) - Date.now()) / 1000));
@@ -304,6 +342,7 @@ function renderAttempt() {
       await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}`),
         { method: 'PUT', body: { selectedOptionIds: selected } });
       attempt.savedAnswers = { ...(attempt.savedAnswers || {}), [question.id]: selected };
+      void sendTelemetry('ANSWER_SAVED', question.id);
       notice('Answer saved.');
     }));
     panel.append(block);

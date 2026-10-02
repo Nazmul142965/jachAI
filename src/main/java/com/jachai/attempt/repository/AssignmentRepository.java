@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface AssignmentRepository extends MongoRepository<Assignment, String> {
+    Optional<Assignment> findByIdAndOrganizationId(String id, String organizationId);
     Optional<Assignment> findByIdAndOrganizationIdAndAssignedUserId(
             String id, String organizationId, String assignedUserId);
     List<Assignment> findByOrganizationIdAndAssignedUserId(String organizationId, String assignedUserId);
