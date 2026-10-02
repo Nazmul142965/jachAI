@@ -1,6 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
-  questions: [], assessments: [], campaigns: [], academyCourses: [], activeAttempt: null, timer: null, view: 'overview' };
+  questions: [], assessments: [], campaigns: [], academyCourses: [], academyBatches: [],
+  activeAttempt: null, timer: null, view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'campaigns', 'attempts', 'certificates'];
 
 function node(tag, text = '', className = '') {
@@ -361,6 +362,10 @@ async function loadAcademyCatalog() {
     'You are not enrolled in a batch yet.');
     return;
   }
+  await loadAssessments();
+  $('#batch-assessment-select').replaceChildren(...state.assessments
+    .filter((assessment) => assessment.status === 'PUBLISHED')
+    .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
   const page = await request(ownOrg('/academy/courses?page=0'));
   state.academyCourses = page.content || [];
   setList('#courses-list', state.academyCourses.map((course) => item(course.name,
@@ -377,13 +382,16 @@ async function loadAcademyCatalog() {
 async function loadAcademyBatches() {
   const courseId = $('#academy-course-select').value;
   if (!courseId) {
+    state.academyBatches = [];
     setList('#batches-list', [], 'Create a course first.');
     $('#academy-batch-select').replaceChildren();
     setList('#batch-learners-list', [], 'Select a batch to see its learners.');
+    setList('#batch-assessments-list', [], 'Select a batch to see its assessments.');
     return;
   }
   const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches?page=0`));
   const batches = page.content || [];
+  state.academyBatches = batches;
   setList('#batches-list', batches.map((batch) => item(batch.name,
     `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`)),
   'No batches for this course yet.');
@@ -394,6 +402,7 @@ async function loadAcademyBatches() {
   }));
   if (batches.some((batch) => batch.id === selected)) select.value = selected;
   await loadAcademyBatchLearners();
+  await loadBatchAssessments();
 }
 
 async function loadAcademyBatchLearners() {
@@ -408,6 +417,38 @@ async function loadAcademyBatchLearners() {
     `Learner ${enrollment.learnerUserId}`,
     `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
   'No learners enrolled yet.');
+}
+
+async function loadBatchAssessments() {
+  const courseId = $('#academy-course-select').value;
+  const batchId = $('#academy-batch-select').value;
+  $('#batch-progress-panel').classList.add('hidden');
+  if (!courseId || !batchId) {
+    setList('#batch-assessments-list', [], 'Select a batch to see its assessments.');
+    return;
+  }
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments?page=0`));
+  setList('#batch-assessments-list', (page.content || []).map((assessment) => item(
+    assessment.assessmentTitle,
+    `Version ${assessment.assessmentVersionId} · ${assessment.attemptsAllowed} attempt(s) · Available until ${new Date(assessment.availableUntil).toLocaleString()}`,
+    [button('Progress', () => showBatchProgress(assessment.id)),
+      button('Reconcile assignments', async () => {
+        const result = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments/${encodeURIComponent(assessment.id)}/reconcile`),
+          { method: 'POST' });
+        notice(`${result.createdAssignments} assignment(s) added; ${result.alreadyAssigned} already present.`);
+      })])), 'No assessments assigned to this batch yet.');
+}
+
+async function showBatchProgress(batchAssessmentId) {
+  const courseId = $('#academy-course-select').value;
+  const batchId = $('#academy-batch-select').value;
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments/${encodeURIComponent(batchAssessmentId)}/progress?page=0`));
+  setList('#batch-progress-list', (page.content || []).map((row) => item(
+    `Learner ${row.learnerUserId}`,
+    row.attemptId ? `Latest attempt: ${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'} · ${new Date(row.submittedAt).toLocaleString()}`
+      : 'No submitted attempt yet.')), 'No learners assigned yet.');
+  $('#batch-progress-panel').classList.remove('hidden');
+  $('#batch-progress-panel').scrollIntoView({ behavior: 'smooth' });
 }
 
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
@@ -516,7 +557,9 @@ $('#publish-feedback').addEventListener('click', () => run(async () => {
   $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
 }));
 $('#academy-course-select').addEventListener('change', () => run(loadAcademyBatches));
-$('#academy-batch-select').addEventListener('change', () => run(loadAcademyBatchLearners));
+$('#academy-batch-select').addEventListener('change', () => run(async () => {
+  await loadAcademyBatchLearners(); await loadBatchAssessments();
+}));
 $('#course-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   await request(ownOrg('/academy/courses'), { method: 'POST',
@@ -542,6 +585,21 @@ $('#enrollment-form').addEventListener('submit', (event) => { event.preventDefau
   await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners`),
     { method: 'POST', body: { learnerUserId: form.get('learnerUserId').trim() } });
   event.currentTarget.reset(); await loadAcademyBatchLearners(); notice('Learner enrolled.');
+}); });
+$('#batch-assessment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const courseId = $('#academy-course-select').value;
+  const batchId = $('#academy-batch-select').value;
+  const batch = state.academyBatches.find((item) => item.id === batchId);
+  if (!courseId || !batch) throw new Error('Select a batch first.');
+  const form = new FormData(event.currentTarget);
+  const availableFrom = new Date(form.get('availableFrom')).toISOString();
+  const availableUntil = new Date(form.get('availableUntil')).toISOString();
+  if (availableUntil <= availableFrom || availableFrom < batch.startsAt || availableUntil > batch.endsAt)
+    throw new Error('Assessment availability must be within the batch dates.');
+  await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments`),
+    { method: 'POST', body: { assessmentId: form.get('assessmentId'),
+      attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
+  event.currentTarget.reset(); await loadBatchAssessments(); notice('Assessment assigned to batch learners.');
 }); });
 $('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);

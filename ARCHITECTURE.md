@@ -247,4 +247,8 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Academy course and batch implementation decision
 
-- Courses are unique by normalized name within an Academy organization; batches are unique by normalized name within a course. A batch has a start/end window. Staff enroll only verified, active learner members; repeat enrollment is idempotent. Enrollment stores immutable course/batch display names so learner listing needs one tenant-scoped query. Renaming is not supported yet. Batch assessment assignments and cohort progress reporting must be built on this grouping before calling the Academy module complete.
+- Courses are unique by normalized name within an Academy organization; batches are unique by normalized name within a course. A batch has a start/end window. Staff enroll only verified, active learner members; repeat enrollment is idempotent. Enrollment stores immutable course/batch display names so learner listing needs one tenant-scoped query. Renaming is not supported yet. Batch assessment assignments and per-learner progress now build on this grouping; aggregate cohort analytics remain open.
+
+## Academy batch assessment implementation decision
+
+- A batch assessment freezes one published assessment version and an availability window within the batch dates. Its per-learner `Assignment` IDs are deterministic and retain a `batchAssessmentId` for tenant-scoped reporting. Existing enrollments are distributed on creation; later enrollments are synchronized. MongoDB transactions are not required for the first release, so a distribution interruption may leave a parent record with some missing assignments; a staff-only idempotent reconcile endpoint repairs it. The progress page shows each learner's latest submitted attempt, including staff-visible score before candidate result release. Aggregate cohort analytics and full UI pagination remain required work.

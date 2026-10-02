@@ -28,6 +28,7 @@ import com.jachai.ai.service.TutorService;
 import com.jachai.academy.service.CertificateService;
 import com.jachai.academy.service.InstructorFeedbackService;
 import com.jachai.academy.service.AcademyCatalogService;
+import com.jachai.academy.service.BatchAssessmentService;
 import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.auth.repository.UserRepository;
@@ -56,6 +57,7 @@ class JachAiApplicationTests {
     @MockitoBean CertificateService certificateService;
     @MockitoBean InstructorFeedbackService instructorFeedbackService;
     @MockitoBean AcademyCatalogService academyCatalogService;
+    @MockitoBean BatchAssessmentService batchAssessmentService;
     @MockitoBean TalentCampaignService talentCampaignService;
 
     @Test
@@ -81,6 +83,12 @@ class JachAiApplicationTests {
     @Test
     void academyCatalogApiRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/organizations/org-a/academy/courses"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void batchAssessmentProgressRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/academy/courses/course-a/batches/batch-a/assessments/ba-a/progress"))
                 .andExpect(status().isUnauthorized());
     }
 

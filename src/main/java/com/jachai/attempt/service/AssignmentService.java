@@ -42,7 +42,7 @@ public class AssignmentService {
         }
         String versionId = assessment.id() + ":" + assessment.latestVersion();
         return assignments.save(new Assignment(UUID.randomUUID().toString(), organizationId,
-                assessment.id(), versionId, null, request.userId(), request.attemptsAllowed(),
+                assessment.id(), versionId, null, null, request.userId(), request.attemptsAllowed(),
                 request.availableFrom(), request.availableUntil(), Instant.now()));
     }
 }

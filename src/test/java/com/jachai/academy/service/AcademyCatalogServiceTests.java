@@ -42,11 +42,13 @@ class AcademyCatalogServiceTests {
     @Mock OrganizationRepository organizations;
     @Mock UserRepository users;
     @Mock TenantAccessService access;
+    @Mock BatchAssessmentService batchAssessmentService;
     AcademyCatalogService service;
 
     @BeforeEach
     void setUp() {
-        service = new AcademyCatalogService(courses, batches, enrollments, organizations, users, access);
+        service = new AcademyCatalogService(courses, batches, enrollments, organizations, users,
+                access, batchAssessmentService);
     }
 
     @Test
@@ -110,6 +112,7 @@ class AcademyCatalogServiceTests {
         ArgumentCaptor<BatchEnrollment> saved = ArgumentCaptor.forClass(BatchEnrollment.class);
         verify(enrollments).insert(saved.capture());
         assertEquals("org-a", saved.getValue().organizationId());
+        verify(batchAssessmentService).syncLearner(saved.getValue());
     }
 
     @Test
@@ -143,6 +146,9 @@ class AcademyCatalogServiceTests {
 
         assertEquals("batch-a", result.batchId());
         verify(enrollments, never()).insert(any(BatchEnrollment.class));
+        ArgumentCaptor<BatchEnrollment> synced = ArgumentCaptor.forClass(BatchEnrollment.class);
+        verify(batchAssessmentService).syncLearner(synced.capture());
+        assertEquals("batch-a", synced.getValue().batchId());
     }
 
     @Test

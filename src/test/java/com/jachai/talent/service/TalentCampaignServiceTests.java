@@ -69,7 +69,7 @@ class TalentCampaignServiceTests {
     }
 
     private Assignment assignment() {
-        return new Assignment("assignment", "org-a", "assessment", "assessment:2", "campaign",
+        return new Assignment("assignment", "org-a", "assessment", "assessment:2", "campaign", null,
                 "candidate", 2, Instant.now().minusSeconds(60), Instant.now().plusSeconds(900), Instant.now());
     }
 
@@ -195,7 +195,7 @@ class TalentCampaignServiceTests {
         when(attempts.findByIdAndOrganizationId("attempt-1", "org-a"))
                 .thenReturn(Optional.of(attempt(1, 80)));
         Assignment foreign = new Assignment("assignment", "org-a", "assessment", "assessment:2",
-                "other-campaign", "candidate", 2, Instant.now(), Instant.now().plusSeconds(100), Instant.now());
+                "other-campaign", null, "candidate", 2, Instant.now(), Instant.now().plusSeconds(100), Instant.now());
         when(assignments.findByIdAndOrganizationIdAndAssignedUserId("assignment", "org-a", "candidate"))
                 .thenReturn(Optional.of(foreign));
 

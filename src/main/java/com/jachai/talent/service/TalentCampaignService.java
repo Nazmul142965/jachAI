@@ -95,7 +95,7 @@ public class TalentCampaignService {
         String assignmentId = UUID.nameUUIDFromBytes(
                 (campaignId + ":" + request.userId()).getBytes(StandardCharsets.UTF_8)).toString();
         Assignment assignment = new Assignment(assignmentId, organizationId, campaign.assessmentId(),
-                campaign.assessmentVersionId(), campaignId, request.userId(), request.attemptsAllowed(),
+                campaign.assessmentVersionId(), campaignId, null, request.userId(), request.attemptsAllowed(),
                 request.availableFrom(), request.availableUntil(), Instant.now());
         try {
             return CampaignInviteView.from(assignments.insert(assignment));

@@ -36,6 +36,7 @@ public class AcademyCatalogService {
     private final OrganizationRepository organizations;
     private final UserRepository users;
     private final TenantAccessService access;
+    private final BatchAssessmentService batchAssessmentService;
 
     public CourseView createCourse(String actorId, String organizationId, CreateCourseRequest request) {
         requireStaff(actorId, organizationId);
@@ -95,20 +96,23 @@ public class AcademyCatalogService {
             if (!existing.active()) {
                 throw new ApiException(HttpStatus.CONFLICT, "ENROLLMENT_INACTIVE", "Enrollment is inactive");
             }
+            batchAssessmentService.syncLearner(existing);
             return EnrollmentView.from(existing);
         }
         BatchEnrollment enrollment = new BatchEnrollment(UUID.randomUUID().toString(), organizationId,
                 courseId, batchId, course.name(), batch.name(), learnerUserId, true, Instant.now());
+        BatchEnrollment saved;
         try {
-            return EnrollmentView.from(enrollments.insert(enrollment));
+            saved = enrollments.insert(enrollment);
         } catch (DuplicateKeyException exception) {
-            return enrollments.findByOrganizationIdAndBatchIdAndLearnerUserId(
+            saved = enrollments.findByOrganizationIdAndBatchIdAndLearnerUserId(
                             organizationId, batchId, learnerUserId)
                     .filter(BatchEnrollment::active)
-                    .map(EnrollmentView::from)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "ENROLLMENT_CONFLICT",
                             "Enrollment changed concurrently; reload it"));
         }
+        batchAssessmentService.syncLearner(saved);
+        return EnrollmentView.from(saved);
     }
 
     public Page<EnrollmentView> listBatchLearners(String actorId, String organizationId,
