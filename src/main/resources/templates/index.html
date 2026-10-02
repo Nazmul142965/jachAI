@@ -42,6 +42,7 @@
         <label>Password <small>(at least 12 characters)</small><input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
         <button class="button primary" type="submit">Create account</button>
       </form>
+      <div id="google-login-area" class="google-signin hidden"><p class="muted">Or continue with Google</p><div id="google-login-button"></div></div>
     </section>
   </main>
 
@@ -74,6 +75,7 @@
         </div>
         <div class="card panel"><h2>What would you like to do?</h2><p id="overview-hint" class="muted"></p></div>
         <div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div>
+        <div id="google-link-area" class="card panel hidden"><h2>Account sign-in</h2><p class="muted">Already use email and password? Link the Google account with the same verified email.</p><div id="google-link-button"></div></div>
       </section>
 
       <section id="members-view" class="view hidden">

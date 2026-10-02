@@ -58,6 +58,8 @@ input[type=checkbox],input[type=radio] { width:auto; min-height:auto; accent-col
 .side-nav button { width:100%; padding:12px; text-align:left; background:transparent; border:0; border-radius:9px; font-weight:700; color:var(--muted); }
 .side-nav button:hover,.side-nav button.active { background:#e7f3ed; color:var(--forest); }
 .sidebar-foot { margin-top:50px; padding:15px 10px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; line-height:1.5; }
+.google-signin { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); }
+.google-signin .muted { margin-bottom:10px; }
 .content { width:min(100%,1300px); padding:36px clamp(20px,3.5vw,55px) 80px; }
 .page-head { display:flex; justify-content:space-between; align-items:end; margin-bottom:25px; }
 .page-head h1 { margin-bottom:7px; }

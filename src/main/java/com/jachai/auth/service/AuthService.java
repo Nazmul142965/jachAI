@@ -94,7 +94,8 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         User user = users.findByEmail(normalizeEmail(request.email())).orElse(null);
-        if (user == null || !passwords.matches(request.password(), user.passwordHash()) || user.disabled()) {
+        if (user == null || user.passwordHash() == null
+                || !passwords.matches(request.password(), user.passwordHash()) || user.disabled()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "BAD_CREDENTIALS", "Invalid email or password");
         }
         if (!user.emailVerified()) {
@@ -161,7 +162,7 @@ public class AuthService {
         mongo.remove(Query.query(Criteria.where("userId").is(user.id())), RefreshSession.class);
     }
 
-    private AuthResponse issueSession(User user) {
+    AuthResponse issueSession(User user) {
         String rawRefresh = TokenSecrets.generate();
         mongo.insert(new RefreshSession(UUID.randomUUID().toString(), TokenSecrets.hash(rawRefresh),
                 user.id(), user.securityVersion(), Instant.now(), Instant.now().plus(REFRESH_LIFETIME)));

@@ -7,5 +7,5 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("subscriptions")
 public record Subscription(@Id String organizationId, PlanTier tier, SubscriptionStatus status,
-                           String stripeCustomerId, String stripeSubscriptionId,
+                           String lastPaidOrderId,
                            Instant currentPeriodEnd, Instant updatedAt, @Version Long revision) { }

@@ -54,7 +54,7 @@ Prefer a `Membership` document (`userId`, `organizationId`, role, status) over o
 - Redis for short-lived cache entries, rate limits, one-time coordination where needed, and revoked access-token IDs. MongoDB remains the source of truth.
 - A responsive HTML/CSS/Bootstrap/JavaScript frontend that calls the REST API. It may initially be served from Spring Boot's static resources on the same origin. The API must not depend on server-rendered pages.
 - SMTP or a transactional email provider behind an `EmailSender` interface. Provider credentials come from environment variables.
-- Stripe test mode for paid subscriptions in a later phase; access decisions come from verified webhook events, not from a browser redirect.
+- Direct bKash and SSLCOMMERZ sandbox payment adapters for plan purchases; access decisions come from server-verified transactions, not from browser redirects.
 
 Use a modular monolith and package by domain. Controllers call services; services enforce business rules and use repositories. DTOs (prefer Java records where appropriate) cross API boundaries. Mongo documents never serve directly as public responses.
 
@@ -69,7 +69,7 @@ com.jachai
   academy/       courses, batches, learner feedback, tutor, certificates
   talent/        campaigns, candidate review, comparison, shortlist
   messaging/     instructor–learner conversations
-  billing/       plans, entitlements, subscription, Stripe webhook
+  billing/       plans, entitlements, payment orders, provider adapters
   ai/            provider adapter, prompts, limits, usage records
 ```
 
@@ -124,6 +124,7 @@ Telemetry records tab visibility changes, fullscreen exits, copy/paste attempts,
 ## 8. Authentication and security
 
 - Registration requires email verification before normal access. Use a random, single-use, expiring verification token; store only its hash in MongoDB or Redis.
+- Optional Google Identity Services sign-in verifies ID-token signature, audience, issuer, expiry, subject, and verified email server-side. Use the stable Google subject as the external identity; never silently merge an existing password account by email. Require authenticated same-email linking. A third-party email that Google does not authoritatively host must complete JachAI's own email verification before linking. Google login returns ordinary JachAI access/refresh tokens; organization authorization rules do not change.
 - Passwords use an adaptive hash such as BCrypt. Add password-reset tokens with the same single-use and expiry rules.
 - REST API authentication uses short-lived JWT access tokens and rotated refresh tokens. Bind refresh sessions to a user/device record; revoke on logout or security events.
 - Redis stores revoked access-token `jti` values until their original expiry when immediate logout is required. A missing Redis connection must not silently bypass an enforced revocation check.
@@ -153,7 +154,7 @@ Teacher–student messaging belongs to Academy. Store conversations/messages in 
 
 The product can begin with manually assigned plans so the assessment engine can be completed first. Plans grant explicit features and quotas: Academy, Talent, AI usage, active assessments, invitations, certificate issuance, and retention. Check entitlements on the server, not just in the UI.
 
-When Stripe is added, use test mode first. Store Stripe customer/subscription IDs and verified webhook event IDs. Verify the webhook signature with `STRIPE_WEBHOOK_SECRET`, process events idempotently, and update subscription state from webhook events. A successful browser checkout redirect is not proof of payment.
+Use both direct bKash sandbox and SSLCOMMERZ sandbox for the first billing release; do not enable either live environment by application configuration yet. Keep a provider-neutral payment order/attempt history with organization, amount in BDT, provider, unique merchant transaction ID, gateway reference, status, and timestamps. Each gateway must verify the payment server-to-server against its own validation/query API, including amount, currency, merchant transaction ID, and success state. Treat notifications and browser redirects as untrusted until verification; process duplicate callbacks idempotently. Grant or renew TEAM for a bounded paid period only after verified payment, and let expiry fall back to FREE. Recurring automatic charging is out of scope until each provider's contractual/API support is established; offer explicit manual renewal first. SSLCOMMERZ may itself offer bKash, so the frontend must distinguish direct bKash from the aggregator's other payment methods and not mislabel duplicate choices.
 
 ## 12. Configuration
 
@@ -170,10 +171,11 @@ Read connection strings and secrets from environment variables. Provide an `.env
 | `GROQ_API_KEY`, `GROQ_BASE_URL`, `GROQ_MODEL` | Groq configuration when selected. |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Gemini configuration when selected. |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | SMTP configuration when mail delivery is enabled. |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe test/live credentials when billing is implemented. |
+| `BKASH_SANDBOX_*`, `SSLCOMMERZ_SANDBOX_*` | Separate sandbox merchant credentials for the two Bangladesh payment gateways when enabled. Never place live credentials in the initial release. |
+| `GOOGLE_CLIENT_ID` | Optional Google Identity Services web client ID for verified Google sign-in; no Google client secret is needed for this ID-token flow. |
 | `APP_PUBLIC_BASE_URL` | Origin used in email and certificate links. |
 
-Use local, test, and production profiles for behavior and infrastructure settings. Fail startup for missing secrets required by an enabled feature; allow disabled future features to remain unconfigured. Do not hardcode Atlas, Redis, SMTP, AI, or Stripe credentials.
+Use local, test, and production profiles for behavior and infrastructure settings. Fail startup for missing secrets required by an enabled feature; allow disabled future features to remain unconfigured. Do not hardcode Atlas, Redis, SMTP, AI, or payment credentials.
 
 ## 13. API and frontend conventions
 
@@ -183,6 +185,7 @@ Use versioned endpoints under `/api/v1`. A representative shape is:
 POST   /api/v1/auth/register
 POST   /api/v1/auth/verify-email
 POST   /api/v1/auth/login
+POST   /api/v1/auth/google
 POST   /api/v1/auth/refresh
 POST   /api/v1/organizations
 GET    /api/v1/organizations/{orgId}/assessments
@@ -193,7 +196,9 @@ PUT    /api/v1/attempts/{attemptId}/answers/{questionId}
 POST   /api/v1/attempts/{attemptId}/submit
 GET    /api/v1/attempts/{attemptId}/result
 GET    /api/v1/public/certificates/{verificationCode}
-POST   /api/v1/billing/stripe/webhook
+POST   /api/v1/organizations/{orgId}/billing/orders
+POST   /api/v1/billing/bkash/callback
+POST   /api/v1/billing/sslcommerz/ipn
 ```
 
 The organization path is context, not authorization: verify membership and scope every query. Use validation, consistent error responses, pagination for lists, and server-generated timestamps. The frontend should consume the same API that an external client could use. Same-origin static pages are acceptable initially and simplify the first deployment.
@@ -205,7 +210,7 @@ The organization path is context, not authorization: verify membership and scope
 3. **Assessment engine:** Question bank, draft/publish flow, immutable versions, assignment/invitation, timed attempt, answer saving, deterministic scoring, result release.
 4. **Academy:** Courses/batches, weak-topic report, feedback, certificate issue/verify, instructor–learner messaging, AI Tutor.
 5. **Talent:** Campaigns, candidate invites, review notes, comparison, shortlist, integrity review.
-6. **SaaS operations:** Redis cache/rate limits/revocation, plan entitlements, Stripe test-mode billing, email expansion, deployment, observability.
+6. **SaaS operations:** Redis cache/rate limits/revocation, plan entitlements, direct bKash and SSLCOMMERZ sandbox billing, Google login, email expansion, deployment, observability.
 
 At each phase, implement one vertical workflow end to end, add tests for business rules and cross-tenant access, run the relevant build/tests, and document how to try it. Do not claim completion from a successful application startup alone.
 
@@ -255,7 +260,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Plan entitlement implementation decision
 
-- A `Subscription` document is keyed by organization and records `FREE` or `TEAM` tier plus billing state and future Stripe identifiers. Missing, inactive, or expired TEAM state resolves to FREE. Both organization types can use FREE so the product remains testable without payment. A plan snapshot explicitly states module access, AI use, published assessment count, invitation count, certificate count, and retention. The server reserves MongoDB `entitlement_usage` slots atomically before publishing an assessment, creating an invitation/assignment (including batch distribution), or issuing a certificate; handled write failures refund slots. AI daily counters use the plan's limits in Redis. This is a foundation, not completed billing: historical usage is not backfilled, crashes between reservation and write can strand a slot, and live concurrency/TTL behavior has not been verified. Stripe webhook state changes and reconciliation remain required.
+- A `Subscription` document is keyed by organization and records `FREE` or `TEAM` tier plus billing state. Missing, inactive, or expired TEAM state resolves to FREE. Both organization types can use FREE so the product remains testable without payment. A plan snapshot explicitly states module access, AI use, published assessment count, invitation count, certificate count, and retention. The server reserves MongoDB `entitlement_usage` slots atomically before publishing an assessment, creating an invitation/assignment (including batch distribution), or issuing a certificate; handled write failures refund slots. AI daily counters use the plan's limits in Redis. This is a foundation, not completed billing: historical usage is not backfilled, crashes between reservation and write can strand a slot, and live concurrency/TTL behavior has not been verified. Payment order verification, sandbox callbacks, plan renewal, and reconciliation remain required.
 
 ## Talent integrity telemetry implementation decision
 

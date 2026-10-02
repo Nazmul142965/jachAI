@@ -596,6 +596,31 @@ function switchAuth(which) {
     tab.setAttribute('aria-selected', String(name === which));
   }
 }
+async function setupGoogleSignIn() {
+  const config = await request('/auth/google/config', { auth: false });
+  if (!config?.clientId) return;
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.async = true;
+  await new Promise((resolve, reject) => {
+    script.onload = resolve; script.onerror = reject; document.head.append(script);
+  });
+  window.google.accounts.id.initialize({ client_id: config.clientId, callback: ({ credential }) => run(async () => {
+    if (state.accessToken) {
+      await request('/auth/google/link', { method: 'POST', body: { credential } });
+      notice('Google account linked. You can use it to sign in next time.');
+    } else {
+      const tokens = await request('/auth/google', { method: 'POST', auth: false, body: { credential } });
+      await signedIn(tokens);
+    }
+  }) });
+  for (const [selector, area] of [['#google-login-button', '#google-login-area'],
+    ['#google-link-button', '#google-link-area']]) {
+    window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with' });
+    $(area).classList.remove('hidden');
+  }
+}
+run(setupGoogleSignIn);
 $('#login-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   const tokens = await request('/auth/login', { method: 'POST', auth: false,

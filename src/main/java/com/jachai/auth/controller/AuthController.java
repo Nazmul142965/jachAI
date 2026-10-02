@@ -5,6 +5,7 @@ import com.jachai.auth.dto.LoginRequest;
 import com.jachai.auth.dto.RegisterRequest;
 import com.jachai.auth.dto.VerifyEmailRequest;
 import com.jachai.auth.service.AuthService;
+import com.jachai.auth.service.GoogleAuthService;
 import com.jachai.shared.security.RateLimitPolicy;
 import com.jachai.shared.security.RateLimitService;
 import jakarta.validation.Valid;
@@ -21,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
     private final AuthService auth;
+    private final GoogleAuthService google;
     private final RateLimitService limits;
 
     @PostMapping("/register")
@@ -56,6 +59,28 @@ public class AuthController {
     public record RequestResetRequest(@NotBlank @Email String email) { }
     public record ResetPasswordRequest(@NotBlank String token,
                                        @NotBlank @Size(min = 12, max = 128) String newPassword) { }
+    public record GoogleCredentialRequest(@NotBlank @Size(max = 8192) String credential) { }
+
+    @GetMapping("/google/config")
+    public Map<String, String> googleConfig() {
+        return Map.of("clientId", google.publicClientId());
+    }
+
+    @PostMapping("/google")
+    public AuthResponse googleLogin(@Valid @RequestBody GoogleCredentialRequest request,
+                                    HttpServletRequest servlet) {
+        limits.consume(RateLimitPolicy.LOGIN_IP, clientIp(servlet));
+        return google.login(request.credential());
+    }
+
+    @PostMapping("/google/link")
+    public Map<String, String> googleLink(@AuthenticationPrincipal Jwt jwt,
+                                          @Valid @RequestBody GoogleCredentialRequest request,
+                                          HttpServletRequest servlet) {
+        limits.consume(RateLimitPolicy.LOGIN_IP, clientIp(servlet));
+        google.link(jwt.getSubject(), request.credential());
+        return Map.of("message", "Google account linked");
+    }
 
     @PostMapping("/resend-verification")
     public ResponseEntity<Map<String, String>> resend(@Valid @RequestBody ResendRequest request,

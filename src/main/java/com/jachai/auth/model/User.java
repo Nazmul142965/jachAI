@@ -14,9 +14,15 @@ public record User(
         boolean emailVerified,
         boolean disabled,
         int securityVersion,
-        Instant createdAt) {
+        Instant createdAt,
+        @Indexed(unique = true, sparse = true) String googleSubject) {
+
+    public User(String id, String email, String displayName, String passwordHash,
+                boolean emailVerified, boolean disabled, int securityVersion, Instant createdAt) {
+        this(id, email, displayName, passwordHash, emailVerified, disabled, securityVersion, createdAt, null);
+    }
 
     public User verified() {
-        return new User(id, email, displayName, passwordHash, true, disabled, securityVersion, createdAt);
+        return new User(id, email, displayName, passwordHash, true, disabled, securityVersion, createdAt, googleSubject);
     }
 }

@@ -47,11 +47,11 @@ class EntitlementServiceTests {
     @Test
     void activeTeamPlanHasHigherLimitsButExpiredPlanFallsBack() {
         when(subscriptions.findById("org")).thenReturn(Optional.of(new Subscription(
-                "org", PlanTier.TEAM, SubscriptionStatus.ACTIVE, "customer", "sub",
+                "org", PlanTier.TEAM, SubscriptionStatus.ACTIVE, "payment-order",
                 Instant.now().plusSeconds(3600), Instant.now(), 1L)));
         assertEquals(PlanTier.TEAM, service().plan("org").tier());
         when(subscriptions.findById("org")).thenReturn(Optional.of(new Subscription(
-                "org", PlanTier.TEAM, SubscriptionStatus.ACTIVE, "customer", "sub",
+                "org", PlanTier.TEAM, SubscriptionStatus.ACTIVE, "payment-order",
                 Instant.now().minusSeconds(1), Instant.now(), 1L)));
         assertEquals(PlanTier.FREE, service().plan("org").tier());
     }

@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.jachai.auth.service.AuthService;
+import com.jachai.auth.service.GoogleAuthService;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.organization.service.OrganizationService;
 import com.jachai.organization.service.TenantAccessService;
@@ -47,6 +48,7 @@ import java.time.Instant;
 class JachAiApplicationTests {
     @Autowired MockMvc mvc;
     @MockitoBean AuthService authService;
+    @MockitoBean GoogleAuthService googleAuthService;
     @MockitoBean EmailSender emailSender;
     @MockitoBean UserRepository userRepository;
     @MockitoBean AccessRevocationService accessRevocationService;
@@ -75,6 +77,17 @@ class JachAiApplicationTests {
         mvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void googleConfigurationIsPublicButAccountLinkRequiresAuthentication() throws Exception {
+        when(googleAuthService.publicClientId()).thenReturn("");
+        mvc.perform(get("/api/v1/auth/google/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.clientId").exists());
+        mvc.perform(post("/api/v1/auth/google/link")
+                        .contentType("application/json").content("{\"credential\":\"token\"}"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
