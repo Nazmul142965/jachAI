@@ -240,11 +240,61 @@ function renderPageControls(selector, page, onPage) {
 }
 async function loadMembers() {
   const members = await request(ownOrg('/members'));
-  const roles = state.organization.type === 'ACADEMY' ? ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER']
+  const allRoles = state.organization.type === 'ACADEMY' ? ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER']
     : ['ORG_ADMIN', 'RECRUITER', 'CANDIDATE'];
+  const roles = state.organization.owner ? allRoles : allRoles.filter((role) => role !== 'ORG_ADMIN');
   $('#member-role').replaceChildren(...roles.map((role) => { const option = node('option', role.replaceAll('_', ' ')); option.value = role; return option; }));
-  setList('#members-list', members.map((member) => item(member.displayName,
-    `${member.email} · ${member.role} · User ID: ${member.userId}`)), 'No members yet.');
+  setList('#members-list', members.map((member) => {
+    const actions = [];
+    if (!member.owner && (state.organization.owner || member.role !== 'ORG_ADMIN')) {
+      const select = node('select');
+      for (const role of roles) {
+        const option = node('option', role.replaceAll('_', ' ')); option.value = role;
+        select.append(option);
+      }
+      select.value = member.role;
+      select.setAttribute('aria-label', `Role for ${member.displayName}`);
+      actions.push(select);
+      if (member.active) {
+        actions.push(button('Save role', async () => {
+          await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
+            { method: 'PUT', body: { role: select.value } });
+          await loadMembers(); notice('Member role updated.');
+        }), button('Deactivate', async () => {
+          if (!window.confirm(`Deactivate ${member.displayName} from this workspace?`)) return;
+          await request(ownOrg(`/members/${encodeURIComponent(member.userId)}`), { method: 'DELETE' });
+          await loadMembers(); notice('Member deactivated.');
+        }));
+      } else {
+        actions.push(button('Reactivate', async () => {
+          await request(ownOrg('/members'), { method: 'POST',
+            body: { email: member.email, role: select.value } });
+          await loadMembers(); notice('Member reactivated.');
+        }));
+      }
+    }
+    const auditPanel = node('div', '', 'item-list');
+    actions.push(button('History', () => loadMemberAudit(member.userId, 0, auditPanel)));
+    const wrapper = node('div', '', 'stack');
+    wrapper.append(item(member.displayName,
+      `${member.email} · ${member.owner ? 'Owner · ' : ''}${member.role.replaceAll('_', ' ')} · ${member.active ? 'Active' : 'Inactive'} · User ID: ${member.userId}`,
+      actions), auditPanel);
+    return wrapper;
+  }), 'No members yet.');
+}
+async function loadMemberAudit(userId, pageNumber, target) {
+  const page = await request(ownOrg(`/members/${encodeURIComponent(userId)}/audit?page=${pageNumber}`));
+  const rows = (page.content || []).map((entry) => item(entry.action.replaceAll('_', ' '),
+    `${entry.previousRole || 'No previous role'} → ${entry.role} · By ${entry.actorUserId} · ${new Date(entry.occurredAt).toLocaleString()}`));
+  target.replaceChildren(...(rows.length ? rows : [node('p', 'No role history yet.', 'muted')]));
+  if ((page.totalPages || 0) > 1) {
+    const controls = node('div', '', 'form-row');
+    const previous = button('Previous', () => loadMemberAudit(userId, page.number - 1, target));
+    const next = button('Next', () => loadMemberAudit(userId, page.number + 1, target));
+    previous.disabled = page.first; next.disabled = page.last;
+    controls.append(previous, node('span', `Page ${page.number + 1} of ${page.totalPages}`, 'muted'), next);
+    target.append(controls);
+  }
 }
 async function loadQuestions() {
   state.questions = await request(ownOrg('/questions'));

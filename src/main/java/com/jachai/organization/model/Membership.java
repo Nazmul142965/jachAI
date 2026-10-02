@@ -17,5 +17,14 @@ public record Membership(
         String organizationId,
         OrganizationRole role,
         boolean active,
-        Instant createdAt) {
+        Instant createdAt,
+        String lastChangeId,
+        String lastChangeActorId,
+        Instant lastChangedAt,
+        OrganizationRole previousRole,
+        Boolean previousActive) {
+    public Membership(String id, String userId, String organizationId, OrganizationRole role,
+                      boolean active, Instant createdAt) {
+        this(id, userId, organizationId, role, active, createdAt, null, null, null, null, null);
+    }
 }

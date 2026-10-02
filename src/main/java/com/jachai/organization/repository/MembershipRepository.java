@@ -13,6 +13,7 @@ public interface MembershipRepository extends MongoRepository<Membership, String
     Optional<Membership> findByUserIdAndOrganizationId(String userId, String organizationId);
     List<Membership> findByUserIdAndActiveTrue(String userId);
     List<Membership> findByOrganizationIdAndActiveTrue(String organizationId);
+    List<Membership> findByOrganizationId(String organizationId);
     Page<Membership> findByOrganizationIdAndRoleAndActiveTrue(
             String organizationId, OrganizationRole role, Pageable pageable);
 }

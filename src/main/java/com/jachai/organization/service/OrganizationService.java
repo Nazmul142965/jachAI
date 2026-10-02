@@ -14,21 +14,16 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class OrganizationService {
     private final UserRepository users;
     private final OrganizationRepository organizations;
     private final MembershipRepository memberships;
-
-    public OrganizationService(UserRepository users, OrganizationRepository organizations,
-                               MembershipRepository memberships) {
-        this.users = users;
-        this.organizations = organizations;
-        this.memberships = memberships;
-    }
 
     public OrganizationResponse create(String userId, CreateOrganizationRequest request) {
         User owner = users.findById(userId).orElseThrow(() ->
@@ -47,7 +42,7 @@ public class OrganizationService {
             throw exception;
         }
         return new OrganizationResponse(organization.id(), organization.name(), organization.type(),
-                OrganizationRole.ORG_ADMIN);
+                OrganizationRole.ORG_ADMIN, true);
     }
 
     public List<OrganizationResponse> listMine(String userId) {
@@ -55,7 +50,7 @@ public class OrganizationService {
         for (Membership membership : memberships.findByUserIdAndActiveTrue(userId)) {
             organizations.findById(membership.organizationId()).ifPresent(organization ->
                     result.add(new OrganizationResponse(organization.id(), organization.name(),
-                            organization.type(), membership.role())));
+                            organization.type(), membership.role(), organization.ownerUserId().equals(userId))));
         }
         return result;
     }

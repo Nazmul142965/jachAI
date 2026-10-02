@@ -220,6 +220,19 @@ class JachAiApplicationTests {
     }
 
     @Test
+    void membershipGovernanceApiRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/members/user-a/audit"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                        "/api/v1/organizations/org-a/members/user-a/role")
+                        .contentType("application/json").content("{\"role\":\"INSTRUCTOR\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                        "/api/v1/organizations/org-a/members/user-a"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void resetRequestIsPublicButValidated() throws Exception {
         mvc.perform(post("/api/v1/auth/request-password-reset")
                         .contentType("application/json")
