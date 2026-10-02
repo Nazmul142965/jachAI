@@ -41,6 +41,9 @@ import com.jachai.billing.service.PaymentBillingService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.anyString;
 import java.time.Instant;
 
 @SpringBootTest
@@ -143,6 +146,16 @@ class JachAiApplicationTests {
     void billingEntitlementsRequireAuthentication() throws Exception {
         mvc.perform(get("/api/v1/organizations/org-a/billing/entitlements"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void bkashCallbackDoesNotCreditOnFailedBrowserStatus() throws Exception {
+        mvc.perform(get("/api/v1/billing/bkash/callback")
+                        .param("orderId", "J123456789012345678901234")
+                        .param("paymentID", "payment12345")
+                        .param("status", "failure"))
+                .andExpect(status().isSeeOther());
+        verify(paymentBillingService, never()).verifyBkashCallback(anyString(), anyString());
     }
 
     @Test

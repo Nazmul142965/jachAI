@@ -29,7 +29,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh", "/api/v1/auth/request-password-reset",
                                 "/api/v1/auth/reset-password", "/api/v1/public/certificates/*",
                                 "/api/v1/billing/sslcommerz/ipn",
-                                "/api/v1/billing/sslcommerz/callback").permitAll()
+                                "/api/v1/billing/sslcommerz/callback",
+                                "/api/v1/billing/bkash/callback").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, exception) -> {

@@ -35,39 +35,37 @@ public class PaymentBillingService {
     private static final Duration DEMO_TERM = Duration.ofDays(30);
     private static final int WRITE_RETRIES = 5;
     private final TenantAccessService access;
-    private final EntitlementService entitlements;
     private final UserRepository users;
     private final PaymentOrderRepository orders;
     private final SubscriptionRepository subscriptions;
     private final SslCommerzSandboxGateway ssl;
+    private final BkashSandboxGateway bkash;
     private final BigDecimal demoPrice;
 
-    public PaymentBillingService(TenantAccessService access, EntitlementService entitlements,
-                                 UserRepository users, PaymentOrderRepository orders,
+    public PaymentBillingService(TenantAccessService access, UserRepository users,
+                                 PaymentOrderRepository orders,
                                  SubscriptionRepository subscriptions, SslCommerzSandboxGateway ssl,
+                                 BkashSandboxGateway bkash,
                                  @Value("${app.billing.demo-team-price-bdt}") BigDecimal demoPrice) {
         this.access = access;
-        this.entitlements = entitlements;
         this.users = users;
         this.orders = orders;
         this.subscriptions = subscriptions;
         this.ssl = ssl;
+        this.bkash = bkash;
         this.demoPrice = demoPrice;
     }
 
     public CheckoutView start(String actorId, String organizationId, PaymentProvider provider) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
-        if (entitlements.plan(organizationId).tier() == PlanTier.TEAM) {
-            throw new ApiException(HttpStatus.CONFLICT, "PLAN_ALREADY_ACTIVE",
-                    "TEAM plan is already active; renew after it expires");
-        }
         if (demoPrice.compareTo(new BigDecimal("10.00")) < 0
                 || demoPrice.compareTo(new BigDecimal("500000.00")) > 0
                 || demoPrice.scale() > 2) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "BILLING_UNAVAILABLE",
                     "Sandbox demo price is invalid");
         }
-        if (provider != PaymentProvider.SSLCOMMERZ || !ssl.configured()) {
+        if (provider == null || provider == PaymentProvider.SSLCOMMERZ && !ssl.configured()
+                || provider == PaymentProvider.BKASH && !bkash.configured()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "BILLING_UNAVAILABLE",
                     "Requested sandbox payment provider is not configured");
         }
@@ -80,6 +78,11 @@ public class PaymentBillingService {
         PaymentOrder order = orders.insert(new PaymentOrder(id, organizationId, actorId, provider,
                 PaymentOrderStatus.CREATED, demoPrice.setScale(2), null, null, null,
                 now, null, null, null));
+        if (provider == PaymentProvider.BKASH) {
+            var session = bkash.start(order);
+            orders.save(order.checkoutReady(session.paymentId()));
+            return new CheckoutView(order.id(), provider, order.amountBdt(), session.checkoutUrl());
+        }
         var session = ssl.start(order, buyer);
         orders.save(order.checkoutReady(session.sessionId()));
         return new CheckoutView(order.id(), provider, order.amountBdt(), session.checkoutUrl());
@@ -87,7 +90,7 @@ public class PaymentBillingService {
 
     public PaymentOptionsView options(String actorId, String organizationId) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
-        return new PaymentOptionsView(true, ssl.configured(), false, demoPrice);
+        return new PaymentOptionsView(true, ssl.configured(), bkash.configured(), demoPrice);
     }
 
     public Page<PaymentOrderView> history(String actorId, String organizationId, int page) {
@@ -105,13 +108,22 @@ public class PaymentBillingService {
     }
 
     public PaymentOrderView verifySslCallback(String orderId, String validationId) {
+        return verifyCallback(orderId, validationId, PaymentProvider.SSLCOMMERZ);
+    }
+
+    public PaymentOrderView verifyBkashCallback(String orderId, String paymentId) {
+        return verifyCallback(orderId, paymentId, PaymentProvider.BKASH);
+    }
+
+    private PaymentOrderView verifyCallback(String orderId, String validationId,
+                                            PaymentProvider provider) {
         if (orderId == null || !orderId.matches("J[0-9a-f]{24}")
                 || validationId == null || validationId.isBlank()) {
             throw invalidCallback();
         }
         for (int attempt = 0; attempt < WRITE_RETRIES; attempt++) {
             PaymentOrder order = orders.findById(orderId).orElseThrow(this::invalidCallback);
-            if (order.provider() != PaymentProvider.SSLCOMMERZ) throw invalidCallback();
+            if (order.provider() != provider) throw invalidCallback();
             if (order.status() == PaymentOrderStatus.APPLIED) {
                 if (!validationId.equals(order.gatewayValidationId())) throw invalidCallback();
                 return PaymentOrderView.from(order);
@@ -120,10 +132,17 @@ public class PaymentBillingService {
                 throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_READY", "Checkout has not started");
             }
             if (order.status() == PaymentOrderStatus.CHECKOUT_READY) {
-                var verified = ssl.verify(order, validationId);
+                String gatewayTransactionId;
+                if (provider == PaymentProvider.BKASH) {
+                    var verified = bkash.verify(order, validationId);
+                    gatewayTransactionId = verified.gatewayTransactionId();
+                } else {
+                    var verified = ssl.verify(order, validationId);
+                    gatewayTransactionId = verified.gatewayTransactionId();
+                }
                 try {
-                    order = orders.save(order.verified(verified.validationId(),
-                            verified.gatewayTransactionId(), Instant.now()));
+                    order = orders.save(order.verified(validationId,
+                            gatewayTransactionId, Instant.now()));
                 } catch (OptimisticLockingFailureException | DuplicateKeyException exception) {
                     continue;
                 }

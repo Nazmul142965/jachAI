@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
-import com.jachai.billing.dto.PlanEntitlements;
 import com.jachai.billing.model.PaymentOrder;
 import com.jachai.billing.model.PaymentOrderStatus;
 import com.jachai.billing.model.PaymentProvider;
@@ -34,20 +33,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class PaymentBillingServiceTests {
     private static final String ORDER_ID = "J123456789012345678901234";
     @Mock TenantAccessService access;
-    @Mock EntitlementService entitlements;
     @Mock UserRepository users;
     @Mock PaymentOrderRepository orders;
     @Mock SubscriptionRepository subscriptions;
     @Mock SslCommerzSandboxGateway ssl;
+    @Mock BkashSandboxGateway bkash;
 
     private PaymentBillingService service() {
-        return new PaymentBillingService(access, entitlements, users, orders,
-                subscriptions, ssl, new BigDecimal("100.00"));
+        return new PaymentBillingService(access, users, orders,
+                subscriptions, ssl, bkash, new BigDecimal("100.00"));
     }
 
     @Test
     void startsOnlyConfiguredSandboxCheckoutForAdmin() {
-        when(entitlements.plan("org")).thenReturn(PlanEntitlements.forTier(PlanTier.FREE));
         when(ssl.configured()).thenReturn(true);
         when(users.findById("admin")).thenReturn(Optional.of(admin()));
         when(orders.insert(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -63,12 +61,64 @@ class PaymentBillingServiceTests {
     }
 
     @Test
-    void directBkashCannotStartUntilItsRealSandboxAdapterExists() {
-        when(entitlements.plan("org")).thenReturn(PlanEntitlements.forTier(PlanTier.FREE));
+    void directBkashCannotStartWithoutSandboxCredentials() {
 
         assertEquals("BILLING_UNAVAILABLE", assertThrows(ApiException.class,
                 () -> service().start("admin", "org", PaymentProvider.BKASH)).code());
         verify(orders, never()).insert(any(PaymentOrder.class));
+    }
+
+    @Test
+    void startsDirectBkashSandboxCheckoutWhenConfigured() {
+        when(bkash.configured()).thenReturn(true);
+        when(users.findById("admin")).thenReturn(Optional.of(admin()));
+        when(orders.insert(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(bkash.start(any(PaymentOrder.class)))
+                .thenReturn(new BkashSandboxGateway.CheckoutSession("payment12345",
+                        "https://sandbox.payment.bkash.com/pay"));
+
+        var checkout = service().start("admin", "org", PaymentProvider.BKASH);
+
+        assertEquals(PaymentProvider.BKASH, checkout.provider());
+        verify(orders).save(any(PaymentOrder.class));
+    }
+
+    @Test
+    void verifiedBkashPaymentAppliesTeamOnce() {
+        PaymentOrder ready = new PaymentOrder(ORDER_ID, "org", "admin", PaymentProvider.BKASH,
+                PaymentOrderStatus.CHECKOUT_READY, new BigDecimal("100.00"), "payment12345",
+                null, null, Instant.now(), null, null, 1L);
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(ready));
+        when(bkash.verify(ready, "payment12345"))
+                .thenReturn(new BkashSandboxGateway.VerifiedPayment("payment12345", "trx123"));
+        when(orders.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertEquals(PaymentOrderStatus.APPLIED,
+                service().verifyBkashCallback(ORDER_ID, "payment12345").status());
+        verify(subscriptions).save(any(Subscription.class));
+    }
+
+    @Test
+    void earlyManualRenewalExtendsFromExistingPeriodEnd() {
+        PaymentOrder ready = new PaymentOrder(ORDER_ID, "org", "admin", PaymentProvider.BKASH,
+                PaymentOrderStatus.CHECKOUT_READY, new BigDecimal("100.00"), "payment12345",
+                null, null, Instant.now(), null, null, 1L);
+        Instant previousEnd = Instant.now().plusSeconds(15 * 86400L);
+        Subscription active = new Subscription("org", PlanTier.TEAM,
+                com.jachai.billing.model.SubscriptionStatus.ACTIVE, "oldOrder", previousEnd,
+                Instant.now(), java.util.List.of("oldOrder"), 1L);
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(ready));
+        when(bkash.verify(ready, "payment12345"))
+                .thenReturn(new BkashSandboxGateway.VerifiedPayment("payment12345", "trx123"));
+        when(orders.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subscriptions.findById("org")).thenReturn(Optional.of(active));
+
+        service().verifyBkashCallback(ORDER_ID, "payment12345");
+
+        ArgumentCaptor<Subscription> saved = ArgumentCaptor.forClass(Subscription.class);
+        verify(subscriptions).save(saved.capture());
+        assertEquals(previousEnd.plusSeconds(30 * 86400L), saved.getValue().currentPeriodEnd());
+        assertEquals(java.util.List.of("oldOrder", ORDER_ID), saved.getValue().appliedOrderIds());
     }
 
     @Test

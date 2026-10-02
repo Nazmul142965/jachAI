@@ -187,8 +187,9 @@ async function loadEntitlements() {
   ], 'Plan details are unavailable.');
   const options = await request(ownOrg('/billing/options'));
   const checkout = $('#start-ssl-demo');
-  checkout.disabled = !options.sslCommerzAvailable || plan.tier === 'TEAM';
-  $('#billing-hint').textContent = options.sslCommerzAvailable
+  checkout.disabled = !options.sslCommerzAvailable;
+  $('#start-bkash-demo').disabled = !options.bkashAvailable;
+  $('#billing-hint').textContent = options.sslCommerzAvailable || options.bkashAvailable
     ? `Sandbox only · TEAM demo price: ৳${options.demoTeamPriceBdt} for 30 days. No real money is charged.`
     : 'Sandbox merchant credentials are not configured yet. No real money is charged.';
   const payments = await request(ownOrg('/billing/orders?page=0'));
@@ -608,6 +609,11 @@ $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   const checkout = await request(ownOrg('/billing/orders'),
     { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
+  window.location.assign(checkout.checkoutUrl);
+}));
+$('#start-bkash-demo').addEventListener('click', () => run(async () => {
+  const checkout = await request(ownOrg('/billing/orders'),
+    { method: 'POST', body: { provider: 'BKASH' } });
   window.location.assign(checkout.checkoutUrl);
 }));
 $('#register-tab').addEventListener('click', () => switchAuth('register'));

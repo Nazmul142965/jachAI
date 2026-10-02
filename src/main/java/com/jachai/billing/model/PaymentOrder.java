@@ -17,7 +17,7 @@ public record PaymentOrder(
         PaymentProvider provider,
         PaymentOrderStatus status,
         BigDecimal amountBdt,
-        String gatewaySessionId,
+        @Indexed(unique = true, sparse = true) String gatewaySessionId,
         String gatewayValidationId,
         @Indexed(unique = true, sparse = true) String gatewayTransactionId,
         Instant createdAt,
