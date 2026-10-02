@@ -206,6 +206,8 @@ class JachAiApplicationTests {
     void talentCampaignApiRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/organizations/org-a/talent/campaigns"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/organizations/org-a/talent/campaigns/campaign-a/candidates/candidate-a/review/audit"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

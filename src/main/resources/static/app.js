@@ -342,11 +342,28 @@ async function compareCandidates(campaignId) {
         node('p', counts || 'No signals recorded.'),
         node('p', report.interpretation, 'muted'));
     });
-    const wrapper = node('div', '', 'card panel'); wrapper.append(info, form, integrityButton, integrityPanel); return wrapper;
+    const auditPanel = node('div', '', 'item-list');
+    const auditButton = button('Review history', () => run(() => loadReviewAudit(
+      campaignId, candidate.candidateUserId, 0, auditPanel)));
+    const wrapper = node('div', '', 'card panel');
+    wrapper.append(info, form, integrityButton, integrityPanel, auditButton, auditPanel); return wrapper;
   });
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
   $('#campaign-candidates-panel').classList.remove('hidden');
   $('#campaign-candidates-panel').scrollIntoView({ behavior: 'smooth' });
+}
+async function loadReviewAudit(campaignId, candidateId, pageNumber, target) {
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates/${encodeURIComponent(candidateId)}/review/audit?page=${pageNumber}`));
+  const rows = (page.content || []).map((entry) => item(
+    `${entry.decision.replaceAll('_', ' ')} · ${new Date(entry.occurredAt).toLocaleString()}`,
+    `Reviewer ID: ${entry.actorUserId} · Attempt ID: ${entry.attemptId} · ${entry.note || 'No note'}`));
+  target.replaceChildren(...(rows.length ? rows : [node('p', 'No review history yet.', 'muted')]));
+  const controls = node('div', '', 'form-row');
+  const previous = button('Previous', () => run(() => loadReviewAudit(campaignId, candidateId, page.number - 1, target)));
+  const next = button('Next', () => run(() => loadReviewAudit(campaignId, candidateId, page.number + 1, target)));
+  previous.disabled = page.first; next.disabled = page.last;
+  controls.append(previous, node('span', `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`, 'muted'), next);
+  target.append(controls);
 }
 async function loadAssignments() {
   const assignments = await request(ownOrg('/assignments/mine'));

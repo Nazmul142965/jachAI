@@ -13,6 +13,8 @@ public interface AssignmentRepository extends MongoRepository<Assignment, String
             String id, String organizationId, String assignedUserId);
     List<Assignment> findByOrganizationIdAndAssignedUserId(String organizationId, String assignedUserId);
     Page<Assignment> findByOrganizationIdAndCampaignId(String organizationId, String campaignId, Pageable pageable);
+    boolean existsByOrganizationIdAndCampaignIdAndAssignedUserId(
+            String organizationId, String campaignId, String assignedUserId);
     Page<Assignment> findByOrganizationIdAndBatchAssessmentId(
             String organizationId, String batchAssessmentId, Pageable pageable);
 }

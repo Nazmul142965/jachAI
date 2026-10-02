@@ -6,6 +6,7 @@ import com.jachai.talent.dto.CampaignView;
 import com.jachai.talent.dto.CandidateComparison;
 import com.jachai.talent.dto.CreateCampaignRequest;
 import com.jachai.talent.dto.ReviewRequest;
+import com.jachai.talent.dto.ReviewAuditView;
 import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.shared.security.RateLimitPolicy;
 import com.jachai.shared.security.RateLimitService;
@@ -79,5 +80,12 @@ public class TalentCampaignController {
             @PathVariable String organizationId, @PathVariable String campaignId,
             @PathVariable String candidateId, @Valid @RequestBody ReviewRequest request) {
         return campaigns.review(jwt.getSubject(), organizationId, campaignId, candidateId, request);
+    }
+
+    @GetMapping("/{campaignId}/candidates/{candidateId}/review/audit")
+    public Page<ReviewAuditView> reviewAudit(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String campaignId,
+            @PathVariable String candidateId, @RequestParam(defaultValue = "0") int page) {
+        return campaigns.audit(jwt.getSubject(), organizationId, campaignId, candidateId, page);
     }
 }

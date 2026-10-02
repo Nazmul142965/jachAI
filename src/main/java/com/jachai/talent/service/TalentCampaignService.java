@@ -17,11 +17,15 @@ import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
+import com.jachai.shared.audit.AuditAction;
+import com.jachai.shared.audit.AuditEvent;
+import com.jachai.shared.audit.AuditEventRepository;
 import com.jachai.talent.dto.CampaignInviteView;
 import com.jachai.talent.dto.CampaignView;
 import com.jachai.talent.dto.CandidateComparison;
 import com.jachai.talent.dto.CreateCampaignRequest;
 import com.jachai.talent.dto.ReviewRequest;
+import com.jachai.talent.dto.ReviewAuditView;
 import com.jachai.talent.model.HiringCampaign;
 import com.jachai.talent.model.ReviewDecision;
 import com.jachai.talent.repository.HiringCampaignRepository;
@@ -40,6 +44,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -54,6 +60,7 @@ public class TalentCampaignService {
     private final OrganizationRepository organizations;
     private final TenantAccessService access;
     private final EntitlementService entitlements;
+    private final AuditEventRepository auditEvents;
 
     public CampaignView create(String actorId, String organizationId, CreateCampaignRequest request) {
         requireTalentStaff(actorId, organizationId);
@@ -158,9 +165,17 @@ public class TalentCampaignService {
         String note = request.note() == null ? "" : request.note().trim();
         String id = campaignId + ":" + candidateId;
         ReviewDecision existing = decisions.findByIdAndOrganizationId(id, organizationId).orElse(null);
+        if (existing != null) {
+            ensureReviewAudit(existing);
+            if (existing.attemptId().equals(attempt.id()) && existing.decision() == request.decision()
+                    && existing.note().equals(note)) {
+                return new CandidateComparison(candidateId, assignment.id(), attempt.id(), attempt.percentage(),
+                        attempt.passed(), attempt.submittedAt(), existing.decision(), existing.note());
+            }
+        }
         ReviewDecision next = existing == null
                 ? new ReviewDecision(id, organizationId, campaignId, candidateId, attempt.id(),
-                        request.decision(), note, actorId, Instant.now(), null)
+                        request.decision(), note, actorId, Instant.now(), UUID.randomUUID().toString(), null)
                 : existing.update(attempt.id(), request.decision(), note, actorId, Instant.now());
         try {
             if (existing == null) decisions.insert(next);
@@ -168,8 +183,42 @@ public class TalentCampaignService {
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "REVIEW_CONFLICT", "Review changed concurrently; reload it");
         }
+        ensureReviewAudit(next);
         return new CandidateComparison(candidateId, assignment.id(), attempt.id(), attempt.percentage(),
                 attempt.passed(), attempt.submittedAt(), next.decision(), next.note());
+    }
+
+    public Page<ReviewAuditView> audit(String actorId, String organizationId, String campaignId,
+                                       String candidateId, int page) {
+        requireTalentStaff(actorId, organizationId);
+        ownCampaign(organizationId, campaignId);
+        if (!assignments.existsByOrganizationIdAndCampaignIdAndAssignedUserId(
+                organizationId, campaignId, candidateId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Campaign candidate not found");
+        }
+        if (page < 0 || page > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Page must be between 0 and 500");
+        }
+        return auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+                organizationId, "TALENT_REVIEW", campaignId + ":" + candidateId,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")))
+                .map(ReviewAuditView::from);
+    }
+
+    private void ensureReviewAudit(ReviewDecision decision) {
+        if (decision.reviewerUserId() == null || decision.updatedAt() == null) return;
+        String eventId = decision.auditEventId() == null
+                ? "talent-review:" + decision.id() + ":legacy:" + decision.revision()
+                : "talent-review:" + decision.auditEventId();
+        AuditEvent event = new AuditEvent(eventId, decision.organizationId(), decision.reviewerUserId(),
+                AuditAction.TALENT_REVIEW_SAVED, "TALENT_REVIEW", decision.id(), decision.updatedAt(),
+                Map.of("attemptId", decision.attemptId(), "decision", decision.decision().name(),
+                        "note", decision.note()));
+        try {
+            auditEvents.insert(event);
+        } catch (DuplicateKeyException ignored) {
+            // A retry or concurrent request already recorded this immutable review state.
+        }
     }
 
     private HiringCampaign ownCampaign(String organizationId, String campaignId) {

@@ -244,7 +244,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Phase 5 implementation decisions
 
-- A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. Audit history remains required follow-up work.
+- A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. Each saved decision has a staff-only audit entry recording actor, attempt, decision, note, and time; a deterministic event reference on the decision allows retry repair without duplicate history. Live MongoDB failure/retry verification remains open.
 
 ## Talent email invitation implementation decision
 
