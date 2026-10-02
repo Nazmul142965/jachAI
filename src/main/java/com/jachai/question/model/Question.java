@@ -5,10 +5,14 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("questions")
-@CompoundIndex(name = "questions_org_status", def = "{'organizationId': 1, 'status': 1}")
+@CompoundIndexes({
+        @CompoundIndex(name = "questions_org_created", def = "{'organizationId': 1, 'createdAt': -1, '_id': -1}"),
+        @CompoundIndex(name = "questions_org_status_created", def = "{'organizationId': 1, 'status': 1, 'createdAt': -1, '_id': -1}")
+})
 public record Question(
         @Id String id,
         String organizationId,

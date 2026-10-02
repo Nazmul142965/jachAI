@@ -2,9 +2,15 @@ package com.jachai.question.controller;
 
 import com.jachai.question.dto.CreateQuestionRequest;
 import com.jachai.question.model.Question;
+import com.jachai.question.model.QuestionStatus;
 import com.jachai.question.service.QuestionService;
 import jakarta.validation.Valid;
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Validated
 @RequestMapping("/api/v1/organizations/{organizationId}/questions")
 public class QuestionController {
     private final QuestionService questions;
@@ -24,8 +31,11 @@ public class QuestionController {
     public QuestionController(QuestionService questions) { this.questions = questions; }
 
     @GetMapping
-    public List<Question> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId) {
-        return questions.list(jwt.getSubject(), organizationId);
+    public Page<Question> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(required = false) QuestionStatus status) {
+        return questions.list(jwt.getSubject(), organizationId, status,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
     }
 
     @PostMapping

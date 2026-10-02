@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
   questions: [], assessments: [], campaigns: [], academyCourses: [], academyBatches: [],
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
+  selectedQuestionIds: new Set(),
   timer: null, activeConversationId: null, messageRefresh: null,
   messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0, view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
@@ -75,6 +76,7 @@ function showSignedOut() {
   state.accessToken = null; state.refreshToken = null; state.organization = null;
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
   state.activeReviewAttemptId = null;
+  state.selectedQuestionIds.clear();
   state.reviewLoadToken++;
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
@@ -116,6 +118,7 @@ async function loadOrganizations() {
   await setOrganization();
 }
 async function setOrganization() {
+  state.selectedQuestionIds.clear();
   state.activeAttempt = null;
   state.activeReviewAttemptId = null;
   state.reviewLoadToken++;
@@ -184,7 +187,7 @@ async function showView(key) {
   if (key === 'members') await loadMembers();
   if (key === 'questions') await loadQuestions();
   if (key === 'assessments') {
-    await loadQuestions(); await loadAssessments(); await loadReviewQueue(0);
+    await loadApprovedQuestions(); await loadAssessments(); await loadReviewQueue(0);
     await loadOrganizationSettings();
   }
   if (key === 'academy') await loadAcademyCatalog();
@@ -321,21 +324,40 @@ async function loadMemberAudit(userId, pageNumber, target) {
     target.append(controls);
   }
 }
-async function loadQuestions() {
-  state.questions = await request(ownOrg('/questions'));
+async function loadQuestions(pageNumber = 0) {
+  const page = await request(ownOrg(`/questions?page=${pageNumber}`));
+  state.questions = page.content || [];
   setList('#questions-list', state.questions.map((question) => item(question.prompt,
     `${question.topic} · ${question.type.replaceAll('_', ' ')} · ${question.status}`,
     question.status === 'DRAFT' ? [button('Approve', async () => {
       await request(ownOrg(`/questions/${encodeURIComponent(question.id)}/approve`), { method: 'POST' });
-      notice('Question approved.'); await loadQuestions();
+      notice('Question approved.'); await loadQuestions(page.number);
+      if (state.view === 'assessments') await loadApprovedQuestions();
     })] : [])), 'No questions yet.');
-  const approved = state.questions.filter((question) => question.status === 'APPROVED');
-  const choices = approved.map((question) => {
+  renderPageControls('#questions-pagination', page, loadQuestions);
+}
+async function loadApprovedQuestions(pageNumber = 0) {
+  const page = await request(ownOrg(`/questions?status=APPROVED&page=${pageNumber}`));
+  const choices = (page.content || []).map((question) => {
     const label = node('label', '', 'check');
     const input = node('input'); input.type = 'checkbox'; input.name = 'questionId'; input.value = question.id;
+    input.checked = state.selectedQuestionIds.has(question.id);
+    input.addEventListener('change', () => {
+      if (input.checked && state.selectedQuestionIds.size >= 100) {
+        input.checked = false; notice('An assessment can contain at most 100 questions.', true); return;
+      }
+      if (input.checked) state.selectedQuestionIds.add(question.id);
+      else state.selectedQuestionIds.delete(question.id);
+      updateSelectedQuestionCount();
+    });
     label.append(input, node('span', `${question.topic} — ${question.prompt}`)); return label;
   });
   setList('#assessment-questions', choices, 'Approve a question before creating an assessment.');
+  renderPageControls('#assessment-questions-pagination', page, loadApprovedQuestions);
+  updateSelectedQuestionCount();
+}
+function updateSelectedQuestionCount() {
+  $('#selected-question-count').textContent = `${state.selectedQuestionIds.size} selected (maximum 100)`;
 }
 async function loadAssessments() {
   state.assessments = await request(ownOrg('/assessments'));
@@ -948,13 +970,14 @@ $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault
   event.currentTarget.reset(); await loadQuestions(); notice('AI draft saved. Review before approval.');
 }); });
 $('#assessment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget); const questionIds = form.getAll('questionId');
+  const form = new FormData(event.currentTarget); const questionIds = [...state.selectedQuestionIds];
   if (!questionIds.length) throw new Error('Select at least one approved question.');
   await request(ownOrg('/assessments'), { method: 'POST', body: {
     title: form.get('title'), durationMinutes: Number(form.get('durationMinutes')),
     passingPercentage: Number(form.get('passingPercentage')), resultReleasePolicy: form.get('resultReleasePolicy') || null, questionIds
   } });
-  event.currentTarget.reset(); await loadAssessments(); notice('Assessment draft created.');
+  event.currentTarget.reset(); state.selectedQuestionIds.clear();
+  await loadApprovedQuestions(); await loadAssessments(); notice('Assessment draft created.');
 }); });
 $('#assignment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);

@@ -13,6 +13,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -42,9 +44,10 @@ public class QuestionService {
                 Set.copyOf(request.correctOptionIds()), QuestionStatus.DRAFT, Instant.now()));
     }
 
-    public List<Question> list(String userId, String organizationId) {
+    public Page<Question> list(String userId, String organizationId, QuestionStatus status, Pageable pageable) {
         requireAuthor(userId, organizationId);
-        return questions.findByOrganizationId(organizationId);
+        return status == null ? questions.findByOrganizationId(organizationId, pageable)
+                : questions.findByOrganizationIdAndStatus(organizationId, status, pageable);
     }
 
     public Question approve(String userId, String organizationId, String questionId) {
