@@ -89,7 +89,7 @@ public class CampaignEmailInvitationService {
                 ? new CampaignEmailInvitation(UUID.randomUUID().toString(), organizationId, campaignId, email,
                         campaign.assessmentId(), campaign.assessmentVersionId(), request.attemptsAllowed(),
                         request.availableFrom(), request.availableUntil(), hash(rawToken), now, expiresAt, null, null)
-                : existing.reissued(hash(rawToken), now, expiresAt);
+                : existing.reissued(hash(rawToken), expiresAt);
         if (existing != null && (existing.attemptsAllowed() != request.attemptsAllowed()
                 || !existing.availableFrom().equals(request.availableFrom())
                 || !existing.availableUntil().equals(request.availableUntil()))) {

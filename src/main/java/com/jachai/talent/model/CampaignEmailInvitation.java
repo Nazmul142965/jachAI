@@ -24,9 +24,9 @@ public record CampaignEmailInvitation(
                 availableUntil, tokenHash, createdAt, expiresAt, when, revision);
     }
 
-    public CampaignEmailInvitation reissued(String nextTokenHash, Instant when, Instant nextExpiry) {
+    public CampaignEmailInvitation reissued(String nextTokenHash, Instant nextExpiry) {
         return new CampaignEmailInvitation(id, organizationId, campaignId, email,
                 assessmentId, assessmentVersionId, attemptsAllowed, availableFrom,
-                availableUntil, nextTokenHash, when, nextExpiry, null, revision);
+                availableUntil, nextTokenHash, createdAt, nextExpiry, null, revision);
     }
 }
