@@ -10,6 +10,7 @@ import com.jachai.auth.model.User;
 import com.jachai.auth.repository.EmailVerificationTokenRepository;
 import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
+import com.mongodb.client.result.UpdateResult;
 import com.jachai.shared.error.ApiException;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,6 +21,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -36,12 +38,14 @@ public class AuthService {
     private final PasswordEncoder passwords;
     private final EmailSender emailSender;
     private final JwtService jwt;
+    private final AccessRevocationService revocations;
     private final String publicBaseUrl;
 
     public AuthService(UserRepository users, EmailVerificationTokenRepository tokens,
                        PasswordResetTokenRepository resetTokens,
                        MongoTemplate mongo, PasswordEncoder passwords, EmailSender emailSender,
-                       JwtService jwt, @Value("${app.public-base-url}") String publicBaseUrl) {
+                       JwtService jwt, AccessRevocationService revocations,
+                       @Value("${app.public-base-url}") String publicBaseUrl) {
         this.users = users;
         this.tokens = tokens;
         this.resetTokens = resetTokens;
@@ -49,6 +53,7 @@ public class AuthService {
         this.passwords = passwords;
         this.emailSender = emailSender;
         this.jwt = jwt;
+        this.revocations = revocations;
         this.publicBaseUrl = publicBaseUrl;
     }
 
@@ -58,7 +63,7 @@ public class AuthService {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_EXISTS", "Email is already registered");
         }
         User user = new User(UUID.randomUUID().toString(), email, request.displayName().trim(),
-                passwords.encode(request.password()), false, false, Instant.now());
+                passwords.encode(request.password()), false, false, 0, Instant.now());
         try {
             users.save(user);
         } catch (DuplicateKeyException exception) {
@@ -95,7 +100,7 @@ public class AuthService {
         if (!user.emailVerified()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "EMAIL_UNVERIFIED", "Verify your email before signing in");
         }
-        return issueSession(user.id());
+        return issueSession(user);
     }
 
     public AuthResponse refresh(String rawToken) {
@@ -106,15 +111,17 @@ public class AuthService {
         }
         User user = users.findById(session.userId()).orElseThrow(() ->
                 new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH", "Refresh session is invalid or expired"));
-        if (!user.emailVerified() || user.disabled()) {
+        if (!user.emailVerified() || user.disabled()
+                || session.securityVersion() != user.securityVersion()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH", "Refresh session is invalid or expired");
         }
-        return issueSession(user.id());
+        return issueSession(user);
     }
 
-    public void logout(String rawToken) {
-        mongo.findAndRemove(Query.query(Criteria.where("tokenHash").is(TokenSecrets.hash(rawToken))),
-                RefreshSession.class);
+    public void logout(String userId, String rawToken, String accessJti, Instant accessExpiry) {
+        revocations.revoke(accessJti, accessExpiry);
+        mongo.findAndRemove(Query.query(Criteria.where("tokenHash").is(TokenSecrets.hash(rawToken))
+                .and("userId").is(userId)), RefreshSession.class);
     }
 
     public void requestPasswordReset(String email) {
@@ -142,18 +149,23 @@ public class AuthService {
         if (!user.emailVerified() || user.disabled()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
         }
+        UpdateResult result = mongo.updateFirst(Query.query(Criteria.where("_id").is(user.id())
+                        .and("emailVerified").is(true).and("disabled").is(false)),
+                new Update().set("passwordHash", passwords.encode(newPassword))
+                        .inc("securityVersion", 1), User.class);
+        if (result.getMatchedCount() != 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
+        }
         resetTokens.deleteByUserId(user.id());
-        // Revoke every refresh session before changing the password. Existing access JWTs
-        // remain valid for at most their short lifetime until Redis revocation is added.
+        // Even if a concurrent refresh creates a session, its old securityVersion is unusable.
         mongo.remove(Query.query(Criteria.where("userId").is(user.id())), RefreshSession.class);
-        users.save(user.withPasswordHash(passwords.encode(newPassword)));
     }
 
-    private AuthResponse issueSession(String userId) {
+    private AuthResponse issueSession(User user) {
         String rawRefresh = TokenSecrets.generate();
         mongo.insert(new RefreshSession(UUID.randomUUID().toString(), TokenSecrets.hash(rawRefresh),
-                userId, Instant.now(), Instant.now().plus(REFRESH_LIFETIME)));
-        return new AuthResponse(jwt.issueAccessToken(userId), rawRefresh, "Bearer",
+                user.id(), user.securityVersion(), Instant.now(), Instant.now().plus(REFRESH_LIFETIME)));
+        return new AuthResponse(jwt.issueAccessToken(user), rawRefresh, "Bearer",
                 jwt.accessLifetimeSeconds());
     }
 

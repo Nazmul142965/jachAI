@@ -1,5 +1,6 @@
 package com.jachai.auth.service;
 
+import com.jachai.auth.model.User;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -19,15 +20,16 @@ public class JwtService {
         this.encoder = encoder;
     }
 
-    public String issueAccessToken(String userId) {
+    public String issueAccessToken(User user) {
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer("jachai")
-                .subject(userId)
+                .subject(user.id())
                 .issuedAt(now)
                 .expiresAt(now.plus(ACCESS_LIFETIME))
                 .id(UUID.randomUUID().toString())
                 .claim("purpose", "access")
+                .claim("sv", user.securityVersion())
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

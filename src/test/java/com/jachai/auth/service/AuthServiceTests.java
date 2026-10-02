@@ -30,6 +30,8 @@ import static org.mockito.Mockito.never;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import com.mongodb.client.result.UpdateResult;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,12 +42,13 @@ class AuthServiceTests {
     @Mock MongoTemplate mongo;
     @Mock EmailSender emailSender;
     @Mock JwtService jwt;
+    @Mock AccessRevocationService revocations;
     AuthService service;
 
     @BeforeEach
     void setUp() {
         service = new AuthService(users, tokens, resetTokens, mongo, new BCryptPasswordEncoder(),
-                emailSender, jwt, "http://localhost:8080");
+                emailSender, jwt, revocations, "http://localhost:8080");
     }
 
     @Test
@@ -78,7 +81,7 @@ class AuthServiceTests {
     void unverifiedUserCannotReceiveJwt() {
         String hash = new BCryptPasswordEncoder().encode("long-password-123");
         when(users.findByEmail("test@example.com")).thenReturn(Optional.of(
-                new User("u1", "test@example.com", "Test", hash, false, false, Instant.now())));
+                new User("u1", "test@example.com", "Test", hash, false, false, 0, Instant.now())));
         ApiException error = assertThrows(ApiException.class,
                 () -> service.login(new LoginRequest("test@example.com", "long-password-123")));
         assertEquals("EMAIL_UNVERIFIED", error.code());
@@ -88,10 +91,10 @@ class AuthServiceTests {
     void refreshTokenIsConsumedAndRotated() {
         when(mongo.findAndRemove(any(Query.class), eq(RefreshSession.class)))
                 .thenReturn(new RefreshSession("session-1", TokenSecrets.hash("old-refresh"),
-                        "u1", Instant.now().minusSeconds(30), Instant.now().plusSeconds(300)));
+                        "u1", 0, Instant.now().minusSeconds(30), Instant.now().plusSeconds(300)));
         when(users.findById("u1")).thenReturn(Optional.of(new User("u1", "test@example.com",
-                "Test", "hash", true, false, Instant.now())));
-        when(jwt.issueAccessToken("u1")).thenReturn("signed-access");
+                "Test", "hash", true, false, 0, Instant.now())));
+        when(jwt.issueAccessToken(any(User.class))).thenReturn("signed-access");
         when(jwt.accessLifetimeSeconds()).thenReturn(900L);
 
         var response = service.refresh("old-refresh");
@@ -101,6 +104,33 @@ class AuthServiceTests {
         ArgumentCaptor<RefreshSession> saved = ArgumentCaptor.forClass(RefreshSession.class);
         verify(mongo).insert(saved.capture());
         assertEquals(TokenSecrets.hash(response.refreshToken()), saved.getValue().tokenHash());
+    }
+
+    @Test
+    void refreshFromBeforePasswordResetIsRejected() {
+        when(mongo.findAndRemove(any(Query.class), eq(RefreshSession.class)))
+                .thenReturn(new RefreshSession("session-1", TokenSecrets.hash("old-refresh"),
+                        "u1", 0, Instant.now().minusSeconds(30), Instant.now().plusSeconds(300)));
+        when(users.findById("u1")).thenReturn(Optional.of(new User("u1", "test@example.com",
+                "Test", "hash", true, false, 1, Instant.now())));
+
+        ApiException error = assertThrows(ApiException.class, () -> service.refresh("old-refresh"));
+
+        assertEquals("INVALID_REFRESH", error.code());
+        verify(jwt, never()).issueAccessToken(any(User.class));
+    }
+
+    @Test
+    void logoutRevokesAccessTokenAndOnlyOwnRefreshSession() {
+        Instant expiry = Instant.now().plusSeconds(300);
+
+        service.logout("u1", "raw-refresh", "jti-1", expiry);
+
+        verify(revocations).revoke("jti-1", expiry);
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        verify(mongo).findAndRemove(query.capture(), eq(RefreshSession.class));
+        assertEquals("u1", query.getValue().getQueryObject().get("userId"));
+        assertEquals(TokenSecrets.hash("raw-refresh"), query.getValue().getQueryObject().get("tokenHash"));
     }
 
     @Test
@@ -114,7 +144,7 @@ class AuthServiceTests {
     @Test
     void passwordResetEmailStoresOnlyTokenHash() {
         when(users.findByEmail("test@example.com")).thenReturn(Optional.of(new User(
-                "u1", "test@example.com", "Test", "hash", true, false, Instant.now())));
+                "u1", "test@example.com", "Test", "hash", true, false, 0, Instant.now())));
 
         service.requestPasswordReset(" Test@Example.com ");
 
@@ -141,18 +171,23 @@ class AuthServiceTests {
     @Test
     void successfulResetChangesHashAndRevokesRefreshSessions() {
         User user = new User("u1", "test@example.com", "Test", "old-hash",
-                true, false, Instant.now());
+                true, false, 0, Instant.now());
         when(mongo.findAndRemove(any(Query.class), eq(PasswordResetToken.class)))
                 .thenReturn(new PasswordResetToken("id", TokenSecrets.hash("raw-reset"),
                         "u1", Instant.now().plusSeconds(300)));
         when(users.findById("u1")).thenReturn(Optional.of(user));
+        when(mongo.updateFirst(any(Query.class), any(Update.class), eq(User.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
 
         service.resetPassword("raw-reset", "new-long-password-123");
 
-        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
-        verify(users).save(saved.capture());
+        ArgumentCaptor<Update> saved = ArgumentCaptor.forClass(Update.class);
+        verify(mongo).updateFirst(any(Query.class), saved.capture(), eq(User.class));
         assertTrue(new BCryptPasswordEncoder().matches("new-long-password-123",
-                saved.getValue().passwordHash()));
+                (String) ((org.bson.Document) saved.getValue().getUpdateObject().get("$set"))
+                        .get("passwordHash")));
+        assertEquals(1, ((org.bson.Document) saved.getValue().getUpdateObject().get("$inc"))
+                .get("securityVersion"));
         verify(mongo).remove(any(Query.class), eq(RefreshSession.class));
         verify(resetTokens).deleteByUserId("u1");
     }

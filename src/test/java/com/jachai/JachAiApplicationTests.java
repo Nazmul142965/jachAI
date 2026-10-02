@@ -28,6 +28,8 @@ import com.jachai.ai.service.TutorService;
 import com.jachai.academy.service.CertificateService;
 import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.talent.service.TalentCampaignService;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
 import java.time.Instant;
 
@@ -37,6 +39,8 @@ import java.time.Instant;
 class JachAiApplicationTests {
     @Autowired MockMvc mvc;
     @MockitoBean AuthService authService;
+    @MockitoBean UserRepository userRepository;
+    @MockitoBean AccessRevocationService accessRevocationService;
     @MockitoBean OrganizationService organizationService;
     @MockitoBean TenantAccessService tenantAccessService;
     @MockitoBean QuestionService questionService;

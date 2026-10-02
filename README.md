@@ -4,10 +4,11 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 
 ## Current workflows
 
-- Email registration, verification, login, refresh rotation, logout of a refresh session, and single-use password reset by email.
+- Email registration, verification, login, refresh rotation, access-token/refresh-session logout, and single-use password reset by email. Password reset invalidates earlier access and refresh tokens through a per-user security version.
 - Organization creation and memberships; roles and tenant checks are enforced in services.
 - Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment, timed attempts, answer saving, deterministic scoring, manual/immediate result release, and topic-level result breakdown.
 - Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
+- MongoDB durably records revoked access-token IDs until expiry. Redis can speed positive revocation checks with `REDIS_REVOCATION_ENABLED=true`; authentication still checks MongoDB when Redis is empty or unavailable and fails closed if MongoDB cannot confirm token state. This adds MongoDB reads per authenticated request until a safer bounded cache is designed.
 - AI question drafting via Gemini (`AI_PROVIDER=google-genai`), post-attempt Academy tutoring via Groq (`AI_TUTOR_PROVIDER=groq`), or local Ollama for both (`AI_PROVIDER=ollama`). AI drafts still require human approval. AI request quota counters are in Redis; AI fails closed if Redis is unavailable.
 - Academy certificate issuance after a passing, released result; learner certificate listing, staff revocation, and minimal public code verification.
 - An in-progress responsive browser dashboard for registration/login, workspaces, authoring, assignments, attempts, results, and certificates. HTML pages are rendered from `src/main/resources/templates` by a small MVC page controller; CSS/JavaScript live in `src/main/resources/static` and call the REST API.

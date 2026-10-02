@@ -45,7 +45,7 @@ class MembershipServiceTests {
                 new Membership("member", "candidate", "org-a", OrganizationRole.CANDIDATE,
                         true, Instant.now())), pageable, 1));
         when(users.findById("candidate")).thenReturn(Optional.of(new User(
-                "candidate", "candidate@example.com", "Candidate", "hash", true, false, Instant.now())));
+                "candidate", "candidate@example.com", "Candidate", "hash", true, false, 0, Instant.now())));
 
         var result = service().listCandidates("recruiter", "org-a", pageable);
 

@@ -13,13 +13,10 @@ public record User(
         String passwordHash,
         boolean emailVerified,
         boolean disabled,
+        int securityVersion,
         Instant createdAt) {
 
     public User verified() {
-        return new User(id, email, displayName, passwordHash, true, disabled, createdAt);
-    }
-
-    public User withPasswordHash(String newPasswordHash) {
-        return new User(id, email, displayName, newPasswordHash, emailVerified, disabled, createdAt);
+        return new User(id, email, displayName, passwordHash, true, disabled, securityVersion, createdAt);
     }
 }

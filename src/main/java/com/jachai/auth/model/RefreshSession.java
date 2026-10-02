@@ -10,6 +10,7 @@ public record RefreshSession(
         @Id String id,
         @Indexed(unique = true) String tokenHash,
         @Indexed String userId,
+        int securityVersion,
         Instant createdAt,
         @Indexed(expireAfter = "0s") Instant expiresAt) {
 }

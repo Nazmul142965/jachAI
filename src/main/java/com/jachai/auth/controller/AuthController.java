@@ -10,6 +10,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -78,8 +80,9 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public Map<String, String> logout(@Valid @RequestBody RefreshRequest request) {
-        auth.logout(request.refreshToken());
-        return Map.of("message", "Refresh session revoked");
+    public Map<String, String> logout(@AuthenticationPrincipal Jwt jwt,
+                                      @Valid @RequestBody RefreshRequest request) {
+        auth.logout(jwt.getSubject(), request.refreshToken(), jwt.getId(), jwt.getExpiresAt());
+        return Map.of("message", "Access token and refresh session revoked");
     }
 }
