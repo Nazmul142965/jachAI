@@ -38,4 +38,18 @@ final class SmtpEmailSender implements EmailSender {
                 + resetUrl + "\n\nThis link expires in 30 minutes. If you did not request it, ignore this email.");
         mailSender.send(mail);
     }
+
+    @Override
+    public void sendAssessmentInvitation(String recipient, String organizationName,
+                                         String campaignTitle, String invitationUrl) {
+        SimpleMailMessage mail = new SimpleMailMessage();
+        mail.setFrom(from);
+        mail.setTo(recipient);
+        mail.setSubject("Your JachAI assessment invitation");
+        mail.setText("You have been invited by " + organizationName + " to the assessment campaign \""
+                + campaignTitle + "\".\n\nOpen this link, register or sign in using this email address, "
+                + "and accept the invitation:\n" + invitationUrl
+                + "\n\nIf you did not expect this invitation, ignore this email.");
+        mailSender.send(mail);
+    }
 }

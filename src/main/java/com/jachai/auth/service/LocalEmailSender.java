@@ -21,4 +21,11 @@ final class LocalEmailSender implements EmailSender {
         // Development only: production uses SMTP and never logs reset links.
         log.info("Development password reset email for {}: {}", recipient, resetUrl);
     }
+
+    @Override
+    public void sendAssessmentInvitation(String recipient, String organizationName,
+                                         String campaignTitle, String invitationUrl) {
+        log.info("Development assessment invitation for {} from {} ({}): {}",
+                recipient, organizationName, campaignTitle, invitationUrl);
+    }
 }

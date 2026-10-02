@@ -5,6 +5,11 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   messageRefreshBusy: false, view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
   'campaigns', 'attempts', 'certificates'];
+const invitationFromLink = new URLSearchParams(location.search).get('invitation');
+if (invitationFromLink) {
+  sessionStorage.setItem('jachaiPendingInvitation', invitationFromLink);
+  history.replaceState(null, '', location.pathname);
+}
 
 function node(tag, text = '', className = '') {
   const element = document.createElement(tag);
@@ -70,7 +75,21 @@ async function signedIn(tokens) {
   state.refreshToken = tokens.refreshToken;
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
+  let invitationMessage = 'Signed in.';
+  const pending = sessionStorage.getItem('jachaiPendingInvitation');
+  if (pending) {
+    try {
+      const assignment = await request('/talent/email-invitations/accept',
+        { method: 'POST', body: { token: pending } });
+      sessionStorage.removeItem('jachaiPendingInvitation');
+      state.organization = { id: assignment.organizationId };
+      invitationMessage = 'Invitation accepted. Your assessment is under My assignments.';
+    } catch (error) {
+      invitationMessage = `Signed in, but the invitation was not accepted: ${error.message}`;
+    }
+  }
   await loadOrganizations();
+  notice(invitationMessage);
 }
 async function loadOrganizations() {
   const previous = state.organization?.id;
@@ -214,6 +233,8 @@ async function loadCampaigns() {
         notice('Campaign closed.'); await loadCampaigns();
       })] : [])])), 'No campaigns yet.');
   $('#invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
+    .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
+  $('#email-invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
 }
 async function loadTalentCandidates() {
@@ -569,7 +590,7 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
   const form = new FormData(event.currentTarget);
   const tokens = await request('/auth/login', { method: 'POST', auth: false,
     body: { email: form.get('email'), password: form.get('password') } });
-  await signedIn(tokens); notice('Signed in.');
+  await signedIn(tokens);
 }); });
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
@@ -736,4 +757,15 @@ $('#campaign-invite-form').addEventListener('submit', (event) => { event.prevent
     { method: 'POST', body: { userId: form.get('userId').trim(),
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
   event.currentTarget.reset(); notice('Candidate invited to campaign.');
+}); });
+$('#campaign-email-invite-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = new FormData(event.currentTarget);
+  if (!form.get('campaignId')) throw new Error('Create an open campaign first.');
+  const availableFrom = new Date(form.get('availableFrom')).toISOString();
+  const availableUntil = new Date(form.get('availableUntil')).toISOString();
+  if (availableUntil <= availableFrom) throw new Error('End time must follow start time.');
+  await request(ownOrg(`/talent/campaigns/${encodeURIComponent(form.get('campaignId'))}/email-invitations`),
+    { method: 'POST', body: { email: form.get('email').trim(),
+      attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
+  event.currentTarget.reset(); notice('Invitation created; email delivery requested.');
 }); });

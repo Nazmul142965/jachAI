@@ -239,7 +239,11 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Phase 5 implementation decisions
 
-- A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. External email invitations and audit history remain required follow-up work.
+- A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. Audit history remains required follow-up work.
+
+## Talent email invitation implementation decision
+
+- Recruiters may invite an arbitrary email to an open campaign. An opaque 256-bit token is sent through `EmailSender`; only its SHA-256 hash is stored in a tenant-scoped Mongo document. It expires after at most 14 days, never later than the availability end, and is removed by TTL. A signed-in, verified user whose account email matches the invitation accepts it, gaining an active `CANDIDATE` membership and deterministic campaign assignment. A pending invitation can be resent with the same window, rotating its token. Acceptance is idempotent after partial writes or concurrent requests, though it still needs live Mongo concurrency verification. Email is sent synchronously after the invitation is stored; durable outbox/retry, rate limiting, SMTP verification, and a richer invitation status UI remain required before production.
 
 ## Talent integrity telemetry implementation decision
 
