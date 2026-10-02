@@ -56,6 +56,27 @@ class MembershipServiceTests {
     }
 
     @Test
+    void recruiterCanSelectCandidatesBeyondFirstPage() {
+        var pageable = PageRequest.of(1, 20);
+        when(organizations.findById("org-a")).thenReturn(Optional.of(new Organization(
+                "org-a", "Talent org", OrganizationType.TALENT, "owner", Instant.now())));
+        when(memberships.findByOrganizationIdAndRoleAndActiveTrue(
+                "org-a", OrganizationRole.CANDIDATE, pageable)).thenReturn(new PageImpl<>(List.of(
+                new Membership("member-21", "candidate-21", "org-a", OrganizationRole.CANDIDATE,
+                        true, Instant.now())), pageable, 21));
+        when(users.findById("candidate-21")).thenReturn(Optional.of(new User(
+                "candidate-21", "candidate21@example.com", "Candidate 21", "hash", true, false, 0, Instant.now())));
+
+        var result = service().listCandidates("recruiter", "org-a", pageable);
+
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getTotalPages());
+        assertEquals("candidate-21", result.getContent().getFirst().userId());
+        verify(memberships).findByOrganizationIdAndRoleAndActiveTrue(
+                "org-a", OrganizationRole.CANDIDATE, pageable);
+    }
+
+    @Test
     void academyCannotReadTalentCandidateDirectory() {
         when(organizations.findById("org-a")).thenReturn(Optional.of(new Organization(
                 "org-a", "Academy", OrganizationType.ACADEMY, "owner", Instant.now())));

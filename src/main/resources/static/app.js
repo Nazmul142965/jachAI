@@ -311,12 +311,22 @@ async function loadCampaigns(pageNumber = 0) {
   $('#email-invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
 }
-async function loadTalentCandidates() {
-  const page = await request(ownOrg('/members/candidates?page=0'));
-  $('#invite-candidate').replaceChildren(...(page.content || []).map((candidate) => {
+async function loadTalentCandidates(pageNumber = 0) {
+  const page = await request(ownOrg(`/members/candidates?page=${pageNumber}`));
+  const select = $('#invite-candidate');
+  const previousSelection = select.value;
+  select.replaceChildren(...(page.content || []).map((candidate) => {
     const option = node('option', `${candidate.displayName} · ${candidate.email}`);
     option.value = candidate.userId; return option;
   }));
+  if ([...select.options].some((option) => option.value === previousSelection))
+    select.value = previousSelection;
+  if (!select.options.length) {
+    const empty = node('option', 'No candidates on this page');
+    empty.value = ''; empty.disabled = true;
+    select.append(empty);
+  }
+  renderPageControls('#invite-candidate-pagination', page, loadTalentCandidates);
 }
 async function compareCandidates(campaignId, pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
