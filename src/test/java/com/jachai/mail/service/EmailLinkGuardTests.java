@@ -8,6 +8,11 @@ import static org.mockito.Mockito.when;
 import com.jachai.auth.model.EmailVerificationToken;
 import com.jachai.auth.repository.EmailVerificationTokenRepository;
 import com.jachai.auth.repository.PasswordResetTokenRepository;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.model.User;
+import com.jachai.academy.repository.CertificateRepository;
+import com.jachai.academy.model.Certificate;
+import com.jachai.academy.model.CertificateStatus;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.talent.model.CampaignEmailInvitation;
@@ -24,9 +29,11 @@ class EmailLinkGuardTests {
     @Mock EmailVerificationTokenRepository verificationTokens;
     @Mock PasswordResetTokenRepository resetTokens;
     @Mock CampaignEmailInvitationRepository invitations;
+    @Mock CertificateRepository certificates;
+    @Mock UserRepository users;
 
     private EmailLinkGuard guard() {
-        return new EmailLinkGuard(verificationTokens, resetTokens, invitations);
+        return new EmailLinkGuard(verificationTokens, resetTokens, invitations, certificates, users);
     }
 
     @Test
@@ -54,5 +61,32 @@ class EmailLinkGuardTests {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.ASSESSMENT_INVITATION,
                 "person@example.com", "Org", "Campaign", "https://example.test/?invitation=secret",
                 Instant.now().plusSeconds(3600))));
+    }
+
+    @Test
+    void revokedCertificateEmailIsNotDelivered() {
+        Certificate revoked = new Certificate("cert", "org", "learner", "attempt", "version",
+                "code", CertificateStatus.REVOKED, Instant.now(), Instant.now(), 1L);
+        when(certificates.findById("cert")).thenReturn(Optional.of(revoked));
+
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
+                "learner@example.com", "Learner", null, "https://example.test/certificates/code",
+                Instant.now().plusSeconds(3600), "cert")));
+    }
+
+    @Test
+    void certificateEmailMustMatchCurrentRecipientAndCode() {
+        Certificate issued = new Certificate("cert", "org", "learner", "attempt", "version",
+                "code", CertificateStatus.ISSUED, Instant.now(), null, 1L);
+        when(certificates.findById("cert")).thenReturn(Optional.of(issued));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
+                "learner@example.com", "Learner", null, true, false, 0, Instant.now())));
+
+        assertTrue(guard().isCurrent(new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
+                "learner@example.com", "Learner", null, "https://example.test/certificates/code",
+                Instant.now().plusSeconds(3600), "cert")));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
+                "other@example.com", "Learner", null, "https://example.test/certificates/code",
+                Instant.now().plusSeconds(3600), "cert")));
     }
 }

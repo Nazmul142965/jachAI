@@ -19,4 +19,9 @@ public class PageController {
     public String resetPassword() {
         return "reset-password";
     }
+
+    @GetMapping("/certificates/{verificationCode}")
+    public String certificate() {
+        return "certificate";
+    }
 }

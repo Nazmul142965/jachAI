@@ -28,6 +28,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/resend-verification", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh", "/api/v1/auth/request-password-reset",
                                 "/api/v1/auth/reset-password", "/api/v1/public/certificates/*",
+                                "/certificates/*",
                                 "/api/v1/billing/sslcommerz/ipn",
                                 "/api/v1/billing/sslcommerz/callback",
                                 "/api/v1/billing/bkash/callback").permitAll()

@@ -214,4 +214,11 @@ class JachAiApplicationTests {
                 .andExpect(jsonPath("$.learnerUserId").doesNotExist());
     }
 
+    @Test
+    void certificateVerificationPageIsPublic() throws Exception {
+        mvc.perform(get("/certificates/public-code"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Certificate verification")));
+    }
+
 }

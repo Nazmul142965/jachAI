@@ -454,7 +454,7 @@ async function loadCertificates() {
   setList('#certificates-list', certificates.map((certificate) => item(
     certificate.status === 'ISSUED' ? 'Verified achievement' : 'Revoked certificate',
     `Code: ${certificate.verificationCode} · Issued ${new Date(certificate.issuedAt).toLocaleDateString()}`,
-    [button('Verify publicly', () => window.open(`/api/v1/public/certificates/${encodeURIComponent(certificate.verificationCode)}`, '_blank', 'noopener'))])),
+    [button('Verify publicly', () => window.open(`/certificates/${encodeURIComponent(certificate.verificationCode)}`, '_blank', 'noopener'))])),
   'No certificates yet.');
 }
 

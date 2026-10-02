@@ -14,6 +14,9 @@ import static org.mockito.Mockito.doThrow;
 import com.jachai.academy.model.Certificate;
 import com.jachai.academy.model.CertificateStatus;
 import com.jachai.academy.repository.CertificateRepository;
+import com.jachai.auth.model.User;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
@@ -40,6 +43,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class CertificateServiceTests {
@@ -50,10 +54,14 @@ class CertificateServiceTests {
     @Mock TenantAccessService access;
     @Mock EntitlementService entitlements;
     @Mock AuditEventRepository auditEvents;
+    @Mock UserRepository users;
+    @Mock EmailSender emailSender;
 
     private CertificateService service() {
-        return new CertificateService(certificates, attempts, organizations, versions, access,
-                entitlements, auditEvents);
+        CertificateService result = new CertificateService(certificates, attempts, organizations, versions, access,
+                entitlements, auditEvents, users, emailSender);
+        ReflectionTestUtils.setField(result, "publicBaseUrl", "https://jachai.example");
+        return result;
     }
 
     private Organization academy() {
@@ -83,6 +91,7 @@ class CertificateServiceTests {
                 .thenReturn(Optional.of(passed(Instant.now())));
         when(versions.get("org-a", "a:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
         when(certificates.insert(any(Certificate.class))).thenAnswer(call -> call.getArgument(0));
+        when(users.findById("learner")).thenReturn(Optional.of(learner()));
 
         var result = service().issue("teacher", "org-a", "attempt");
 
@@ -94,6 +103,28 @@ class CertificateServiceTests {
                 event.action() == AuditAction.CERTIFICATE_ISSUED
                         && event.actorUserId().equals("teacher")
                         && event.organizationId().equals("org-a")));
+        verify(emailSender).sendCertificateIssued(result.id(), "learner@example.com", "Learner",
+                "https://jachai.example/certificates/" + result.verificationCode());
+    }
+
+    private User learner() {
+        return new User("learner", "learner@example.com", "Learner", null,
+                true, false, 0, Instant.now());
+    }
+
+    @Test
+    void emailQueueFailureDoesNotUndoCertificate() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenReturn(Optional.of(passed(Instant.now())));
+        when(versions.get("org-a", "a:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+        when(certificates.insert(any(Certificate.class))).thenAnswer(call -> call.getArgument(0));
+        when(users.findById("learner")).thenReturn(Optional.of(learner()));
+        doThrow(new IllegalStateException("mail unavailable")).when(emailSender)
+                .sendCertificateIssued(any(), any(), any(), any());
+
+        assertEquals(CertificateStatus.ISSUED, service().issue("teacher", "org-a", "attempt").status());
+        verify(certificates).insert(any(Certificate.class));
     }
 
     @Test

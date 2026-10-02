@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -38,12 +39,28 @@ public class QueuedEmailSender implements EmailSender {
                 recipient, organizationName, campaignTitle, invitationUrl, expiresAt));
     }
 
+    @Override
+    public void sendCertificateIssued(String certificateId, String recipient, String displayName,
+                                      String verificationUrl) {
+        EmailPayload payload = new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
+                recipient, displayName, null, verificationUrl,
+                Instant.now().plus(Duration.ofDays(7)), certificateId);
+        try {
+            enqueue("certificate-issued:" + certificateId, payload, null);
+        } catch (DuplicateKeyException ignored) {
+            // The durable job ID makes retries and concurrent issuance idempotent.
+        }
+    }
+
     private void enqueue(EmailPayload payload) {
+        enqueue(UUID.randomUUID().toString(), payload, Instant.now().plus(RECORD_RETENTION));
+    }
+
+    private void enqueue(String id, EmailPayload payload, Instant expiresAt) {
         Instant now = Instant.now();
-        String id = UUID.randomUUID().toString();
         EmailPayloadCipher.Sealed sealed = cipher.seal(id, payload);
         jobs.insert(new EmailJob(id, sealed.encryptedPayload(), sealed.nonce(),
                 EmailJobStatus.PENDING, 0, now, null, now, null,
-                now.plus(RECORD_RETENTION)));
+                expiresAt));
     }
 }

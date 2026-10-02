@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Certificate verification · JachAI</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; background: #f5f7fb; color: #172033; margin: 0; }
+    main { max-width: 38rem; margin: 10vh auto; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 12px 35px #17304a15; }
+    h1 { margin-top: 0; }
+    dl { display: grid; grid-template-columns: 9rem 1fr; gap: .6rem 1rem; }
+    dt { color: #58647a; }
+    dd { margin: 0; font-weight: 600; }
+    .valid { color: #116348; }
+    .invalid { color: #a52828; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Certificate verification</h1>
+    <p id="status" role="status">Checking certificate…</p>
+    <dl id="details" hidden>
+      <dt>Institute</dt><dd id="institute"></dd>
+      <dt>Assessment</dt><dd id="assessment"></dd>
+      <dt>Issued</dt><dd id="issued"></dd>
+    </dl>
+  </main>
+  <script>
+    const code = decodeURIComponent(location.pathname.split('/').pop());
+    const status = document.getElementById('status');
+    fetch('/api/v1/public/certificates/' + encodeURIComponent(code))
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('not found')))
+      .then(certificate => {
+        status.textContent = certificate.valid ? 'Valid certificate' : 'Certificate revoked';
+        status.className = certificate.valid ? 'valid' : 'invalid';
+        document.getElementById('institute').textContent = certificate.organizationName;
+        document.getElementById('assessment').textContent = certificate.assessmentTitle;
+        document.getElementById('issued').textContent = new Date(certificate.issuedAt).toLocaleDateString();
+        document.getElementById('details').hidden = false;
+      }).catch(() => {
+        status.textContent = 'Certificate not found or verification is temporarily unavailable.';
+        status.className = 'invalid';
+      });
+  </script>
+</body>
+</html>

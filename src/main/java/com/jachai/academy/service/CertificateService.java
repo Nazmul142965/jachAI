@@ -23,12 +23,17 @@ import com.jachai.shared.error.ApiException;
 import com.jachai.shared.audit.AuditAction;
 import com.jachai.shared.audit.AuditEvent;
 import com.jachai.shared.audit.AuditEventRepository;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -41,6 +46,7 @@ import org.springframework.data.domain.Sort;
 @RequiredArgsConstructor
 public class CertificateService {
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Logger log = LoggerFactory.getLogger(CertificateService.class);
 
     private final CertificateRepository certificates;
     private final AttemptRepository attempts;
@@ -49,6 +55,9 @@ public class CertificateService {
     private final TenantAccessService access;
     private final EntitlementService entitlements;
     private final AuditEventRepository auditEvents;
+    private final UserRepository users;
+    private final EmailSender emailSender;
+    @Value("${app.public-base-url}") private String publicBaseUrl;
 
     public List<CertificateView> mine(String learnerId, String organizationId) {
         access.requireRole(learnerId, organizationId, OrganizationRole.LEARNER);
@@ -73,6 +82,7 @@ public class CertificateService {
             if (existing.get().status() == CertificateStatus.REVOKED) {
                 throw new ApiException(HttpStatus.CONFLICT, "CERTIFICATE_REVOKED", "A revoked certificate cannot be reissued");
             }
+            queueIssuedEmail(existing.get());
             return CertificateView.from(existing.get());
         }
         byte[] token = new byte[24];
@@ -96,7 +106,20 @@ public class CertificateService {
             throw exception;
         }
         ensureAudit(saved);
+        queueIssuedEmail(saved);
         return CertificateView.from(saved);
+    }
+
+    private void queueIssuedEmail(Certificate certificate) {
+        try {
+            users.findById(certificate.learnerUserId()).ifPresent(user ->
+                    emailSender.sendCertificateIssued(certificate.id(), user.email(), user.displayName(),
+                            publicBaseUrl.replaceAll("/+$", "") + "/certificates/" + certificate.verificationCode()));
+        } catch (RuntimeException exception) {
+            // Certificate state is independent of notification delivery. A retry repairs a missed job.
+            log.warn("Certificate email enqueue failed for certificate {}: {}",
+                    certificate.id(), exception.getClass().getSimpleName());
+        }
     }
 
     public CertificateView revoke(String actorId, String organizationId, String certificateId) {
