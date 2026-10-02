@@ -220,6 +220,27 @@ public class MembershipService {
                                 "Candidate account is unavailable")));
     }
 
+    public MemberResponse findCandidateByEmail(String actorId, String organizationId, String email) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN, OrganizationRole.RECRUITER);
+        Organization organization = organization(organizationId);
+        if (organization.type() != OrganizationType.TALENT) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "TALENT_ONLY", "Candidates are available in Talent organizations");
+        }
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        User user = users.findByEmail(normalizedEmail)
+                .orElseThrow(this::candidateNotFound);
+        Membership member = memberships.findByUserIdAndOrganizationIdAndActiveTrue(user.id(), organizationId)
+                .filter(value -> value.role() == OrganizationRole.CANDIDATE)
+                .orElseThrow(this::candidateNotFound);
+        if (user.disabled() || !user.emailVerified()) throw candidateNotFound();
+        return new MemberResponse(user.id(), user.email(), user.displayName(), member.role());
+    }
+
+    private ApiException candidateNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "CANDIDATE_NOT_FOUND",
+                "No active candidate with that email in this organization");
+    }
+
     private boolean allowedForType(OrganizationType type, OrganizationRole role) {
         if (role == OrganizationRole.ORG_ADMIN) return true;
         return switch (type) {

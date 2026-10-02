@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.http.HttpStatus;
@@ -42,6 +44,13 @@ public class MembershipController {
     public Page<MemberResponse> candidates(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
         return members.listCandidates(jwt.getSubject(), organizationId, PageRequest.of(page, 20));
+    }
+
+    @GetMapping("/candidates/lookup")
+    public MemberResponse candidateByEmail(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId,
+            @RequestParam @NotBlank @Email String email) {
+        return members.findCandidateByEmail(jwt.getSubject(), organizationId, email);
     }
 
     @PostMapping

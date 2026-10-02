@@ -427,6 +427,19 @@ async function loadTalentCandidates(pageNumber = 0) {
   }
   renderPageControls('#invite-candidate-pagination', page, loadTalentCandidates);
 }
+$('#candidate-lookup-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const email = new FormData(event.currentTarget).get('email').trim();
+  const candidate = await request(ownOrg(`/members/candidates/lookup?email=${encodeURIComponent(email)}`));
+  const option = node('option', `${candidate.displayName} · ${candidate.email}`);
+  option.value = candidate.userId;
+  $('#invite-candidate').replaceChildren(option);
+  $('#invite-candidate-pagination').replaceChildren();
+  notice('Candidate found in this organization.');
+}); });
+$('#candidate-lookup-clear').addEventListener('click', () => run(async () => {
+  $('#candidate-lookup-form').reset();
+  await loadTalentCandidates();
+}));
 async function compareCandidates(campaignId, pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
   const rows = (page.content || []).map((candidate) => {

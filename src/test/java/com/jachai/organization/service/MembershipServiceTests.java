@@ -119,6 +119,50 @@ class MembershipServiceTests {
     }
 
     @Test
+    void recruiterCanFindOnlyActiveCandidateInOwnTalentOrganizationByNormalizedEmail() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(new Organization(
+                "org-a", "Talent org", OrganizationType.TALENT, "owner", Instant.now())));
+        when(users.findByEmail("candidate@example.com")).thenReturn(Optional.of(new User(
+                "candidate", "candidate@example.com", "Candidate", "hash", true, false, 0, Instant.now())));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("candidate", "org-a"))
+                .thenReturn(Optional.of(member("candidate", OrganizationRole.CANDIDATE, true)));
+
+        var result = service().findCandidateByEmail("recruiter", "org-a", "  CANDIDATE@EXAMPLE.COM ");
+
+        assertEquals("candidate", result.userId());
+        verify(access).requireRole("recruiter", "org-a", OrganizationRole.ORG_ADMIN, OrganizationRole.RECRUITER);
+    }
+
+    @Test
+    void candidateLookupDoesNotRevealUserOutsideOrganization() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(new Organization(
+                "org-a", "Talent org", OrganizationType.TALENT, "owner", Instant.now())));
+        when(users.findByEmail("candidate@example.com")).thenReturn(Optional.of(new User(
+                "candidate", "candidate@example.com", "Candidate", "hash", true, false, 0, Instant.now())));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("candidate", "org-a"))
+                .thenReturn(Optional.empty());
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service().findCandidateByEmail("recruiter", "org-a", "candidate@example.com"));
+
+        assertEquals("CANDIDATE_NOT_FOUND", error.code());
+        verify(memberships).findByUserIdAndOrganizationIdAndActiveTrue("candidate", "org-a");
+    }
+
+    @Test
+    void candidateLookupRejectsWrongRoleWithoutRevealingAccount() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(new Organization(
+                "org-a", "Talent org", OrganizationType.TALENT, "owner", Instant.now())));
+        when(users.findByEmail("recruiter@example.com")).thenReturn(Optional.of(new User(
+                "recruiter-user", "recruiter@example.com", "Recruiter", "hash", true, false, 0, Instant.now())));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("recruiter-user", "org-a"))
+                .thenReturn(Optional.of(member("recruiter-user", OrganizationRole.RECRUITER, true)));
+
+        assertEquals("CANDIDATE_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().findCandidateByEmail("recruiter", "org-a", "recruiter@example.com")).code());
+    }
+
+    @Test
     void listIdentifiesOwnerWithoutGrantingItToOtherAdmins() {
         when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
         when(memberships.findByOrganizationId("org-a"))
