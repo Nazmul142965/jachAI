@@ -90,8 +90,9 @@ public class MembershipService {
         List<MemberResponse> result = new ArrayList<>();
         for (Membership membership : memberships.findByOrganizationId(organizationId)) {
             users.findById(membership.userId()).ifPresent(user -> result.add(
-                    new MemberResponse(user.id(), user.email(), user.displayName(), membership.role(),
-                            ownerUserId.equals(user.id()), membership.active())));
+                    new MemberResponse(user.id(), user.email(), user.displayName(),
+                            ownerUserId.equals(user.id()) ? OrganizationRole.ORG_ADMIN : membership.role(),
+                            ownerUserId.equals(user.id()), ownerUserId.equals(user.id()) || membership.active())));
         }
         return result;
     }

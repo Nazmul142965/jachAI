@@ -240,6 +240,12 @@ function renderPageControls(selector, page, onPage) {
 }
 async function loadMembers() {
   const members = await request(ownOrg('/members'));
+  $('#ownership-panel').classList.toggle('hidden', !state.organization.owner);
+  $('#transfer-owner-select').replaceChildren(...members.filter((member) =>
+    member.active && member.role === 'ORG_ADMIN' && !member.owner).map((member) => {
+    const option = node('option', `${member.displayName} · ${member.email}`);
+    option.value = member.userId; return option;
+  }));
   const allRoles = state.organization.type === 'ACADEMY' ? ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER']
     : ['ORG_ADMIN', 'RECRUITER', 'CANDIDATE'];
   const roles = state.organization.owner ? allRoles : allRoles.filter((role) => role !== 'ORG_ADMIN');
@@ -281,6 +287,15 @@ async function loadMembers() {
       actions), auditPanel);
     return wrapper;
   }), 'No members yet.');
+  await loadOwnershipAudit(0);
+}
+async function loadOwnershipAudit(pageNumber) {
+  const page = await request(ownOrg(`/ownership/audit?page=${pageNumber}`));
+  setList('#ownership-audit', (page.content || []).map((entry) => item(
+    `Owner: ${entry.previousOwnerUserId} → ${entry.ownerUserId}`,
+    `By ${entry.actorUserId} · ${new Date(entry.occurredAt).toLocaleString()}`)),
+  'No ownership transfers yet.');
+  renderPageControls('#ownership-audit-pagination', page, loadOwnershipAudit);
 }
 async function loadMemberAudit(userId, pageNumber, target) {
   const page = await request(ownOrg(`/members/${encodeURIComponent(userId)}/audit?page=${pageNumber}`));
@@ -822,6 +837,14 @@ $('#add-member-form').addEventListener('submit', (event) => { event.preventDefau
   const form = new FormData(event.currentTarget);
   await request(ownOrg('/members'), { method: 'POST', body: { email: form.get('email'), role: form.get('role') } });
   event.currentTarget.reset(); await loadMembers(); notice('Member added.');
+}); });
+$('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const targetUserId = new FormData(event.currentTarget).get('targetUserId');
+  if (!targetUserId) throw new Error('Add another organization admin before transferring ownership.');
+  if (!window.confirm('Transfer workspace ownership to this admin? You will no longer be the owner.')) return;
+  await request(ownOrg('/owner'), { method: 'PUT', body: { targetUserId } });
+  await loadOrganizations();
+  notice('Workspace ownership transferred.');
 }); });
 $('#question-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget); const correctOptionIds = form.getAll('correct');

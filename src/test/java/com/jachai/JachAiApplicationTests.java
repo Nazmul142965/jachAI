@@ -233,6 +233,16 @@ class JachAiApplicationTests {
     }
 
     @Test
+    void ownershipTransferApiRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/ownership/audit"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                        "/api/v1/organizations/org-a/owner")
+                        .contentType("application/json").content("{\"targetUserId\":\"admin\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void resetRequestIsPublicButValidated() throws Exception {
         mvc.perform(post("/api/v1/auth/request-password-reset")
                         .contentType("application/json")
