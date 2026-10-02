@@ -1,5 +1,7 @@
 package com.jachai.auth.service;
 
+import com.jachai.mail.model.EmailPayload;
+import com.jachai.mail.service.EmailTransport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.mail.SimpleMailMessage;
@@ -8,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Profile("prod")
-final class SmtpEmailSender implements EmailSender {
+final class SmtpEmailSender implements EmailTransport {
     private final JavaMailSender mailSender;
     private final String from;
 
@@ -18,38 +20,30 @@ final class SmtpEmailSender implements EmailSender {
     }
 
     @Override
-    public void sendVerification(String recipient, String displayName, String verificationUrl) {
+    public void deliver(EmailPayload payload) {
         SimpleMailMessage mail = new SimpleMailMessage();
         mail.setFrom(from);
-        mail.setTo(recipient);
-        mail.setSubject("Verify your JachAI email");
-        mail.setText("Hello " + displayName + ",\n\nVerify your email using this link:\n"
-                + verificationUrl + "\n\nThis link expires in 24 hours.");
-        mailSender.send(mail);
-    }
-
-    @Override
-    public void sendPasswordReset(String recipient, String displayName, String resetUrl) {
-        SimpleMailMessage mail = new SimpleMailMessage();
-        mail.setFrom(from);
-        mail.setTo(recipient);
-        mail.setSubject("Reset your JachAI password");
-        mail.setText("Hello " + displayName + ",\n\nReset your password using this link:\n"
-                + resetUrl + "\n\nThis link expires in 30 minutes. If you did not request it, ignore this email.");
-        mailSender.send(mail);
-    }
-
-    @Override
-    public void sendAssessmentInvitation(String recipient, String organizationName,
-                                         String campaignTitle, String invitationUrl) {
-        SimpleMailMessage mail = new SimpleMailMessage();
-        mail.setFrom(from);
-        mail.setTo(recipient);
-        mail.setSubject("Your JachAI assessment invitation");
-        mail.setText("You have been invited by " + organizationName + " to the assessment campaign \""
-                + campaignTitle + "\".\n\nOpen this link, register or sign in using this email address, "
-                + "and accept the invitation:\n" + invitationUrl
-                + "\n\nIf you did not expect this invitation, ignore this email.");
+        mail.setTo(payload.recipient());
+        switch (payload.type()) {
+            case VERIFICATION -> {
+                mail.setSubject("Verify your JachAI email");
+                mail.setText("Hello " + payload.displayName() + ",\n\nVerify your email using this link:\n"
+                        + payload.url() + "\n\nThis link expires in 24 hours.");
+            }
+            case PASSWORD_RESET -> {
+                mail.setSubject("Reset your JachAI password");
+                mail.setText("Hello " + payload.displayName() + ",\n\nReset your password using this link:\n"
+                        + payload.url() + "\n\nThis link expires in 30 minutes. If you did not request it, ignore this email.");
+            }
+            case ASSESSMENT_INVITATION -> {
+                mail.setSubject("Your JachAI assessment invitation");
+                mail.setText("You have been invited by " + payload.displayName()
+                        + " to the assessment campaign \"" + payload.campaignTitle()
+                        + "\".\n\nOpen this link, register or sign in using this email address, "
+                        + "and accept the invitation:\n" + payload.url()
+                        + "\n\nIf you did not expect this invitation, ignore this email.");
+            }
+        }
         mailSender.send(mail);
     }
 }

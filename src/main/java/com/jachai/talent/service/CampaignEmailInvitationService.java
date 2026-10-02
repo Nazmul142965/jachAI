@@ -100,7 +100,7 @@ public class CampaignEmailInvitationService {
         }
         String url = publicBaseUrl + "/?invitation="
                 + URLEncoder.encode(rawToken, StandardCharsets.UTF_8);
-        emailSender.sendAssessmentInvitation(email, organization.name(), campaign.title(), url);
+        emailSender.sendAssessmentInvitation(email, organization.name(), campaign.title(), url, expiresAt);
         return EmailInvitationView.from(invitation);
     }
 

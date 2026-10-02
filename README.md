@@ -5,6 +5,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 ## Current workflows
 
 - Email registration, verification, login, refresh rotation, access-token/refresh-session logout, and single-use password reset by email. Password reset invalidates earlier access and refresh tokens through a per-user security version.
+- MongoDB-backed email outbox for verification, reset, and Talent invitation links. Queue payloads are encrypted at rest, processed with bounded retries, and discarded after delivery, expiry, or five failed attempts. The worker checks that each link token is still current before sending.
 - Organization creation and memberships; roles and tenant checks are enforced in services.
 - Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment, timed attempts, answer saving, deterministic scoring, manual/immediate result release, and topic-level result breakdown.
 - Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
@@ -18,13 +19,15 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Talent hiring campaigns tied to a frozen assessment version, existing-member or email candidate invitations, staff-only candidate comparison, reviewer notes, and hold/shortlist/reject decisions. An email recipient registers or signs in with the same verified address before accepting; acceptance creates candidate membership and a frozen assignment.
 - Talent attempt integrity signals (tab visibility, optional fullscreen exit, copy/paste, and client-reported answer-save timing) stored separately from attempts. Recruiters can inspect an evidence-only summary and paged events after submission; no automatic cheating decision is made.
 
-Not yet complete: full frontend review queues, full Academy/Talent modules, certificate email/verification UI and audit trail, durable email jobs/retries, organization-wide result-policy settings, live revocation verification, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
+Not yet complete: full frontend review queues, full Academy/Talent modules, certificate email/verification UI and audit trail, organization-wide result-policy settings, live revocation verification, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. The outbox still needs live MongoDB/SMTP and crash/recovery verification. Do not use the current API as a production system.
 
 ## Run locally
 
 Use JDK 21, Maven, and a MongoDB instance. Set environment variables in your terminal or IntelliJ run configuration; Spring Boot does not load `.env` automatically. `.env.example` contains only placeholders. Never commit actual credentials.
 
 Required: `JWT_SECRET` (at least 32 UTF-8 bytes). `MONGODB_URI` defaults to a local database under the local profile. The production profile requires `MONGODB_URI` and SMTP settings.
+
+Email jobs use `MAIL_JOB_ENCRYPTION_KEY` when set, otherwise a key derived from `JWT_SECRET`. Keep the chosen key stable until queued jobs are drained; changing it makes pending payloads unreadable. Use a separate 32+ byte random mail key in production. The worker polls every 15 seconds by default (`MAIL_OUTBOX_POLL_MS`). Local development prints links to the console only after the worker processes the queued job. Email delivery is at-least-once: a crash after SMTP accepted a message but before MongoDB marks it sent can cause a duplicate. Failed jobs retain only metadata for 30 days, not the encrypted link payload.
 
 ```powershell
 $env:JWT_SECRET = '<generate-a-random-secret-of-at-least-32-bytes>'
@@ -74,7 +77,7 @@ To try direct messaging, add an `INSTRUCTOR` and `LEARNER` to the same Academy w
 
 Talent campaigns use the published assessment version at creation time. Closing a campaign blocks new invitations; it does not cancel existing assignments. Comparison shows each invited candidate's latest submitted attempt. A review decision is attached to one attempt and is hidden from comparison after a newer attempt until a recruiter reviews that attempt. Talent staff can page through active candidate members to choose a recipient.
 
-For an external candidate, use the campaign's “Invite by email” form. The email link expires at the earlier of 14 days or the assessment availability end. Only its SHA-256 token hash is stored in MongoDB; the raw token is emailed. The recipient may register first, verify that same address, and sign in. The browser retains a pending link only in tab-scoped session storage and removes it from the visible URL. Acceptance binds the verified email to a candidate membership and an immutable campaign assignment. Re-sending an unaccepted invitation with the same availability rotates the link; an old link stops working. Delivery is currently synchronous; no durable outbox/retry or invite rate limit is implemented yet. SMTP delivery and acceptance against live Atlas have not been verified.
+For an external candidate, use the campaign's “Invite by email” form. The email link expires at the earlier of 14 days or the assessment availability end. Only its SHA-256 token hash is stored in the invitation document; the mail job contains an encrypted link until delivery. The recipient may register first, verify that same address, and sign in. The browser retains a pending link only in tab-scoped session storage and removes it from the visible URL. Acceptance binds the verified email to a candidate membership and an immutable campaign assignment. Re-sending an unaccepted invitation with the same availability rotates the link; the worker skips any queued old link. Invite rate limits and SMTP/Atlas verification remain open.
 
 For Talent integrity review, the browser records optional client-side signals during an active campaign attempt. MongoDB stores one small document per event with tenant/attempt lookup indexes and a 90-day TTL. The service accepts at most 200 unexpired events per attempt as a non-atomic growth guard. It stores no IP address, user agent, clipboard contents, or keystrokes. These signals can be suppressed or forged by a candidate and are **not proof of cheating**; reviewers must consider context. The reviewer dashboard shows the summary, while the API provides paged raw events. TTL/index behavior and multi-client concurrency have not yet been verified against live Atlas.
 

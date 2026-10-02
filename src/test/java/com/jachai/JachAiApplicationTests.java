@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.jachai.auth.service.AuthService;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.organization.service.OrganizationService;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.service.QuestionService;
@@ -45,6 +46,7 @@ import java.time.Instant;
 class JachAiApplicationTests {
     @Autowired MockMvc mvc;
     @MockitoBean AuthService authService;
+    @MockitoBean EmailSender emailSender;
     @MockitoBean UserRepository userRepository;
     @MockitoBean AccessRevocationService accessRevocationService;
     @MockitoBean OrganizationService organizationService;

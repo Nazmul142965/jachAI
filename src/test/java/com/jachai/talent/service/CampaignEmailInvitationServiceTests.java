@@ -94,7 +94,7 @@ class CampaignEmailInvitationServiceTests {
         ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
         verify(emailSender).sendAssessmentInvitation(org.mockito.ArgumentMatchers.eq("candidate@example.com"),
                 org.mockito.ArgumentMatchers.eq("Acme"), org.mockito.ArgumentMatchers.eq("Backend Engineer"),
-                link.capture());
+                link.capture(), any(Instant.class));
         assertTrue(link.getValue().startsWith("https://jachai.example/?invitation="));
         assertFalse(link.getValue().contains(saved.getValue().tokenHash()));
         verify(access).requireRole("recruiter", "org", OrganizationRole.ORG_ADMIN, OrganizationRole.RECRUITER);
@@ -110,7 +110,7 @@ class CampaignEmailInvitationServiceTests {
                 new CreateEmailInvitationRequest("candidate@example.com", 1,
                         Instant.now(), Instant.now().plusSeconds(3600))));
         assertEquals("CAMPAIGN_CLOSED", error.code());
-        verify(emailSender, never()).sendAssessmentInvitation(any(), any(), any(), any());
+        verify(emailSender, never()).sendAssessmentInvitation(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -132,7 +132,7 @@ class CampaignEmailInvitationServiceTests {
         verify(invitations).save(rotated.capture());
         assertFalse(rotated.getValue().tokenHash().equals("hash"));
         verify(invitations, never()).insert(any(CampaignEmailInvitation.class));
-        verify(emailSender).sendAssessmentInvitation(any(), any(), any(), any());
+        verify(emailSender).sendAssessmentInvitation(any(), any(), any(), any(), any());
     }
 
     @Test
