@@ -7,6 +7,8 @@ import com.jachai.talent.dto.CandidateComparison;
 import com.jachai.talent.dto.CreateCampaignRequest;
 import com.jachai.talent.dto.ReviewRequest;
 import com.jachai.talent.service.TalentCampaignService;
+import com.jachai.shared.security.RateLimitPolicy;
+import com.jachai.shared.security.RateLimitService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/organizations/{organizationId}/talent/campaigns")
 public class TalentCampaignController {
     private final TalentCampaignService campaigns;
+    private final RateLimitService limits;
 
     @PostMapping
     public ResponseEntity<CampaignView> create(@AuthenticationPrincipal Jwt jwt,
@@ -58,6 +61,7 @@ public class TalentCampaignController {
     public ResponseEntity<CampaignInviteView> invite(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String campaignId,
             @Valid @RequestBody CreateAssignmentRequest request) {
+        limits.consume(RateLimitPolicy.INVITE_ACTOR, organizationId + ":" + jwt.getSubject());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(campaigns.invite(jwt.getSubject(), organizationId, campaignId, request));
     }

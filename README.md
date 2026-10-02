@@ -6,6 +6,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 
 - Email registration, verification, login, refresh rotation, access-token/refresh-session logout, and single-use password reset by email. Password reset invalidates earlier access and refresh tokens through a per-user security version.
 - MongoDB-backed email outbox for verification, reset, and Talent invitation links. Queue payloads are encrypted at rest, processed with bounded retries, and discarded after delivery, expiry, or five failed attempts. The worker checks that each link token is still current before sending.
+- Redis-backed fixed-window request limits for registration/login/reset/refresh, certificate verification, invitations, and AI bursts. Redis keys contain HMAC digests instead of raw IP addresses or email addresses; production fails closed if Redis cannot enforce a limit.
 - Organization creation and memberships; roles and tenant checks are enforced in services.
 - Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment, timed attempts, answer saving, deterministic scoring, manual/immediate result release, and topic-level result breakdown.
 - Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
@@ -19,7 +20,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Talent hiring campaigns tied to a frozen assessment version, existing-member or email candidate invitations, staff-only candidate comparison, reviewer notes, and hold/shortlist/reject decisions. An email recipient registers or signs in with the same verified address before accepting; acceptance creates candidate membership and a frozen assignment.
 - Talent attempt integrity signals (tab visibility, optional fullscreen exit, copy/paste, and client-reported answer-save timing) stored separately from attempts. Recruiters can inspect an evidence-only summary and paged events after submission; no automatic cheating decision is made.
 
-Not yet complete: full frontend review queues, full Academy/Talent modules, certificate email/verification UI and audit trail, organization-wide result-policy settings, live revocation verification, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. The outbox still needs live MongoDB/SMTP and crash/recovery verification. Do not use the current API as a production system.
+Not yet complete: full frontend review queues, full Academy/Talent modules, certificate email/verification UI and audit trail, organization-wide result-policy settings, live revocation verification, Stripe billing, full integration/load testing, and deployment. The outbox and rate limits still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -41,6 +42,8 @@ $env:MONGODB_URI = 'mongodb://localhost:27017/jachai_local'
 Open `/` for the dashboard. Spring MVC renders the HTML templates; API controllers remain REST-only. The browser keeps access/refresh tokens in memory, so a page reload signs you out. The dashboard is an early workflow UI, not a production-complete frontend.
 
 For Redis caching, set `REDIS_HOST`, `REDIS_PORT`, and `CACHE_ENABLED=true`. For Gemini drafts, set `AI_PROVIDER=google-genai` and `GEMINI_API_KEY`. For Groq tutoring as well, set `AI_TUTOR_PROVIDER=groq` and `GROQ_API_KEY`. For local Ollama instead, set `AI_PROVIDER=ollama`, `AI_TUTOR_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`. AI operations also need Redis for quotas. Provider models and Groq base URL are configurable; see `.env.example`. Do not enable cloud billing just to run this project.
+
+Request limits are off by default in local development (`RATE_LIMIT_ENABLED=false`) and on in production. They require Redis. If Redis is unavailable while enabled, protected requests return 503 rather than bypassing protection. Login is limited by both client IP and normalized email; reset and registration are similarly scoped. Invitation and AI burst limits use organization plus actor ID; AI still has its daily quota. IP comes from the socket address, not untrusted `X-Forwarded-For`; when deploying behind a reverse proxy, configure a trusted proxy strategy and verify that real client addresses are distinguishable before relying on IP limits. The fixed-window counters and Redis failure mode have unit tests but have not yet been tested against a live Redis instance.
 
 ## Main API routes
 

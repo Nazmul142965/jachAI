@@ -5,6 +5,8 @@ import com.jachai.talent.dto.AcceptEmailInvitationRequest;
 import com.jachai.talent.dto.CreateEmailInvitationRequest;
 import com.jachai.talent.dto.EmailInvitationView;
 import com.jachai.talent.service.CampaignEmailInvitationService;
+import com.jachai.shared.security.RateLimitPolicy;
+import com.jachai.shared.security.RateLimitService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,11 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1")
 public class CampaignEmailInvitationController {
     private final CampaignEmailInvitationService invitations;
+    private final RateLimitService limits;
 
     @PostMapping("/organizations/{organizationId}/talent/campaigns/{campaignId}/email-invitations")
     public ResponseEntity<EmailInvitationView> invite(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String campaignId,
             @Valid @RequestBody CreateEmailInvitationRequest request) {
+        limits.consume(RateLimitPolicy.INVITE_ACTOR, organizationId + ":" + jwt.getSubject());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(invitations.invite(jwt.getSubject(), organizationId, campaignId, request));
     }
