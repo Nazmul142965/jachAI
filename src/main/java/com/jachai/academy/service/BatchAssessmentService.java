@@ -1,6 +1,7 @@
 package com.jachai.academy.service;
 
 import com.jachai.academy.dto.BatchAssessmentView;
+import com.jachai.academy.dto.BatchAssessmentAnalyticsView;
 import com.jachai.academy.dto.BatchDistributionResult;
 import com.jachai.academy.dto.BatchProgressRow;
 import com.jachai.academy.dto.CreateBatchAssessmentRequest;
@@ -8,6 +9,7 @@ import com.jachai.academy.model.Batch;
 import com.jachai.academy.model.BatchAssessment;
 import com.jachai.academy.model.BatchEnrollment;
 import com.jachai.academy.repository.BatchAssessmentRepository;
+import com.jachai.academy.repository.BatchAnalyticsReader;
 import com.jachai.academy.repository.BatchEnrollmentRepository;
 import com.jachai.academy.repository.BatchRepository;
 import com.jachai.assessment.model.Assessment;
@@ -48,6 +50,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class BatchAssessmentService {
     private final BatchAssessmentRepository batchAssessments;
+    private final BatchAnalyticsReader analyticsReader;
     private final BatchEnrollmentRepository enrollments;
     private final BatchRepository batches;
     private final AssessmentRepository assessments;
@@ -123,6 +126,26 @@ public class BatchAssessmentService {
                     attempt == null ? null : attempt.id(), attempt == null ? null : attempt.percentage(),
                     attempt == null ? null : attempt.passed(), attempt == null ? null : attempt.submittedAt());
         }).toList(), pageable, page.getTotalElements());
+    }
+
+    public BatchAssessmentAnalyticsView analytics(String actorId, String organizationId,
+                                                   String courseId, String batchId,
+                                                   String batchAssessmentId) {
+        requireStaff(actorId, organizationId);
+        ownBatch(organizationId, courseId, batchId);
+        ownBatchAssessment(organizationId, batchId, batchAssessmentId);
+        long activeLearners = enrollments.countByOrganizationIdAndBatchIdAndActiveTrue(
+                organizationId, batchId);
+        var totals = analyticsReader.totals(organizationId, batchAssessmentId);
+        return new BatchAssessmentAnalyticsView(batchAssessmentId, activeLearners,
+                totals.assigned(), totals.submitted(), totals.passed(), totals.average(),
+                percentage(totals.submitted(), activeLearners),
+                percentage(totals.passed(), totals.submitted()));
+    }
+
+    private static double percentage(long numerator, long denominator) {
+        if (denominator == 0) return 0;
+        return Math.round(numerator * 10000.0 / denominator) / 100.0;
     }
 
     public void syncLearner(BatchEnrollment enrollment) {

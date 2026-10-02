@@ -14,6 +14,7 @@ import com.jachai.academy.model.Batch;
 import com.jachai.academy.model.BatchAssessment;
 import com.jachai.academy.model.BatchEnrollment;
 import com.jachai.academy.repository.BatchAssessmentRepository;
+import com.jachai.academy.repository.BatchAnalyticsReader;
 import com.jachai.academy.repository.BatchEnrollmentRepository;
 import com.jachai.academy.repository.BatchRepository;
 import com.jachai.assessment.model.Assessment;
@@ -52,6 +53,7 @@ import org.springframework.data.domain.Pageable;
 @ExtendWith(MockitoExtension.class)
 class BatchAssessmentServiceTests {
     @Mock BatchAssessmentRepository batchAssessments;
+    @Mock BatchAnalyticsReader analyticsReader;
     @Mock BatchEnrollmentRepository enrollments;
     @Mock BatchRepository batches;
     @Mock AssessmentRepository assessments;
@@ -65,7 +67,7 @@ class BatchAssessmentServiceTests {
 
     @BeforeEach
     void setUp() {
-        service = new BatchAssessmentService(batchAssessments, enrollments, batches, assessments,
+        service = new BatchAssessmentService(batchAssessments, analyticsReader, enrollments, batches, assessments,
                 versions, assignments, attempts, organizations, access, entitlements);
     }
 
@@ -188,6 +190,36 @@ class BatchAssessmentServiceTests {
         assertEquals(90, page.getContent().getFirst().percentage());
         assertTrue(page.getContent().getFirst().passed());
         verify(access).requireRole("teacher", "org-a", OrganizationRole.ORG_ADMIN, OrganizationRole.INSTRUCTOR);
+    }
+
+    @Test
+    void analyticsUsesActiveCohortDenominatorAndLatestAttemptTotals() {
+        academy();
+        when(batches.findByIdAndOrganizationIdAndCourseId("batch-a", "org-a", "course-a"))
+                .thenReturn(Optional.of(batch()));
+        when(batchAssessments.findByIdAndOrganizationIdAndBatchId("ba-a", "org-a", "batch-a"))
+                .thenReturn(Optional.of(batchAssessment()));
+        when(enrollments.countByOrganizationIdAndBatchIdAndActiveTrue("org-a", "batch-a"))
+                .thenReturn(10L);
+        when(analyticsReader.totals("org-a", "ba-a"))
+                .thenReturn(new BatchAnalyticsReader.Totals(9, 6, 4, 72.5));
+
+        var result = service.analytics("teacher", "org-a", "course-a", "batch-a", "ba-a");
+
+        assertEquals(10, result.activeLearners());
+        assertEquals(9, result.assignedLearners());
+        assertEquals(60.0, result.completionRatePercent());
+        assertEquals(66.67, result.passRatePercent());
+        assertEquals(72.5, result.averageLatestPercentage());
+    }
+
+    @Test
+    void analyticsRejectsForeignBatchBeforeDatabaseAggregation() {
+        academy();
+
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.analytics("teacher", "org-a", "course-a", "foreign", "ba-a")).code());
+        verify(analyticsReader, never()).totals(any(), any());
     }
 
     private void academy() {

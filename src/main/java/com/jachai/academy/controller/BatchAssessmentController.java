@@ -1,6 +1,7 @@
 package com.jachai.academy.controller;
 
 import com.jachai.academy.dto.BatchAssessmentView;
+import com.jachai.academy.dto.BatchAssessmentAnalyticsView;
 import com.jachai.academy.dto.BatchDistributionResult;
 import com.jachai.academy.dto.BatchProgressRow;
 import com.jachai.academy.dto.CreateBatchAssessmentRequest;
@@ -61,5 +62,13 @@ public class BatchAssessmentController {
             @PathVariable String batchAssessmentId, @RequestParam(defaultValue = "0") @Min(0) int page) {
         return batchAssessments.progress(jwt.getSubject(), organizationId, courseId, batchId,
                 batchAssessmentId, PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")));
+    }
+
+    @GetMapping("/{batchAssessmentId}/analytics")
+    public BatchAssessmentAnalyticsView analytics(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String courseId,
+            @PathVariable String batchId, @PathVariable String batchAssessmentId) {
+        return batchAssessments.analytics(jwt.getSubject(), organizationId, courseId,
+                batchId, batchAssessmentId);
     }
 }

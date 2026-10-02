@@ -11,6 +11,7 @@ public interface BatchEnrollmentRepository extends MongoRepository<BatchEnrollme
             String organizationId, String batchId, String learnerUserId);
     Page<BatchEnrollment> findByOrganizationIdAndBatchIdAndActiveTrue(
             String organizationId, String batchId, Pageable pageable);
+    long countByOrganizationIdAndBatchIdAndActiveTrue(String organizationId, String batchId);
     Page<BatchEnrollment> findByOrganizationIdAndLearnerUserIdAndActiveTrue(
             String organizationId, String learnerUserId, Pageable pageable);
 }

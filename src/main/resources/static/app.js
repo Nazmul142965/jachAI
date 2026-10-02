@@ -547,7 +547,16 @@ async function loadBatchAssessments() {
 async function showBatchProgress(batchAssessmentId) {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
-  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments/${encodeURIComponent(batchAssessmentId)}/progress?page=0`));
+  const route = `/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments/${encodeURIComponent(batchAssessmentId)}`;
+  const [page, analytics] = await Promise.all([
+    request(ownOrg(`${route}/progress?page=0`)),
+    request(ownOrg(`${route}/analytics`))
+  ]);
+  setList('#batch-analytics', [
+    item('Cohort coverage', `${analytics.assignedLearners} assigned / ${analytics.activeLearners} active learners`),
+    item('Completion & pass rate', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners) · ${analytics.passedLearners} passed (${analytics.passRatePercent}% of submitted)`),
+    item('Average latest score', analytics.averageLatestPercentage === null ? 'No submitted attempts yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
+  ], 'Analytics are unavailable.');
   setList('#batch-progress-list', (page.content || []).map((row) => item(
     `Learner ${row.learnerUserId}`,
     row.attemptId ? `Latest attempt: ${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'} · ${new Date(row.submittedAt).toLocaleString()}`
