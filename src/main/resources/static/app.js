@@ -30,7 +30,7 @@ function ownOrg(path) {
   if (!state.organization) throw new Error('Choose an organization first.');
   return `/organizations/${encodeURIComponent(state.organization.id)}${path}`;
 }
-async function request(path, { method = 'GET', body, auth = true, retry = true } = {}) {
+async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
@@ -44,12 +44,13 @@ async function request(path, { method = 'GET', body, auth = true, retry = true }
       });
       state.accessToken = renewed.accessToken;
       state.refreshToken = renewed.refreshToken;
-      return request(path, { method, body, auth, retry: false });
+      return request(path, { method, body, auth, retry: false, optional404 });
     } catch (_) { showSignedOut(); throw new Error('Your session expired. Please sign in again.'); }
   }
   const raw = await response.text();
   let data;
   try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = null; }
+  if (response.status === 404 && optional404) return null;
   if (!response.ok) throw new Error(data?.message || `Request failed (${response.status}).`);
   return data;
 }
@@ -98,6 +99,7 @@ async function setOrganization() {
     return;
   }
   const role = state.organization.myRole;
+  $('#academy-feedback-panel').classList.toggle('hidden', state.organization.type !== 'ACADEMY');
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
   const pages = [['overview', 'Overview']];
   if (role === 'ORG_ADMIN') pages.push(['members', 'Members']);
@@ -309,6 +311,18 @@ function renderResult(result) {
     panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`));
     for (const topic of result.topics || []) panel.append(item(topic.topic, `${topic.correct} of ${topic.total} correct`));
     if (state.organization.type === 'ACADEMY' && state.organization.myRole === 'LEARNER') {
+      panel.append(button('View instructor feedback', async () => {
+        const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(result.attemptId)}/feedback/mine`),
+          { optional404: true });
+        const box = node('div', '', 'result-box');
+        box.append(node('h3', 'Instructor feedback'));
+        if (feedback) {
+          box.append(node('p', feedback.summary), node('h4', 'Next steps'), node('p', feedback.nextSteps));
+        } else {
+          box.append(node('p', 'Your instructor has not published feedback for this attempt yet.'));
+        }
+        panel.append(box);
+      }));
       const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the AI Tutor'));
       const label = node('label', 'Your question'); const input = node('textarea');
       input.required = true; input.maxLength = 1200; input.rows = 2; label.append(input);
@@ -421,6 +435,22 @@ $('#issue-certificate').addEventListener('click', () => run(async () => {
   const certificate = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/certificate`), { method: 'POST' });
   $('#review-output').textContent = `Certificate issued. Verification code: ${certificate.verificationCode}`;
   $('#review-output').classList.remove('hidden'); notice('Certificate issued.');
+}));
+$('#feedback-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = new FormData(event.currentTarget);
+  const attemptId = form.get('attemptId').trim();
+  const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback`),
+    { method: 'PUT', body: { summary: form.get('summary').trim(), nextSteps: form.get('nextSteps').trim() } });
+  $('#feedback-output').textContent = `Draft saved for attempt ${feedback.attemptId}.`;
+  $('#feedback-output').classList.remove('hidden'); notice('Feedback draft saved.');
+}); });
+$('#publish-feedback').addEventListener('click', () => run(async () => {
+  const attemptId = new FormData($('#feedback-form')).get('attemptId').trim();
+  if (!attemptId) throw new Error('Enter an attempt ID first.');
+  const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback/publish`),
+    { method: 'POST' });
+  $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}.`;
+  $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
 }));
 $('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);

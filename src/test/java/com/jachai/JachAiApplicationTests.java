@@ -26,6 +26,7 @@ import com.jachai.organization.service.MembershipService;
 import com.jachai.ai.service.QuestionDraftService;
 import com.jachai.ai.service.TutorService;
 import com.jachai.academy.service.CertificateService;
+import com.jachai.academy.service.InstructorFeedbackService;
 import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.auth.repository.UserRepository;
@@ -52,6 +53,7 @@ class JachAiApplicationTests {
     @MockitoBean QuestionDraftService questionDraftService;
     @MockitoBean TutorService tutorService;
     @MockitoBean CertificateService certificateService;
+    @MockitoBean InstructorFeedbackService instructorFeedbackService;
     @MockitoBean TalentCampaignService talentCampaignService;
 
     @Test
@@ -66,6 +68,12 @@ class JachAiApplicationTests {
         mvc.perform(get("/api/v1/organizations"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void academyFeedbackApiRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/academy/attempts/attempt-a/feedback/mine"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

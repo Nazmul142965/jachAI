@@ -240,3 +240,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Phase 5 implementation decisions
 
 - A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. External email invitations, integrity telemetry, and audit history remain required follow-up work.
+
+## Academy feedback implementation decision
+
+- One instructor feedback document is scoped to an Academy organization and submitted attempt. Staff can revise a private draft; publishing requires the result to be released and makes the text immutable. Only the attempt owner can read published feedback. This is narrative guidance, not an AI-generated score or a score override. A staff review queue, notifications, and audit events remain separate work.
