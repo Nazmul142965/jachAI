@@ -1,7 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
   questions: [], assessments: [], campaigns: [], academyCourses: [], academyBatches: [],
-  activeAttempt: null, timer: null, activeConversationId: null, messageRefresh: null,
+  activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
+  timer: null, activeConversationId: null, messageRefresh: null,
   messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0, view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
   'campaigns', 'attempts', 'certificates'];
@@ -73,6 +74,8 @@ function showSignedOut() {
   stopMessageRefresh();
   state.accessToken = null; state.refreshToken = null; state.organization = null;
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
+  state.activeReviewAttemptId = null;
+  state.reviewLoadToken++;
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
@@ -114,6 +117,8 @@ async function loadOrganizations() {
 }
 async function setOrganization() {
   state.activeAttempt = null;
+  state.activeReviewAttemptId = null;
+  state.reviewLoadToken++;
   window.clearInterval(state.timer);
   stopMessageRefresh();
   state.activeConversationId = null;
@@ -122,6 +127,7 @@ async function setOrganization() {
   for (const view of views) $(`#${view}-view`).classList.add('hidden');
   $('#attempt-panel').classList.add('hidden');
   $('#result-panel').classList.add('hidden');
+  $('#attempt-review-detail').classList.add('hidden');
   $('#campaign-candidates-panel').classList.add('hidden');
   $('#conversation-panel').classList.add('hidden');
   $('#empty-org').classList.toggle('hidden', !!state.organization);
@@ -354,17 +360,38 @@ async function loadReviewQueue(pageNumber) {
   const rows = (page.content || []).map((attempt) => item(
     attempt.assessmentTitle,
     `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
-    [button('Select', () => { $('#review-attempt-id').value = attempt.attemptId; }),
-      button('Release result', () => run(async () => {
+    [button('Inspect answers', () => showStaffReview(attempt.attemptId)),
+      button('Release result', async () => {
         await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
+        if (state.activeReviewAttemptId === attempt.attemptId) await showStaffReview(attempt.attemptId);
         notice('Result released.'); await loadReviewQueue(page.number);
-      }))]));
+      })]));
   setList('#review-queue', rows, 'No results are waiting for release.');
   $('#review-page-label').textContent = `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`;
   $('#review-prev').disabled = page.first;
   $('#review-next').disabled = page.last;
   $('#review-prev').onclick = () => run(() => loadReviewQueue(page.number - 1));
   $('#review-next').onclick = () => run(() => loadReviewQueue(page.number + 1));
+}
+async function showStaffReview(attemptId) {
+  const organizationId = state.organization.id;
+  const loadToken = ++state.reviewLoadToken;
+  const review = await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/review`));
+  if (state.organization?.id !== organizationId || loadToken !== state.reviewLoadToken) return;
+  state.activeReviewAttemptId = review.attemptId;
+  $('#review-attempt-id').value = review.attemptId;
+  $('#feedback-form').elements.attemptId.value = review.attemptId;
+  $('#attempt-review-summary').textContent = `${review.assessmentTitle} · Participant ${review.participantUserId} · ${review.percentage == null ? 'Score pending' : `${review.percentage}% · ${review.passed ? 'Passed' : 'Not passed'}`} · ${review.resultReleasedAt ? 'Released' : 'Not released'}`;
+  const answerText = (question, ids) => {
+    const selected = question.options.filter((option) => (ids || []).includes(option.id))
+      .map((option) => `${option.id}: ${option.text}`);
+    return selected.length ? selected.join('; ') : 'No answer';
+  };
+  setList('#attempt-review-questions', review.questions.map((question) => item(question.prompt,
+    `${question.topic} · ${question.correct ? 'Correct' : 'Incorrect'} · Chosen: ${answerText(question, question.selectedOptionIds)} · Answer key: ${answerText(question, question.correctOptionIds)}`)),
+  'No questions found in this published version.');
+  $('#attempt-review-detail').classList.remove('hidden');
+  $('#attempt-review-detail').scrollIntoView({ behavior: 'smooth' });
 }
 async function loadCampaigns(pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns?page=${pageNumber}`));
@@ -930,11 +957,16 @@ $('#assignment-form').addEventListener('submit', (event) => { event.preventDefau
       availableFrom, availableUntil } });
   event.currentTarget.reset(); notice('Assessment assigned.');
 }); });
+$('#inspect-attempt').addEventListener('click', () => run(async () => {
+  const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
+  await showStaffReview(id);
+}));
 $('#release-result').addEventListener('click', () => run(async () => {
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
   const result = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/release`), { method: 'POST' });
   $('#review-output').textContent = `Released: ${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`;
   $('#review-output').classList.remove('hidden'); notice('Result released.');
+  if (state.activeReviewAttemptId === id) await showStaffReview(id);
   await loadReviewQueue(0);
 }));
 $('#issue-certificate').addEventListener('click', () => run(async () => {

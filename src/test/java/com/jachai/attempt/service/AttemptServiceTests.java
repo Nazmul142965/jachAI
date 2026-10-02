@@ -19,6 +19,7 @@ import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.ResultView;
+import com.jachai.attempt.dto.StaffAttemptReviewView;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
@@ -151,6 +152,58 @@ class AttemptServiceTests {
         assertEquals("Java", released.topics().getFirst().topic());
         verify(emailSender).sendResultReleased("attempt", "learner@example.com", "Learner",
                 "https://jachai.example/");
+    }
+
+    @Test
+    void staffCanInspectSubmittedAnswersBeforeCandidateResultRelease() {
+        Instant now = Instant.now();
+        Attempt submitted = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(90), now.minusSeconds(30), AttemptStatus.SUBMITTED,
+                Map.of("q1", Set.of("b")), now.minusSeconds(30), 0, false, null, 1L);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a")).thenReturn(Optional.of(submitted));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+
+        StaffAttemptReviewView review = service().staffReview("teacher", "org-a", "attempt");
+
+        assertEquals("learner", review.participantUserId());
+        assertEquals(0, review.percentage());
+        assertNull(review.resultReleasedAt());
+        assertEquals(Set.of("b"), review.questions().getFirst().selectedOptionIds());
+        assertEquals(Set.of("a"), review.questions().getFirst().correctOptionIds());
+        assertFalse(review.questions().getFirst().correct());
+        verify(attempts, never()).save(any(Attempt.class));
+    }
+
+    @Test
+    void staffReviewCannotReadAnAttemptFromAnotherTenant() {
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().staffReview("teacher", "org-b", "attempt")).code());
+        verify(attempts).findByIdAndOrganizationId("attempt", "org-b");
+        verify(versions, never()).get(any(), any());
+    }
+
+    @Test
+    void learnerCannotUseStaffAnswerReview() {
+        doThrow(new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN", "Staff only"))
+                .when(access).requireRole("learner", "org-a", OrganizationRole.ORG_ADMIN,
+                        OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+
+        assertEquals("FORBIDDEN", assertThrows(ApiException.class,
+                () -> service().staffReview("learner", "org-a", "attempt")).code());
+        verify(attempts, never()).findByIdAndOrganizationId(any(), any());
+    }
+
+    @Test
+    void unsubmittedAttemptCannotBeInspectedAsAResult() {
+        Attempt inProgress = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now(), Instant.now().plusSeconds(300), AttemptStatus.IN_PROGRESS,
+                Map.of(), null, null, null, null, 0L);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenReturn(Optional.of(inProgress));
+
+        assertEquals("RESULT_PENDING", assertThrows(ApiException.class,
+                () -> service().staffReview("teacher", "org-a", "attempt")).code());
+        verify(versions, never()).get(any(), any());
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.dto.ReviewAttemptView;
+import com.jachai.attempt.dto.StaffAttemptReviewView;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
@@ -189,6 +190,27 @@ public class AttemptService {
                         attempt.userId(), version(organizationId, attempt.assessmentVersionId()).title(),
                         attempt.attemptNumber(), attempt.percentage(), Boolean.TRUE.equals(attempt.passed()),
                         attempt.submittedAt()));
+    }
+
+    public StaffAttemptReviewView staffReview(String actorId, String organizationId, String attemptId) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN,
+                OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+        Attempt attempt = attempts.findByIdAndOrganizationId(attemptId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attempt not found"));
+        if (attempt.status() != AttemptStatus.SUBMITTED) {
+            throw new ApiException(HttpStatus.CONFLICT, "RESULT_PENDING", "Attempt is not submitted");
+        }
+        AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
+        List<StaffAttemptReviewView.QuestionReview> questions = version.questions().stream()
+                .map(question -> {
+                    Set<String> selected = attempt.answers().getOrDefault(question.questionId(), Set.of());
+                    return new StaffAttemptReviewView.QuestionReview(question.questionId(),
+                            question.topic(), question.prompt(), question.type(), question.options(),
+                            selected, question.correctOptionIds(), question.correctOptionIds().equals(selected));
+                }).toList();
+        return new StaffAttemptReviewView(attempt.id(), attempt.assignmentId(), attempt.userId(),
+                version.title(), attempt.attemptNumber(), attempt.submittedAt(),
+                attempt.percentage(), attempt.passed(), attempt.resultReleasedAt(), questions);
     }
 
     private Attempt finalizeAttempt(Attempt attempt, AssessmentVersion version, Instant now) {

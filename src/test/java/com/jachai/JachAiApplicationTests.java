@@ -215,6 +215,21 @@ class JachAiApplicationTests {
     void pendingReviewRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/organizations/org-a/attempts/review/pending?page=0"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/organizations/org-a/attempts/attempt-a/review"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void staffReviewRouteUsesAuthenticatedActor() throws Exception {
+        doThrow(new com.jachai.shared.error.ApiException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "FORBIDDEN", "Staff only"))
+                .when(attemptService).staffReview("candidate", "org-a", "attempt-a");
+
+        mvc.perform(get("/api/v1/organizations/org-a/attempts/attempt-a/review")
+                        .with(jwt().jwt(token -> token.subject("candidate"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        verify(attemptService).staffReview("candidate", "org-a", "attempt-a");
     }
 
     @Test
@@ -256,6 +271,9 @@ class JachAiApplicationTests {
                 .andExpect(content().string(containsString("courses-pagination")))
                 .andExpect(content().string(containsString("batch-assessments-pagination")))
                 .andExpect(content().string(containsString("payment-history-pagination")));
+        mvc.perform(get("/"))
+                .andExpect(content().string(containsString("attempt-review-detail")))
+                .andExpect(content().string(containsString("inspect-attempt")));
         mvc.perform(get("/verify-email.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("JachAI email verification")));

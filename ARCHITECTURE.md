@@ -287,7 +287,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Staff result-review queue implementation decision
 
-- Staff see a tenant-scoped, newest-first page of submitted attempts awaiting manual result release. This is a workflow queue, not a second scoring mechanism; official scoring remains deterministic at submission and candidates still receive no score until release. Queue payloads contain the staff-visible score and participant ID but never saved answers or answer keys. A compound MongoDB index supports the pending query. Live index/query and browser verification remain open.
+- Staff see a tenant-scoped, newest-first page of submitted attempts awaiting manual result release. This is a workflow queue, not a second scoring mechanism; official scoring remains deterministic at submission and candidates still receive no score until release. Queue payloads contain the staff-visible score and participant ID but never saved answers or answer keys. A separate staff-only submitted-attempt review route exposes frozen question snapshots, selected answers, and correct options so instructors/recruiters can inspect before release; candidate routes remain answer-key-free. A compound MongoDB index supports the pending query. Live index/query and browser verification remain open.
 
 ## Organization membership governance implementation decision
 

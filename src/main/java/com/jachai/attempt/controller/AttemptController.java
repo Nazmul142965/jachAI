@@ -4,6 +4,7 @@ import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.dto.ReviewAttemptView;
+import com.jachai.attempt.dto.StaffAttemptReviewView;
 import com.jachai.attempt.dto.SaveAnswerRequest;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.service.AttemptService;
@@ -78,5 +79,11 @@ public class AttemptController {
     public Page<ReviewAttemptView> pendingReview(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @RequestParam(defaultValue = "0") int page) {
         return attempts.pendingReview(jwt.getSubject(), organizationId, page);
+    }
+
+    @GetMapping("/attempts/{attemptId}/review")
+    public StaffAttemptReviewView staffReview(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String attemptId) {
+        return attempts.staffReview(jwt.getSubject(), organizationId, attemptId);
     }
 }
