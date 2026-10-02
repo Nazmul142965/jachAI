@@ -23,7 +23,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Talent hiring campaigns tied to a frozen assessment version, existing-member or email candidate invitations, staff-only candidate comparison, reviewer notes, hold/shortlist/reject decisions, and paginated review history. An email recipient registers or signs in with the same verified address before accepting; acceptance creates candidate membership and a frozen assignment.
 - Talent attempt integrity signals (tab visibility, optional fullscreen exit, copy/paste, and client-reported answer-save timing) stored separately from attempts. Recruiters can inspect an evidence-only summary and paged events after submission; no automatic cheating decision is made.
 
-Not yet complete: full Academy/Talent modules, richer review workflows and frontend pagination, live certificate email/revocation/audit verification, live bKash/SSLCOMMERZ sandbox verification, quota reconciliation/backfill, full integration/load testing, and deployment. The outbox, rate limits, and quota counters still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
+Not yet complete: full Academy/Talent modules, richer review workflows and frontend pagination, live certificate email/revocation/audit verification, live bKash/SSLCOMMERZ sandbox verification, quota reconciliation/backfill, full integration/load testing, and a verified deployment. A container recipe and readiness probes now exist in [DEPLOYMENT.md](DEPLOYMENT.md), but no container or live service has been exercised here. The outbox, rate limits, and quota counters still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -40,7 +40,7 @@ $env:MONGODB_URI = 'mongodb://localhost:27017/jachai_local'
 .\mvnw.cmd spring-boot:run
 ```
 
-`GET /api/v1/health` checks app liveness only. `GET /actuator/health` includes infrastructure readiness when the related health indicators are enabled. To perform an opt-in MongoDB save/read/delete check, use the `local,mongo-smoke` profiles.
+`GET /api/v1/health` checks app liveness only. `GET /actuator/health/liveness` is the Actuator liveness probe; `GET /actuator/health/readiness` checks MongoDB and Redis in the production profile. To perform an opt-in MongoDB save/read/delete check, use the `local,mongo-smoke` profiles. Deployment prerequisites and remaining release gates are in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Open `/` for the dashboard. Spring MVC renders the HTML templates; API controllers remain REST-only. The browser keeps access/refresh tokens in memory, so a page reload signs you out. The dashboard is an early workflow UI, not a production-complete frontend.
 

@@ -295,3 +295,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Frontend pagination implementation decision
 
 - Campaign lists, candidate comparison, and Academy batch-progress rows now follow the server's 20-row pages. Cohort analytics are fetched once when staff open progress, not on every progress-page change. Other first-page-only lists and a browser walkthrough remain open work; page controls do not replace tenant authorization on the server.
+
+## Deployment and health-probe implementation decision
+
+- The multi-stage Dockerfile packages the Java 21 modular monolith into an unprivileged JRE runtime image. In the production profile, Actuator readiness includes application readiness state, MongoDB, and Redis; liveness remains independent of those external systems. Only status is exposed, not details. Local full tests and executable JAR packaging pass; Docker image/run and live dependency probes remain unverified because Docker and service credentials are not available in this environment. `DEPLOYMENT.md` lists the sandbox-only rollout gates.

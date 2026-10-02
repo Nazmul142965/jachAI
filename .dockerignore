@@ -1,0 +1,12 @@
+.git
+.idea
+.build-cache
+target
+.env
+.env.*
+*.iml
+*.log
+HELP.md
+HANDOFF.md
+README.md
+ARCHITECTURE.md
