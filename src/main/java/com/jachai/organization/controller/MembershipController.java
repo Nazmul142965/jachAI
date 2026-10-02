@@ -10,6 +10,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -36,8 +37,16 @@ public class MembershipController {
     private final MembershipService members;
 
     @GetMapping
-    public List<MemberResponse> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId) {
-        return members.list(jwt.getSubject(), organizationId);
+    public Page<MemberResponse> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
+            @RequestParam(defaultValue = "0") @Min(0) int page) {
+        return members.list(jwt.getSubject(), organizationId,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+    }
+
+    @GetMapping("/admins/lookup")
+    public MemberResponse adminByEmail(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam @NotBlank @Email String email) {
+        return members.findActiveAdminByEmail(jwt.getSubject(), organizationId, email);
     }
 
     @GetMapping("/candidates")

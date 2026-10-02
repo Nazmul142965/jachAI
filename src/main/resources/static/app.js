@@ -251,14 +251,10 @@ function renderPageControls(selector, page, onPage) {
   controls.append(previous, node('span', `Page ${page.number + 1} of ${page.totalPages}`, 'muted'), next);
   target.append(controls);
 }
-async function loadMembers() {
-  const members = await request(ownOrg('/members'));
+async function loadMembers(pageNumber = 0) {
+  const page = await request(ownOrg(`/members?page=${pageNumber}`));
+  const members = page.content || [];
   $('#ownership-panel').classList.toggle('hidden', !state.organization.owner);
-  $('#transfer-owner-select').replaceChildren(...members.filter((member) =>
-    member.active && member.role === 'ORG_ADMIN' && !member.owner).map((member) => {
-    const option = node('option', `${member.displayName} · ${member.email}`);
-    option.value = member.userId; return option;
-  }));
   const allRoles = state.organization.type === 'ACADEMY' ? ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER']
     : ['ORG_ADMIN', 'RECRUITER', 'CANDIDATE'];
   const roles = state.organization.owner ? allRoles : allRoles.filter((role) => role !== 'ORG_ADMIN');
@@ -278,17 +274,17 @@ async function loadMembers() {
         actions.push(button('Save role', async () => {
           await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
             { method: 'PUT', body: { role: select.value } });
-          await loadMembers(); notice('Member role updated.');
+          await loadMembers(page.number); notice('Member role updated.');
         }), button('Deactivate', async () => {
           if (!window.confirm(`Deactivate ${member.displayName} from this workspace?`)) return;
           await request(ownOrg(`/members/${encodeURIComponent(member.userId)}`), { method: 'DELETE' });
-          await loadMembers(); notice('Member deactivated.');
+          await loadMembers(page.number); notice('Member deactivated.');
         }));
       } else {
         actions.push(button('Reactivate', async () => {
           await request(ownOrg('/members'), { method: 'POST',
             body: { email: member.email, role: select.value } });
-          await loadMembers(); notice('Member reactivated.');
+          await loadMembers(page.number); notice('Member reactivated.');
         }));
       }
     }
@@ -300,6 +296,7 @@ async function loadMembers() {
       actions), auditPanel);
     return wrapper;
   }), 'No members yet.');
+  renderPageControls('#members-pagination', page, loadMembers);
   await loadOwnershipAudit(0);
 }
 async function loadOwnershipAudit(pageNumber) {
@@ -927,10 +924,10 @@ $('#add-member-form').addEventListener('submit', (event) => { event.preventDefau
   event.currentTarget.reset(); await loadMembers(); notice('Member added.');
 }); });
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const targetUserId = new FormData(event.currentTarget).get('targetUserId');
-  if (!targetUserId) throw new Error('Add another organization admin before transferring ownership.');
-  if (!window.confirm('Transfer workspace ownership to this admin? You will no longer be the owner.')) return;
-  await request(ownOrg('/owner'), { method: 'PUT', body: { targetUserId } });
+  const email = new FormData(event.currentTarget).get('email').trim();
+  const target = await request(ownOrg(`/members/admins/lookup?email=${encodeURIComponent(email)}`));
+  if (!window.confirm(`Transfer workspace ownership to ${target.displayName} (${target.email})? You will no longer be the owner.`)) return;
+  await request(ownOrg('/owner'), { method: 'PUT', body: { targetUserId: target.userId } });
   await loadOrganizations();
   notice('Workspace ownership transferred.');
 }); });

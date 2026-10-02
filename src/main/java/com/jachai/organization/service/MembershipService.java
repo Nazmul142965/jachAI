@@ -16,8 +16,6 @@ import com.jachai.shared.audit.AuditAction;
 import com.jachai.shared.audit.AuditEvent;
 import com.jachai.shared.audit.AuditEventRepository;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.Map;
@@ -84,17 +82,35 @@ public class MembershipService {
         return new MemberResponse(user.id(), user.email(), user.displayName(), request.role());
     }
 
-    public List<MemberResponse> list(String actorId, String organizationId) {
+    public Page<MemberResponse> list(String actorId, String organizationId, Pageable pageable) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
         String ownerUserId = organization(organizationId).ownerUserId();
-        List<MemberResponse> result = new ArrayList<>();
-        for (Membership membership : memberships.findByOrganizationId(organizationId)) {
-            users.findById(membership.userId()).ifPresent(user -> result.add(
-                    new MemberResponse(user.id(), user.email(), user.displayName(),
-                            ownerUserId.equals(user.id()) ? OrganizationRole.ORG_ADMIN : membership.role(),
-                            ownerUserId.equals(user.id()), ownerUserId.equals(user.id()) || membership.active())));
-        }
-        return result;
+        return memberships.findByOrganizationId(organizationId, pageable).map(membership -> {
+            User user = users.findById(membership.userId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "MEMBER_UNAVAILABLE",
+                            "Member account is unavailable"));
+            boolean owner = ownerUserId.equals(user.id());
+            return new MemberResponse(user.id(), user.email(), user.displayName(),
+                    owner ? OrganizationRole.ORG_ADMIN : membership.role(), owner, owner || membership.active());
+        });
+    }
+
+    public MemberResponse findActiveAdminByEmail(String actorId, String organizationId, String email) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
+        Organization organization = organization(organizationId);
+        User user = users.findByEmail(email.trim().toLowerCase(Locale.ROOT))
+                .orElseThrow(this::adminNotFound);
+        Membership member = memberships.findByUserIdAndOrganizationIdAndActiveTrue(user.id(), organizationId)
+                .filter(value -> value.role() == OrganizationRole.ORG_ADMIN)
+                .orElseThrow(this::adminNotFound);
+        if (organization.ownerUserId().equals(user.id()) || user.disabled() || !user.emailVerified())
+            throw adminNotFound();
+        return new MemberResponse(user.id(), user.email(), user.displayName(), member.role());
+    }
+
+    private ApiException adminNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "ADMIN_NOT_FOUND",
+                "No eligible active admin with that email in this organization");
     }
 
     public MemberResponse changeRole(String actorId, String organizationId, String userId,

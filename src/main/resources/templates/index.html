@@ -81,10 +81,10 @@
       </section>
 
       <section id="members-view" class="view hidden">
-        <div id="ownership-panel" class="card panel hidden"><h2>Transfer workspace ownership</h2><p class="muted">Only the current owner can transfer ownership to another active organization admin. The former owner stays an admin unless the new owner changes that role.</p><form id="transfer-owner-form" class="form-row"><label>New owner<select id="transfer-owner-select" name="targetUserId" required></select></label><button class="button secondary" type="submit">Transfer ownership</button></form></div>
+        <div id="ownership-panel" class="card panel hidden"><h2>Transfer workspace ownership</h2><p class="muted">Only the current owner can transfer ownership to another active organization admin. Enter that admin's exact email. The former owner stays an admin unless the new owner changes that role.</p><form id="transfer-owner-form" class="form-row"><label>New owner's email<input name="email" type="email" maxlength="254" required></label><button class="button secondary" type="submit">Transfer ownership</button></form></div>
         <div class="card panel"><h2>Add a registered member</h2><p class="muted">The person must register and verify their email first. Adding an inactive former member reactivates their workspace access.</p>
           <form id="add-member-form" class="form-row"><label>Email<input name="email" type="email" required></label><label>Role<select id="member-role" name="role"></select></label><button class="button primary" type="submit">Add member</button></form>
-        </div><div class="card panel"><h2>Members</h2><div id="members-list" class="item-list"></div></div><div class="card panel"><h2>Ownership history</h2><div id="ownership-audit" class="item-list"></div><div id="ownership-audit-pagination"></div></div>
+        </div><div class="card panel"><h2>Members</h2><div id="members-list" class="item-list"></div><div id="members-pagination"></div></div><div class="card panel"><h2>Ownership history</h2><div id="ownership-audit" class="item-list"></div><div id="ownership-audit-pagination"></div></div>
       </section>
 
       <section id="questions-view" class="view hidden">

@@ -164,20 +164,66 @@ class MembershipServiceTests {
 
     @Test
     void listIdentifiesOwnerWithoutGrantingItToOtherAdmins() {
+        var pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
         when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
-        when(memberships.findByOrganizationId("org-a"))
-                .thenReturn(List.of(member("owner", OrganizationRole.ORG_ADMIN, true),
-                        member("admin", OrganizationRole.ORG_ADMIN, true)));
+        when(memberships.findByOrganizationId("org-a", pageable))
+                .thenReturn(new PageImpl<>(List.of(member("owner", OrganizationRole.ORG_ADMIN, true),
+                        member("admin", OrganizationRole.ORG_ADMIN, true)), pageable, 2));
         when(users.findById("owner")).thenReturn(Optional.of(new User("owner", "owner@example.com",
                 "Owner", null, true, false, 0, Instant.now())));
         when(users.findById("admin")).thenReturn(Optional.of(new User("admin", "admin@example.com",
                 "Admin", null, true, false, 0, Instant.now())));
 
-        var result = service().list("owner", "org-a");
+        var result = service().list("owner", "org-a", pageable).getContent();
 
         assertTrue(result.get(0).owner());
         assertFalse(result.get(1).owner());
         assertTrue(result.get(0).active());
+    }
+
+    @Test
+    void memberListingReadsOnlyRequestedTenantPage() {
+        var pageable = PageRequest.of(2, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(memberships.findByOrganizationId("org-a", pageable))
+                .thenReturn(new PageImpl<>(List.of(member("learner", OrganizationRole.LEARNER, true)),
+                        pageable, 41));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner", "learner@example.com",
+                "Learner", null, true, false, 0, Instant.now())));
+
+        var result = service().list("owner", "org-a", pageable);
+
+        assertEquals(2, result.getNumber());
+        assertEquals(3, result.getTotalPages());
+        assertEquals("learner", result.getContent().getFirst().userId());
+        verify(memberships).findByOrganizationId("org-a", pageable);
+    }
+
+    @Test
+    void ownershipTargetLookupIsTenantScopedAndRequiresActiveAdmin() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(users.findByEmail("admin@example.com")).thenReturn(Optional.of(new User("admin",
+                "admin@example.com", "Admin", null, true, false, 0, Instant.now())));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("admin", "org-a"))
+                .thenReturn(Optional.of(member("admin", OrganizationRole.ORG_ADMIN, true)));
+
+        var result = service().findActiveAdminByEmail("owner", "org-a", " ADMIN@EXAMPLE.COM ");
+
+        assertEquals("admin", result.userId());
+        verify(access).requireRole("owner", "org-a", OrganizationRole.ORG_ADMIN);
+        verify(memberships).findByUserIdAndOrganizationIdAndActiveTrue("admin", "org-a");
+    }
+
+    @Test
+    void ownershipLookupHidesOtherTenantAdmin() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(users.findByEmail("admin@example.com")).thenReturn(Optional.of(new User("admin",
+                "admin@example.com", "Admin", null, true, false, 0, Instant.now())));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("admin", "org-a"))
+                .thenReturn(Optional.empty());
+
+        assertEquals("ADMIN_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().findActiveAdminByEmail("owner", "org-a", "admin@example.com")).code());
     }
 
     @Test
