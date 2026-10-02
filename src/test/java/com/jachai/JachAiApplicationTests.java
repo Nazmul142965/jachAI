@@ -37,6 +37,7 @@ import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.talent.service.CampaignEmailInvitationService;
 import com.jachai.billing.service.EntitlementService;
+import com.jachai.billing.service.PaymentBillingService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
@@ -71,6 +72,7 @@ class JachAiApplicationTests {
     @MockitoBean TalentCampaignService talentCampaignService;
     @MockitoBean CampaignEmailInvitationService campaignEmailInvitationService;
     @MockitoBean EntitlementService entitlementService;
+    @MockitoBean PaymentBillingService paymentBillingService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {

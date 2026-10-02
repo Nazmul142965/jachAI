@@ -6,9 +6,15 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
   'campaigns', 'attempts', 'certificates'];
 const invitationFromLink = new URLSearchParams(location.search).get('invitation');
+const billingReturn = new URLSearchParams(location.search).get('billing');
 if (invitationFromLink) {
   sessionStorage.setItem('jachaiPendingInvitation', invitationFromLink);
   history.replaceState(null, '', location.pathname);
+}
+if (billingReturn) {
+  history.replaceState(null, '', location.pathname);
+  if (billingReturn === 'verified') notice('Sandbox payment verified. Sign in to see your plan and transaction.');
+  else notice(`Sandbox checkout ${billingReturn}. Sign in to review transaction history.`);
 }
 
 function node(tag, text = '', className = '') {
@@ -126,6 +132,7 @@ async function setOrganization() {
   }
   const role = state.organization.myRole;
   $('#plan-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
+  $('#billing-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#academy-feedback-panel').classList.toggle('hidden', state.organization.type !== 'ACADEMY');
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
   $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
@@ -178,6 +185,17 @@ async function loadEntitlements() {
     item('Assessments & invitations', `${plan.maxPublishedAssessments} published assessments · ${plan.monthlyInvitations} invitations per month`),
     item('AI & certificates', `${plan.dailyUserAiRequests} AI requests per user/day · ${plan.monthlyCertificates} certificates per month`)
   ], 'Plan details are unavailable.');
+  const options = await request(ownOrg('/billing/options'));
+  const checkout = $('#start-ssl-demo');
+  checkout.disabled = !options.sslCommerzAvailable || plan.tier === 'TEAM';
+  $('#billing-hint').textContent = options.sslCommerzAvailable
+    ? `Sandbox only · TEAM demo price: ৳${options.demoTeamPriceBdt} for 30 days. No real money is charged.`
+    : 'Sandbox merchant credentials are not configured yet. No real money is charged.';
+  const payments = await request(ownOrg('/billing/orders?page=0'));
+  setList('#payment-history', (payments.content || []).map((order) => item(
+    `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
+    `${order.id} · ${new Date(order.createdAt).toLocaleString()}`)),
+  'No demo transactions yet.');
 }
 function item(title, meta, actions = []) {
   const wrapper = node('div', '', 'item');
@@ -587,6 +605,11 @@ async function loadConversationMessages() {
 }
 
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
+$('#start-ssl-demo').addEventListener('click', () => run(async () => {
+  const checkout = await request(ownOrg('/billing/orders'),
+    { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
+  window.location.assign(checkout.checkoutUrl);
+}));
 $('#register-tab').addEventListener('click', () => switchAuth('register'));
 function switchAuth(which) {
   $('#login-form').classList.toggle('hidden', which !== 'login');

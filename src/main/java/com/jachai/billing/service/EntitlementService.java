@@ -40,8 +40,8 @@ public class EntitlementService {
         Subscription subscription = subscriptions.findById(organizationId).orElse(null);
         PlanTier tier = subscription != null && subscription.status() == SubscriptionStatus.ACTIVE
                 && subscription.tier() == PlanTier.TEAM
-                && (subscription.currentPeriodEnd() == null
-                    || subscription.currentPeriodEnd().isAfter(Instant.now()))
+                && subscription.currentPeriodEnd() != null
+                && subscription.currentPeriodEnd().isAfter(Instant.now())
                 ? PlanTier.TEAM : PlanTier.FREE;
         return PlanEntitlements.forTier(tier);
     }
