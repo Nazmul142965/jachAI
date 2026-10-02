@@ -18,6 +18,7 @@ import com.jachai.auth.service.AuthService;
 import com.jachai.auth.service.GoogleAuthService;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.organization.service.OrganizationService;
+import com.jachai.organization.service.OrganizationSettingsService;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.service.QuestionService;
 import com.jachai.assessment.service.AssessmentService;
@@ -58,6 +59,7 @@ class JachAiApplicationTests {
     @MockitoBean UserRepository userRepository;
     @MockitoBean AccessRevocationService accessRevocationService;
     @MockitoBean OrganizationService organizationService;
+    @MockitoBean OrganizationSettingsService organizationSettingsService;
     @MockitoBean TenantAccessService tenantAccessService;
     @MockitoBean QuestionService questionService;
     @MockitoBean AssessmentService assessmentService;
@@ -161,6 +163,12 @@ class JachAiApplicationTests {
     @Test
     void pendingReviewRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/organizations/org-a/attempts/review/pending?page=0"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void organizationSettingsRequireAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/settings"))
                 .andExpect(status().isUnauthorized());
     }
 

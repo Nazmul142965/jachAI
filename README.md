@@ -23,7 +23,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Talent hiring campaigns tied to a frozen assessment version, existing-member or email candidate invitations, staff-only candidate comparison, reviewer notes, and hold/shortlist/reject decisions. An email recipient registers or signs in with the same verified address before accepting; acceptance creates candidate membership and a frozen assignment.
 - Talent attempt integrity signals (tab visibility, optional fullscreen exit, copy/paste, and client-reported answer-save timing) stored separately from attempts. Recruiters can inspect an evidence-only summary and paged events after submission; no automatic cheating decision is made.
 
-Not yet complete: full frontend review queues, full Academy/Talent modules, organization-wide result-policy settings, live certificate email/revocation/audit verification, live bKash/SSLCOMMERZ sandbox verification, quota reconciliation/backfill, full integration/load testing, and deployment. The outbox, rate limits, and quota counters still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
+Not yet complete: full Academy/Talent modules, richer review workflows and frontend pagination, live certificate email/revocation/audit verification, live bKash/SSLCOMMERZ sandbox verification, quota reconciliation/backfill, full integration/load testing, and deployment. The outbox, rate limits, and quota counters still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -66,6 +66,7 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 | Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members`, `GET /organizations/{orgId}/members/candidates` (Talent staff) |
 | Questions | `GET/POST /organizations/{orgId}/questions`, `POST .../questions/{id}/approve` |
 | Assessments | `GET/POST /organizations/{orgId}/assessments`, `POST .../assessments/{id}/publish` |
+| Organization settings | `GET/PUT /organizations/{orgId}/settings` (staff read, organization admin update) |
 | Attempts | `GET .../assignments/mine`, `GET .../assignments/{id}/attempts/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result`, `GET .../attempts/review/pending?page=0` and `POST .../attempts/{id}/release` (staff only) |
 | AI | `POST /organizations/{orgId}/ai/question-drafts`, `POST /organizations/{orgId}/attempts/{id}/tutor` |
 | Academy certificates | `POST /organizations/{orgId}/attempts/{id}/certificate` (staff), `GET /organizations/{orgId}/certificates/mine` (learner), `POST /organizations/{orgId}/certificates/{id}/revoke`, `GET /organizations/{orgId}/certificates/{id}/audit?page=0` (staff), `GET /public/certificates/{verificationCode}` (public) |
@@ -81,7 +82,7 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 
 The test profile disables MongoDB autoconfiguration and uses mocks for API smoke tests. Unit tests cover assessment/attempt rules, tenant checks, cache behavior, and AI draft/tutor boundaries. A live MongoDB/Redis/provider integration test has not yet been completed.
 
-When creating an assessment, set `resultReleasePolicy` to `MANUAL` to keep its score, pass state, and topic breakdown hidden until an organization admin, instructor, or recruiter calls the release route. Omit it or use `IMMEDIATE` for score release on submit. The policy is frozen into the published version. Manual-policy Academy tutoring also waits for release. The result API returns `released: false` with null score/pass and empty topics while pending.
+An organization admin can set the default result-release policy in the Overview or via `PUT .../settings`. Without settings the default is `IMMEDIATE`. New assessments inherit that policy if `resultReleasePolicy` is omitted/null; authors may explicitly choose `MANUAL` or `IMMEDIATE` for an individual assessment. The policy is frozen into the published version, so changing the organization default does not alter existing assessments or attempts. `MANUAL` keeps score, pass state, and topic breakdown hidden until an organization admin, instructor, or recruiter calls the release route. Manual-policy Academy tutoring also waits for release. The result API returns `released: false` with null score/pass and empty topics while pending.
 
 Staff can open “Assessments” to review the 20 newest submitted attempts whose results are still pending release. The queue is tenant-scoped and paginated, shows the official score to staff without exposing answers or answer keys, and offers a direct release action. The API rejects page numbers outside 0–500. Learners and candidates cannot access this route. Live MongoDB index/query behavior is not yet verified.
 

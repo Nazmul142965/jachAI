@@ -11,11 +11,13 @@ import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
+import com.jachai.assessment.dto.CreateAssessmentRequest;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.repository.AssessmentVersionRepository;
 import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.organization.service.TenantAccessService;
+import com.jachai.organization.service.OrganizationSettingsService;
 import com.jachai.question.model.Question;
 import com.jachai.question.model.QuestionStatus;
 import com.jachai.question.model.QuestionType;
@@ -39,6 +41,12 @@ class AssessmentServiceTests {
     @Mock QuestionRepository questions;
     @Mock TenantAccessService access;
     @Mock EntitlementService entitlements;
+    @Mock OrganizationSettingsService organizationSettings;
+
+    private AssessmentService service() {
+        return new AssessmentService(assessments, versions, questions, access, entitlements,
+                organizationSettings);
+    }
 
     @Test
     void publicationFreezesApprovedQuestionAndAnswerKey() {
@@ -51,8 +59,7 @@ class AssessmentServiceTests {
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
         when(questions.findByIdAndOrganizationId("q1", "org-a")).thenReturn(Optional.of(question));
 
-        AssessmentVersion result = new AssessmentService(assessments, versions, questions, access, entitlements)
-                .publish("teacher", "org-a", "a1");
+        AssessmentVersion result = service().publish("teacher", "org-a", "a1");
 
         assertEquals(1, result.version());
         assertEquals(ResultReleasePolicy.MANUAL, result.resultReleasePolicy());
@@ -61,6 +68,7 @@ class AssessmentServiceTests {
         verify(versions).insert(saved.capture());
         assertEquals("org-a", saved.getValue().organizationId());
         verify(assessments).save(any(Assessment.class));
+        verify(organizationSettings, never()).defaultPolicy("org-a");
     }
 
     @Test
@@ -69,8 +77,7 @@ class AssessmentServiceTests {
                 List.of("q-other"), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.DRAFT, 0, Instant.now(), null);
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
         ApiException error = assertThrows(ApiException.class, () ->
-                new AssessmentService(assessments, versions, questions, access, entitlements)
-                        .publish("teacher", "org-a", "a1"));
+                service().publish("teacher", "org-a", "a1"));
         assertEquals("QUESTION_MISSING", error.code());
     }
 
@@ -84,8 +91,7 @@ class AssessmentServiceTests {
                         "PLAN_LIMIT_REACHED", "Plan limit reached"));
 
         ApiException error = assertThrows(ApiException.class, () ->
-                new AssessmentService(assessments, versions, questions, access, entitlements)
-                        .publish("teacher", "org-a", "a1"));
+                service().publish("teacher", "org-a", "a1"));
 
         assertEquals("PLAN_LIMIT_REACHED", error.code());
         verify(versions, never()).insert(any(AssessmentVersion.class));
@@ -100,10 +106,37 @@ class AssessmentServiceTests {
         when(versions.insert(any(AssessmentVersion.class))).thenThrow(new DuplicateKeyException("exists"));
 
         ApiException error = assertThrows(ApiException.class, () ->
-                new AssessmentService(assessments, versions, questions, access, entitlements)
-                        .publish("teacher", "org-a", "a1"));
+                service().publish("teacher", "org-a", "a1"));
 
         assertEquals("PUBLISH_CONFLICT", error.code());
         verify(entitlements).refund("bucket");
+    }
+
+    @Test
+    void newAssessmentUsesOrganizationDefaultWhenNoOverrideIsSupplied() {
+        when(questions.findByIdAndOrganizationId("q1", "org-a"))
+                .thenReturn(Optional.of(new Question("q1", "org-a", "teacher", "Java", "Prompt",
+                        QuestionType.SINGLE_CHOICE, List.of(), Set.of(), QuestionStatus.APPROVED, Instant.now())));
+        when(organizationSettings.defaultPolicy("org-a")).thenReturn(ResultReleasePolicy.MANUAL);
+        when(assessments.save(any(Assessment.class))).thenAnswer(call -> call.getArgument(0));
+
+        Assessment created = service().create("teacher", "org-a", new CreateAssessmentRequest(
+                "Java", 30, 60, List.of("q1"), null));
+
+        assertEquals(ResultReleasePolicy.MANUAL, created.resultReleasePolicy());
+    }
+
+    @Test
+    void explicitAssessmentPolicyOverridesOrganizationDefault() {
+        when(questions.findByIdAndOrganizationId("q1", "org-a"))
+                .thenReturn(Optional.of(new Question("q1", "org-a", "teacher", "Java", "Prompt",
+                        QuestionType.SINGLE_CHOICE, List.of(), Set.of(), QuestionStatus.APPROVED, Instant.now())));
+        when(assessments.save(any(Assessment.class))).thenAnswer(call -> call.getArgument(0));
+
+        Assessment created = service().create("teacher", "org-a", new CreateAssessmentRequest(
+                "Java", 30, 60, List.of("q1"), ResultReleasePolicy.IMMEDIATE));
+
+        assertEquals(ResultReleasePolicy.IMMEDIATE, created.resultReleasePolicy());
+        verify(organizationSettings, never()).defaultPolicy("org-a");
     }
 }

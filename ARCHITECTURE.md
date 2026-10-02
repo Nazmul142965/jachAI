@@ -285,3 +285,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Staff result-review queue implementation decision
 
 - Staff see a tenant-scoped, newest-first page of submitted attempts awaiting manual result release. This is a workflow queue, not a second scoring mechanism; official scoring remains deterministic at submission and candidates still receive no score until release. Queue payloads contain the staff-visible score and participant ID but never saved answers or answer keys. A compound MongoDB index supports the pending query. Live index/query and browser verification remain open.
+
+## Organization result-release default implementation decision
+
+- An organization admin sets a tenant-scoped default of `IMMEDIATE` or `MANUAL`; absent settings read as `IMMEDIATE` without creating a document. Assessment authors may override the default at draft creation. The resolved policy is stored on the assessment and frozen into each published version, so later setting changes never retroactively release or conceal past results. Settings use optimistic versioning to reject concurrent updates; live MongoDB behavior remains to be verified.

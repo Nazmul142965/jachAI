@@ -132,6 +132,7 @@ async function setOrganization() {
   }
   const role = state.organization.myRole;
   $('#plan-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
+  $('#organization-settings-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#billing-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#academy-feedback-panel').classList.toggle('hidden', state.organization.type !== 'ACADEMY');
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
@@ -168,10 +169,15 @@ async function showView(key) {
     certificates: 'Certificates' };
   $('#page-title').textContent = names[key];
   $('#page-subtitle').textContent = state.organization.name;
-  if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') await loadEntitlements();
+  if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
+    await loadEntitlements(); await loadOrganizationSettings();
+  }
   if (key === 'members') await loadMembers();
   if (key === 'questions') await loadQuestions();
-  if (key === 'assessments') { await loadQuestions(); await loadAssessments(); await loadReviewQueue(0); }
+  if (key === 'assessments') {
+    await loadQuestions(); await loadAssessments(); await loadReviewQueue(0);
+    await loadOrganizationSettings();
+  }
   if (key === 'academy') await loadAcademyCatalog();
   if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') { await loadAssessments(); await loadCampaigns(); await loadTalentCandidates(); }
@@ -202,6 +208,12 @@ async function loadEntitlements() {
           await loadEntitlements();
         })] : [])),
   'No demo transactions yet.');
+}
+async function loadOrganizationSettings() {
+  const settings = await request(ownOrg('/settings'));
+  $('#organization-settings-form').elements.defaultResultReleasePolicy.value = settings.defaultResultReleasePolicy;
+  const defaultOption = $('#assessment-form').elements.resultReleasePolicy.options[0];
+  defaultOption.textContent = `Use organization default (${settings.defaultResultReleasePolicy === 'MANUAL' ? 'after staff release' : 'on submission'})`;
 }
 function item(title, meta, actions = []) {
   const wrapper = node('div', '', 'item');
@@ -706,6 +718,13 @@ $('#create-org-form').addEventListener('submit', (event) => { event.preventDefau
   await request('/organizations', { method: 'POST', body: { name: form.get('name'), type: form.get('type') } });
   event.currentTarget.reset(); await loadOrganizations(); notice('Workspace created.');
 }); });
+$('#organization-settings-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = new FormData(event.currentTarget);
+  await request(ownOrg('/settings'), { method: 'PUT', body: {
+    defaultResultReleasePolicy: form.get('defaultResultReleasePolicy')
+  } });
+  await loadOrganizationSettings(); notice('Result release default saved.');
+}); });
 $('#add-member-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   await request(ownOrg('/members'), { method: 'POST', body: { email: form.get('email'), role: form.get('role') } });
@@ -732,7 +751,7 @@ $('#assessment-form').addEventListener('submit', (event) => { event.preventDefau
   if (!questionIds.length) throw new Error('Select at least one approved question.');
   await request(ownOrg('/assessments'), { method: 'POST', body: {
     title: form.get('title'), durationMinutes: Number(form.get('durationMinutes')),
-    passingPercentage: Number(form.get('passingPercentage')), resultReleasePolicy: form.get('resultReleasePolicy'), questionIds
+    passingPercentage: Number(form.get('passingPercentage')), resultReleasePolicy: form.get('resultReleasePolicy') || null, questionIds
   } });
   event.currentTarget.reset(); await loadAssessments(); notice('Assessment draft created.');
 }); });

@@ -4,13 +4,13 @@ import com.jachai.assessment.dto.CreateAssessmentRequest;
 import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.model.AssessmentVersion;
-import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.repository.AssessmentVersionRepository;
 import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
+import com.jachai.organization.service.OrganizationSettingsService;
 import com.jachai.question.model.Question;
 import com.jachai.question.model.QuestionStatus;
 import com.jachai.question.repository.QuestionRepository;
@@ -33,6 +33,7 @@ public class AssessmentService {
     private final QuestionRepository questions;
     private final TenantAccessService access;
     private final EntitlementService entitlements;
+    private final OrganizationSettingsService organizationSettings;
 
     public Assessment create(String userId, String organizationId, CreateAssessmentRequest request) {
         requireAuthor(userId, organizationId);
@@ -47,7 +48,8 @@ public class AssessmentService {
         return assessments.save(new Assessment(UUID.randomUUID().toString(), organizationId, userId,
                 request.title().trim(), request.durationMinutes(), request.passingPercentage(),
                 List.copyOf(request.questionIds()),
-                request.resultReleasePolicy() == null ? ResultReleasePolicy.IMMEDIATE : request.resultReleasePolicy(),
+                request.resultReleasePolicy() == null
+                        ? organizationSettings.defaultPolicy(organizationId) : request.resultReleasePolicy(),
                 AssessmentStatus.DRAFT, 0, Instant.now(), null));
     }
 
