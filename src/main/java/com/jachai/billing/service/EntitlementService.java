@@ -6,14 +6,12 @@ import com.jachai.billing.model.Subscription;
 import com.jachai.billing.model.SubscriptionStatus;
 import com.jachai.billing.model.UsageBucket;
 import com.jachai.billing.model.UsageMetric;
+import com.jachai.billing.model.UsageWindow;
 import com.jachai.billing.repository.SubscriptionRepository;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.YearMonth;
-import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -52,28 +50,19 @@ public class EntitlementService {
         }
     }
 
-    /** Atomically reserves one plan unit. Call refund if the guarded write fails. */
     public String reserve(String organizationId, UsageMetric metric) {
-        PlanEntitlements entitlements = plan(organizationId);
-        long limit = switch (metric) {
-            case PUBLISHED_ASSESSMENT -> entitlements.maxPublishedAssessments();
-            case INVITATION -> entitlements.monthlyInvitations();
-            case CERTIFICATE -> entitlements.monthlyCertificates();
-        };
+        long limit = plan(organizationId).limitFor(metric);
         if (limit < 1) throw limitReached(metric);
         Instant now = Instant.now();
-        String window = metric == UsageMetric.PUBLISHED_ASSESSMENT
-                ? "all" : YearMonth.from(LocalDate.ofInstant(now, ZoneOffset.UTC)).toString();
-        String id = organizationId + ":" + metric.name() + ":" + window;
-        Instant expiresAt = metric == UsageMetric.PUBLISHED_ASSESSMENT ? null
-                : YearMonth.parse(window).atDay(1).plusMonths(14).atStartOfDay().toInstant(ZoneOffset.UTC);
-        Query query = Query.query(Criteria.where("_id").is(id).and("used").lt(limit));
+        UsageWindow window = UsageWindow.of(organizationId, metric, now);
+        Query query = Query.query(Criteria.where("_id").is(window.bucketId()).and("used").lt(limit));
         Update update = new Update().inc("used", 1)
+                .set("lastChangedAt", now)
                 .setOnInsert("organizationId", organizationId)
                 .setOnInsert("metric", metric)
-                .setOnInsert("window", window)
+                .setOnInsert("window", window.window())
                 .setOnInsert("createdAt", now);
-        if (expiresAt != null) update.setOnInsert("expiresAt", expiresAt);
+        if (window.expiresAt() != null) update.setOnInsert("expiresAt", window.expiresAt());
         try {
             UsageBucket reserved = mongo.findAndModify(query, update,
                     FindAndModifyOptions.options().upsert(true).returnNew(true), UsageBucket.class);
@@ -81,13 +70,13 @@ public class EntitlementService {
         } catch (DuplicateKeyException exception) {
             throw limitReached(metric);
         }
-        return id;
+        return window.bucketId();
     }
 
     public void refund(String bucketId) {
         if (bucketId == null) return;
         mongo.updateFirst(Query.query(Criteria.where("_id").is(bucketId).and("used").gt(0)),
-                new Update().inc("used", -1), UsageBucket.class);
+                new Update().inc("used", -1L).set("lastChangedAt", Instant.now()), UsageBucket.class);
     }
 
     private ApiException limitReached(UsageMetric metric) {

@@ -1,0 +1,15 @@
+package com.jachai.billing.model;
+
+public enum UsageReconciliationStatus {
+    IN_SYNC,
+    BACKFILL_REQUIRED,
+    BACKFILLED,
+    STRANDED,
+    STRANDED_RELEASED,
+    AMBIGUOUS,
+    DEFERRED_RECENT_ACTIVITY,
+    DEFERRED_NO_ACTIVITY_MARKER,
+    DEFERRED_UNDATED_RECORDS,
+    CONCURRENT_UPDATE,
+    DEFERRED_ERROR
+}
