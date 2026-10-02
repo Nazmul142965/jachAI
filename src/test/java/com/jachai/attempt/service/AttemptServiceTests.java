@@ -33,6 +33,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import com.jachai.organization.model.OrganizationRole;
 
 @ExtendWith(MockitoExtension.class)
 class AttemptServiceTests {
@@ -199,5 +203,36 @@ class AttemptServiceTests {
 
         assertEquals(Set.of("b"), result.savedAnswers().get("q1"));
         assertFalse(result.questions().getFirst().options().getFirst().text().contains("correctOptionIds"));
+    }
+
+    @Test
+    void staffPendingReviewIsTenantScopedPaginatedAndOmitsAnswers() throws Exception {
+        Instant now = Instant.now();
+        Attempt pending = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(120), now.minusSeconds(60), AttemptStatus.SUBMITTED,
+                Map.of("q1", Set.of("a")), now, 100, true, null, 1L);
+        PageRequest pageRequest = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "submittedAt"));
+        when(attempts.findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
+                "org-a", AttemptStatus.SUBMITTED, pageRequest))
+                .thenReturn(new PageImpl<>(List.of(pending), pageRequest, 1));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+
+        var page = service().pendingReview("teacher", "org-a", 0);
+
+        assertEquals("attempt", page.getContent().getFirst().attemptId());
+        assertEquals("Java", page.getContent().getFirst().assessmentTitle());
+        assertEquals(100, page.getContent().getFirst().percentage());
+        String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(page.getContent().getFirst());
+        assertFalse(json.contains("answers"));
+        assertFalse(json.contains("correctOptionIds"));
+        verify(access).requireRole("teacher", "org-a", OrganizationRole.ORG_ADMIN,
+                OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+    }
+
+    @Test
+    void pendingReviewRejectsUnboundedPageNumbers() {
+        ApiException error = assertThrows(ApiException.class,
+                () -> service().pendingReview("teacher", "org-a", 501));
+        assertEquals("INVALID_PAGE", error.code());
     }
 }

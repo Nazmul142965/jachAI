@@ -3,6 +3,7 @@ package com.jachai.attempt.controller;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
+import com.jachai.attempt.dto.ReviewAttemptView;
 import com.jachai.attempt.dto.SaveAnswerRequest;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.service.AttemptService;
@@ -10,6 +11,8 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -69,5 +72,11 @@ public class AttemptController {
     public ResultView release(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String attemptId) {
         return attempts.releaseResult(jwt.getSubject(), organizationId, attemptId);
+    }
+
+    @GetMapping("/attempts/review/pending")
+    public Page<ReviewAttemptView> pendingReview(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") int page) {
+        return attempts.pendingReview(jwt.getSubject(), organizationId, page);
     }
 }

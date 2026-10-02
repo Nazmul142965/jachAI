@@ -159,6 +159,12 @@ class JachAiApplicationTests {
     }
 
     @Test
+    void pendingReviewRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/attempts/review/pending?page=0"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void bkashCallbackDoesNotCreditOnFailedBrowserStatus() throws Exception {
         mvc.perform(get("/api/v1/billing/bkash/callback")
                         .param("orderId", "J123456789012345678901234")

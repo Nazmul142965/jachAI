@@ -171,7 +171,7 @@ async function showView(key) {
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') await loadEntitlements();
   if (key === 'members') await loadMembers();
   if (key === 'questions') await loadQuestions();
-  if (key === 'assessments') { await loadQuestions(); await loadAssessments(); }
+  if (key === 'assessments') { await loadQuestions(); await loadAssessments(); await loadReviewQueue(0); }
   if (key === 'academy') await loadAcademyCatalog();
   if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') { await loadAssessments(); await loadCampaigns(); await loadTalentCandidates(); }
@@ -254,6 +254,23 @@ async function loadAssessments() {
   const campaignSelect = $('#campaign-assessment');
   campaignSelect.replaceChildren(...state.assessments.filter((assessment) => assessment.status === 'PUBLISHED')
     .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
+}
+async function loadReviewQueue(pageNumber) {
+  const page = await request(ownOrg(`/attempts/review/pending?page=${pageNumber}`));
+  const rows = (page.content || []).map((attempt) => item(
+    attempt.assessmentTitle,
+    `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
+    [button('Select', () => { $('#review-attempt-id').value = attempt.attemptId; }),
+      button('Release result', () => run(async () => {
+        await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
+        notice('Result released.'); await loadReviewQueue(page.number);
+      }))]));
+  setList('#review-queue', rows, 'No results are waiting for release.');
+  $('#review-page-label').textContent = `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`;
+  $('#review-prev').disabled = page.first;
+  $('#review-next').disabled = page.last;
+  $('#review-prev').onclick = () => run(() => loadReviewQueue(page.number - 1));
+  $('#review-next').onclick = () => run(() => loadReviewQueue(page.number + 1));
 }
 async function loadCampaigns() {
   const page = await request(ownOrg('/talent/campaigns?page=0'));
@@ -735,6 +752,7 @@ $('#release-result').addEventListener('click', () => run(async () => {
   const result = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/release`), { method: 'POST' });
   $('#review-output').textContent = `Released: ${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`;
   $('#review-output').classList.remove('hidden'); notice('Result released.');
+  await loadReviewQueue(0);
 }));
 $('#issue-certificate').addEventListener('click', () => run(async () => {
   if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');

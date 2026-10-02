@@ -6,6 +6,7 @@ import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
+import com.jachai.attempt.dto.ReviewAttemptView;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
@@ -26,6 +27,9 @@ import java.util.LinkedHashMap;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -153,6 +157,21 @@ public class AttemptService {
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "RELEASE_CONFLICT", "Result changed concurrently; reload it");
         }
+    }
+
+    public Page<ReviewAttemptView> pendingReview(String actorId, String organizationId, int page) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN,
+                OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+        if (page < 0 || page > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Page must be between 0 and 500");
+        }
+        return attempts.findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
+                        organizationId, AttemptStatus.SUBMITTED,
+                        PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "submittedAt")))
+                .map(attempt -> new ReviewAttemptView(attempt.id(), attempt.assignmentId(),
+                        attempt.userId(), version(organizationId, attempt.assessmentVersionId()).title(),
+                        attempt.attemptNumber(), attempt.percentage(), Boolean.TRUE.equals(attempt.passed()),
+                        attempt.submittedAt()));
     }
 
     private Attempt finalizeAttempt(Attempt attempt, AssessmentVersion version, Instant now) {

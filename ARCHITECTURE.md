@@ -268,7 +268,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Academy feedback implementation decision
 
-- One instructor feedback document is scoped to an Academy organization and submitted attempt. Staff can revise a private draft; publishing requires the result to be released and makes the text immutable. Only the attempt owner can read published feedback. This is narrative guidance, not an AI-generated score or a score override. A staff review queue, notifications, and audit events remain separate work.
+- One instructor feedback document is scoped to an Academy organization and submitted attempt. Staff can revise a private draft; publishing requires the result to be released and makes the text immutable. Only the attempt owner can read published feedback. This is narrative guidance, not an AI-generated score or a score override. Result-release review queue now exists; feedback notifications and audit events remain separate work.
 
 ## Academy course and batch implementation decision
 
@@ -281,3 +281,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Academy direct messaging implementation decision
 
 - One `Conversation` document represents an instructor–learner pair within one Academy tenant; messages are separate documents indexed by tenant, conversation, and send time. Only active participants can read/send. Message bodies are limited to 1,000 characters, a 500-stored-message guard reduces accidental free-tier growth, and TTL removes messages approximately 90 days after sending. The count guard is not an atomic quota under concurrency; production rate limits and storage monitoring are still needed. The browser polls an open conversation every 15 seconds rather than introducing WebSocket infrastructure. AI Tutor responses are separate and not persisted as human chat history.
+
+## Staff result-review queue implementation decision
+
+- Staff see a tenant-scoped, newest-first page of submitted attempts awaiting manual result release. This is a workflow queue, not a second scoring mechanism; official scoring remains deterministic at submission and candidates still receive no score until release. Queue payloads contain the staff-visible score and participant ID but never saved answers or answer keys. A compound MongoDB index supports the pending query. Live index/query and browser verification remain open.

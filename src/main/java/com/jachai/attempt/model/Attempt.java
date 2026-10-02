@@ -16,7 +16,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
         @CompoundIndex(name = "attempt_org_user_status",
                 def = "{'organizationId': 1, 'userId': 1, 'status': 1}"),
         @CompoundIndex(name = "attempt_org_assignment_status",
-                def = "{'organizationId': 1, 'assignmentId': 1, 'status': 1}")
+                def = "{'organizationId': 1, 'assignmentId': 1, 'status': 1}"),
+        @CompoundIndex(name = "attempt_review_queue",
+                def = "{'organizationId': 1, 'status': 1, 'resultReleasedAt': 1, 'submittedAt': -1}")
 })
 public record Attempt(
         @Id String id,
