@@ -2,7 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
   questions: [], assessments: [], campaigns: [], academyCourses: [], academyBatches: [],
   activeAttempt: null, timer: null, activeConversationId: null, messageRefresh: null,
-  messageRefreshBusy: false, view: 'overview' };
+  messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0, view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
   'campaigns', 'attempts', 'certificates'];
 const invitationFromLink = new URLSearchParams(location.search).get('invitation');
@@ -72,7 +72,8 @@ function showSignedOut() {
   window.clearInterval(state.timer);
   stopMessageRefresh();
   state.accessToken = null; state.refreshToken = null; state.organization = null;
-  state.activeAttempt = null; state.activeConversationId = null;
+  state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
+  state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
 }
@@ -116,6 +117,8 @@ async function setOrganization() {
   window.clearInterval(state.timer);
   stopMessageRefresh();
   state.activeConversationId = null;
+  state.messagePage = 0;
+  state.messageLoadToken++;
   for (const view of views) $(`#${view}-view`).classList.add('hidden');
   $('#attempt-panel').classList.add('hidden');
   $('#result-panel').classList.add('hidden');
@@ -198,7 +201,10 @@ async function loadEntitlements() {
   $('#billing-hint').textContent = options.sslCommerzAvailable || options.bkashAvailable
     ? `Sandbox only · TEAM demo price: ৳${options.demoTeamPriceBdt} for 30 days. No real money is charged.`
     : 'Sandbox merchant credentials are not configured yet. No real money is charged.';
-  const payments = await request(ownOrg('/billing/orders?page=0'));
+  await loadPaymentHistory();
+}
+async function loadPaymentHistory(pageNumber = 0) {
+  const payments = await request(ownOrg(`/billing/orders?page=${pageNumber}`));
   setList('#payment-history', (payments.content || []).map((order) => item(
     `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
     `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
@@ -208,6 +214,7 @@ async function loadEntitlements() {
           await loadEntitlements();
         })] : [])),
   'No demo transactions yet.');
+  renderPageControls('#payment-history-pagination', payments, loadPaymentHistory);
 }
 async function loadOrganizationSettings() {
   const settings = await request(ownOrg('/settings'));
@@ -594,21 +601,31 @@ async function loadCertificates() {
 
 async function loadAcademyCatalog() {
   if (state.organization.myRole === 'LEARNER') {
-    const page = await request(ownOrg('/academy/batches/mine?page=0'));
-    setList('#my-batches-list', (page.content || []).map((enrollment) => item(
-      `${enrollment.courseName} · ${enrollment.batchName}`,
-      `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
-    'You are not enrolled in a batch yet.');
+    await loadMyBatches();
     return;
   }
   await loadAssessments();
   $('#batch-assessment-select').replaceChildren(...state.assessments
     .filter((assessment) => assessment.status === 'PUBLISHED')
     .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
-  const page = await request(ownOrg('/academy/courses?page=0'));
+  await loadAcademyCourses();
+}
+
+async function loadMyBatches(pageNumber = 0) {
+  const page = await request(ownOrg(`/academy/batches/mine?page=${pageNumber}`));
+  setList('#my-batches-list', (page.content || []).map((enrollment) => item(
+    `${enrollment.courseName} · ${enrollment.batchName}`,
+    `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
+  'You are not enrolled in a batch yet.');
+  renderPageControls('#my-batches-pagination', page, loadMyBatches);
+}
+
+async function loadAcademyCourses(pageNumber = 0) {
+  const page = await request(ownOrg(`/academy/courses?page=${pageNumber}`));
   state.academyCourses = page.content || [];
   setList('#courses-list', state.academyCourses.map((course) => item(course.name,
     course.description || `Course ID: ${course.id}`)), 'No courses yet.');
+  renderPageControls('#courses-pagination', page, loadAcademyCourses);
   const select = $('#academy-course-select');
   const selected = select.value;
   select.replaceChildren(...state.academyCourses.map((course) => {
@@ -618,22 +635,26 @@ async function loadAcademyCatalog() {
   await loadAcademyBatches();
 }
 
-async function loadAcademyBatches() {
+async function loadAcademyBatches(pageNumber = 0) {
   const courseId = $('#academy-course-select').value;
   if (!courseId) {
     state.academyBatches = [];
     setList('#batches-list', [], 'Create a course first.');
+    $('#batches-pagination').replaceChildren();
     $('#academy-batch-select').replaceChildren();
     setList('#batch-learners-list', [], 'Select a batch to see its learners.');
+    $('#batch-learners-pagination').replaceChildren();
     setList('#batch-assessments-list', [], 'Select a batch to see its assessments.');
+    $('#batch-assessments-pagination').replaceChildren();
     return;
   }
-  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches?page=0`));
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches?page=${pageNumber}`));
   const batches = page.content || [];
   state.academyBatches = batches;
   setList('#batches-list', batches.map((batch) => item(batch.name,
     `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`)),
   'No batches for this course yet.');
+  renderPageControls('#batches-pagination', page, loadAcademyBatches);
   const select = $('#academy-batch-select');
   const selected = select.value;
   select.replaceChildren(...batches.map((batch) => {
@@ -644,29 +665,32 @@ async function loadAcademyBatches() {
   await loadBatchAssessments();
 }
 
-async function loadAcademyBatchLearners() {
+async function loadAcademyBatchLearners(pageNumber = 0) {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   if (!courseId || !batchId) {
     setList('#batch-learners-list', [], 'Select a batch to see its learners.');
+    $('#batch-learners-pagination').replaceChildren();
     return;
   }
-  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners?page=0`));
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners?page=${pageNumber}`));
   setList('#batch-learners-list', (page.content || []).map((enrollment) => item(
     `Learner ${enrollment.learnerUserId}`,
     `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
   'No learners enrolled yet.');
+  renderPageControls('#batch-learners-pagination', page, loadAcademyBatchLearners);
 }
 
-async function loadBatchAssessments() {
+async function loadBatchAssessments(pageNumber = 0) {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   $('#batch-progress-panel').classList.add('hidden');
   if (!courseId || !batchId) {
     setList('#batch-assessments-list', [], 'Select a batch to see its assessments.');
+    $('#batch-assessments-pagination').replaceChildren();
     return;
   }
-  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments?page=0`));
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments?page=${pageNumber}`));
   setList('#batch-assessments-list', (page.content || []).map((assessment) => item(
     assessment.assessmentTitle,
     `Version ${assessment.assessmentVersionId} · ${assessment.attemptsAllowed} attempt(s) · Available until ${new Date(assessment.availableUntil).toLocaleString()}`,
@@ -676,6 +700,7 @@ async function loadBatchAssessments() {
           { method: 'POST' });
         notice(`${result.createdAssignments} assignment(s) added; ${result.alreadyAssigned} already present.`);
       })])), 'No assessments assigned to this batch yet.');
+  renderPageControls('#batch-assessments-pagination', page, loadBatchAssessments);
 }
 
 async function showBatchProgress(batchAssessmentId) {
@@ -711,24 +736,35 @@ function stopMessageRefresh() {
 function startMessageRefresh() {
   stopMessageRefresh();
   state.messageRefresh = window.setInterval(() => {
-    if (state.view !== 'messages' || !state.activeConversationId || state.messageRefreshBusy) return;
+    if (state.view !== 'messages' || !state.activeConversationId || state.messagePage !== 0
+        || state.messageRefreshBusy) return;
     state.messageRefreshBusy = true;
     loadConversationMessages().catch((error) => notice(error.message || 'Could not refresh messages.', true))
       .finally(() => { state.messageRefreshBusy = false; });
   }, 15000);
 }
 
-async function loadMessaging() {
-  const partners = await request(ownOrg('/messaging/partners?page=0'));
+async function loadMessagingPartners(pageNumber = 0) {
+  const partners = await request(ownOrg(`/messaging/partners?page=${pageNumber}`));
   $('#messaging-partner-select').replaceChildren(...(partners.content || []).map((partner) => {
     const option = node('option', `${partner.displayName} · ${partner.email}`);
     option.value = partner.userId; return option;
   }));
-  const page = await request(ownOrg('/messaging/conversations?page=0'));
+  renderPageControls('#messaging-partner-pagination', partners, loadMessagingPartners);
+}
+
+async function loadConversations(pageNumber = 0) {
+  const page = await request(ownOrg(`/messaging/conversations?page=${pageNumber}`));
   setList('#conversations-list', (page.content || []).map((conversation) => item(
     conversation.counterpartDisplayName,
     `Started ${new Date(conversation.createdAt).toLocaleDateString()}`,
     [button('Open', () => openConversation(conversation))])), 'No conversations yet.');
+  renderPageControls('#conversations-pagination', page, loadConversations);
+}
+
+async function loadMessaging() {
+  await loadMessagingPartners();
+  await loadConversations();
   if (state.activeConversationId) {
     await loadConversationMessages();
     startMessageRefresh();
@@ -739,6 +775,8 @@ async function loadMessaging() {
 
 async function openConversation(conversation) {
   state.activeConversationId = conversation.id;
+  state.messagePage = 0;
+  state.messageLoadToken++;
   $('#conversation-title').textContent = `Conversation with ${conversation.counterpartDisplayName}`;
   $('#conversation-panel').classList.remove('hidden');
   await loadConversationMessages();
@@ -746,14 +784,24 @@ async function openConversation(conversation) {
   $('#conversation-panel').scrollIntoView({ behavior: 'smooth' });
 }
 
-async function loadConversationMessages() {
+async function loadConversationMessages(pageNumber = state.messagePage) {
   const conversationId = state.activeConversationId;
   if (!conversationId) return;
-  const page = await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages?page=0`));
-  if (conversationId !== state.activeConversationId) return;
+  const previousPage = state.messagePage;
+  state.messagePage = pageNumber;
+  const loadToken = ++state.messageLoadToken;
+  let page;
+  try {
+    page = await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages?page=${pageNumber}`));
+  } catch (error) {
+    if (loadToken === state.messageLoadToken) state.messagePage = previousPage;
+    throw error;
+  }
+  if (conversationId !== state.activeConversationId || loadToken !== state.messageLoadToken) return;
   const rows = [...(page.content || [])].reverse().map((message) => item(message.body,
     `${message.senderUserId} · ${new Date(message.sentAt).toLocaleString()}`));
   setList('#conversation-messages', rows, 'No messages yet. Say hello.');
+  renderPageControls('#conversation-messages-pagination', page, loadConversationMessages);
 }
 
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
@@ -987,7 +1035,7 @@ $('#message-form').addEventListener('submit', (event) => { event.preventDefault(
   const form = new FormData(event.currentTarget);
   await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages`),
     { method: 'POST', body: { body: form.get('body').trim() } });
-  event.currentTarget.reset(); await loadConversationMessages();
+  event.currentTarget.reset(); await loadConversationMessages(0);
 }); });
 $('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);

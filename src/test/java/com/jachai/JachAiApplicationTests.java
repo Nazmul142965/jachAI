@@ -213,7 +213,14 @@ class JachAiApplicationTests {
                 .andExpect(content().string(containsString("Hiring campaigns")))
                 .andExpect(content().string(containsString("campaign-candidates-pagination")))
                 .andExpect(content().string(containsString("invite-candidate-pagination")))
-                .andExpect(content().string(containsString("batch-progress-pagination")));
+                .andExpect(content().string(containsString("batch-progress-pagination")))
+                .andExpect(content().string(containsString("messaging-partner-pagination")))
+                .andExpect(content().string(containsString("conversations-pagination")))
+                .andExpect(content().string(containsString("conversation-messages-pagination")));
+        mvc.perform(get("/"))
+                .andExpect(content().string(containsString("courses-pagination")))
+                .andExpect(content().string(containsString("batch-assessments-pagination")))
+                .andExpect(content().string(containsString("payment-history-pagination")));
         mvc.perform(get("/verify-email.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("JachAI email verification")));

@@ -76,7 +76,7 @@
         <div class="card panel"><h2>What would you like to do?</h2><p id="overview-hint" class="muted"></p></div>
         <div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div>
         <div id="organization-settings-panel" class="card panel hidden"><h2>Result release default</h2><p class="muted">This applies to newly created assessments unless their author selects an override. Published assessment versions keep their existing policy.</p><form id="organization-settings-form" class="form-row"><label>Default policy<select name="defaultResultReleasePolicy"><option value="IMMEDIATE">On submission</option><option value="MANUAL">After staff release</option></select></label><button class="button secondary" type="submit">Save default</button></form></div>
-        <div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted"></p><button id="start-ssl-demo" class="button secondary" type="button" disabled>Pay with SSLCommerz sandbox</button> <button id="start-bkash-demo" class="button secondary" type="button" disabled>Pay with direct bKash sandbox</button><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div></div>
+        <div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted"></p><button id="start-ssl-demo" class="button secondary" type="button" disabled>Pay with SSLCommerz sandbox</button> <button id="start-bkash-demo" class="button secondary" type="button" disabled>Pay with direct bKash sandbox</button><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div><div id="payment-history-pagination"></div></div>
         <div id="google-link-area" class="card panel hidden"><h2>Account sign-in</h2><p class="muted">Already use email and password? Link the Google account with the same verified email.</p><div id="google-link-button"></div></div>
       </section>
 
@@ -118,27 +118,27 @@
 
       <section id="academy-view" class="view hidden">
         <div id="academy-staff-panel">
-          <div class="card panel"><h2>Courses</h2><p class="muted">Group learners into batches for an Academy course.</p><div id="courses-list" class="item-list"></div>
+          <div class="card panel"><h2>Courses</h2><p class="muted">Group learners into batches for an Academy course.</p><div id="courses-list" class="item-list"></div><div id="courses-pagination"></div>
             <form id="course-form" class="stack"><label>Course name<input name="name" maxlength="120" required></label><label>Description<textarea name="description" rows="2" maxlength="2000"></textarea></label><button class="button primary" type="submit">Create course</button></form>
           </div>
-          <div class="card panel"><h2>Batches</h2><label>Course<select id="academy-course-select" required></select></label><div id="batches-list" class="item-list"></div>
+          <div class="card panel"><h2>Batches</h2><label>Course<select id="academy-course-select" required></select></label><div id="batches-list" class="item-list"></div><div id="batches-pagination"></div>
             <form id="batch-form" class="stack"><label>Batch name<input name="name" maxlength="120" required></label><div class="form-row"><label>Starts<input name="startsAt" type="datetime-local" required></label><label>Ends<input name="endsAt" type="datetime-local" required></label></div><button class="button secondary" type="submit">Create batch</button></form>
           </div>
-          <div class="card panel"><h2>Enroll a learner</h2><p class="muted">The learner must already be a verified, active member of this Academy workspace.</p><form id="enrollment-form" class="form-row"><label>Batch<select id="academy-batch-select" required></select></label><label>Learner user ID<input name="learnerUserId" required placeholder="Copy from Members"></label><button class="button secondary" type="submit">Enroll learner</button></form><div id="batch-learners-list" class="item-list"></div></div>
-          <div class="card panel"><h2>Batch assessments</h2><p class="muted">Distribute a frozen published assessment to every enrolled learner. New enrollments receive it automatically.</p><div id="batch-assessments-list" class="item-list"></div>
+          <div class="card panel"><h2>Enroll a learner</h2><p class="muted">The learner must already be a verified, active member of this Academy workspace.</p><form id="enrollment-form" class="form-row"><label>Batch<select id="academy-batch-select" required></select></label><label>Learner user ID<input name="learnerUserId" required placeholder="Copy from Members"></label><button class="button secondary" type="submit">Enroll learner</button></form><div id="batch-learners-list" class="item-list"></div><div id="batch-learners-pagination"></div></div>
+          <div class="card panel"><h2>Batch assessments</h2><p class="muted">Distribute a frozen published assessment to every enrolled learner. New enrollments receive it automatically.</p><div id="batch-assessments-list" class="item-list"></div><div id="batch-assessments-pagination"></div>
             <form id="batch-assessment-form" class="stack"><label>Published assessment<select id="batch-assessment-select" name="assessmentId" required></select></label><div class="form-row"><label>Attempts allowed<input name="attemptsAllowed" type="number" min="1" max="5" value="1" required></label><label>Available from<input name="availableFrom" type="datetime-local" required></label><label>Available until<input name="availableUntil" type="datetime-local" required></label></div><button class="button primary" type="submit">Assign to batch</button></form>
             <div id="batch-progress-panel" class="result-box hidden"><h3>Batch progress</h3><div id="batch-analytics" class="item-list"></div><div id="batch-progress-list" class="item-list"></div><div id="batch-progress-pagination"></div></div>
           </div>
         </div>
-        <div id="academy-learner-panel" class="card panel hidden"><h2>My batches</h2><div id="my-batches-list" class="item-list"></div></div>
+        <div id="academy-learner-panel" class="card panel hidden"><h2>My batches</h2><div id="my-batches-list" class="item-list"></div><div id="my-batches-pagination"></div></div>
       </section>
 
       <section id="messages-view" class="view hidden">
         <div class="card panel"><h2>Direct messages</h2><p class="muted">Private conversations between Academy instructors and learners. New messages refresh while this page is open.</p>
-          <form id="conversation-form" class="form-row"><label>Start with<select id="messaging-partner-select" name="partnerUserId" required></select></label><button class="button primary" type="submit">Open conversation</button></form>
-          <div id="conversations-list" class="item-list"></div>
+          <form id="conversation-form" class="form-row"><label>Start with<select id="messaging-partner-select" name="partnerUserId" required></select></label><button class="button primary" type="submit">Open conversation</button></form><div id="messaging-partner-pagination"></div>
+          <div id="conversations-list" class="item-list"></div><div id="conversations-pagination"></div>
         </div>
-        <div id="conversation-panel" class="card panel hidden"><h2 id="conversation-title">Conversation</h2><div id="conversation-messages" class="item-list"></div>
+        <div id="conversation-panel" class="card panel hidden"><h2 id="conversation-title">Conversation</h2><div id="conversation-messages" class="item-list"></div><div id="conversation-messages-pagination"></div>
           <form id="message-form" class="stack"><label>Message<textarea name="body" rows="3" maxlength="1000" required></textarea></label><button class="button secondary" type="submit">Send message</button></form>
         </div>
       </section>
