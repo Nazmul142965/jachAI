@@ -289,3 +289,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Organization result-release default implementation decision
 
 - An organization admin sets a tenant-scoped default of `IMMEDIATE` or `MANUAL`; absent settings read as `IMMEDIATE` without creating a document. Assessment authors may override the default at draft creation. The resolved policy is stored on the assessment and frozen into each published version, so later setting changes never retroactively release or conceal past results. Settings use optimistic versioning to reject concurrent updates; live MongoDB behavior remains to be verified.
+
+## Frontend pagination implementation decision
+
+- Campaign lists, candidate comparison, and Academy batch-progress rows now follow the server's 20-row pages. Cohort analytics are fetched once when staff open progress, not on every progress-page change. Other first-page-only lists and a browser walkthrough remain open work; page controls do not replace tenant authorization on the server.

@@ -194,7 +194,9 @@ class JachAiApplicationTests {
         mvc.perform(get("/"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Technical assessment workspace")))
-                .andExpect(content().string(containsString("Hiring campaigns")));
+                .andExpect(content().string(containsString("Hiring campaigns")))
+                .andExpect(content().string(containsString("campaign-candidates-pagination")))
+                .andExpect(content().string(containsString("batch-progress-pagination")));
         mvc.perform(get("/verify-email.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("JachAI email verification")));

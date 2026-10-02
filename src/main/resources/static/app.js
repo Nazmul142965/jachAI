@@ -228,6 +228,16 @@ function setList(selector, rows, emptyMessage) {
   const target = $(selector);
   target.replaceChildren(...(rows.length ? rows : [node('p', emptyMessage, 'empty')]));
 }
+function renderPageControls(selector, page, onPage) {
+  const target = $(selector); target.replaceChildren();
+  if ((page.totalPages || 0) <= 1) return;
+  const controls = node('div', '', 'form-row');
+  const previous = button('Previous', () => onPage(page.number - 1));
+  const next = button('Next', () => onPage(page.number + 1));
+  previous.disabled = page.first; next.disabled = page.last;
+  controls.append(previous, node('span', `Page ${page.number + 1} of ${page.totalPages}`, 'muted'), next);
+  target.append(controls);
+}
 async function loadMembers() {
   const members = await request(ownOrg('/members'));
   const roles = state.organization.type === 'ACADEMY' ? ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER']
@@ -284,8 +294,8 @@ async function loadReviewQueue(pageNumber) {
   $('#review-prev').onclick = () => run(() => loadReviewQueue(page.number - 1));
   $('#review-next').onclick = () => run(() => loadReviewQueue(page.number + 1));
 }
-async function loadCampaigns() {
-  const page = await request(ownOrg('/talent/campaigns?page=0'));
+async function loadCampaigns(pageNumber = 0) {
+  const page = await request(ownOrg(`/talent/campaigns?page=${pageNumber}`));
   state.campaigns = page.content || [];
   setList('#campaigns-list', state.campaigns.map((campaign) => item(campaign.title,
     `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
@@ -293,8 +303,9 @@ async function loadCampaigns() {
       ...(campaign.open ? [button('Close campaign', async () => {
         if (!window.confirm('Close this campaign to new invitations?')) return;
         await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
-        notice('Campaign closed.'); await loadCampaigns();
+        notice('Campaign closed.'); await loadCampaigns(page.number);
       })] : [])])), 'No campaigns yet.');
+  renderPageControls('#campaigns-pagination', page, loadCampaigns);
   $('#invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
   $('#email-invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
@@ -307,8 +318,8 @@ async function loadTalentCandidates() {
     option.value = candidate.userId; return option;
   }));
 }
-async function compareCandidates(campaignId) {
-  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=0`));
+async function compareCandidates(campaignId, pageNumber = 0) {
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
   const rows = (page.content || []).map((candidate) => {
     const info = item(`Candidate ID: ${candidate.candidateUserId}`,
       candidate.attemptId
@@ -330,7 +341,7 @@ async function compareCandidates(campaignId) {
     form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
       await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates/${encodeURIComponent(candidate.candidateUserId)}/review`),
         { method: 'PUT', body: { attemptId: candidate.attemptId, decision: select.value, note: noteInput.value } });
-      notice('Review saved.'); await compareCandidates(campaignId);
+      notice('Review saved.'); await compareCandidates(campaignId, page.number);
     }); });
     const integrityPanel = node('div', '', 'item-list');
     const integrityButton = button('Integrity signals', async () => {
@@ -349,6 +360,8 @@ async function compareCandidates(campaignId) {
     wrapper.append(info, form, integrityButton, integrityPanel, auditButton, auditPanel); return wrapper;
   });
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
+  renderPageControls('#campaign-candidates-pagination', page,
+    (nextPage) => compareCandidates(campaignId, nextPage));
   $('#campaign-candidates-panel').classList.remove('hidden');
   $('#campaign-candidates-panel').scrollIntoView({ behavior: 'smooth' });
 }
@@ -594,21 +607,24 @@ async function showBatchProgress(batchAssessmentId) {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   const route = `/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments/${encodeURIComponent(batchAssessmentId)}`;
-  const [page, analytics] = await Promise.all([
-    request(ownOrg(`${route}/progress?page=0`)),
-    request(ownOrg(`${route}/analytics`))
-  ]);
+  const analytics = await request(ownOrg(`${route}/analytics`));
   setList('#batch-analytics', [
     item('Cohort coverage', `${analytics.assignedLearners} assigned / ${analytics.activeLearners} active learners`),
     item('Completion & pass rate', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners) · ${analytics.passedLearners} passed (${analytics.passRatePercent}% of submitted)`),
     item('Average latest score', analytics.averageLatestPercentage === null ? 'No submitted attempts yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
   ], 'Analytics are unavailable.');
+  await loadBatchProgressPage(route, 0);
+  $('#batch-progress-panel').classList.remove('hidden');
+  $('#batch-progress-panel').scrollIntoView({ behavior: 'smooth' });
+}
+async function loadBatchProgressPage(route, pageNumber) {
+  const page = await request(ownOrg(`${route}/progress?page=${pageNumber}`));
   setList('#batch-progress-list', (page.content || []).map((row) => item(
     `Learner ${row.learnerUserId}`,
     row.attemptId ? `Latest attempt: ${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'} · ${new Date(row.submittedAt).toLocaleString()}`
       : 'No submitted attempt yet.')), 'No learners assigned yet.');
-  $('#batch-progress-panel').classList.remove('hidden');
-  $('#batch-progress-panel').scrollIntoView({ behavior: 'smooth' });
+  renderPageControls('#batch-progress-pagination', page,
+    (nextPage) => loadBatchProgressPage(route, nextPage));
 }
 
 function stopMessageRefresh() {
