@@ -2,10 +2,12 @@ package com.jachai;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +48,7 @@ import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.anyString;
 import java.time.Instant;
 
@@ -120,6 +123,38 @@ class JachAiApplicationTests {
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/users/target"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/platform/users/target/role"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/platform/users/target/role/audit"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/v1/platform/users/target/role")
+                        .contentType("application/json").content("{\"platformAdmin\":true}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void platformRoleEndpointUsesAuthenticatedActorAndRejectsOrdinaryUser() throws Exception {
+        doThrow(new com.jachai.shared.error.ApiException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "PLATFORM_ADMIN_REQUIRED", "Platform administrator access required"))
+                .when(platformAdminService).changeRole("ordinary", "target", true);
+        mvc.perform(put("/api/v1/platform/users/target/role")
+                        .with(jwt().jwt(token -> token.subject("ordinary")))
+                        .contentType("application/json").content("{\"platformAdmin\":true}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PLATFORM_ADMIN_REQUIRED"));
+        verify(platformAdminService).changeRole("ordinary", "target", true);
+    }
+
+    @Test
+    void platformRoleEndpointValidatesBodyBeforeCallingService() throws Exception {
+        mvc.perform(put("/api/v1/platform/users/target/role")
+                        .with(jwt().jwt(token -> token.subject("admin")))
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        verify(platformAdminService, never()).changeRole(anyString(), anyString(),
+                org.mockito.ArgumentMatchers.anyBoolean());
     }
 
     @Test
