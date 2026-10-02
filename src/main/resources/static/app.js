@@ -1,8 +1,10 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
   questions: [], assessments: [], campaigns: [], academyCourses: [], academyBatches: [],
-  activeAttempt: null, timer: null, view: 'overview' };
-const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'campaigns', 'attempts', 'certificates'];
+  activeAttempt: null, timer: null, activeConversationId: null, messageRefresh: null,
+  messageRefreshBusy: false, view: 'overview' };
+const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
+  'campaigns', 'attempts', 'certificates'];
 
 function node(tag, text = '', className = '') {
   const element = document.createElement(tag);
@@ -57,8 +59,9 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
 }
 function showSignedOut() {
   window.clearInterval(state.timer);
+  stopMessageRefresh();
   state.accessToken = null; state.refreshToken = null; state.organization = null;
-  state.activeAttempt = null;
+  state.activeAttempt = null; state.activeConversationId = null;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
 }
@@ -86,10 +89,13 @@ async function loadOrganizations() {
 async function setOrganization() {
   state.activeAttempt = null;
   window.clearInterval(state.timer);
+  stopMessageRefresh();
+  state.activeConversationId = null;
   for (const view of views) $(`#${view}-view`).classList.add('hidden');
   $('#attempt-panel').classList.add('hidden');
   $('#result-panel').classList.add('hidden');
   $('#campaign-candidates-panel').classList.add('hidden');
+  $('#conversation-panel').classList.add('hidden');
   $('#empty-org').classList.toggle('hidden', !!state.organization);
   $('#organization-select').classList.toggle('hidden', !state.organization);
   $('#workspace-role').textContent = state.organization?.myRole?.replaceAll('_', ' ') || '';
@@ -109,6 +115,8 @@ async function setOrganization() {
   if (staff) pages.push(['questions', 'Question bank'], ['assessments', 'Assessments']);
   if (state.organization.type === 'ACADEMY' && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role))
     pages.push(['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']);
+  if (state.organization.type === 'ACADEMY' && ['INSTRUCTOR', 'LEARNER'].includes(role))
+    pages.push(['messages', 'Messages']);
   if (staff && state.organization.type === 'TALENT') pages.push(['campaigns', 'Hiring campaigns']);
   if (['LEARNER', 'CANDIDATE'].includes(role)) pages.push(['attempts', 'My assessments']);
   if (role === 'LEARNER' && state.organization.type === 'ACADEMY') pages.push(['certificates', 'Certificates']);
@@ -123,11 +131,13 @@ async function setOrganization() {
   await showView('overview');
 }
 async function showView(key) {
+  if (key !== 'messages') stopMessageRefresh();
   state.view = key;
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
   for (const tab of $('#workspace-nav').children) tab.classList.toggle('active', tab.dataset.view === key);
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
-    assessments: 'Assessments', academy: 'Courses & batches', campaigns: 'Hiring campaigns', attempts: 'My assessments',
+    assessments: 'Assessments', academy: 'Courses & batches', messages: 'Messages',
+    campaigns: 'Hiring campaigns', attempts: 'My assessments',
     certificates: 'Certificates' };
   $('#page-title').textContent = names[key];
   $('#page-subtitle').textContent = state.organization.name;
@@ -135,6 +145,7 @@ async function showView(key) {
   if (key === 'questions') await loadQuestions();
   if (key === 'assessments') { await loadQuestions(); await loadAssessments(); }
   if (key === 'academy') await loadAcademyCatalog();
+  if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') { await loadAssessments(); await loadCampaigns(); await loadTalentCandidates(); }
   if (key === 'attempts') await loadAssignments();
   if (key === 'certificates') await loadCertificates();
@@ -451,6 +462,60 @@ async function showBatchProgress(batchAssessmentId) {
   $('#batch-progress-panel').scrollIntoView({ behavior: 'smooth' });
 }
 
+function stopMessageRefresh() {
+  window.clearInterval(state.messageRefresh);
+  state.messageRefresh = null;
+  state.messageRefreshBusy = false;
+}
+
+function startMessageRefresh() {
+  stopMessageRefresh();
+  state.messageRefresh = window.setInterval(() => {
+    if (state.view !== 'messages' || !state.activeConversationId || state.messageRefreshBusy) return;
+    state.messageRefreshBusy = true;
+    loadConversationMessages().catch((error) => notice(error.message || 'Could not refresh messages.', true))
+      .finally(() => { state.messageRefreshBusy = false; });
+  }, 15000);
+}
+
+async function loadMessaging() {
+  const partners = await request(ownOrg('/messaging/partners?page=0'));
+  $('#messaging-partner-select').replaceChildren(...(partners.content || []).map((partner) => {
+    const option = node('option', `${partner.displayName} · ${partner.email}`);
+    option.value = partner.userId; return option;
+  }));
+  const page = await request(ownOrg('/messaging/conversations?page=0'));
+  setList('#conversations-list', (page.content || []).map((conversation) => item(
+    conversation.counterpartDisplayName,
+    `Started ${new Date(conversation.createdAt).toLocaleDateString()}`,
+    [button('Open', () => openConversation(conversation))])), 'No conversations yet.');
+  if (state.activeConversationId) {
+    await loadConversationMessages();
+    startMessageRefresh();
+  } else {
+    $('#conversation-panel').classList.add('hidden');
+  }
+}
+
+async function openConversation(conversation) {
+  state.activeConversationId = conversation.id;
+  $('#conversation-title').textContent = `Conversation with ${conversation.counterpartDisplayName}`;
+  $('#conversation-panel').classList.remove('hidden');
+  await loadConversationMessages();
+  startMessageRefresh();
+  $('#conversation-panel').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function loadConversationMessages() {
+  const conversationId = state.activeConversationId;
+  if (!conversationId) return;
+  const page = await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages?page=0`));
+  if (conversationId !== state.activeConversationId) return;
+  const rows = [...(page.content || [])].reverse().map((message) => item(message.body,
+    `${message.senderUserId} · ${new Date(message.sentAt).toLocaleString()}`));
+  setList('#conversation-messages', rows, 'No messages yet. Say hello.');
+}
+
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#register-tab').addEventListener('click', () => switchAuth('register'));
 function switchAuth(which) {
@@ -600,6 +665,21 @@ $('#batch-assessment-form').addEventListener('submit', (event) => { event.preven
     { method: 'POST', body: { assessmentId: form.get('assessmentId'),
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
   event.currentTarget.reset(); await loadBatchAssessments(); notice('Assessment assigned to batch learners.');
+}); });
+$('#conversation-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const partnerUserId = new FormData(event.currentTarget).get('partnerUserId');
+  if (!partnerUserId) throw new Error('Choose an instructor or learner first.');
+  const conversation = await request(ownOrg('/messaging/conversations'),
+    { method: 'POST', body: { partnerUserId } });
+  await loadMessaging(); await openConversation(conversation);
+}); });
+$('#message-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const conversationId = state.activeConversationId;
+  if (!conversationId) throw new Error('Open a conversation first.');
+  const form = new FormData(event.currentTarget);
+  await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages`),
+    { method: 'POST', body: { body: form.get('body').trim() } });
+  event.currentTarget.reset(); await loadConversationMessages();
 }); });
 $('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);

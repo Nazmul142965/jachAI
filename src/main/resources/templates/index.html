@@ -126,6 +126,16 @@
         <div id="academy-learner-panel" class="card panel hidden"><h2>My batches</h2><div id="my-batches-list" class="item-list"></div></div>
       </section>
 
+      <section id="messages-view" class="view hidden">
+        <div class="card panel"><h2>Direct messages</h2><p class="muted">Private conversations between Academy instructors and learners. New messages refresh while this page is open.</p>
+          <form id="conversation-form" class="form-row"><label>Start with<select id="messaging-partner-select" name="partnerUserId" required></select></label><button class="button primary" type="submit">Open conversation</button></form>
+          <div id="conversations-list" class="item-list"></div>
+        </div>
+        <div id="conversation-panel" class="card panel hidden"><h2 id="conversation-title">Conversation</h2><div id="conversation-messages" class="item-list"></div>
+          <form id="message-form" class="stack"><label>Message<textarea name="body" rows="3" maxlength="1000" required></textarea></label><button class="button secondary" type="submit">Send message</button></form>
+        </div>
+      </section>
+
       <section id="campaigns-view" class="view hidden">
         <div class="card panel"><h2>Hiring campaigns</h2><p class="muted">Each campaign uses a frozen published assessment version.</p><div id="campaigns-list" class="item-list"></div></div>
         <div class="card panel"><h2>Create a campaign</h2>
