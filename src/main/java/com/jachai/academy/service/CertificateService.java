@@ -1,6 +1,7 @@
 package com.jachai.academy.service;
 
 import com.jachai.academy.dto.CertificateVerificationView;
+import com.jachai.academy.dto.CertificateAuditView;
 import com.jachai.academy.dto.CertificateView;
 import com.jachai.academy.model.Certificate;
 import com.jachai.academy.model.CertificateStatus;
@@ -19,6 +20,9 @@ import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
+import com.jachai.shared.audit.AuditAction;
+import com.jachai.shared.audit.AuditEvent;
+import com.jachai.shared.audit.AuditEventRepository;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
@@ -29,6 +33,9 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +48,7 @@ public class CertificateService {
     private final PublishedVersionStore versions;
     private final TenantAccessService access;
     private final EntitlementService entitlements;
+    private final AuditEventRepository auditEvents;
 
     public List<CertificateView> mine(String learnerId, String organizationId) {
         access.requireRole(learnerId, organizationId, OrganizationRole.LEARNER);
@@ -61,6 +69,7 @@ public class CertificateService {
         }
         var existing = certificates.findByAttemptIdAndOrganizationId(attemptId, organizationId);
         if (existing.isPresent()) {
+            ensureAudit(existing.get());
             if (existing.get().status() == CertificateStatus.REVOKED) {
                 throw new ApiException(HttpStatus.CONFLICT, "CERTIFICATE_REVOKED", "A revoked certificate cannot be reissued");
             }
@@ -71,21 +80,23 @@ public class CertificateService {
         Certificate certificate = new Certificate(UUID.randomUUID().toString(), organizationId,
                 attempt.userId(), attempt.id(), attempt.assessmentVersionId(),
                 Base64.getUrlEncoder().withoutPadding().encodeToString(token),
-                CertificateStatus.ISSUED, Instant.now(), null, null);
+                CertificateStatus.ISSUED, Instant.now(), null, actorId, null, null);
         String reservation = entitlements.reserve(organizationId, UsageMetric.CERTIFICATE);
+        Certificate saved;
         try {
-            return CertificateView.from(certificates.insert(certificate));
+            saved = certificates.insert(certificate);
         } catch (DuplicateKeyException exception) {
             entitlements.refund(reservation);
-            return certificates.findByAttemptIdAndOrganizationId(attemptId, organizationId)
-                    .filter(saved -> saved.status() == CertificateStatus.ISSUED)
-                    .map(CertificateView::from)
+            saved = certificates.findByAttemptIdAndOrganizationId(attemptId, organizationId)
+                    .filter(found -> found.status() == CertificateStatus.ISSUED)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "CERTIFICATE_CONFLICT",
                             "Certificate was created concurrently; retry"));
         } catch (RuntimeException exception) {
             entitlements.refund(reservation);
             throw exception;
         }
+        ensureAudit(saved);
+        return CertificateView.from(saved);
     }
 
     public CertificateView revoke(String actorId, String organizationId, String certificateId) {
@@ -93,12 +104,50 @@ public class CertificateService {
         Certificate certificate = certificates.findByIdAndOrganizationId(certificateId, organizationId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Certificate not found"));
         if (certificate.status() == CertificateStatus.REVOKED) {
+            ensureAudit(certificate);
             return CertificateView.from(certificate);
         }
         try {
-            return CertificateView.from(certificates.save(certificate.revoke(Instant.now())));
+            Certificate saved = certificates.save(certificate.revoke(Instant.now(), actorId));
+            ensureAudit(saved);
+            return CertificateView.from(saved);
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "REVOKE_CONFLICT", "Certificate changed concurrently; reload it");
+        }
+    }
+
+    public Page<CertificateAuditView> audit(String actorId, String organizationId,
+                                            String certificateId, int page) {
+        requireAcademyStaff(actorId, organizationId);
+        certificates.findByIdAndOrganizationId(certificateId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Certificate not found"));
+        return auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+                organizationId, "CERTIFICATE", certificateId,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.ASC, "occurredAt")))
+                .map(CertificateAuditView::from);
+    }
+
+    private void ensureAudit(Certificate certificate) {
+        if (certificate.issuedByUserId() != null) {
+            insertAudit(certificate, AuditAction.CERTIFICATE_ISSUED,
+                    certificate.issuedByUserId(), certificate.issuedAt());
+        }
+        if (certificate.status() == CertificateStatus.REVOKED
+                && certificate.revokedByUserId() != null) {
+            insertAudit(certificate, AuditAction.CERTIFICATE_REVOKED,
+                    certificate.revokedByUserId(), certificate.revokedAt());
+        }
+    }
+
+    private void insertAudit(Certificate certificate, AuditAction action,
+                             String actorId, Instant occurredAt) {
+        AuditEvent event = new AuditEvent("certificate:" + certificate.id() + ":" + action,
+                certificate.organizationId(), actorId, action, "CERTIFICATE",
+                certificate.id(), occurredAt);
+        try {
+            auditEvents.insert(event);
+        } catch (DuplicateKeyException ignored) {
+            // A concurrent retry recorded the same immutable transition.
         }
     }
 

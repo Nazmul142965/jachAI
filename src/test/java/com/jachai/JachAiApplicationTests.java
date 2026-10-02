@@ -153,6 +153,12 @@ class JachAiApplicationTests {
     }
 
     @Test
+    void certificateAuditRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/certificates/cert-a/audit"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void bkashCallbackDoesNotCreditOnFailedBrowserStatus() throws Exception {
         mvc.perform(get("/api/v1/billing/bkash/callback")
                         .param("orderId", "J123456789012345678901234")

@@ -88,7 +88,7 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
 .item-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:end; }
 .pill { display:inline-block; padding:4px 8px; background:#edf3ef; color:#466b5b; border-radius:6px; font-size:11px; font-weight:800; }
 .pill.warn { background:#fff2d8; color:#8b6320; }
-.result-box { margin-top:16px; padding:16px; border-radius:10px; background:#eff7f1; color:#1b5940; line-height:1.55; overflow-wrap:anywhere; }
+.result-box { margin-top:16px; padding:16px; border-radius:10px; background:#eff7f1; color:#1b5940; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }
 .question-block { padding:20px 0; border-top:1px solid var(--line); }
 .question-block:first-of-type { border-top:0; }
 .question-block h3 { font-size:16px; }

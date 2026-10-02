@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 import com.jachai.academy.model.Certificate;
 import com.jachai.academy.model.CertificateStatus;
@@ -25,6 +26,9 @@ import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
+import com.jachai.shared.audit.AuditAction;
+import com.jachai.shared.audit.AuditEvent;
+import com.jachai.shared.audit.AuditEventRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +37,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
 class CertificateServiceTests {
@@ -42,9 +49,11 @@ class CertificateServiceTests {
     @Mock PublishedVersionStore versions;
     @Mock TenantAccessService access;
     @Mock EntitlementService entitlements;
+    @Mock AuditEventRepository auditEvents;
 
     private CertificateService service() {
-        return new CertificateService(certificates, attempts, organizations, versions, access, entitlements);
+        return new CertificateService(certificates, attempts, organizations, versions, access,
+                entitlements, auditEvents);
     }
 
     private Organization academy() {
@@ -81,6 +90,10 @@ class CertificateServiceTests {
         assertTrue(result.verificationCode().matches("[A-Za-z0-9_-]{32}"));
         assertEquals(CertificateStatus.ISSUED, result.status());
         verify(certificates).insert(any(Certificate.class));
+        verify(auditEvents).insert(org.mockito.ArgumentMatchers.<AuditEvent>argThat(event ->
+                event.action() == AuditAction.CERTIFICATE_ISSUED
+                        && event.actorUserId().equals("teacher")
+                        && event.organizationId().equals("org-a")));
     }
 
     @Test
@@ -161,5 +174,81 @@ class CertificateServiceTests {
         assertEquals(1, result.size());
         assertEquals("random-code", result.getFirst().verificationCode());
         verify(certificates).findByOrganizationIdAndLearnerUserId("org-a", "learner");
+    }
+
+    @Test
+    void revocationRecordsOriginalIssuerAndRevokingActor() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        Certificate original = new Certificate("cert", "org-a", "learner", "attempt", "a:1",
+                "random-code", CertificateStatus.ISSUED, Instant.now(), null,
+                "issuer", null, 1L);
+        when(certificates.findByIdAndOrganizationId("cert", "org-a"))
+                .thenReturn(Optional.of(original));
+        when(certificates.save(any(Certificate.class))).thenAnswer(call -> call.getArgument(0));
+
+        var result = service().revoke("teacher", "org-a", "cert");
+
+        assertEquals(CertificateStatus.REVOKED, result.status());
+        verify(auditEvents).insert(org.mockito.ArgumentMatchers.<AuditEvent>argThat(event ->
+                event.action() == AuditAction.CERTIFICATE_ISSUED
+                        && event.actorUserId().equals("issuer")));
+        verify(auditEvents).insert(org.mockito.ArgumentMatchers.<AuditEvent>argThat(event ->
+                event.action() == AuditAction.CERTIFICATE_REVOKED
+                        && event.actorUserId().equals("teacher")));
+    }
+
+    @Test
+    void auditHistoryIsStaffOnlyAndTenantScoped() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(certificates.findByIdAndOrganizationId("cert", "org-a"))
+                .thenReturn(Optional.of(issued()));
+        AuditEvent event = new AuditEvent("certificate:cert:CERTIFICATE_ISSUED", "org-a",
+                "teacher", AuditAction.CERTIFICATE_ISSUED, "CERTIFICATE", "cert", Instant.now());
+        when(auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+                "org-a", "CERTIFICATE", "cert", PageRequest.of(0, 20,
+                        Sort.by(Sort.Direction.ASC, "occurredAt"))))
+                .thenReturn(new PageImpl<>(List.of(event)));
+
+        var result = service().audit("teacher", "org-a", "cert", 0);
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals("teacher", result.getContent().getFirst().actorUserId());
+        verify(access).requireRole("teacher", "org-a",
+                com.jachai.organization.model.OrganizationRole.ORG_ADMIN,
+                com.jachai.organization.model.OrganizationRole.INSTRUCTOR);
+    }
+
+    @Test
+    void foreignCertificateAuditCannotBeRead() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().audit("teacher", "org-a", "foreign", 0)).code());
+        verify(auditEvents, never()).findByOrganizationIdAndTargetTypeAndTargetId(
+                any(), any(), any(), any());
+    }
+
+    @Test
+    void retryRepairsAuditAfterCertificateWriteSucceeded() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenReturn(Optional.of(passed(Instant.now())));
+        when(versions.get("org-a", "a:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+        doThrow(new IllegalStateException("audit unavailable")).doAnswer(call -> call.getArgument(0))
+                .when(auditEvents).insert(any(AuditEvent.class));
+        Certificate[] persisted = new Certificate[1];
+        when(certificates.insert(any(Certificate.class))).thenAnswer(call -> {
+            persisted[0] = call.getArgument(0);
+            return persisted[0];
+        });
+        when(certificates.findByAttemptIdAndOrganizationId("attempt", "org-a"))
+                .thenAnswer(call -> Optional.ofNullable(persisted[0]));
+
+        assertThrows(IllegalStateException.class, () -> service().issue("teacher", "org-a", "attempt"));
+        var repaired = service().issue("teacher", "org-a", "attempt");
+
+        assertEquals(persisted[0].id(), repaired.id());
+        verify(certificates).insert(any(Certificate.class));
+        verify(entitlements, never()).refund(any());
     }
 }

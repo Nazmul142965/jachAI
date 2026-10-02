@@ -240,7 +240,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Phase 4 implementation decisions
 
-- An Academy instructor or organization admin issues one certificate per passing, released attempt. Issue is idempotent; revocation is terminal for that attempt, so it cannot mint a fresh valid code afterward. Learners can list their own certificates. Public verification exposes organization/assessment names and issue/revocation dates, not learner identifiers. Email delivery, audit trail, public rate limits, and UI are separate required work before production.
+- An Academy instructor or organization admin issues one certificate per passing, released attempt. Issue is idempotent; revocation is terminal for that attempt, so it cannot mint a fresh valid code afterward. Learners can list their own certificates. Public verification exposes organization/assessment names and issue/revocation dates, not learner identifiers. New certificates record issuing/revoking actor IDs and generate deterministic append-only audit events. A failed audit insert after the certificate write is repaired by retrying the operation; pre-audit records cannot recover unknown historical actors. Staff-only tenant-scoped audit history is paged. Email delivery, a polished public verification page, and live MongoDB audit-failure verification remain required before production.
 
 ## Phase 5 implementation decisions
 

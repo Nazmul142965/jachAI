@@ -740,8 +740,25 @@ $('#issue-certificate').addEventListener('click', () => run(async () => {
   if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
   const certificate = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/certificate`), { method: 'POST' });
-  $('#review-output').textContent = `Certificate issued. Verification code: ${certificate.verificationCode}`;
+  $('#review-certificate-id').value = certificate.id;
+  $('#review-output').textContent = `Certificate ID: ${certificate.id} · Verification code: ${certificate.verificationCode}`;
   $('#review-output').classList.remove('hidden'); notice('Certificate issued.');
+}));
+$('#revoke-certificate').addEventListener('click', () => run(async () => {
+  if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
+  const id = $('#review-certificate-id').value.trim(); if (!id) throw new Error('Enter a certificate ID.');
+  const certificate = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/revoke`), { method: 'POST' });
+  $('#review-output').textContent = `Certificate ${certificate.id} revoked. Its public code now verifies as invalid.`;
+  $('#review-output').classList.remove('hidden'); notice('Certificate revoked.');
+}));
+$('#certificate-audit').addEventListener('click', () => run(async () => {
+  if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
+  const id = $('#review-certificate-id').value.trim(); if (!id) throw new Error('Enter a certificate ID.');
+  const events = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/audit?page=0`));
+  $('#review-output').textContent = (events.content || []).length
+    ? events.content.map((entry) => `${entry.action.replaceAll('_', ' ')} · ${entry.actorUserId} · ${new Date(entry.occurredAt).toLocaleString()}`).join('\n')
+    : 'No audit events recorded for this certificate.';
+  $('#review-output').classList.remove('hidden');
 }));
 $('#feedback-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
