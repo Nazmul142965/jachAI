@@ -62,7 +62,7 @@ class AttemptServiceTests {
         Instant now = Instant.now();
         when(assignments.findByIdAndOrganizationIdAndAssignedUserId("assignment", "org-a", "learner"))
                 .thenReturn(Optional.of(new Assignment("assignment", "org-a", "assessment",
-                        "assessment:1", "learner", 1, now.minusSeconds(5), now.plusSeconds(1800), now)));
+                        "assessment:1", null, "learner", 1, now.minusSeconds(5), now.plusSeconds(1800), now)));
         when(versions.get("org-a", "assessment:1")).thenReturn(version());
 
         AttemptView view = service().start("learner", "org-a", "assignment");
@@ -169,7 +169,7 @@ class AttemptServiceTests {
         Instant now = Instant.now();
         when(assignments.findByIdAndOrganizationIdAndAssignedUserId("assignment", "org-a", "learner"))
                 .thenReturn(Optional.of(new Assignment("assignment", "org-a", "assessment",
-                        "assessment:1", "learner", 2, now.minusSeconds(60), now.plusSeconds(900), now)));
+                        "assessment:1", null, "learner", 2, now.minusSeconds(60), now.plusSeconds(900), now)));
         Attempt finished = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
                 now.minusSeconds(40), now.plusSeconds(20), AttemptStatus.SUBMITTED,
                 Map.of("q1", Set.of("a")), now, 100, true, now, 1L);
@@ -187,7 +187,7 @@ class AttemptServiceTests {
         Instant now = Instant.now();
         when(assignments.findByIdAndOrganizationIdAndAssignedUserId("assignment", "org-a", "learner"))
                 .thenReturn(Optional.of(new Assignment("assignment", "org-a", "assessment",
-                        "assessment:1", "learner", 2, now.minusSeconds(60), now.plusSeconds(900), now)));
+                        "assessment:1", null, "learner", 2, now.minusSeconds(60), now.plusSeconds(900), now)));
         Attempt inProgress = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
                 now.minusSeconds(30), now.plusSeconds(600), AttemptStatus.IN_PROGRESS,
                 Map.of("q1", Set.of("b")), null, null, null, null, 1L);

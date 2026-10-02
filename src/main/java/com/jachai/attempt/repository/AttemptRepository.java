@@ -13,4 +13,6 @@ public interface AttemptRepository extends MongoRepository<Attempt, String> {
             String assignmentId, String organizationId, String userId);
     List<Attempt> findByOrganizationIdAndUserIdAndStatus(
             String organizationId, String userId, AttemptStatus status);
+    List<Attempt> findByOrganizationIdAndAssignmentIdInAndStatus(
+            String organizationId, List<String> assignmentIds, AttemptStatus status);
 }

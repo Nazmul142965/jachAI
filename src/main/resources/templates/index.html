@@ -106,6 +106,17 @@
         <div class="card panel"><h2>Review outcomes</h2><p class="muted">Use an attempt ID from the learner until a staff review queue is available.</p><div class="form-row"><label>Attempt ID<input id="review-attempt-id" placeholder="Attempt ID"></label><button id="release-result" class="button secondary" type="button">Release result</button><button id="issue-certificate" class="button secondary" type="button">Issue certificate</button></div><div id="review-output" class="result-box hidden"></div></div>
       </section>
 
+      <section id="campaigns-view" class="view hidden">
+        <div class="card panel"><h2>Hiring campaigns</h2><p class="muted">Each campaign uses a frozen published assessment version.</p><div id="campaigns-list" class="item-list"></div></div>
+        <div class="card panel"><h2>Create a campaign</h2>
+          <form id="campaign-form" class="form-row"><label>Role title<input name="title" maxlength="150" required placeholder="e.g. Backend Engineer"></label><label>Published assessment<select id="campaign-assessment" name="assessmentId" required></select></label><button class="button primary" type="submit">Create campaign</button></form>
+        </div>
+        <div class="card panel"><h2>Invite a registered candidate</h2><p class="muted">The candidate must be an active Talent member. Email-based external invitations are still being built.</p>
+          <form id="campaign-invite-form" class="stack"><div class="form-row"><label>Open campaign<select id="invite-campaign" name="campaignId" required></select></label><label>Candidate<select id="invite-candidate" name="userId" required></select></label><label>Attempts allowed<input name="attemptsAllowed" type="number" min="1" max="5" value="1" required></label></div><div class="form-row"><label>Available from<input name="availableFrom" type="datetime-local" required></label><label>Available until<input name="availableUntil" type="datetime-local" required></label></div><button class="button secondary" type="submit">Invite candidate</button></form>
+        </div>
+        <div id="campaign-candidates-panel" class="card panel hidden"><h2>Candidate comparison</h2><p class="muted">Latest submitted attempt is shown. Review notes are visible to Talent staff only.</p><div id="campaign-candidates" class="item-list"></div></div>
+      </section>
+
       <section id="attempts-view" class="view hidden"><div class="card panel"><h2>My assignments</h2><div id="assignments-list" class="item-list"></div></div><div id="attempt-panel" class="card panel hidden"></div><div id="result-panel" class="card panel hidden"></div></section>
 
       <section id="certificates-view" class="view hidden"><div class="card panel"><h2>My certificates</h2><div id="certificates-list" class="item-list"></div></div></section>

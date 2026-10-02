@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -67,6 +69,21 @@ public class MembershipService {
                     new MemberResponse(user.id(), user.email(), user.displayName(), membership.role())));
         }
         return result;
+    }
+
+    public Page<MemberResponse> listCandidates(String actorId, String organizationId, Pageable pageable) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN, OrganizationRole.RECRUITER);
+        Organization organization = organizations.findById(organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Organization not found"));
+        if (organization.type() != OrganizationType.TALENT) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "TALENT_ONLY", "Candidates are available in Talent organizations");
+        }
+        return memberships.findByOrganizationIdAndRoleAndActiveTrue(
+                        organizationId, OrganizationRole.CANDIDATE, pageable)
+                .map(member -> users.findById(member.userId())
+                        .map(user -> new MemberResponse(user.id(), user.email(), user.displayName(), member.role()))
+                        .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "MEMBER_UNAVAILABLE",
+                                "Candidate account is unavailable")));
     }
 
     private boolean allowedForType(OrganizationType type, OrganizationRole role) {

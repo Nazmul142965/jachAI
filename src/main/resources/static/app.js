@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
-  questions: [], assessments: [], activeAttempt: null, timer: null, view: 'overview' };
-const views = ['overview', 'members', 'questions', 'assessments', 'attempts', 'certificates'];
+  questions: [], assessments: [], campaigns: [], activeAttempt: null, timer: null, view: 'overview' };
+const views = ['overview', 'members', 'questions', 'assessments', 'campaigns', 'attempts', 'certificates'];
 
 function node(tag, text = '', className = '') {
   const element = document.createElement(tag);
@@ -87,6 +87,7 @@ async function setOrganization() {
   for (const view of views) $(`#${view}-view`).classList.add('hidden');
   $('#attempt-panel').classList.add('hidden');
   $('#result-panel').classList.add('hidden');
+  $('#campaign-candidates-panel').classList.add('hidden');
   $('#empty-org').classList.toggle('hidden', !!state.organization);
   $('#organization-select').classList.toggle('hidden', !state.organization);
   $('#workspace-role').textContent = state.organization?.myRole?.replaceAll('_', ' ') || '';
@@ -101,6 +102,7 @@ async function setOrganization() {
   const pages = [['overview', 'Overview']];
   if (role === 'ORG_ADMIN') pages.push(['members', 'Members']);
   if (staff) pages.push(['questions', 'Question bank'], ['assessments', 'Assessments']);
+  if (staff && state.organization.type === 'TALENT') pages.push(['campaigns', 'Hiring campaigns']);
   if (['LEARNER', 'CANDIDATE'].includes(role)) pages.push(['attempts', 'My assessments']);
   if (role === 'LEARNER' && state.organization.type === 'ACADEMY') pages.push(['certificates', 'Certificates']);
   for (const [key, title] of pages) {
@@ -118,12 +120,14 @@ async function showView(key) {
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
   for (const tab of $('#workspace-nav').children) tab.classList.toggle('active', tab.dataset.view === key);
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
-    assessments: 'Assessments', attempts: 'My assessments', certificates: 'Certificates' };
+    assessments: 'Assessments', campaigns: 'Hiring campaigns', attempts: 'My assessments',
+    certificates: 'Certificates' };
   $('#page-title').textContent = names[key];
   $('#page-subtitle').textContent = state.organization.name;
   if (key === 'members') await loadMembers();
   if (key === 'questions') await loadQuestions();
   if (key === 'assessments') { await loadQuestions(); await loadAssessments(); }
+  if (key === 'campaigns') { await loadAssessments(); await loadCampaigns(); await loadTalentCandidates(); }
   if (key === 'attempts') await loadAssignments();
   if (key === 'certificates') await loadCertificates();
 }
@@ -175,6 +179,61 @@ async function loadAssessments() {
   const select = $('#assign-assessment');
   select.replaceChildren(...state.assessments.filter((assessment) => assessment.status === 'PUBLISHED')
     .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
+  const campaignSelect = $('#campaign-assessment');
+  campaignSelect.replaceChildren(...state.assessments.filter((assessment) => assessment.status === 'PUBLISHED')
+    .map((assessment) => { const option = node('option', assessment.title); option.value = assessment.id; return option; }));
+}
+async function loadCampaigns() {
+  const page = await request(ownOrg('/talent/campaigns?page=0'));
+  state.campaigns = page.content || [];
+  setList('#campaigns-list', state.campaigns.map((campaign) => item(campaign.title,
+    `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
+    [button('Compare candidates', () => compareCandidates(campaign.id)),
+      ...(campaign.open ? [button('Close campaign', async () => {
+        if (!window.confirm('Close this campaign to new invitations?')) return;
+        await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
+        notice('Campaign closed.'); await loadCampaigns();
+      })] : [])])), 'No campaigns yet.');
+  $('#invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
+    .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
+}
+async function loadTalentCandidates() {
+  const page = await request(ownOrg('/members/candidates?page=0'));
+  $('#invite-candidate').replaceChildren(...(page.content || []).map((candidate) => {
+    const option = node('option', `${candidate.displayName} · ${candidate.email}`);
+    option.value = candidate.userId; return option;
+  }));
+}
+async function compareCandidates(campaignId) {
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=0`));
+  const rows = (page.content || []).map((candidate) => {
+    const info = item(`Candidate ID: ${candidate.candidateUserId}`,
+      candidate.attemptId
+        ? `Latest attempt: ${candidate.attemptId} · ${candidate.percentage == null ? 'Score pending' : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`} · ${candidate.decision || 'Not reviewed'}`
+        : 'No submitted attempt yet.');
+    if (!candidate.attemptId) return info;
+    const form = node('form', '', 'form-row');
+    const decisionLabel = node('label', 'Decision'); const select = node('select');
+    for (const decision of ['HOLD', 'SHORTLISTED', 'REJECTED']) {
+      const option = node('option', decision.replaceAll('_', ' ')); option.value = decision;
+      select.append(option);
+    }
+    select.value = candidate.decision || 'HOLD'; decisionLabel.append(select);
+    const noteLabel = node('label', 'Reviewer note'); const noteInput = node('input');
+    noteInput.maxLength = 1000; noteInput.value = candidate.reviewerNote || '';
+    noteLabel.append(noteInput);
+    const save = node('button', 'Save review', 'button secondary small'); save.type = 'submit';
+    form.append(decisionLabel, noteLabel, save);
+    form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+      await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates/${encodeURIComponent(candidate.candidateUserId)}/review`),
+        { method: 'PUT', body: { attemptId: candidate.attemptId, decision: select.value, note: noteInput.value } });
+      notice('Review saved.'); await compareCandidates(campaignId);
+    }); });
+    const wrapper = node('div', '', 'card panel'); wrapper.append(info, form); return wrapper;
+  });
+  setList('#campaign-candidates', rows, 'No candidates invited yet.');
+  $('#campaign-candidates-panel').classList.remove('hidden');
+  $('#campaign-candidates-panel').scrollIntoView({ behavior: 'smooth' });
 }
 async function loadAssignments() {
   const assignments = await request(ownOrg('/assignments/mine'));
@@ -363,3 +422,20 @@ $('#issue-certificate').addEventListener('click', () => run(async () => {
   $('#review-output').textContent = `Certificate issued. Verification code: ${certificate.verificationCode}`;
   $('#review-output').classList.remove('hidden'); notice('Certificate issued.');
 }));
+$('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = new FormData(event.currentTarget);
+  await request(ownOrg('/talent/campaigns'), { method: 'POST',
+    body: { title: form.get('title'), assessmentId: form.get('assessmentId') } });
+  event.currentTarget.reset(); await loadCampaigns(); notice('Hiring campaign created.');
+}); });
+$('#campaign-invite-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = new FormData(event.currentTarget);
+  if (!form.get('campaignId')) throw new Error('Create an open campaign first.');
+  const availableFrom = new Date(form.get('availableFrom')).toISOString();
+  const availableUntil = new Date(form.get('availableUntil')).toISOString();
+  if (availableUntil <= availableFrom) throw new Error('End time must follow start time.');
+  await request(ownOrg(`/talent/campaigns/${encodeURIComponent(form.get('campaignId'))}/invitations`),
+    { method: 'POST', body: { userId: form.get('userId').trim(),
+      attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
+  event.currentTarget.reset(); notice('Candidate invited to campaign.');
+}); });

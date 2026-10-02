@@ -236,3 +236,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Phase 4 implementation decisions
 
 - An Academy instructor or organization admin issues one certificate per passing, released attempt. Issue is idempotent; revocation is terminal for that attempt, so it cannot mint a fresh valid code afterward. Learners can list their own certificates. Public verification exposes organization/assessment names and issue/revocation dates, not learner identifiers. Email delivery, audit trail, public rate limits, and UI are separate required work before production.
+
+## Phase 5 implementation decisions
+
+- A Talent hiring campaign freezes the selected published assessment version. Existing verified candidates can be invited through a campaign assignment; Talent staff can list active candidate members without gaining access to all memberships. Closing a campaign prevents new invitations but leaves already-issued assignments usable until their own availability windows end. Comparison and review are staff-only and tenant-scoped. A shortlist/hold/reject decision is attached to a specific submitted attempt; after a newer attempt, the old decision is not shown as current. External email invitations, integrity telemetry, and audit history remain required follow-up work.

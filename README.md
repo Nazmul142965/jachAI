@@ -11,8 +11,9 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - AI question drafting via Gemini (`AI_PROVIDER=google-genai`), post-attempt Academy tutoring via Groq (`AI_TUTOR_PROVIDER=groq`), or local Ollama for both (`AI_PROVIDER=ollama`). AI drafts still require human approval. AI request quota counters are in Redis; AI fails closed if Redis is unavailable.
 - Academy certificate issuance after a passing, released result; learner certificate listing, staff revocation, and minimal public code verification.
 - An in-progress responsive browser dashboard for registration/login, workspaces, authoring, assignments, attempts, results, and certificates. HTML pages are rendered from `src/main/resources/templates` by a small MVC page controller; CSS/JavaScript live in `src/main/resources/static` and call the REST API.
+- Talent hiring campaigns tied to a frozen assessment version, existing-member candidate invitations, staff-only candidate comparison, reviewer notes, and hold/shortlist/reject decisions.
 
-Not yet complete: full frontend review queues and Talent views, full Academy/Talent modules, certificate email/verification UI and audit trail, email jobs, organization-wide result-policy settings, immediate access-token revocation, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
+Not yet complete: external email invitations and full frontend review queues, full Academy/Talent modules, certificate email/verification UI and audit trail, email jobs, organization-wide result-policy settings, immediate access-token revocation, public-endpoint rate limits, Stripe billing, full integration/load testing, and deployment. Do not use the current API as a production system.
 
 ## Run locally
 
@@ -40,15 +41,20 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 | Area | Routes |
 | --- | --- |
 | Auth | `POST /auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/request-password-reset`, `/auth/reset-password` |
-| Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members` |
+| Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members`, `GET /organizations/{orgId}/members/candidates` (Talent staff) |
 | Questions | `GET/POST /organizations/{orgId}/questions`, `POST .../questions/{id}/approve` |
 | Assessments | `GET/POST /organizations/{orgId}/assessments`, `POST .../assessments/{id}/publish` |
 | Attempts | `GET .../assignments/mine`, `GET .../assignments/{id}/attempts/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result`, `POST .../attempts/{id}/release` (staff only) |
 | AI | `POST /organizations/{orgId}/ai/question-drafts`, `POST /organizations/{orgId}/attempts/{id}/tutor` |
 | Academy certificates | `POST /organizations/{orgId}/attempts/{id}/certificate` (staff), `GET /organizations/{orgId}/certificates/mine` (learner), `POST /organizations/{orgId}/certificates/{id}/revoke` (staff), `GET /public/certificates/{verificationCode}` (public) |
+| Talent | `GET/POST /organizations/{orgId}/talent/campaigns`, `POST .../campaigns/{id}/close`, `POST .../campaigns/{id}/invitations`, `GET .../campaigns/{id}/candidates`, `PUT .../campaigns/{id}/candidates/{candidateId}/review` |
 
 The test profile disables MongoDB autoconfiguration and uses mocks for API smoke tests. Unit tests cover assessment/attempt rules, tenant checks, cache behavior, and AI draft/tutor boundaries. A live MongoDB/Redis/provider integration test has not yet been completed.
 
 When creating an assessment, set `resultReleasePolicy` to `MANUAL` to keep its score, pass state, and topic breakdown hidden until an organization admin, instructor, or recruiter calls the release route. Omit it or use `IMMEDIATE` for score release on submit. The policy is frozen into the published version. Manual-policy Academy tutoring also waits for release. The result API returns `released: false` with null score/pass and empty topics while pending.
 
 Only Academy staff can issue a certificate, and only for a passing submitted attempt whose result is released. Issuing the same attempt again returns the existing certificate. A revoked certificate remains publicly findable but verifies as invalid, and cannot be reissued for the same attempt. Public verification includes the organization and assessment names and dates, not the learner's private identity. Public verification still needs rate limiting before production use.
+
+Talent campaigns use the published assessment version at creation time. Closing a campaign blocks new invitations; it does not cancel existing assignments. Comparison shows each invited candidate's latest submitted attempt. A review decision is attached to one attempt and is hidden from comparison after a newer attempt until a recruiter reviews that attempt. Talent staff can page through active candidate members to choose a recipient. Invitations currently require an existing verified candidate member; external email invitations are pending.
+
+AI provider routing is coded for Gemini question drafts, Groq tutoring, and local Ollama. AI use-case tests use mocks. No live provider call has been verified yet; real keys should only be placed in local environment settings when integration testing is ready.

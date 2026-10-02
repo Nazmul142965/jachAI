@@ -27,6 +27,7 @@ import com.jachai.ai.service.QuestionDraftService;
 import com.jachai.ai.service.TutorService;
 import com.jachai.academy.service.CertificateService;
 import com.jachai.academy.dto.CertificateVerificationView;
+import com.jachai.talent.service.TalentCampaignService;
 import static org.mockito.Mockito.when;
 import java.time.Instant;
 
@@ -47,6 +48,7 @@ class JachAiApplicationTests {
     @MockitoBean QuestionDraftService questionDraftService;
     @MockitoBean TutorService tutorService;
     @MockitoBean CertificateService certificateService;
+    @MockitoBean TalentCampaignService talentCampaignService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
@@ -73,12 +75,19 @@ class JachAiApplicationTests {
     void dashboardTemplateAndStaticAssetsArePublic() throws Exception {
         mvc.perform(get("/"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Technical assessment workspace")));
+                .andExpect(content().string(containsString("Technical assessment workspace")))
+                .andExpect(content().string(containsString("Hiring campaigns")));
         mvc.perform(get("/verify-email.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("JachAI email verification")));
         mvc.perform(get("/app.js")).andExpect(status().isOk());
         mvc.perform(get("/app.css")).andExpect(status().isOk());
+    }
+
+    @Test
+    void talentCampaignApiRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/talent/campaigns"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
