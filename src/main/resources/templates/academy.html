@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Academy · JachAI</title>
+  <meta name="description" content="JachAI Academy: run cohort training on reviewed assessments with server-timed attempts, instructor feedback and publicly verifiable certificates.">
+  <style>
+    :root { --ink:#182d32; --muted:#657879; --line:#d9e5e1; --surface:#fff; --canvas:#f4f8f5; --forest:#075b4d; --mint:#d6eee5; --accent:#d5f15a; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:16px/1.6 'Segoe UI',system-ui,sans-serif; color:var(--ink); background:var(--canvas); }
+    a { color:var(--forest); }
+    .topbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px clamp(18px,4vw,64px); background:var(--surface); border-bottom:1px solid var(--line); }
+    .brand { display:inline-flex; align-items:center; gap:10px; font-size:21px; font-weight:800; letter-spacing:-.05em; color:var(--ink); text-decoration:none; }
+    .brand-mark { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; background:var(--forest); color:var(--accent); font-size:19px; }
+    .brand-accent { color:var(--forest); }
+    .topnav { margin-left:auto; display:flex; gap:18px; font-size:13.5px; font-weight:700; }
+    main { width:min(100%,1080px); margin:0 auto; padding:clamp(28px,5vw,64px) clamp(18px,4vw,40px) 80px; }
+    .eyebrow { margin:0 0 10px; color:#36826e; font-size:11px; font-weight:800; letter-spacing:.19em; text-transform:uppercase; }
+    h1 { margin:0 0 14px; font-size:clamp(30px,4.6vw,50px); line-height:1.08; letter-spacing:-.04em; }
+    h2 { margin:0 0 10px; font-size:20px; letter-spacing:-.03em; }
+    h3 { margin:0 0 6px; font-size:15.5px; }
+    .lede { margin:0; max-width:60ch; color:var(--muted); font-size:17px; }
+    .cta-row { display:flex; flex-wrap:wrap; gap:12px; margin:26px 0 0; }
+    .button { display:inline-flex; align-items:center; justify-content:center; min-height:46px; padding:12px 22px; border-radius:11px; border:1px solid transparent; font-weight:700; text-decoration:none; }
+    .button.primary { background:var(--forest); color:#fff; }
+    .button.secondary { background:var(--mint); color:#164c40; }
+    .button:focus-visible, a:focus-visible { outline:3px solid var(--forest); outline-offset:2px; }
+    .grid { display:grid; gap:16px; margin-top:40px; }
+    .cols-3 { grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+    .cols-2 { grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+    .card { padding:22px; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:0 12px 34px rgba(18,65,58,.07); }
+    .card p { margin:0; color:var(--muted); font-size:14.5px; }
+    .step { display:grid; gap:8px; }
+    .step-number { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:8px; background:var(--mint); color:#164c40; font-size:12.5px; font-weight:800; }
+    ol.workflow { margin:0; padding:0; list-style:none; display:grid; gap:14px; }
+    ol.workflow li { display:grid; grid-template-columns:28px 1fr; gap:14px; align-items:start; }
+    ol.workflow p { margin:2px 0 0; color:var(--muted); font-size:14.5px; }
+    .section { margin-top:46px; }
+    .note { margin-top:34px; padding:18px 20px; background:#eff7f1; border:1px solid var(--line); border-radius:14px; }
+    .note p { margin:0; color:#1b5940; font-size:14px; }
+    .facts { display:grid; gap:10px; margin:0; padding:0; list-style:none; }
+    .facts li { padding-left:22px; position:relative; color:var(--muted); font-size:14.5px; }
+    .facts li::before { content:''; position:absolute; left:0; top:9px; width:9px; height:9px; border-radius:50%; background:var(--forest); }
+    footer { border-top:1px solid var(--line); background:var(--surface); }
+    footer .inner { width:min(100%,1080px); margin:0 auto; padding:22px clamp(18px,4vw,40px); display:flex; flex-wrap:wrap; gap:16px; font-size:13.5px; color:var(--muted); }
+    footer .inner nav { margin-left:auto; display:flex; gap:16px; flex-wrap:wrap; }
+    @media(max-width:560px) { .topnav { width:100%; margin-left:0; } .button { width:100%; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
+    <nav class="topnav" aria-label="Products">
+      <a href="/talent.html">Talent</a>
+      <a href="/">Sign in</a>
+    </nav>
+  </header>
+  <main>
+    <p class="eyebrow">Academy</p>
+    <h1>Train a cohort, then prove what they can do.</h1>
+    <p class="lede">Academy runs reviewed assessments for courses and dated batches: server-timed attempts,
+      deliberate result release, instructor feedback, and certificates that anyone can verify.</p>
+    <div class="cta-row">
+      <a class="button primary" href="/">Sign in or create a workspace</a>
+      <a class="button secondary" href="/talent.html">See Talent hiring</a>
+    </div>
+
+    <section class="section" aria-labelledby="workflow">
+      <h2 id="workflow">How an Academy cohort actually runs</h2>
+      <ol class="workflow">
+        <li><span class="step-number">1</span><div><h3>Create the workspace and invite people</h3>
+          <p>An organisation admin adds instructors and learners by email invitation. Roles decide what each person can see; the server re-checks membership on every request.</p></div></li>
+        <li><span class="step-number">2</span><div><h3>Build a question bank</h3>
+          <p>Authors write single-choice, multiple-choice or manually graded short-answer questions. A draft only becomes usable once a human approves it — generated drafts included.</p></div></li>
+        <li><span class="step-number">3</span><div><h3>Publish a versioned assessment</h3>
+          <p>Publishing freezes the question set, time limit, pass mark and the result-release policy for that version, so later edits cannot change a result that already exists.</p></div></li>
+        <li><span class="step-number">4</span><div><h3>Group learners into courses and batches</h3>
+          <p>A dated batch distributes a published version to every enrolled learner, and new enrolments receive it automatically. Progress and cohort analytics stay tenant-scoped.</p></div></li>
+        <li><span class="step-number">5</span><div><h3>Learners take a server-timed attempt</h3>
+          <p>The deadline comes from the server, not the browser. Answers save individually with visible state, an attempt can be resumed, and submission is confirmed before it is final.</p></div></li>
+        <li><span class="step-number">6</span><div><h3>Grade, release, and give feedback</h3>
+          <p>Short answers are graded by staff, then results are released either on submission or deliberately later. Instructors can publish feedback that only the owning learner can read.</p></div></li>
+        <li><span class="step-number">7</span><div><h3>Issue certificates that verify publicly</h3>
+          <p>A passing, released attempt can receive one certificate. Anyone can check its code on a public page, which shows the organisation and assessment names — never the learner's private identity.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="section grid cols-3" aria-label="What you get">
+      <article class="card"><h3>Deterministic scoring</h3><p>Objective answers are scored by the server at submission; AI never sets or changes an official score.</p></article>
+      <article class="card"><h3>Honest states</h3><p>Pending manual grading, unreleased results and unavailable integrations are shown as they are — no invented progress.</p></article>
+      <article class="card"><h3>Certificates with a public check</h3><p>Every issued certificate has a verification code and a public page that reports valid or revoked, and when.</p></article>
+    </section>
+
+    <section class="section grid cols-2" aria-label="Good to know">
+      <div class="card"><h2>Plans and limits</h2>
+        <ul class="facts">
+          <li>The FREE plan allows 3 published assessments, 30 email invitations and 30 certificates per month.</li>
+          <li>Limits are enforced by the server before the write, not by the browser.</li>
+          <li>Paid plans are activated only after server-side payment verification.</li>
+        </ul>
+      </div>
+      <div class="card"><h2>What Academy does not claim</h2>
+        <ul class="facts">
+          <li>Payments run against <strong>sandbox</strong> bKash and SSLCOMMERZ only; no live money is taken.</li>
+          <li>AI drafting is optional, needs a configured provider, and always produces drafts for human review.</li>
+          <li>Email delivery depends on a configured mail transport; the interface never claims a message was delivered.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="note"><p>Already have a certificate? Paste its verification code on the <a href="/">JachAI home page</a> to check it without signing in.</p></div>
+  </main>
+  <footer><div class="inner">
+    <span>JachAI · technical assessment and certification</span>
+    <nav aria-label="Footer"><a href="/academy.html">Academy</a><a href="/talent.html">Talent</a><a href="/">Sign in</a></nav>
+  </div></footer>
+</body>
+</html>

@@ -12,6 +12,9 @@ a { color:var(--forest); }
 .brand-mark { display:grid; place-items:center; width:34px; height:34px; border-radius:10px; background:var(--forest); color:var(--accent); font-size:21px; }
 .brand-accent { color:var(--forest); }
 .topbar-note { margin-left:auto; color:var(--muted); font-size:13px; }
+.topnav { display:flex; gap:16px; font-size:13px; font-weight:700; }
+.topnav a { text-decoration:none; }
+@media(max-width:560px) { .topnav { margin-left:auto; } }
 .topbar .button { margin-left:auto; }
 .notice { position:sticky; top:0; z-index:5; padding:12px clamp(20px,4vw,64px); background:#e3f5eb; color:#205a41; border-bottom:1px solid #b7dcc8; font-weight:600; }
 .notice.error { background:#fff0ef; color:var(--danger); border-color:#e9c2bf; }
