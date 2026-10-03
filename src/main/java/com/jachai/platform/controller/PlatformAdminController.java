@@ -3,6 +3,7 @@ package com.jachai.platform.controller;
 import com.jachai.platform.dto.PlatformOrganizationView;
 import com.jachai.platform.dto.PlatformBillingView;
 import com.jachai.platform.dto.PlatformOperationsView;
+import com.jachai.platform.dto.PlatformStorageView;
 import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.billing.dto.UsageReconciliationReport;
 import com.jachai.billing.model.PlatformUsageRepairEvent;
@@ -14,6 +15,7 @@ import com.jachai.platform.dto.PlatformUserView;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
 import com.jachai.platform.service.PlatformOperationsService;
+import com.jachai.platform.service.PlatformStorageService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
@@ -37,14 +39,16 @@ public class PlatformAdminController {
     private final PlatformBillingSupportService billingSupport;
     private final EntitlementUsageReconciliationService usageReconciliation;
     private final PlatformOperationsService operations;
+    private final PlatformStorageService storage;
 
     public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport,
                                    EntitlementUsageReconciliationService usageReconciliation,
-                                   PlatformOperationsService operations) {
+                                   PlatformOperationsService operations, PlatformStorageService storage) {
         this.platform = platform;
         this.billingSupport = billingSupport;
         this.usageReconciliation = usageReconciliation;
         this.operations = operations;
+        this.storage = storage;
     }
 
     @GetMapping("/me")
@@ -55,6 +59,11 @@ public class PlatformAdminController {
     @GetMapping("/operations/summary")
     public PlatformOperationsView operations(@AuthenticationPrincipal Jwt jwt) {
         return operations.summary(jwt.getSubject());
+    }
+
+    @GetMapping("/operations/storage")
+    public PlatformStorageView storage(@AuthenticationPrincipal Jwt jwt) {
+        return storage.usage(jwt.getSubject());
     }
 
     @GetMapping("/organizations")

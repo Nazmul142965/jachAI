@@ -47,6 +47,7 @@ import com.jachai.billing.service.EntitlementUsageReconciliationService;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
 import com.jachai.platform.service.PlatformOperationsService;
+import com.jachai.platform.service.PlatformStorageService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
@@ -93,6 +94,7 @@ class JachAiApplicationTests {
     @MockitoBean PlatformAdminService platformAdminService;
     @MockitoBean PlatformBillingSupportService platformBillingSupportService;
     @MockitoBean PlatformOperationsService platformOperationsService;
+    @MockitoBean PlatformStorageService platformStorageService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
@@ -129,6 +131,8 @@ class JachAiApplicationTests {
     void platformMetadataApiRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/platform/operations/summary"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/platform/operations/storage"))
+                .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/organizations"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/organizations/org/billing"))
@@ -151,6 +155,19 @@ class JachAiApplicationTests {
                         .put("/api/v1/platform/users/target/role")
                         .contentType("application/json").content("{\"platformAdmin\":true}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void platformStorageEndpointUsesAuthenticatedActor() throws Exception {
+        when(platformStorageService.usage("admin"))
+                .thenReturn(new com.jachai.platform.dto.PlatformStorageView(
+                        Instant.parse("2026-10-03T10:00:00Z"), 100L, 20L, 120L, 400L, false));
+        mvc.perform(get("/api/v1/platform/operations/storage")
+                        .with(jwt().jwt(token -> token.subject("admin"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estimatedLogicalBytes").value(120))
+                .andExpect(jsonPath("$.warning").value(false));
+        verify(platformStorageService).usage("admin");
     }
 
     @Test
