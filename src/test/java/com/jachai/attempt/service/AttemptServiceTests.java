@@ -20,6 +20,7 @@ import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.ResultView;
+import com.jachai.attempt.dto.ResultState;
 import com.jachai.attempt.dto.StaffAttemptReviewView;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
@@ -159,6 +160,7 @@ class AttemptServiceTests {
 
         assertFalse(pending.released());
         assertNull(pending.percentage());
+        assertEquals(ResultState.GRADING_PENDING, pending.state());
         ArgumentCaptor<Attempt> submitted = ArgumentCaptor.forClass(Attempt.class);
         verify(attempts).save(submitted.capture());
         when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
@@ -224,7 +226,9 @@ class AttemptServiceTests {
         assertEquals(0, review.percentage());
         assertEquals(false, review.passed());
         assertNull(review.resultReleasedAt());
-        assertFalse(service().result("learner", "org-a", "attempt").released());
+        var learnerResult = service().result("learner", "org-a", "attempt");
+        assertFalse(learnerResult.released());
+        assertEquals(ResultState.RELEASE_PENDING, learnerResult.state());
         verify(emailSender, never()).sendResultReleased(any(), any(), any(), any());
     }
 
@@ -429,6 +433,7 @@ class AttemptServiceTests {
         assertFalse(pending.released());
         assertNull(pending.percentage());
         assertEquals(List.of(), pending.topics());
+        assertEquals(ResultState.RELEASE_PENDING, pending.state());
         verify(emailSender, never()).sendResultReleased(any(), any(), any(), any());
 
         Attempt submitted = attempt.submitted(Instant.now(), 100, true, false);
@@ -436,6 +441,7 @@ class AttemptServiceTests {
         recipient();
         ResultView released = service().releaseResult("teacher", "org-a", "attempt");
         assertEquals(100, released.percentage());
+        assertEquals(ResultState.RELEASED, released.state());
         assertEquals("Java", released.topics().getFirst().topic());
         verify(emailSender).sendResultReleased("attempt", "learner@example.com", "Learner",
                 "https://jachai.example/");

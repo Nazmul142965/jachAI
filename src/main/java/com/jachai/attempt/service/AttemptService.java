@@ -10,6 +10,7 @@ import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.AssignmentView;
 import com.jachai.attempt.dto.ResultView;
+import com.jachai.attempt.dto.ResultState;
 import com.jachai.attempt.dto.ReviewAttemptView;
 import com.jachai.attempt.dto.StaffAttemptReviewView;
 import com.jachai.attempt.dto.ManualGradeAuditView;
@@ -433,7 +434,9 @@ public class AttemptService {
         boolean released = attempt.percentage() != null && (attempt.resultReleasedAt() != null
                 || version.resultReleasePolicy() != ResultReleasePolicy.MANUAL);
         if (!released) {
-            return new ResultView(attempt.id(), false, null, null, attempt.submittedAt(), null, List.of());
+            ResultState state = attempt.percentage() == null
+                    ? ResultState.GRADING_PENDING : ResultState.RELEASE_PENDING;
+            return new ResultView(attempt.id(), false, null, null, attempt.submittedAt(), null, List.of(), state);
         }
         Map<String, int[]> topicCounts = new LinkedHashMap<>();
         for (AssessmentVersion.QuestionSnapshot question : version.questions()) {
@@ -450,7 +453,7 @@ public class AttemptService {
                 .map(entry -> new ResultView.TopicScore(entry.getKey(), entry.getValue()[0], entry.getValue()[1]))
                 .toList();
         return new ResultView(attempt.id(), true, attempt.percentage(), attempt.passed(),
-                attempt.submittedAt(), attempt.resultReleasedAt(), topics);
+                attempt.submittedAt(), attempt.resultReleasedAt(), topics, ResultState.RELEASED);
     }
 
     private void requireParticipant(String userId, String organizationId) {
