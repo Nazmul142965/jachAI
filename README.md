@@ -31,6 +31,8 @@ Not yet complete: exceptional audited platform support access, remaining Academy
 
 ## Run locally
 
+On this Windows development machine, run `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1` from the repository root. It starts a loopback-only local MongoDB if needed, selects the installed JDK 21, and launches JachAI at `http://127.0.0.1:8080/`. It does not require Atlas, Docker, Redis, or provider keys for the core demo. Set `JACHAI_MONGOD_EXE` if `mongod.exe` is installed elsewhere; set `JAVA_HOME` to another JDK 21 if needed. Logs are under ignored `target/local-dev/`; local verification/reset links appear in the app log and must not be shared. A generated local JWT secret expires sign-ins on restart; set your own stable `JWT_SECRET` in your private shell environment if you need sessions to survive restarts. This helper always targets the local `jachai_local` database, never Atlas.
+
 Use JDK 21, Maven, and a MongoDB instance. Set environment variables in your terminal or IntelliJ run configuration; Spring Boot does not load `.env` automatically. `.env.example` contains only placeholders. Never commit actual credentials.
 
 Required: `JWT_SECRET` (at least 32 UTF-8 bytes). `MONGODB_URI` defaults to a local database under the local profile. The production profile requires `MONGODB_URI` and SMTP settings.
