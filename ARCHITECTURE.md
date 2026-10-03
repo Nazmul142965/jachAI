@@ -109,7 +109,7 @@ Keep documents bounded. For long-running attempts or high-volume telemetry, stor
 ## 7. Assessment lifecycle and scoring
 
 1. Instructor or recruiter drafts questions. AI-generated questions remain drafts until a human reviews them.
-2. An assessment is configured with optional participant instructions and published as an immutable `AssessmentVersion`. Instructions are frozen with the version and shown on the learner/candidate assignment detail before an attempt starts; legacy versions without instructions show a generic fallback. Editing later creates a new version.
+2. An assessment is configured with optional participant instructions and published as an immutable `AssessmentVersion`. Instructions are frozen with the version and shown on the learner/candidate assignment detail before an attempt starts; legacy versions without instructions show a generic fallback. Staff may publish a changed configuration through `POST /api/v1/organizations/{organizationId}/assessments/{assessmentId}/versions`; this creates a new immutable version while existing assignments retain their original version. The lifetime published-assessment entitlement counts distinct assessments, not versions of the same assessment.
 3. A learner/candidate receives an assignment or invitation. The server validates availability, membership/invite, attempt limit, and module entitlement.
 4. The server starts an attempt and records the deadline. The client timer is visual only; the server decides whether an answer is on time.
 5. Answers are saved with validation and an attempt state check. Submitting is idempotent and cannot change a finalized result.

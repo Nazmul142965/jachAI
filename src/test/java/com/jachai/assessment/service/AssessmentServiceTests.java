@@ -34,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -173,5 +174,71 @@ class AssessmentServiceTests {
         assertEquals(ResultReleasePolicy.IMMEDIATE, created.resultReleasePolicy());
         assertEquals("You may use a calculator.", created.instructions());
         verify(organizationSettings, never()).defaultPolicy("org-a");
+    }
+
+    @Test
+    void revisionPublishesNewSnapshotWithoutChargingAnotherAssessmentSlot() {
+        var current = new Assessment("a1", "org-a", "teacher", "Original", 30, 60,
+                List.of("q1"), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.PUBLISHED, 1,
+                Instant.now(), 3L, "Old instructions");
+        var question = new Question("q2", "org-a", "teacher", "Java", "New prompt",
+                QuestionType.SINGLE_CHOICE,
+                List.of(new Question.Option("a", "Yes")), Set.of("a"), QuestionStatus.APPROVED,
+                Instant.now(), QuestionDifficulty.EASY);
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
+        when(questions.findByIdAndOrganizationId("q2", "org-a")).thenReturn(Optional.of(question));
+        when(assessments.save(any(Assessment.class))).thenAnswer(call -> call.getArgument(0));
+
+        var version = service().reviseAndPublish("teacher", "org-a", "a1",
+                new CreateAssessmentRequest(" Revised ", 45, 70, List.of("q2"), null,
+                        " New instructions "));
+
+        assertEquals("a1:2", version.id());
+        assertEquals("Revised", version.title());
+        assertEquals("New instructions", version.instructions());
+        assertEquals(ResultReleasePolicy.IMMEDIATE, version.resultReleasePolicy());
+        assertEquals("q2", version.questions().getFirst().questionId());
+        ArgumentCaptor<Assessment> saved = ArgumentCaptor.forClass(Assessment.class);
+        verify(assessments).save(saved.capture());
+        assertEquals(2, saved.getValue().latestVersion());
+        assertEquals(3L, saved.getValue().revision());
+        assertEquals(1, current.latestVersion());
+        verify(entitlements, never()).reserve(any(), any());
+        verify(organizationSettings, never()).defaultPolicy("org-a");
+    }
+
+    @Test
+    void revisionRejectsUnchangedContentBeforeInserting() {
+        var current = new Assessment("a1", "org-a", "teacher", "Original", 30, 60,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.PUBLISHED, 1,
+                Instant.now(), 3L, "Rules");
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service().reviseAndPublish("teacher", "org-a", "a1",
+                        new CreateAssessmentRequest("Original", 30, 60, List.of(),
+                                ResultReleasePolicy.IMMEDIATE, "Rules")));
+
+        assertEquals("NO_CHANGES", error.code());
+        verify(versions, never()).insert(any(AssessmentVersion.class));
+    }
+
+    @Test
+    void concurrentRevisionDoesNotLeaveAnOrphanVersion() {
+        var current = new Assessment("a1", "org-a", "teacher", "Original", 30, 60,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.PUBLISHED, 1,
+                Instant.now(), 3L, "Rules");
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
+        when(assessments.save(any(Assessment.class)))
+                .thenThrow(new OptimisticLockingFailureException("concurrent update"));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service().reviseAndPublish("teacher", "org-a", "a1",
+                        new CreateAssessmentRequest("Revised", 30, 60, List.of(),
+                                ResultReleasePolicy.IMMEDIATE, "Rules")));
+
+        assertEquals("PUBLISH_CONFLICT", error.code());
+        verify(versions).deleteById("a1:2");
+        verify(entitlements, never()).reserve(any(), any());
     }
 }

@@ -53,4 +53,13 @@ public class AssessmentController {
         return Map.of("assessmentId", version.assessmentId(), "version", version.version(),
                 "publishedAt", version.publishedAt());
     }
+
+    @PostMapping("/{assessmentId}/versions")
+    public Map<String, Object> reviseAndPublish(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String assessmentId,
+            @Valid @RequestBody CreateAssessmentRequest request) {
+        var version = assessments.reviseAndPublish(jwt.getSubject(), organizationId, assessmentId, request);
+        return Map.of("assessmentId", version.assessmentId(), "version", version.version(),
+                "publishedAt", version.publishedAt());
+    }
 }

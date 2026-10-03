@@ -41,4 +41,12 @@ public record Assessment(
                 passingPercentage, questionIds, resultReleasePolicy, AssessmentStatus.PUBLISHED,
                 version, createdAt, revision, instructions);
     }
+
+    public Assessment revisedPublished(String newTitle, int newDurationMinutes, int newPassingPercentage,
+                                       List<String> newQuestionIds, ResultReleasePolicy newReleasePolicy,
+                                       String newInstructions, int version) {
+        return new Assessment(id, organizationId, authorUserId, newTitle, newDurationMinutes,
+                newPassingPercentage, List.copyOf(newQuestionIds), newReleasePolicy,
+                AssessmentStatus.PUBLISHED, version, createdAt, revision, newInstructions);
+    }
 }

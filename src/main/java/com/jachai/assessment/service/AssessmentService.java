@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -39,14 +40,7 @@ public class AssessmentService {
 
     public Assessment create(String userId, String organizationId, CreateAssessmentRequest request) {
         requireAuthor(userId, organizationId);
-        if (new HashSet<>(request.questionIds()).size() != request.questionIds().size()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "DUPLICATE_QUESTION", "An assessment cannot repeat a question");
-        }
-        for (String questionId : request.questionIds()) {
-            if (questions.findByIdAndOrganizationId(questionId, organizationId).isEmpty()) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_QUESTION", "Question does not belong to this organization");
-            }
-        }
+        validateQuestionIds(organizationId, request.questionIds());
         return assessments.save(new Assessment(UUID.randomUUID().toString(), organizationId, userId,
                 request.title().trim(), request.durationMinutes(), request.passingPercentage(),
                 List.copyOf(request.questionIds()),
@@ -65,11 +59,65 @@ public class AssessmentService {
 
     public AssessmentVersion publish(String userId, String organizationId, String assessmentId) {
         requireAuthor(userId, organizationId);
-        Assessment assessment = assessments.findByIdAndOrganizationId(assessmentId, organizationId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Assessment not found"));
+        Assessment assessment = findAssessment(organizationId, assessmentId);
         if (assessment.status() != AssessmentStatus.DRAFT) {
             throw new ApiException(HttpStatus.CONFLICT, "ALREADY_PUBLISHED", "Assessment is already published");
         }
+        AssessmentVersion version = snapshot(organizationId, assessment, assessment.latestVersion() + 1);
+        String reservation = entitlements.reserve(organizationId, UsageMetric.PUBLISHED_ASSESSMENT);
+        try {
+            insertAndAdvance(version, assessment.published(version.version()));
+            return version;
+        } catch (RuntimeException exception) {
+            entitlements.refund(reservation);
+            throw exception;
+        }
+    }
+
+    public AssessmentVersion reviseAndPublish(String userId, String organizationId, String assessmentId,
+                                              CreateAssessmentRequest request) {
+        requireAuthor(userId, organizationId);
+        Assessment current = findAssessment(organizationId, assessmentId);
+        if (current.status() != AssessmentStatus.PUBLISHED) {
+            throw new ApiException(HttpStatus.CONFLICT, "NOT_PUBLISHED", "Publish the draft before creating another version");
+        }
+        validateQuestionIds(organizationId, request.questionIds());
+        var policy = request.resultReleasePolicy() == null
+                ? current.resultReleasePolicy() : request.resultReleasePolicy();
+        String title = request.title().trim();
+        String instructions = request.instructions() == null ? "" : request.instructions().trim();
+        if (title.equals(current.title()) && request.durationMinutes() == current.durationMinutes()
+                && request.passingPercentage() == current.passingPercentage()
+                && request.questionIds().equals(current.questionIds()) && policy == current.resultReleasePolicy()
+                && instructions.equals(current.instructions() == null ? "" : current.instructions())) {
+            throw new ApiException(HttpStatus.CONFLICT, "NO_CHANGES", "Change the assessment before publishing a new version");
+        }
+        int nextVersion = current.latestVersion() + 1;
+        Assessment revised = current.revisedPublished(title, request.durationMinutes(),
+                request.passingPercentage(), request.questionIds(), policy, instructions, nextVersion);
+        AssessmentVersion version = snapshot(organizationId, revised, nextVersion);
+        // A new version does not consume a second lifetime assessment slot.
+        insertAndAdvance(version, revised);
+        return version;
+    }
+
+    private Assessment findAssessment(String organizationId, String assessmentId) {
+        return assessments.findByIdAndOrganizationId(assessmentId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Assessment not found"));
+    }
+
+    private void validateQuestionIds(String organizationId, List<String> questionIds) {
+        if (new HashSet<>(questionIds).size() != questionIds.size()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DUPLICATE_QUESTION", "An assessment cannot repeat a question");
+        }
+        for (String questionId : questionIds) {
+            if (questions.findByIdAndOrganizationId(questionId, organizationId).isEmpty()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_QUESTION", "Question does not belong to this organization");
+            }
+        }
+    }
+
+    private AssessmentVersion snapshot(String organizationId, Assessment assessment, int nextVersion) {
         List<AssessmentVersion.QuestionSnapshot> snapshots = new ArrayList<>();
         for (String questionId : assessment.questionIds()) {
             Question question = questions.findByIdAndOrganizationId(questionId, organizationId)
@@ -81,27 +129,25 @@ public class AssessmentService {
                     question.prompt(), question.type(), List.copyOf(question.options()),
                     java.util.Set.copyOf(question.correctOptionIds()), question.difficulty()));
         }
-        int nextVersion = assessment.latestVersion() + 1;
-        AssessmentVersion version = new AssessmentVersion(assessment.id() + ":" + nextVersion,
+        return new AssessmentVersion(assessment.id() + ":" + nextVersion,
                 organizationId, assessment.id(), nextVersion, assessment.title(),
                 assessment.durationMinutes(), assessment.passingPercentage(), assessment.resultReleasePolicy(),
                 List.copyOf(snapshots), Instant.now(), assessment.instructions());
-        String reservation = entitlements.reserve(organizationId, UsageMetric.PUBLISHED_ASSESSMENT);
+    }
+
+    private void insertAndAdvance(AssessmentVersion version, Assessment updated) {
         try {
-            try {
-                versions.insert(version);
-            } catch (DuplicateKeyException exception) {
-                throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_CONFLICT", "Assessment was published concurrently");
-            }
-            try {
-                assessments.save(assessment.published(nextVersion));
-            } catch (RuntimeException exception) {
-                versions.deleteById(version.id());
-                throw exception;
-            }
-            return version;
+            versions.insert(version);
+        } catch (DuplicateKeyException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_CONFLICT", "Assessment was published concurrently");
+        }
+        try {
+            assessments.save(updated);
         } catch (RuntimeException exception) {
-            entitlements.refund(reservation);
+            versions.deleteById(version.id());
+            if (exception instanceof OptimisticLockingFailureException) {
+                throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_CONFLICT", "Assessment was changed concurrently");
+            }
             throw exception;
         }
     }
