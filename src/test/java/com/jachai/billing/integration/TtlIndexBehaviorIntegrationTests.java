@@ -12,22 +12,28 @@ import java.util.ArrayList;
 import java.util.List;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
+/**
+ * Verifies the TTL index the application declares on {@code UsageBucket.expiresAt}.
+ *
+ * <p>This class starts the application context itself, so the index comes from the application's own
+ * {@code UsageBucket} mapping (the integration profile enables
+ * {@code spring.data.mongodb.auto-index-creation=true}). It therefore passes when run on its own and
+ * no longer depends on {@link IndexCreationIntegrationTests} having executed first in the same JVM.
+ */
+@SpringBootTest
+@ActiveProfiles("integration")
 class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
 
+    @Autowired
     private MongoTemplate mongoTemplate;
-
-    private void setupStore() {
-        SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(mongoClient, databaseName);
-        mongoTemplate = new MongoTemplate(factory);
-    }
 
     @Test
     void ttlIndexIsPresentOnEntitlementUsageCollection() {
-        setupStore();
-
         MongoCollection<Document> collection = testDatabase.getCollection("entitlement_usage");
 
         List<Document> indexes = new ArrayList<>();
@@ -45,8 +51,6 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test
     void ttlIndexConfigurationExpiresAtZeroSeconds() {
-        setupStore();
-
         MongoCollection<Document> collection = testDatabase.getCollection("entitlement_usage");
 
         boolean foundTtlIndex = false;
@@ -66,8 +70,6 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test
     void documentWithFutureExpiresAtPersists() {
-        setupStore();
-
         String orgId = generateTestId("org");
         String bucketId = orgId + ":CERTIFICATE:2026-10";
 
@@ -84,8 +86,8 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(bucket);
 
         UsageBucket found = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(found, "Document with future expiry should persist");
@@ -94,8 +96,6 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test
     void documentWithNullExpiresAtIsNotSubjectToTtl() {
-        setupStore();
-
         String orgId = generateTestId("org");
         String bucketId = orgId + ":PUBLISHED_ASSESSMENT:all";
 
@@ -110,8 +110,8 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(bucket);
 
         UsageBucket found = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(found, "Document with null expiresAt should persist");
@@ -119,8 +119,6 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test
     void multipleDocumentsWithDifferentExpiryTimes() {
-        setupStore();
-
         String orgId = generateTestId("org");
 
         Instant futureExpiry = Instant.now().plusSeconds(3600);
@@ -150,10 +148,10 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(futureBucket1);
-        mongoTemplate.insert(futureBucket2);
         trackDocumentId("entitlement_usage", bucketId1);
         trackDocumentId("entitlement_usage", bucketId2);
+        mongoTemplate.insert(futureBucket1);
+        mongoTemplate.insert(futureBucket2);
 
         long count = mongoTemplate.getCollection("entitlement_usage").countDocuments(
                 new Document("organizationId", orgId));

@@ -42,8 +42,8 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(bucket);
 
         DuplicateKeyException exception = null;
         try {

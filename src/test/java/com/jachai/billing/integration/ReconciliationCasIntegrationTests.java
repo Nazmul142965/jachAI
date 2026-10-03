@@ -4,13 +4,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.jachai.billing.model.UsageBucket;
 import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.repository.MongoEntitlementUsageStore;
+import com.jachai.billing.repository.SubscriptionRepository;
+import com.jachai.billing.service.EntitlementService;
+import com.jachai.organization.model.Organization;
+import com.jachai.organization.model.OrganizationType;
+import com.jachai.organization.repository.MembershipRepository;
+import com.jachai.organization.repository.OrganizationRepository;
+import com.jachai.organization.service.TenantAccessService;
 import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,13 +32,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 
 class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
 
     private MongoTemplate mongoTemplate;
     private MongoEntitlementUsageStore store;
+    private EntitlementService entitlementService;
+
+    /** The window the application itself derives for a monthly metric, so reservations hit our fixture. */
+    private static String currentWindow() {
+        return YearMonth.now(ZoneOffset.UTC).toString();
+    }
 
     private void setupStore() {
         SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(mongoClient, databaseName);
@@ -47,6 +66,16 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
             }
         };
         store = new MongoEntitlementUsageStore(provider);
+
+        // The real reservation path is exercised here, so EntitlementService is built around the same
+        // MongoTemplate; only the subscription lookup (which resolves the FREE plan) and tenant access
+        // are mocks, because reserve() does not consult tenant access.
+        SubscriptionRepository subscriptions = mock(SubscriptionRepository.class);
+        OrganizationRepository organizations = mock(OrganizationRepository.class);
+        TenantAccessService access = new TenantAccessService(mock(MembershipRepository.class), organizations);
+        entitlementService = new EntitlementService(subscriptions, mongoTemplate, access);
+        when(organizations.findById(any())).thenReturn(Optional.of(
+                new Organization("test-org", "Test Organization", OrganizationType.ACADEMY, "owner", Instant.now())));
     }
 
     @Test
@@ -59,6 +88,11 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         String certId1 = generateTestId("cert");
         String certId2 = generateTestId("cert");
 
+        // Register every ID before its write, so an interruption cannot leave an untracked document.
+        trackDocumentId("certificates", certId1);
+        trackDocumentId("certificates", certId2);
+        trackDocumentId("entitlement_usage", bucketId);
+
         mongoTemplate.getCollection("certificates").insertMany(List.of(
                 new Document("_id", certId1)
                         .append("organizationId", orgId)
@@ -67,8 +101,6 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                         .append("organizationId", orgId)
                         .append("issuedAt", Instant.now())
         ));
-        trackDocumentId("certificates", certId1);
-        trackDocumentId("certificates", certId2);
 
         UsageBucket bucket = new UsageBucket(
                 bucketId,
@@ -82,7 +114,6 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(bucket);
-        trackDocumentId("entitlement_usage", bucketId);
 
         long actualCount = store.total("certificates", orgId);
         assertEquals(2, actualCount);
@@ -111,6 +142,11 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         String assignId2 = generateTestId("assign");
         String assignId3 = generateTestId("assign");
 
+        trackDocumentId("assignments", assignId1);
+        trackDocumentId("assignments", assignId2);
+        trackDocumentId("assignments", assignId3);
+        trackDocumentId("entitlement_usage", bucketId);
+
         mongoTemplate.getCollection("assignments").insertMany(List.of(
                 new Document("_id", assignId1)
                         .append("organizationId", orgId)
@@ -125,9 +161,6 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                         .append("createdAt", Instant.now())
                         .append("campaignId", null)
         ));
-        trackDocumentId("assignments", assignId1);
-        trackDocumentId("assignments", assignId2);
-        trackDocumentId("assignments", assignId3);
 
         UsageBucket initialBucket = new UsageBucket(
                 bucketId,
@@ -141,14 +174,17 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(initialBucket);
-        trackDocumentId("entitlement_usage", bucketId);
+
+        long actualCount = store.total("assignments", orgId);
+        assertEquals(3, actualCount, "Fixture should record three assignments");
+        long startingUsage = 1L;
+        long startingRevision = 1L;
 
         int threadCount = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(threadCount);
         AtomicInteger successCount = new AtomicInteger(0);
-        List<Long> finalRevisions = new ArrayList<>();
         List<Throwable> exceptions = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
@@ -156,24 +192,13 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
             executor.submit(() -> {
                 try {
                     startLatch.await();
-                    for (int attempt = 0; attempt < 10; attempt++) {
-                        UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
-                        if (current != null) {
-                            long actualCount = store.total("assignments", orgId);
-                            boolean replaced = store.replaceUsage(orgId, bucketId,
-                                    current.used(), actualCount, current.revision(),
-                                    Instant.now(), "reconciler-" + threadIndex);
-                            if (replaced) {
-                                successCount.incrementAndGet();
-                                UsageBucket updated = mongoTemplate.findById(bucketId, UsageBucket.class);
-                                if (updated != null) {
-                                    synchronized (finalRevisions) {
-                                        finalRevisions.add(updated.revision());
-                                    }
-                                }
-                                break;
-                            }
-                        }
+                    // One attempt each against the same starting revision: only one CAS can match, which
+                    // is what makes "exactly one winner" a provable assertion. Retrying after a re-read
+                    // would legitimately succeed again, because replaceUsage does not reject a no-op.
+                    boolean replaced = store.replaceUsage(orgId, bucketId, startingUsage, actualCount,
+                            startingRevision, Instant.now(), "reconciler-" + threadIndex);
+                    if (replaced) {
+                        successCount.incrementAndGet();
                     }
                 } catch (Exception e) {
                     synchronized (exceptions) {
@@ -186,20 +211,16 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         }
 
         startLatch.countDown();
-        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All threads should complete");
+        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All workers should complete");
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
-        assertEquals(3, finalBucket.used(), "Final usage should match actual count");
-        assertEquals(1, successCount.get(), "Exactly one reconcile should succeed");
-        assertTrue(finalBucket.revision() > 1L, "Revision should have incremented");
+        assertEquals(1, successCount.get(), "Exactly one CAS against the starting revision can match");
+        assertEquals(actualCount, finalBucket.used(), "The winner should apply the real assignment count");
+        assertEquals(startingRevision + 1L, finalBucket.revision(),
+                "The winner should advance the revision exactly once");
         assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
-
-        synchronized (finalRevisions) {
-            assertEquals(1, finalRevisions.stream().distinct().count(),
-                    "All successful writes should have converged to the same final revision");
-        }
     }
 
     @Test
@@ -207,10 +228,15 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         setupStore();
 
         String orgId = generateTestId("org");
-        String bucketId = orgId + ":CERTIFICATE:2026-10";
+        String window = currentWindow();
+        String bucketId = orgId + ":CERTIFICATE:" + window;
 
         String certId1 = generateTestId("cert");
         String certId2 = generateTestId("cert");
+
+        trackDocumentId("certificates", certId1);
+        trackDocumentId("certificates", certId2);
+        trackDocumentId("entitlement_usage", bucketId);
 
         mongoTemplate.getCollection("certificates").insertMany(List.of(
                 new Document("_id", certId1)
@@ -220,23 +246,26 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                         .append("organizationId", orgId)
                         .append("issuedAt", Instant.now())
         ));
-        trackDocumentId("certificates", certId1);
-        trackDocumentId("certificates", certId2);
 
+        // The bucket under-counts the two recorded certificates so reconciliation has real work to do,
+        // and it already exists so the reservation takes the update path rather than the insert path.
         UsageBucket initialBucket = new UsageBucket(
                 bucketId,
                 orgId,
                 UsageMetric.CERTIFICATE,
-                "2026-10",
-                2,
+                window,
+                1,
                 Instant.now(),
                 Instant.now().plusSeconds(86400),
                 Instant.now()
         );
 
         mongoTemplate.insert(initialBucket);
-        trackDocumentId("entitlement_usage", bucketId);
 
+        long recordedCertificates = store.total("certificates", orgId);
+        assertEquals(2, recordedCertificates, "Fixture should record two certificates");
+
+        int reconcileAttempts = 10;
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(2);
@@ -247,12 +276,11 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         executor.submit(() -> {
             try {
                 startLatch.await();
-                for (int attempt = 0; attempt < 10; attempt++) {
+                for (int attempt = 0; attempt < reconcileAttempts; attempt++) {
                     UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                     if (current != null) {
-                        boolean replaced = store.replaceUsage(orgId, bucketId,
-                                current.used(), 2, current.revision(),
-                                Instant.now(), "reconciler");
+                        boolean replaced = store.replaceUsage(orgId, bucketId, current.used(),
+                                recordedCertificates, current.revision(), Instant.now(), "reconciler");
                         if (replaced) {
                             reconcileSuccess.incrementAndGet();
                             break;
@@ -271,25 +299,9 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         executor.submit(() -> {
             try {
                 startLatch.await();
-                for (int attempt = 0; attempt < 10; attempt++) {
-                    UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
-                    if (current != null && current.used() < 10) {
-                        boolean inserted = store.insertBucket(new UsageBucket(
-                                bucketId,
-                                orgId,
-                                UsageMetric.CERTIFICATE,
-                                "2026-10",
-                                current.used() + 1,
-                                current.createdAt(),
-                                current.expiresAt(),
-                                Instant.now()
-                        ));
-                        if (inserted) {
-                            reserveSuccess.incrementAndGet();
-                            break;
-                        }
-                    }
-                }
+                String reservedBucketId = entitlementService.reserve(orgId, UsageMetric.CERTIFICATE);
+                trackDocumentId("entitlement_usage", reservedBucketId);
+                reserveSuccess.incrementAndGet();
             } catch (Exception e) {
                 synchronized (exceptions) {
                     exceptions.add(e);
@@ -300,17 +312,24 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         });
 
         startLatch.countDown();
-        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both threads should complete");
+        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both workers should complete");
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
-        assertTrue(finalBucket.used() >= 2, "Usage should not decrease below actual count");
+        assertEquals(1, reserveSuccess.get(),
+                "The reservation must actually succeed through EntitlementService.reserve");
+        assertTrue(reconcileSuccess.get() >= 1,
+                "Reconciliation should succeed at least once within its retry budget");
+        assertTrue(finalBucket.used() >= recordedCertificates,
+                "Reconciled usage must never fall below the recorded certificate count");
+        assertTrue(finalBucket.revision() > 1L,
+                "Reservation and reconciliation must both advance the revision");
         assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
     }
 
     @Test
-    void sameMillisecondAbaPreventedByMonotonicRevision() throws InterruptedException {
+    void sameMillisecondAbaPreventedByMonotonicRevision() {
         setupStore();
 
         String orgId = generateTestId("org");
@@ -327,51 +346,28 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(initialBucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(initialBucket);
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch doneLatch = new CountDownLatch(2);
-        AtomicInteger successCount = new AtomicInteger(0);
-        List<Throwable> exceptions = new ArrayList<>();
+        // All three writes share one timestamp, so the protection under test cannot come from time.
+        Instant sameInstant = Instant.now();
+        assertTrue(store.replaceUsage(orgId, bucketId, 1, 5, 1L, sameInstant, "reconciler-a"),
+                "First write should match revision 1");
+        assertTrue(store.replaceUsage(orgId, bucketId, 5, 1, 2L, sameInstant, "reconciler-b"),
+                "Second write should restore the original usage under revision 2");
 
-        for (int i = 0; i < 2; i++) {
-            final int threadIndex = i;
-            executor.submit(() -> {
-                try {
-                    startLatch.await();
-                    for (int attempt = 0; attempt < 10; attempt++) {
-                        UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
-                        if (current != null) {
-                            boolean replaced = store.replaceUsage(orgId, bucketId,
-                                    current.used(), 2, current.revision(),
-                                    Instant.now(), "reconciler-" + threadIndex);
-                            if (replaced) {
-                                successCount.incrementAndGet();
-                                break;
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    synchronized (exceptions) {
-                        exceptions.add(e);
-                    }
-                } finally {
-                    doneLatch.countDown();
-                }
-            });
-        }
+        UsageBucket afterAba = mongoTemplate.findById(bucketId, UsageBucket.class);
+        assertNotNull(afterAba);
+        assertEquals(1, afterAba.used(), "Usage is back to its original value, which is the ABA condition");
+        assertEquals(3L, afterAba.revision(), "Revision must stay monotonic across both writes");
 
-        startLatch.countDown();
-        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both threads should complete");
-        executor.shutdown();
+        assertFalse(store.replaceUsage(orgId, bucketId, 1, 2, 1L, sameInstant, "reconciler-stale"),
+                "A stale revision must not match after usage returned to its original value");
 
-        UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
-        assertNotNull(finalBucket);
-        assertEquals(1, successCount.get(), "Only one operation should succeed");
-        assertTrue(finalBucket.revision() > 1L, "Revision should have incremented");
-        assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
+        UsageBucket unchanged = mongoTemplate.findById(bucketId, UsageBucket.class);
+        assertNotNull(unchanged);
+        assertEquals(1, unchanged.used(), "The rejected stale write must not change usage");
+        assertEquals(3L, unchanged.revision(), "The rejected stale write must not advance the revision");
     }
 
     @Test
@@ -383,13 +379,15 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
 
         String assignId1 = generateTestId("assign");
 
+        trackDocumentId("assignments", assignId1);
+        trackDocumentId("entitlement_usage", bucketId);
+
         mongoTemplate.getCollection("assignments").insertMany(List.of(
                 new Document("_id", assignId1)
                         .append("organizationId", orgId)
                         .append("createdAt", Instant.now())
                         .append("campaignId", null)
         ));
-        trackDocumentId("assignments", assignId1);
 
         UsageBucket initialBucket = new UsageBucket(
                 bucketId,
@@ -403,7 +401,6 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(initialBucket);
-        trackDocumentId("entitlement_usage", bucketId);
 
         boolean firstReplace = store.replaceUsage(orgId, bucketId, 1, 1, 1L,
                 Instant.now(), "reconciler");
@@ -438,8 +435,8 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                 .append("expiresAt", Instant.now().plusSeconds(86400))
                 .append("lastChangedAt", Instant.now());
 
-        mongoTemplate.getCollection("entitlement_usage").insertOne(legacyBucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.getCollection("entitlement_usage").insertOne(legacyBucket);
 
         boolean replaced = store.replaceUsage(orgId, bucketId, 1, 2, null,
                 Instant.now(), "reconciler-it");

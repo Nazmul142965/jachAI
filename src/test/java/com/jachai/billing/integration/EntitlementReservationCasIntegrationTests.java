@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.jachai.billing.model.UsageBucket;
 import com.jachai.billing.model.UsageMetric;
@@ -16,8 +19,11 @@ import com.jachai.organization.repository.MembershipRepository;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,19 +32,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
-
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 
 class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest {
 
     private MongoTemplate mongoTemplate;
     private MongoEntitlementUsageStore store;
     private EntitlementService entitlementService;
+
+    /** The window the application itself derives for a monthly metric, so reservations hit our fixture. */
+    private static String currentWindow() {
+        return YearMonth.now(ZoneOffset.UTC).toString();
+    }
 
     private void setupStore() {
         SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(mongoClient, databaseName);
@@ -60,16 +66,15 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
             }
         };
         store = new MongoEntitlementUsageStore(provider);
-        
-        // Mock subscription and organization services for reservation tests
-        SubscriptionRepository subscriptionRepository = mock(SubscriptionRepository.class);
-        MembershipRepository membershipRepository = mock(MembershipRepository.class);
-        OrganizationRepository organizationRepository = mock(OrganizationRepository.class);
-        TenantAccessService tenantAccessService = new TenantAccessService(membershipRepository, organizationRepository);
-        entitlementService = new EntitlementService(subscriptionRepository, mongoTemplate, tenantAccessService);
-        
-        // Configure mocks to allow any organization
-        when(organizationRepository.findById(any())).thenReturn(java.util.Optional.of(
+
+        // The real reservation path is exercised here, so EntitlementService is built around the same
+        // MongoTemplate; only the subscription lookup (which resolves the FREE plan) and tenant access
+        // are mocks, because reserve() does not consult tenant access.
+        SubscriptionRepository subscriptions = mock(SubscriptionRepository.class);
+        OrganizationRepository organizations = mock(OrganizationRepository.class);
+        TenantAccessService access = new TenantAccessService(mock(MembershipRepository.class), organizations);
+        entitlementService = new EntitlementService(subscriptions, mongoTemplate, access);
+        when(organizations.findById(any())).thenReturn(Optional.of(
                 new Organization("test-org", "Test Organization", OrganizationType.ACADEMY, "owner", Instant.now())));
     }
 
@@ -91,8 +96,8 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(bucket);
 
         boolean replaced = store.replaceUsage(orgId, bucketId, 5, 3, 1L,
                 Instant.now(), "admin-it");
@@ -123,8 +128,8 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(bucket);
 
         boolean replaced = store.replaceUsage(orgId, bucketId, 2, 1, 999L,
                 Instant.now(), "admin-it");
@@ -155,8 +160,8 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(bucket);
 
         boolean replaced = store.replaceUsage(orgId, bucketId, 99, 2, 1L,
                 Instant.now(), "admin-it");
@@ -187,8 +192,8 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(bucket);
 
         boolean replaced = store.replaceUsage(wrongOrgId, bucketId, 4, 3, 1L,
                 Instant.now(), "admin-it");
@@ -216,8 +221,8 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
                 .append("expiresAt", Instant.now().plusSeconds(86400))
                 .append("lastChangedAt", Instant.now());
 
-        mongoTemplate.getCollection("entitlement_usage").insertOne(legacyBucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.getCollection("entitlement_usage").insertOne(legacyBucket);
 
         boolean replaced = store.replaceUsage(orgId, bucketId, 3, 2, null,
                 Instant.now(), "admin-it");
@@ -235,9 +240,12 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
         setupStore();
 
         String orgId = generateTestId("org");
+        String expectedBucketId = orgId + ":CERTIFICATE:" + currentWindow();
+        trackDocumentId("entitlement_usage", expectedBucketId);
 
         String bucketId1 = entitlementService.reserve(orgId, UsageMetric.CERTIFICATE);
         trackDocumentId("entitlement_usage", bucketId1);
+        assertEquals(expectedBucketId, bucketId1, "Reservation should use the current UTC month window");
 
         UsageBucket bucket = mongoTemplate.findById(bucketId1, UsageBucket.class);
         assertNotNull(bucket);
@@ -258,6 +266,9 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
         setupStore();
 
         String orgId = generateTestId("org");
+        String expectedBucketId = orgId + ":CERTIFICATE:" + currentWindow();
+        trackDocumentId("entitlement_usage", expectedBucketId);
+
         int threadCount = 10;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch startLatch = new CountDownLatch(1);
@@ -288,16 +299,15 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
         assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All threads should complete");
         executor.shutdown();
 
-        assertEquals(threadCount, successCount.get(), "All " + threadCount + " reservations should succeed within FREE plan limit");
-        assertEquals(0, failureCount.get(), "No reservations should fail within plan limit");
+        assertEquals(threadCount, successCount.get(),
+                "All " + threadCount + " reservations should succeed within the FREE plan certificate limit");
+        assertEquals(0, failureCount.get(), "No reservations should fail within the plan limit");
         assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
 
-        UsageBucket bucket = mongoTemplate.findById(orgId + ":CERTIFICATE:" + 
-                java.time.YearMonth.from(java.time.LocalDate.ofInstant(Instant.now(), java.time.ZoneOffset.UTC)).toString(), 
-                UsageBucket.class);
+        UsageBucket bucket = mongoTemplate.findById(expectedBucketId, UsageBucket.class);
         assertNotNull(bucket, "Bucket should exist after reservations");
-        trackDocumentId("entitlement_usage", bucket.id());
-        assertEquals(threadCount, bucket.used(), "Bucket should have " + threadCount + " reservations");
+        assertEquals(threadCount, bucket.used(), "Bucket should record every reservation exactly once");
+        assertEquals(threadCount, bucket.revision(), "Each reservation should advance the revision once");
     }
 
     @Test
@@ -318,8 +328,12 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
                 Instant.now()
         );
 
-        mongoTemplate.insert(initialBucket);
         trackDocumentId("entitlement_usage", bucketId);
+        mongoTemplate.insert(initialBucket);
+
+        long startingUsage = 10L;
+        long startingRevision = 1L;
+        long reconciledUsage = 5L;
 
         int threadCount = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -329,20 +343,16 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
         List<Throwable> exceptions = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
+            final int threadIndex = i;
             executor.submit(() -> {
                 try {
                     startLatch.await();
-                    for (int attempt = 0; attempt < 10; attempt++) {
-                        UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
-                        if (current != null) {
-                            boolean replaced = store.replaceUsage(orgId, bucketId,
-                                    current.used(), 5, current.revision(),
-                                    Instant.now(), "reconciler");
-                            if (replaced) {
-                                successCount.incrementAndGet();
-                                break;
-                            }
-                        }
+                    // One attempt each against the same starting revision: exactly one can match. A retry
+                    // loop would legitimately succeed again, because replaceUsage accepts a no-op update.
+                    boolean replaced = store.replaceUsage(orgId, bucketId, startingUsage, reconciledUsage,
+                            startingRevision, Instant.now(), "reconciler-" + threadIndex);
+                    if (replaced) {
+                        successCount.incrementAndGet();
                     }
                 } catch (Exception e) {
                     synchronized (exceptions) {
@@ -358,11 +368,13 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
         assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All threads should complete");
         executor.shutdown();
 
-        assertEquals(1, successCount.get(), "Only one reconcile should succeed");
+        assertEquals(1, successCount.get(), "Exactly one CAS against the starting revision can match");
         assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
-        assertEquals(5, finalBucket.used());
+        assertEquals(reconciledUsage, finalBucket.used(), "The winner should apply the reconciled usage");
+        assertEquals(startingRevision + 1L, finalBucket.revision(),
+                "The winner should advance the revision exactly once");
     }
 }

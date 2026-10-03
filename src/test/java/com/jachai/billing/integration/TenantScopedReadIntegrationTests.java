@@ -76,10 +76,10 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucketA);
-        mongoTemplate.insert(bucketB);
         trackDocumentId("entitlement_usage", bucketIdA);
         trackDocumentId("entitlement_usage", bucketIdB);
+        mongoTemplate.insert(bucketA);
+        mongoTemplate.insert(bucketB);
 
         Map<String, UsageBucket> foundForA = store.buckets(orgA,
                 List.of(bucketIdA, bucketIdB));
@@ -128,10 +128,10 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(bucketA);
-        mongoTemplate.insert(bucketB);
         trackDocumentId("entitlement_usage", bucketIdA);
         trackDocumentId("entitlement_usage", bucketIdB);
+        mongoTemplate.insert(bucketA);
+        mongoTemplate.insert(bucketB);
 
         Query queryForA = Query.query(Criteria.where("organizationId").is(orgA));
         List<UsageBucket> resultsForA = mongoTemplate.find(queryForA, UsageBucket.class);
@@ -164,6 +164,9 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
         String assignId2 = generateTestId("assign");
         String assignId3 = generateTestId("assign");
 
+        trackDocumentId("assignments", assignId1);
+        trackDocumentId("assignments", assignId2);
+        trackDocumentId("assignments", assignId3);
         mongoTemplate.getCollection("assignments").insertMany(List.of(
                 new Document("_id", assignId1)
                         .append("organizationId", orgA)
@@ -178,9 +181,6 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
                         .append("createdAt", java.util.Date.from(Instant.parse("2026-10-01T00:00:00Z")))
                         .append("campaignId", null)
         ));
-        trackDocumentId("assignments", assignId1);
-        trackDocumentId("assignments", assignId2);
-        trackDocumentId("assignments", assignId3);
 
         long totalForA = store.total("assignments", orgA);
         assertEquals(2, totalForA);
