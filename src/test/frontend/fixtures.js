@@ -42,7 +42,8 @@ const SOURCE = String.raw`(() => {
         options: [{ id: 'A', text: 'Java' }, { id: 'B', text: 'COBOL' }], selectedOptionIds: ['A'], correctOptionIds: ['A'], correct: true },
       { questionId: 'q2', type: 'SHORT_ANSWER', topic: 'Java', prompt: 'Explain polymorphism.',
         options: [], textAnswer: 'Same interface, many forms.', correct: null } ] };
-  const candidate = { candidateUserId: 'u-cand', attemptId: 'att-c1', percentage: 70, passed: true, decision: 'HOLD', reviewerNote: '' };
+  const candidate = { candidateUserId: 'u-cand', assignmentId: 'asg-c1', attemptId: 'att-c1', percentage: 70,
+    passed: true, submittedAt: new Date().toISOString(), decision: 'HOLD', reviewerNote: '' };
   const member = { userId: 'u-learner', role: 'LEARNER', displayName: 'Learner One', email: 'learner@example.com', active: true, owner: false };
   const caller = { userId: ROLE.userId, role: ROLE.org.myRole, displayName: 'Admin User', email: 'admin@example.com', active: true, owner: ROLE.org.owner };
   const course = { id: 'course-1', name: 'Java Fundamentals', description: 'Core Java for beginners', createdAt: new Date().toISOString() };
@@ -141,9 +142,13 @@ const SOURCE = String.raw`(() => {
     // Talent workspace
     if (path === org + '/members/candidates') return json(page([{ userId: 'u-cand', displayName: 'Cand One',
       email: 'cand@example.com', role: 'CANDIDATE' }]));
+    if (path.includes('/talent/campaigns/camp-1/candidates/u-cand/review/audit')) return json(page([]));
+    if (path.includes('/talent/campaigns/camp-1/candidates/u-cand/review')) return json(candidate);
     if (path.includes('/talent/campaigns/camp-1/candidates')) return json(page([candidate]));
+    if (path.endsWith('/talent/campaigns/camp-1/close')) return json({ id: 'camp-1', title: 'Backend Engineer',
+      assessmentId: 'assess-1', assessmentVersionId: 'ver-1', open: false, createdAt: new Date().toISOString() });
     if (path === org + '/talent/campaigns') return json(page([{ id: 'camp-1', title: 'Backend Engineer',
-      open: true, assessmentVersionId: 'ver-1' }]));
+      assessmentId: 'assess-1', assessmentVersionId: 'ver-1', open: true, createdAt: new Date().toISOString() }]));
 
     return json(page([]));
   };

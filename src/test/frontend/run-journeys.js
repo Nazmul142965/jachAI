@@ -263,6 +263,28 @@ async function main() {
     return !!f && !!f.querySelector('select'); })()`));
   await shot('talent-integrity');
 
+  // Talent campaign workspace: a distinct screen reached from the nav and from the campaign row.
+  await view('Campaign workspace'); await wait(1600);
+  const campaignWorkspace = await ev(`document.querySelector('#talent-campaign-view').textContent`);
+  check(talent, 'campaign workspace opens with the campaign and its frozen version',
+    /Backend Engineer/.test(campaignWorkspace) && /Frozen version ver-1/.test(campaignWorkspace));
+  check(talent, 'candidate comparison renders inside the workspace',
+    /u-cand/.test(await ev(`document.querySelector('#talent-campaign-comparison').textContent`)));
+  await ev(`(() => { const select = document.querySelector('#talent-campaign-candidate');
+    select.value = 'u-cand'; select.dispatchEvent(new Event('change')); return true; })()`); await wait(1500);
+  check(talent, 'workspace integrity summary carries the server caveat',
+    /unverified and need human judgement/.test(await ev(`document.querySelector('#talent-campaign-integrity').textContent`)));
+  const workspaceEvents = await ev(`document.querySelector('#talent-campaign-events').textContent`);
+  check(talent, 'paged event log renders and warns the signals are not proof',
+    /recorded event/.test(workspaceEvents) && /not proof of misconduct/.test(workspaceEvents));
+  check(talent, 'review decision form is offered for a graded candidate',
+    await ev(`!!document.querySelector('#talent-campaign-review form select')`));
+  check(talent, 'review history area renders', await ev(`!!document.querySelector('#talent-campaign-history')`));
+  await shot('talent-campaign-workspace');
+  await ev(`document.querySelector('#talent-campaign-back').click()`); await wait(1300);
+  check(talent, 'campaign workspace back navigation returns to the list',
+    await ev(`!document.querySelector('#campaigns-view').classList.contains('hidden')`));
+
   // ---------------------------------------------------------------- platform journey + storage states
   await load('platform-admin', 'ok');
   const platform = 'platform-admin';

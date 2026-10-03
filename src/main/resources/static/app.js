@@ -10,7 +10,8 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0,
   batchWorkspaceCourses: [], batchWorkspaceBatches: [], batchWorkspaceCourseId: null,
   batchWorkspaceBatchId: null, batchWorkspaceAssessmentId: null, batchWorkspaceAssessmentPage: 0,
-  batchWorkspaceToken: 0, campaignWorkspaceId: null, campaignWorkspaceCandidateId: null,
+  batchWorkspaceToken: 0, talentCampaigns: [], campaignWorkspaceId: null,
+  campaignWorkspaceCandidateId: null, campaignWorkspaceCandidates: [],
   campaignWorkspaceToken: 0, campaignWorkspacePage: 0,
   detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
   view: 'overview' };
@@ -312,7 +313,7 @@ async function setOrganization() {
     ]);
   }
   if (state.organization.type === 'TALENT') {
-    group('Talent', staff ? [['campaigns', 'Hiring campaigns']] : []);
+    group('Talent', staff ? [['campaigns', 'Hiring campaigns'], ['talent-campaign', 'Campaign workspace']] : []);
   }
   group('My work', ['LEARNER', 'CANDIDATE'].includes(role) ? [['attempts', 'My assessments']] : []);
   group('Administration', state.platformAdmin ? [['platform', 'Platform']] : []);
@@ -371,7 +372,7 @@ async function loadOverviewMetrics() {
     if (['ORG_ADMIN', 'INSTRUCTOR'].includes(role)) jobs.push(count('/academy/courses?page=0', 'Courses', 'academy-batch'));
   }
   if (state.organization.type === 'TALENT') {
-    jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'campaigns'));
+    jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'talent-campaign'));
     jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
   }
   if (role === 'ORG_ADMIN') jobs.push(count('/members?page=0', 'Members', 'members'));
@@ -444,7 +445,7 @@ async function showView(key) {
     }, 'Campaigns could not be loaded.');
     attachFilter('#campaigns-list', 'Filter campaigns by title or version');
   }
-  if (key === 'talent-campaign') return; // screen lands in its own commit; no nav entry yet
+  if (key === 'talent-campaign') await loadTalentCampaignWorkspace();
   if (key === 'attempts') {
     await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
     attachFilter('#assignments-list', 'Filter assignments by availability or attempt count');
@@ -1080,7 +1081,8 @@ async function loadCampaigns(pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns?page=${pageNumber}`));
   state.campaigns = page.content || [];
   setList('#campaigns-list', state.campaigns.map((campaign) => {
-    const actions = [button('Compare candidates', () => compareCandidates(campaign.id)),
+    const actions = [button('Open workspace', () => openCampaignWorkspace(campaign.id)),
+      button('Compare candidates', () => compareCandidates(campaign.id)),
       button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title))];
     if (campaign.open) {
       const close = button('Close campaign', async () => {
@@ -1906,6 +1908,269 @@ $('#academy-batch-selected-clear').addEventListener('click', () => {
   state.batchWorkspaceAssessmentId = null;
   $('#academy-batch-selected').classList.add('hidden');
 });
+
+// ---------------------------------------------------------------- Talent campaign workspace
+function campaignWorkspaceStale(token) {
+  return token !== state.campaignWorkspaceToken || !state.organization;
+}
+function clearCampaignCandidatePanels(message) {
+  state.campaignWorkspaceCandidateId = null;
+  $('#talent-campaign-candidate').replaceChildren();
+  for (const selector of ['#talent-campaign-candidate-summary', '#talent-campaign-integrity',
+    '#talent-campaign-events', '#talent-campaign-review', '#talent-campaign-history']) {
+    setList(selector, [], message);
+  }
+  for (const selector of ['#talent-campaign-events-pagination', '#talent-campaign-history-pagination']) {
+    $(selector).replaceChildren();
+  }
+}
+function emptyCampaignWorkspace(message) {
+  state.campaignWorkspaceId = null;
+  state.talentCampaigns = [];
+  $('#talent-campaign-select').replaceChildren();
+  $('#talent-campaign-title').textContent = 'Campaign workspace';
+  $('#talent-campaign-subtitle').textContent = message;
+  $('#talent-campaign-close').disabled = true;
+  setList('#talent-campaign-summary', [], message);
+  setList('#talent-campaign-comparison', [], message);
+  $('#talent-campaign-comparison-pagination').replaceChildren();
+  clearCampaignCandidatePanels(message);
+}
+async function loadTalentCampaignWorkspace() {
+  const token = ++state.campaignWorkspaceToken;
+  await loadList('#talent-campaign-summary', async () => {
+    const page = await request(ownOrg('/talent/campaigns?page=0'));
+    if (campaignWorkspaceStale(token)) return;
+    state.talentCampaigns = page.content || [];
+    const select = $('#talent-campaign-select');
+    const selected = state.talentCampaigns.find((campaign) => campaign.id === state.campaignWorkspaceId)
+      || state.talentCampaigns[0] || null;
+    select.replaceChildren(...state.talentCampaigns.map((campaign) => {
+      const option = node('option', campaign.title); option.value = campaign.id; return option;
+    }));
+    if (!selected) {
+      emptyCampaignWorkspace('No hiring campaign exists yet. Create one under Hiring campaigns.');
+      return;
+    }
+    select.value = selected.id;
+    state.campaignWorkspaceId = selected.id;
+    await loadCampaignWorkspaceDetail(token);
+  }, 'The campaign list could not be loaded.');
+}
+async function loadCampaignWorkspaceDetail(token) {
+  const campaign = (state.talentCampaigns || []).find((entry) => entry.id === state.campaignWorkspaceId);
+  const campaignId = state.campaignWorkspaceId;
+  if (!campaignId) { emptyCampaignWorkspace('Choose a campaign first.'); return; }
+  $('#talent-campaign-title').textContent = campaign?.title || 'Campaign workspace';
+  $('#talent-campaign-subtitle').textContent = campaign
+    ? `${campaign.open ? 'Open to new invitations' : 'Closed to new invitations'}`
+      + ` · Frozen version ${campaign.assessmentVersionId}`
+      + (campaign.createdAt ? ` · Created ${new Date(campaign.createdAt).toLocaleDateString()}` : '')
+    : 'Campaign details are unavailable.';
+  $('#talent-campaign-close').disabled = !campaign?.open;
+  clearCampaignCandidatePanels('Choose a candidate above to see their integrity signals, review decision and review history.');
+  await Promise.all([
+    loadList('#talent-campaign-summary', () => loadCampaignWorkspaceSummary(campaign, campaignId),
+      'The campaign summary could not be loaded.'),
+    loadList('#talent-campaign-comparison', () => loadCampaignWorkspaceCandidates(token, 0),
+      'The candidate comparison could not be loaded.')
+  ]);
+}
+async function loadCampaignWorkspaceSummary(campaign, campaignId) {
+  setList('#talent-campaign-summary', [
+    item('Status', campaign?.open ? 'Open to new invitations' : 'Closed to new invitations'),
+    item('Frozen assessment version', campaign?.assessmentVersionId || 'Not reported'),
+    item('Created', campaign?.createdAt ? new Date(campaign.createdAt).toLocaleString() : 'Not recorded'),
+    item('Campaign identifier', campaignId),
+    item('Integrity signals', 'Per attempt, under the selected candidate below. The server reports no campaign-level signal summary.')
+  ], 'The campaign summary is unavailable.');
+}
+async function loadCampaignWorkspaceCandidates(token, pageNumber = 0) {
+  state.campaignWorkspacePage = pageNumber;
+  const campaignId = state.campaignWorkspaceId;
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
+  if (campaignWorkspaceStale(token)) return;
+  const rows = page.content || [];
+  state.campaignWorkspaceCandidates = rows;
+  const summary = node('div', '', 'stack');
+  summary.append(node('h4', `${page.totalElements ?? rows.length} invited candidate(s)`),
+    node('p', 'Latest submitted attempt per candidate, exactly as the campaign API reports it.', 'muted'));
+  const head = node('div', '', 'compare-row compare-head');
+  head.append(node('span', 'Candidate'), node('span', 'Latest attempt'), node('span', 'Decision'));
+  summary.append(head);
+  for (const candidate of rows) {
+    const row = node('div', '', 'compare-row');
+    const attempt = candidate.attemptId
+      ? (candidate.percentage == null ? 'Awaiting grading'
+        : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`)
+      : 'No submitted attempt';
+    row.append(node('span', candidate.candidateUserId), node('span', attempt),
+      node('span', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'));
+    summary.append(row);
+  }
+  setList('#talent-campaign-comparison', rows.length ? [summary] : [], 'No candidate has been invited to this campaign yet.');
+  const select = $('#talent-campaign-candidate');
+  const previous = state.campaignWorkspaceCandidateId || select.value;
+  select.replaceChildren(...rows.map((candidate) => {
+    const option = node('option', candidate.candidateUserId); option.value = candidate.candidateUserId; return option;
+  }));
+  if (rows.some((candidate) => candidate.candidateUserId === previous)) select.value = previous;
+  renderPageControls('#talent-campaign-comparison-pagination', page,
+    (nextPage) => run(() => loadCampaignWorkspaceCandidates(token, nextPage)));
+  if (!rows.length) {
+    clearCampaignCandidatePanels('This page has no candidates, so there is nothing to inspect.');
+    return;
+  }
+  const chosen = rows.find((candidate) => candidate.candidateUserId === select.value) || rows[0];
+  select.value = chosen.candidateUserId;
+  await loadCampaignWorkspaceCandidate(chosen, token);
+}
+async function loadCampaignWorkspaceCandidate(candidate, token) {
+  const campaignId = state.campaignWorkspaceId;
+  state.campaignWorkspaceCandidateId = candidate.candidateUserId;
+  const route = `/talent/campaigns/${encodeURIComponent(campaignId)}`
+    + `/candidates/${encodeURIComponent(candidate.candidateUserId)}`;
+  setList('#talent-campaign-candidate-summary', [
+    item(`Candidate ${candidate.candidateUserId}`,
+      `Assignment ${candidate.assignmentId || 'not reported'}`),
+    item('Latest submitted attempt', candidate.attemptId
+      ? `${candidate.attemptId} · ${candidate.percentage == null ? 'Awaiting manual grading' : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`}`
+        + ` · Submitted ${candidate.submittedAt ? new Date(candidate.submittedAt).toLocaleString() : 'not reported'}`
+      : 'No submitted attempt yet.'),
+    item('Current decision', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'),
+    item('Reviewer note', candidate.reviewerNote || 'No note recorded')
+  ], 'No candidate detail is available.');
+  await Promise.all([
+    loadList('#talent-campaign-integrity', () => loadCampaignCandidateIntegrity(candidate, token),
+      'The integrity summary could not be loaded.'),
+    loadList('#talent-campaign-events', () => loadCampaignCandidateEvents(candidate, token, 0),
+      'The raw event log could not be loaded.'),
+    loadList('#talent-campaign-history', () => loadCampaignCandidateHistory(candidate, token, 0),
+      'The review history could not be loaded.'),
+    loadList('#talent-campaign-review', () => loadCampaignCandidateReviewForm(candidate, route, token),
+      'The review decision form could not be prepared.')
+  ]);
+}
+async function loadCampaignCandidateIntegrity(candidate, token) {
+  if (!candidate.attemptId) {
+    setList('#talent-campaign-integrity', [], 'No submitted attempt yet, so the server has no integrity signals for this candidate.');
+    return;
+  }
+  const report = await request(ownOrg(`/talent/attempts/${encodeURIComponent(candidate.attemptId)}/integrity`));
+  if (campaignWorkspaceStale(token)) return;
+  const counts = Object.entries(report.eventCounts || {})
+    .map(([type, count]) => `${type.replaceAll('_', ' ').toLowerCase()}: ${count}`).join(' · ');
+  setList('#talent-campaign-integrity', [
+    item('Recorded events', String(report.totalEvents)),
+    item('Rapid answer intervals reported by the client', String(report.clientReportedRapidAnswerIntervals)),
+    item('Event counts', counts || 'No signals recorded.'),
+    item('How to read this', report.interpretation)
+  ], 'No integrity signals are available.');
+}
+async function loadCampaignCandidateEvents(candidate, token, pageNumber = 0) {
+  if (!candidate.attemptId) {
+    setList('#talent-campaign-events', [], 'No submitted attempt yet, so there is no event log to read.');
+    $('#talent-campaign-events-pagination').replaceChildren();
+    return;
+  }
+  const page = await request(ownOrg(`/talent/attempts/${encodeURIComponent(candidate.attemptId)}/integrity/events?page=${pageNumber}`));
+  if (campaignWorkspaceStale(token)) return;
+  const rows = (page.content || []).map((event) => node('p',
+    `${event.type.replaceAll('_', ' ').toLowerCase()}${event.questionId ? ` · question ${event.questionId}` : ''}`
+      + ` · ${new Date(event.receivedAt).toLocaleString()}`, 'item-meta'));
+  const target = $('#talent-campaign-events');
+  target.setAttribute('aria-busy', 'false');
+  target.replaceChildren(node('p',
+    `${page.totalElements ?? rows.length} recorded event(s) — these signals are client-reported, cannot be verified, and are not proof of misconduct.`,
+    'muted'), ...rows);
+  if (!rows.length) target.append(node('p', 'No raw events retained.', 'item-meta'));
+  renderPageControls('#talent-campaign-events-pagination', page,
+    (nextPage) => run(() => loadCampaignCandidateEvents(candidate, token, nextPage)));
+}
+async function loadCampaignCandidateHistory(candidate, token, pageNumber = 0) {
+  const campaignId = state.campaignWorkspaceId;
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}`
+    + `/candidates/${encodeURIComponent(candidate.candidateUserId)}/review/audit?page=${pageNumber}`));
+  if (campaignWorkspaceStale(token)) return;
+  setList('#talent-campaign-history', (page.content || []).map((entry) => item(
+    `${entry.decision.replaceAll('_', ' ')} · ${new Date(entry.occurredAt).toLocaleString()}`,
+    `Reviewer ${entry.actorUserId} · Attempt ${entry.attemptId || 'not recorded'} · ${entry.note || 'No note'}`)),
+  'No review has been recorded for this candidate yet.');
+  renderPageControls('#talent-campaign-history-pagination', page,
+    (nextPage) => run(() => loadCampaignCandidateHistory(candidate, token, nextPage)));
+}
+async function loadCampaignCandidateReviewForm(candidate, route, token) {
+  if (candidate.percentage == null) {
+    setList('#talent-campaign-review', [], candidate.attemptId
+      ? 'The attempt is still awaiting manual grading, so a review decision cannot be saved yet.'
+      : 'A review decision needs a graded, submitted attempt.');
+    return;
+  }
+  const form = node('form', '', 'form-row');
+  const decisionLabel = node('label', 'Decision');
+  const select = node('select');
+  for (const decision of ['HOLD', 'SHORTLISTED', 'REJECTED']) {
+    const option = node('option', decision.replaceAll('_', ' ')); option.value = decision; select.append(option);
+  }
+  select.value = candidate.decision || 'HOLD';
+  decisionLabel.append(select);
+  const noteLabel = node('label', 'Reviewer note');
+  const noteInput = node('input');
+  noteInput.maxLength = 1000; noteInput.value = candidate.reviewerNote || '';
+  noteLabel.append(noteInput);
+  const save = node('button', 'Save review', 'button secondary small'); save.type = 'submit';
+  form.append(decisionLabel, noteLabel, save);
+  form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+    save.disabled = true;
+    try {
+      await request(ownOrg(`${route}/review`), { method: 'PUT', body: {
+        attemptId: candidate.attemptId, decision: select.value, note: noteInput.value
+      } });
+      notice('Review saved. One review is stored per candidate; saving again replaces it.');
+      if (campaignWorkspaceStale(token)) return;
+      await Promise.all([
+        loadCampaignWorkspaceCandidates(token, state.campaignWorkspacePage),
+        loadCampaignCandidateHistory(candidate, token, 0)
+      ]);
+    } catch (error) {
+      fieldErrors(form, error);
+      throw error;
+    } finally { save.disabled = false; }
+  }); });
+  const target = $('#talent-campaign-review');
+  target.setAttribute('aria-busy', 'false');
+  target.replaceChildren(form, node('p',
+    'A review is offered only for a graded, submitted attempt; the server refuses one otherwise.', 'muted'));
+}
+function openCampaignWorkspace(campaignId) {
+  state.campaignWorkspaceId = campaignId || null;
+  state.campaignWorkspaceCandidateId = null;
+  return showView('talent-campaign');
+}
+$('#talent-campaign-back').addEventListener('click', () => run(() => showView('campaigns')));
+$('#talent-campaign-reload').addEventListener('click', () => run(loadTalentCampaignWorkspace));
+$('#talent-campaign-select').addEventListener('change', (event) => run(async () => {
+  state.campaignWorkspaceId = event.target.value;
+  state.campaignWorkspaceCandidateId = null;
+  await loadCampaignWorkspaceDetail(++state.campaignWorkspaceToken);
+}));
+$('#talent-campaign-candidate').addEventListener('change', (event) => run(async () => {
+  const candidate = (state.campaignWorkspaceCandidates || [])
+    .find((entry) => entry.candidateUserId === event.target.value);
+  if (candidate) await loadCampaignWorkspaceCandidate(candidate, ++state.campaignWorkspaceToken);
+}));
+$('#talent-campaign-close').addEventListener('click', () => run(async () => {
+  const campaignId = state.campaignWorkspaceId;
+  const campaign = (state.talentCampaigns || []).find((entry) => entry.id === campaignId);
+  if (!campaignId || !campaign?.open) throw new Error('Choose an open campaign before closing it.');
+  if (!await confirmDialog(`Close "${campaign.title}" to new invitations?\n\nExisting assignments stay usable until their own windows end. Closing is audited and cannot be undone from this screen.`)) return;
+  $('#talent-campaign-close').disabled = true;
+  try {
+    await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/close`), { method: 'POST' });
+    notice('Campaign closed to new invitations.');
+    await loadTalentCampaignWorkspace();
+  } finally { $('#talent-campaign-close').disabled = false; }
+}));
 
 function stopMessageRefresh() {
   window.clearInterval(state.messageRefresh);
