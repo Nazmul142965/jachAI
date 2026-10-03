@@ -3,8 +3,11 @@
 Opt-in real-MongoDB tests for the billing/assessment foundation, plus the offline guard test that
 protects them.
 
-**Nothing in this document has been executed against a live MongoDB yet.** Every claim below about
-the live classes describes what the code does when it runs; it is not evidence that it ran.
+**Live local checkpoint (2026-10-03):** all five classes below ran together against a loopback-only
+MongoDB 8.0 standalone using a dedicated `jachai_it_*` database: **27 tests, 0 failures/errors/skips**.
+The first live run exposed stale test fixtures: certificate documents omitted unique-indexed fields,
+and the `mail_due` assertion omitted `leaseUntil`. Those fixtures were corrected before the passing run.
+This does not verify Atlas, replica-set behavior, actual asynchronous TTL expiry, or other services.
 
 ## Two suites, and how to tell them apart
 
@@ -12,7 +15,7 @@ the live classes describes what the code does when it runs; it is not evidence t
 |---|---|---|
 | Command | `.\mvnw.cmd -o test` (JDK 21) | same command **with `MONGODB_TEST_URI` set** |
 | Requires MongoDB | no | yes, a dedicated `jachai_it_*` database |
-| Classes | 51 test classes, **376 tests, 0 failures/errors/skips** | the five `billing.integration.*IntegrationTests` classes |
+| Classes | Unit and mock-based classes; check the current run for its count | the five `billing.integration.*IntegrationTests` classes; **27 passed locally** |
 | What it proves | unit and mock-based behaviour | real index creation, CAS, concurrency, tenant-scoped reads |
 
 ### A green offline run does not mean the live tests passed
@@ -74,7 +77,7 @@ malformed string, valid database, and that a rejected URI is never echoed). It n
 
 ## Prerequisites
 
-- JDK 21 (the shell `JAVA_HOME` on this machine points at 17; set it per command)
+- JDK 21 (user-level `JAVA_HOME` is now 21; an already-open shell may still have 17, so set it per command if needed)
 - A MongoDB instance (local or Atlas) and a **dedicated** database named `jachai_it_*`
 
 ```powershell

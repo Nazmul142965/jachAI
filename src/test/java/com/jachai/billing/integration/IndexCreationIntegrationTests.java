@@ -111,7 +111,7 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test
     void operationalBacklogQueriesHaveApplicationCreatedIndexes() {
-        assertIndex("email_jobs", "mail_due", "status", "nextAttemptAt");
+        assertIndex("email_jobs", "mail_due", "status", "nextAttemptAt", "leaseUntil");
         assertIndex("payment_orders", "payment_status_created", "status", "createdAt");
         assertIndex("payment_orders", "payment_status_verified", "status", "verifiedAt");
         assertIndex("platform_usage_repair_events", "stage", "stage");

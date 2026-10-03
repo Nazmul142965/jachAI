@@ -98,9 +98,13 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         mongoTemplate.getCollection("certificates").insertMany(List.of(
                 new Document("_id", certId1)
                         .append("organizationId", orgId)
+                        .append("attemptId", certId1)
+                        .append("verificationCode", certId1)
                         .append("issuedAt", Instant.now()),
                 new Document("_id", certId2)
                         .append("organizationId", orgId)
+                        .append("attemptId", certId2)
+                        .append("verificationCode", certId2)
                         .append("issuedAt", Instant.now())
         ));
 
@@ -243,9 +247,13 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         mongoTemplate.getCollection("certificates").insertMany(List.of(
                 new Document("_id", certId1)
                         .append("organizationId", orgId)
+                        .append("attemptId", certId1)
+                        .append("verificationCode", certId1)
                         .append("issuedAt", Instant.now()),
                 new Document("_id", certId2)
                         .append("organizationId", orgId)
+                        .append("attemptId", certId2)
+                        .append("verificationCode", certId2)
                         .append("issuedAt", Instant.now())
         ));
 
