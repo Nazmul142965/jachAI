@@ -18,6 +18,7 @@ import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.repository.MembershipRepository;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
+import com.jachai.platform.repository.PlatformPlanEventRepository;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
@@ -73,7 +74,8 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
         SubscriptionRepository subscriptions = mock(SubscriptionRepository.class);
         OrganizationRepository organizations = mock(OrganizationRepository.class);
         TenantAccessService access = new TenantAccessService(mock(MembershipRepository.class), organizations);
-        entitlementService = new EntitlementService(subscriptions, mongoTemplate, access);
+        entitlementService = new EntitlementService(subscriptions, mongoTemplate, access,
+                mock(PlatformPlanEventRepository.class));
         when(organizations.findById(any())).thenReturn(Optional.of(
                 new Organization("test-org", "Test Organization", OrganizationType.ACADEMY, "owner", Instant.now())));
     }

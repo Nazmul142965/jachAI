@@ -115,6 +115,22 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
         assertIndex("payment_orders", "payment_status_created", "status", "createdAt");
         assertIndex("payment_orders", "payment_status_verified", "status", "verifiedAt");
         assertIndex("platform_usage_repair_events", "stage", "stage");
+        assertUniqueIndex("platform_plan_events", "platform_plan_org_revision_unique",
+                "organizationId", "revision");
+    }
+
+    private void assertUniqueIndex(String collectionName, String name, String... fields) {
+        MongoCollection<Document> collection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
+        for (Document index : collection.listIndexes()) {
+            if (!name.equals(index.getString("name"))) continue;
+            assertTrue(Boolean.TRUE.equals(index.getBoolean("unique")), name + " must be unique");
+            Document keys = index.get("key", Document.class);
+            assertNotNull(keys, name + " must have index keys");
+            assertEquals(fields.length, keys.size());
+            for (String field : fields) assertTrue(keys.containsKey(field), name + " is missing " + field);
+            return;
+        }
+        throw new AssertionError("Expected application-created index " + name + " on " + collectionName);
     }
 
     private void assertIndex(String collectionName, String name, String... fields) {

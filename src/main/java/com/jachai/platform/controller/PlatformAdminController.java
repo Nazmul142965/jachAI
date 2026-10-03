@@ -12,10 +12,15 @@ import com.jachai.platform.dto.ChangePlatformRoleRequest;
 import com.jachai.platform.dto.PlatformRoleAuditView;
 import com.jachai.platform.dto.PlatformRoleView;
 import com.jachai.platform.dto.PlatformUserView;
+import com.jachai.platform.dto.ManualPlanRequest;
+import com.jachai.platform.dto.ManualPlanAuditView;
+import com.jachai.platform.dto.ManualPlanView;
+import com.jachai.platform.dto.RevokeManualPlanRequest;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
 import com.jachai.platform.service.PlatformOperationsService;
 import com.jachai.platform.service.PlatformStorageService;
+import com.jachai.platform.service.PlatformPlanService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
@@ -40,15 +45,18 @@ public class PlatformAdminController {
     private final EntitlementUsageReconciliationService usageReconciliation;
     private final PlatformOperationsService operations;
     private final PlatformStorageService storage;
+    private final PlatformPlanService plans;
 
     public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport,
                                    EntitlementUsageReconciliationService usageReconciliation,
-                                   PlatformOperationsService operations, PlatformStorageService storage) {
+                                   PlatformOperationsService operations, PlatformStorageService storage,
+                                   PlatformPlanService plans) {
         this.platform = platform;
         this.billingSupport = billingSupport;
         this.usageReconciliation = usageReconciliation;
         this.operations = operations;
         this.storage = storage;
+        this.plans = plans;
     }
 
     @GetMapping("/me")
@@ -81,6 +89,29 @@ public class PlatformAdminController {
     public Page<PaymentOrderView> billingOrders(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
         return billingSupport.orders(jwt.getSubject(), organizationId, page);
+    }
+
+    @GetMapping("/organizations/{organizationId}/billing/manual-plan")
+    public ManualPlanView manualPlan(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId) {
+        return plans.current(jwt.getSubject(), organizationId);
+    }
+
+    @PostMapping("/organizations/{organizationId}/billing/manual-plan")
+    public ManualPlanView grantManualPlan(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
+                                          @Valid @RequestBody ManualPlanRequest request) {
+        return plans.grant(jwt.getSubject(), organizationId, request.expiresAt(), request.reason());
+    }
+
+    @PostMapping("/organizations/{organizationId}/billing/manual-plan/revoke")
+    public ManualPlanView revokeManualPlan(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
+                                           @Valid @RequestBody RevokeManualPlanRequest request) {
+        return plans.revoke(jwt.getSubject(), organizationId, request.reason());
+    }
+
+    @GetMapping("/organizations/{organizationId}/billing/manual-plan/audit")
+    public Page<ManualPlanAuditView> manualPlanHistory(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+        return plans.history(jwt.getSubject(), organizationId, page);
     }
 
     @GetMapping("/organizations/{organizationId}/billing/usage-reconciliation")

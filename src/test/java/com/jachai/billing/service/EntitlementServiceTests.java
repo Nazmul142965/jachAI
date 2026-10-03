@@ -18,6 +18,9 @@ import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.model.UsageWindow;
 import com.jachai.billing.repository.SubscriptionRepository;
 import com.jachai.organization.service.TenantAccessService;
+import com.jachai.platform.repository.PlatformPlanEventRepository;
+import com.jachai.platform.model.PlatformPlanAction;
+import com.jachai.platform.model.PlatformPlanEvent;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import java.time.YearMonth;
@@ -40,9 +43,10 @@ class EntitlementServiceTests {
     @Mock SubscriptionRepository subscriptions;
     @Mock MongoTemplate mongo;
     @Mock TenantAccessService access;
+    @Mock PlatformPlanEventRepository manualPlans;
 
     private EntitlementService service() {
-        return new EntitlementService(subscriptions, mongo, access);
+        return new EntitlementService(subscriptions, mongo, access, manualPlans);
     }
 
     @Test
@@ -60,6 +64,22 @@ class EntitlementServiceTests {
         when(subscriptions.findById("org")).thenReturn(Optional.of(new Subscription(
                 "org", PlanTier.TEAM, SubscriptionStatus.ACTIVE, "payment-order",
                 Instant.now().minusSeconds(1), Instant.now(), 1L)));
+        assertEquals(PlanTier.FREE, service().plan("org").tier());
+    }
+
+    @Test
+    void manualGrantEnablesTeamOnlyUntilExpiryOrRevocation() {
+        Instant now = Instant.now();
+        when(manualPlans.findFirstByOrganizationIdOrderByRevisionDesc("org")).thenReturn(
+                Optional.of(new PlatformPlanEvent("grant", "org", "admin", PlatformPlanAction.GRANTED,
+                        now.plusSeconds(3600), "Support trial grant", 1, now)),
+                Optional.of(new PlatformPlanEvent("expired", "org", "admin", PlatformPlanAction.GRANTED,
+                        now.minusSeconds(1), "Support trial grant", 2, now)),
+                Optional.of(new PlatformPlanEvent("revoke", "org", "admin", PlatformPlanAction.REVOKED,
+                        null, "Trial ended early", 3, now)));
+
+        assertEquals(PlanTier.TEAM, service().plan("org").tier());
+        assertEquals(PlanTier.FREE, service().plan("org").tier());
         assertEquals(PlanTier.FREE, service().plan("org").tier());
     }
 

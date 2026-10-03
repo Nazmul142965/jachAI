@@ -10,6 +10,8 @@ import com.jachai.billing.model.UsageWindow;
 import com.jachai.billing.repository.SubscriptionRepository;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
+import com.jachai.platform.model.PlatformPlanAction;
+import com.jachai.platform.repository.PlatformPlanEventRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ public class EntitlementService {
     private final SubscriptionRepository subscriptions;
     private final MongoTemplate mongo;
     private final TenantAccessService access;
+    private final PlatformPlanEventRepository manualPlans;
 
     public PlanEntitlements forAdmin(String actorId, String organizationId) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
@@ -36,11 +39,16 @@ public class EntitlementService {
 
     public PlanEntitlements plan(String organizationId) {
         Subscription subscription = subscriptions.findById(organizationId).orElse(null);
-        PlanTier tier = subscription != null && subscription.status() == SubscriptionStatus.ACTIVE
+        Instant now = Instant.now();
+        boolean paid = subscription != null && subscription.status() == SubscriptionStatus.ACTIVE
                 && subscription.tier() == PlanTier.TEAM
                 && subscription.currentPeriodEnd() != null
-                && subscription.currentPeriodEnd().isAfter(Instant.now())
-                ? PlanTier.TEAM : PlanTier.FREE;
+                && subscription.currentPeriodEnd().isAfter(now);
+        boolean manuallyGranted = !paid && manualPlans.findFirstByOrganizationIdOrderByRevisionDesc(organizationId)
+                .filter(event -> event.action() == PlatformPlanAction.GRANTED
+                        && event.expiresAt() != null && event.expiresAt().isAfter(now))
+                .isPresent();
+        PlanTier tier = paid || manuallyGranted ? PlanTier.TEAM : PlanTier.FREE;
         return PlanEntitlements.forTier(tier);
     }
 

@@ -49,6 +49,7 @@ import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
 import com.jachai.platform.service.PlatformOperationsService;
 import com.jachai.platform.service.PlatformStorageService;
+import com.jachai.platform.service.PlatformPlanService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
@@ -97,6 +98,7 @@ class JachAiApplicationTests {
     @MockitoBean PlatformBillingSupportService platformBillingSupportService;
     @MockitoBean PlatformOperationsService platformOperationsService;
     @MockitoBean PlatformStorageService platformStorageService;
+    @MockitoBean PlatformPlanService platformPlanService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
