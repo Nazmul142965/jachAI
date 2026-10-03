@@ -23,8 +23,10 @@ if (memberInvitationFromLink) {
 }
 if (billingReturn) {
   history.replaceState(null, '', location.pathname);
-  if (billingReturn === 'verified') notice('Sandbox payment verified. Sign in to see your plan and transaction.');
-  else notice(`Sandbox checkout ${billingReturn}. Sign in to review transaction history.`);
+  const outcome = { verified: 'returned from the sandbox gateway', cancelled: 'was cancelled at the sandbox gateway',
+    failed: 'did not complete at the sandbox gateway' }[billingReturn];
+  notice(`${outcome ? `Sandbox checkout ${outcome}.` : `Sandbox checkout returned "${billingReturn}".`} `
+    + 'A browser redirect cannot confirm a payment — sign in and use Check payment to read the server-verified result.');
 }
 
 function node(tag, text = '', className = '') {
@@ -41,11 +43,11 @@ function button(text, action, className = 'button secondary small') {
 }
 function notice(message, error = false) {
   const area = $('#notice');
-  area.textContent = message;
+  area.textContent = error ? `Error: ${message}` : message;
   area.classList.toggle('error', error);
   area.classList.remove('hidden');
   window.clearTimeout(notice.timeout);
-  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), 7000);
+  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), error ? 12000 : 7000);
 }
 async function run(action) {
   try { await action(); } catch (error) { notice(error.message || 'Something went wrong.', true); }
@@ -54,13 +56,90 @@ function ownOrg(path) {
   if (!state.organization) throw new Error('Choose an organization first.');
   return `/organizations/${encodeURIComponent(state.organization.id)}${path}`;
 }
+const ATTEMPT_MARKER = 'jachaiActiveAttempt';
+function rememberAttempt(assignmentId, attempt) {
+  try {
+    sessionStorage.setItem(ATTEMPT_MARKER, JSON.stringify({
+      organizationId: state.organization?.id || null,
+      assignmentId, attemptId: attempt.id, deadline: attempt.deadline
+    }));
+  } catch (_) { /* private-mode storage is optional */ }
+}
+function forgetAttempt() {
+  try { sessionStorage.removeItem(ATTEMPT_MARKER); } catch (_) { /* ignore */ }
+}
+function pendingAttempt() {
+  try {
+    const raw = sessionStorage.getItem(ATTEMPT_MARKER);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+function focusPanel(panel) {
+  panel.setAttribute('tabindex', '-1');
+  panel.focus({ preventScroll: true });
+}
+const roleLabel = (role) => String(role).replaceAll('_', ' ').toLowerCase();
+let pendingRequests = 0;
+function updateBusyIndicator() {
+  document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
+  const indicator = $('#busy');
+  if (!indicator) return;
+  indicator.classList.toggle('hidden', pendingRequests === 0);
+  indicator.textContent = pendingRequests === 0 ? '' : 'Working…';
+}
+function fieldErrors(form, error) {
+  for (const element of form.querySelectorAll('[aria-invalid]')) {
+    element.removeAttribute('aria-invalid');
+    const note = element.closest('label')?.querySelector('.field-error');
+    if (note) note.remove();
+  }
+  const details = error?.details;
+  if (!details || typeof details !== 'object') return false;
+  let marked = false;
+  for (const [field, message] of Object.entries(details)) {
+    const input = form.elements?.[field];
+    if (!input) continue;
+    marked = true;
+    input.setAttribute('aria-invalid', 'true');
+    (input.closest('label') || input.parentElement || form).append(node('span', message, 'field-error'));
+  }
+  return marked;
+}
+function explainAiFailure(error) {
+  switch (error?.code) {
+    case 'PLAN_FEATURE_UNAVAILABLE':
+      return 'AI is not part of this workspace plan. Write the question manually, or ask an administrator about the plan.';
+    case 'AI_QUOTA_EXCEEDED':
+      return 'The AI quota for today is used up. It resets daily and manual authoring still works.';
+    case 'AI_QUOTA_UNAVAILABLE':
+      return 'AI is unavailable because the quota service (Redis) cannot be reached. This deployment fails closed instead of skipping the quota.';
+    case 'AI_UNAVAILABLE':
+      return 'No AI provider is configured, or the configured provider could not be reached. AI drafting is an optional server setting (Gemini or local Ollama); write the question manually meanwhile.';
+    case 'AI_INVALID_OUTPUT':
+      return 'The AI provider returned content JachAI could not use. Try again, or write the question manually.';
+    case 'AI_QUESTION_TYPE_UNSUPPORTED':
+      return 'AI drafting supports single-choice and multiple-choice questions only.';
+    case 'TUTOR_NOT_READY':
+      return 'Tutoring is available only after the result has been graded and released.';
+    default:
+      return null;
+  }
+}
 async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
-  const response = await fetch(`/api/v1${path}`, {
-    method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'
-  });
+  pendingRequests += 1; updateBusyIndicator();
+  let response;
+  try {
+    response = await fetch(`/api/v1${path}`, {
+      method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'
+    });
+  } catch (_) {
+    throw new Error('Could not reach JachAI. Check your connection and try again.');
+  } finally {
+    pendingRequests -= 1; updateBusyIndicator();
+  }
   if (response.status === 401 && auth && retry && state.refreshToken) {
     try {
       const renewed = await request('/auth/refresh', {
@@ -71,11 +150,24 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
       return request(path, { method, body, auth, retry: false, optional404 });
     } catch (_) { showSignedOut(); throw new Error('Your session expired. Please sign in again.'); }
   }
+  if (response.status === 401 && auth) {
+    // Without a refresh token the shell must not stay open with every action failing.
+    showSignedOut();
+    throw new Error('Your session is no longer valid. Please sign in again.');
+  }
   const raw = await response.text();
   let data;
   try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = null; }
   if (response.status === 404 && optional404) return null;
-  if (!response.ok) throw new Error(data?.message || `Request failed (${response.status}).`);
+  if (!response.ok) {
+    const failure = new Error(response.status === 403
+      ? (data?.message ? `Not allowed: ${data.message}` : 'Your role does not allow this action.')
+      : (data?.message || `Request failed (${response.status}).`));
+    failure.status = response.status;
+    failure.code = data?.code || null;
+    failure.details = data?.details || null;
+    throw failure;
+  }
   return data;
 }
 function showSignedOut() {
@@ -125,7 +217,10 @@ async function signedIn(tokens) {
     }
   }
   await loadOrganizations();
-  notice(invitationMessage);
+  const inProgress = pendingAttempt();
+  notice(inProgress
+    ? `${invitationMessage} An assessment attempt is still in progress — open My assessments and choose Resume.`
+    : invitationMessage);
 }
 async function loadOrganizations() {
   const previous = state.organization?.id;
@@ -215,34 +310,63 @@ async function showView(key) {
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
-  for (const tab of $('#workspace-nav').children) tab.classList.toggle('active', tab.dataset.view === key);
+  for (const tab of $('#workspace-nav').children) {
+    const active = tab.dataset.view === key;
+    tab.classList.toggle('active', active);
+    if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
+  }
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
     assessments: 'Assessments', academy: 'Courses & batches', messages: 'Messages',
     campaigns: 'Hiring campaigns', attempts: 'My assessments',
     certificates: 'Certificates', platform: 'Platform' };
   $('#page-title').textContent = names[key];
+  document.title = `${names[key]} · JachAI`;
+  const heading = $('#page-title');
+  heading.setAttribute('tabindex', '-1');
+  heading.focus({ preventScroll: true });
   $('#page-subtitle').textContent = key === 'platform' ? 'Administration and support'
     : state.organization?.name || '';
   if (key === 'platform') { await loadPlatformView(); return; }
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
   }
-  if (key === 'members') await loadMembers();
-  if (key === 'questions') await loadQuestions();
+  if (key === 'members') {
+    await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
+    attachFilter('#members-list', 'Filter members by name, email, role or ID');
+  }
+  if (key === 'questions') {
+    await loadList('#questions-list', () => loadQuestions(), 'Questions could not be loaded.');
+    attachFilter('#questions-list', 'Filter questions by topic, prompt or status');
+  }
   if (key === 'assessments') {
-    await loadApprovedQuestions(); await loadAssessments();
-    await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
-    await loadReviewQueue(0);
+    await loadList('#assessments-list', async () => {
+      await loadApprovedQuestions(); await loadAssessments();
+      await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
+    }, 'Assessments could not be loaded.');
+    attachFilter('#assessments-list', 'Filter assessments by title, status or release policy');
+    await loadList('#review-queue', () => loadReviewQueue(0), 'The review queue could not be loaded.');
     await loadOrganizationSettings();
   }
-  if (key === 'academy') await loadAcademyCatalog();
+  if (key === 'academy') {
+    await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
+    attachFilter('#courses-list', 'Filter courses by name or description');
+  }
   if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') {
-    await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
-    await loadCampaigns(); await loadTalentCandidates();
+    await loadList('#campaigns-list', async () => {
+      await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
+      await loadCampaigns(); await loadTalentCandidates();
+    }, 'Campaigns could not be loaded.');
+    attachFilter('#campaigns-list', 'Filter campaigns by title or version');
   }
-  if (key === 'attempts') await loadAssignments();
-  if (key === 'certificates') await loadCertificates();
+  if (key === 'attempts') {
+    await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
+    attachFilter('#assignments-list', 'Filter assignments by availability or attempt count');
+  }
+  if (key === 'certificates') {
+    await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
+    attachFilter('#certificates-list', 'Filter certificates by code, status or date');
+  }
 }
 async function loadEntitlements() {
   const plan = await request(ownOrg('/billing/entitlements'));
@@ -254,10 +378,15 @@ async function loadEntitlements() {
   const options = await request(ownOrg('/billing/options'));
   const checkout = $('#start-ssl-demo');
   checkout.disabled = !options.sslCommerzAvailable;
-  $('#start-bkash-demo').disabled = !options.bkashAvailable;
-  $('#billing-hint').textContent = options.sslCommerzAvailable || options.bkashAvailable
+  $('#start-bkash-demo').disabled = !options.directBkashAvailable;
+  const sandboxNote = options.sandboxOnly === false
+    ? ' This deployment does not report sandbox-only mode — do not enter real payment details.' : '';
+  $('#billing-hint').textContent = (options.sslCommerzAvailable || options.directBkashAvailable
     ? `Sandbox only · TEAM demo price: ৳${options.demoTeamPriceBdt} for 30 days. No real money is charged.`
-    : 'Sandbox merchant credentials are not configured yet. No real money is charged.';
+    : 'Sandbox merchant credentials are not configured yet, so both demo checkout buttons stay disabled. No real money is charged.')
+    + (options.sslCommerzAvailable ? '' : ' SSLCOMMERZ sandbox credentials are not configured.')
+    + (options.directBkashAvailable ? '' : ' Direct bKash sandbox credentials are not configured.')
+    + sandboxNote;
   await loadPaymentHistory();
 }
 async function loadPaymentHistory(pageNumber = 0) {
@@ -275,7 +404,10 @@ async function loadPaymentHistory(pageNumber = 0) {
 }
 async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
-  await Promise.all([loadPlatformOperations(), loadPlatformOrganizations(0)]);
+  await Promise.all([
+    loadList('#platform-operations', () => loadPlatformOperations(), 'Operational counts could not be loaded.'),
+    loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')
+  ]);
   if (state.platformOrganizationId) await inspectPlatformOrganization(state.platformOrganizationId);
   if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
 }
@@ -286,36 +418,49 @@ async function loadPlatformOperations() {
     item('Email jobs overdue over 15 minutes', String(summary.overdueEmailJobs)),
     item('Open sandbox checkouts older than 24 hours', String(summary.oldOpenSandboxOrders)),
     item('Verified orders not applied after 5 minutes', String(summary.verifiedButUnappliedOrders)),
-    item('Quota repairs without completion', String(summary.usageRepairRunsWithoutCompletion))
+    item('Quota repairs without completion', String(summary.usageRepairRunsWithoutCompletion)),
+    item('Counts generated', summary.generatedAt ? new Date(summary.generatedAt).toLocaleString() : 'Not reported')
   ], 'Operational counts are unavailable.');
 }
 async function loadPlatformOrganizations(pageNumber = 0) {
   const page = await request(`/platform/organizations?page=${pageNumber}`);
+  state.platformOrganizationNames = Object.fromEntries((page.content || []).map((organization) => [organization.id, organization.name]));
   setList('#platform-organizations', (page.content || []).map((organization) => item(
-    organization.name, `${organization.type} · ${organization.id}`,
+    organization.name,
+    `${organization.type} · ${organization.id} · Owner ${organization.ownerUserId || 'not recorded'}`
+      + ` · Created ${organization.createdAt ? new Date(organization.createdAt).toLocaleDateString() : 'unknown'}`,
     [button('Inspect', () => inspectPlatformOrganization(organization.id))])),
   'No organizations found.');
   renderPageControls('#platform-organizations-pagination', page, loadPlatformOrganizations);
+  attachFilter('#platform-organizations', 'Filter organizations by name, type, ID or owner');
 }
 async function inspectPlatformOrganization(organizationId) {
   const id = organizationId?.trim();
   if (!id) throw new Error('Choose an organization first.');
-  state.platformOrganizationId = id;
-  $('#platform-organization-id').value = id;
   const token = ++state.platformLoadToken;
+  state.platformOrganizationId = id;
+  state.platformOrganizationName = state.platformOrganizationNames?.[id] || null;
+  $('#platform-organization-id').value = id;
   $('#platform-repair-usage').disabled = true;
-  await Promise.all([
-    loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
-    loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token)
-  ]);
-  if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
+  for (const selector of ['#platform-billing', '#platform-orders', '#platform-usage-report', '#platform-usage-audit']) {
+    beginList(selector);
+  }
+  try {
+    await Promise.all([
+      loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
+      loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token)
+    ]);
+  } finally {
+    if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
+  }
 }
 async function loadPlatformBilling(id, token) {
   const billing = await request(`/platform/organizations/${encodeURIComponent(id)}/billing`);
   if (token !== state.platformLoadToken) return;
   setList('#platform-billing', billing.subscriptionPresent ? [
     item(`${billing.tier} · ${billing.status}`,
-      `Period ends ${billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd).toLocaleString() : 'not set'}`),
+      `Period ends ${billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd).toLocaleString() : 'not set'}`
+        + ` · Subscription updated ${billing.updatedAt ? new Date(billing.updatedAt).toLocaleString() : 'unknown'}`),
     item('Last paid order', billing.lastPaidOrderId || 'None')
   ] : [item('No subscription record', 'Effective plan is FREE until a verified sandbox payment is applied.')],
   'No billing data.');
@@ -353,45 +498,78 @@ async function loadPlatformUsageAudit(id, pageNumber, token) {
 async function inspectPlatformUser(userId) {
   const id = userId?.trim();
   if (!id) throw new Error('Enter an exact user ID first.');
-  state.platformTargetUserId = id;
-  $('#platform-user-id').value = id;
   const token = ++state.platformUserLoadToken;
+  // Clear the target first: a failed lookup must not leave the previous user's data on screen with
+  // the role buttons still pointing at the new ID.
+  state.platformTargetUserId = null;
+  state.platformTargetUser = null;
   $('#platform-grant-role').disabled = true;
   $('#platform-revoke-role').disabled = true;
-  const [user, role] = await Promise.all([
-    request(`/platform/users/${encodeURIComponent(id)}`),
-    request(`/platform/users/${encodeURIComponent(id)}/role`)
-  ]);
-  if (token !== state.platformUserLoadToken) return;
-  setList('#platform-user-summary', [
-    item(user.displayName, `${user.email} · ${user.id}`),
-    item(role.platformAdmin ? 'Platform administrator' : 'No platform role',
-      `${user.emailVerified ? 'Verified' : 'Unverified'} · ${user.disabled ? 'Disabled' : 'Active'}${role.bootstrapAdmin ? ' · Environment bootstrap' : ''}`)
-  ], 'No user selected.');
-  const canChange = id !== state.platformUserId && !role.bootstrapAdmin;
-  $('#platform-grant-role').disabled = !canChange || role.platformAdmin || !user.emailVerified || user.disabled;
-  $('#platform-revoke-role').disabled = !canChange || !role.platformAdmin;
-  await loadPlatformRoleAudit(id, 0, token);
+  beginList('#platform-user-summary');
+  beginList('#platform-role-audit');
+  try {
+    const [user, role] = await Promise.all([
+      request(`/platform/users/${encodeURIComponent(id)}`),
+      request(`/platform/users/${encodeURIComponent(id)}/role`)
+    ]);
+    if (token !== state.platformUserLoadToken) return;
+    state.platformTargetUserId = id;
+    state.platformTargetUser = {
+      id: user.id, displayName: user.displayName, email: user.email,
+      platformAdmin: role.platformAdmin, bootstrapAdmin: role.bootstrapAdmin
+    };
+    $('#platform-user-id').value = id;
+    setList('#platform-user-summary', [
+      item(user.displayName, `${user.email} · ${user.id}`),
+      item(role.platformAdmin ? 'Platform administrator' : 'No platform role',
+        `${user.emailVerified ? 'Verified' : 'Unverified'} · ${user.disabled ? 'Disabled' : 'Active'}${role.bootstrapAdmin ? ' · Environment bootstrap' : ''}`)
+    ], 'No user selected.');
+    const canChange = id !== state.platformUserId && !role.bootstrapAdmin;
+    $('#platform-grant-role').disabled = !canChange || role.platformAdmin || !user.emailVerified || user.disabled;
+    $('#platform-revoke-role').disabled = !canChange || !role.platformAdmin;
+    await loadPlatformRoleAudit(id, 0, token);
+  } catch (error) {
+    if (token === state.platformUserLoadToken) {
+      setList('#platform-user-summary', [], 'No user selected.');
+      setList('#platform-role-audit', [], 'No role changes recorded.');
+      $('#platform-role-audit-pagination').replaceChildren();
+    }
+    throw error;
+  }
 }
 async function loadPlatformRoleAudit(id, pageNumber, token) {
   const page = await request(`/platform/users/${encodeURIComponent(id)}/role/audit?page=${pageNumber}`);
   if (token !== state.platformUserLoadToken) return;
   setList('#platform-role-audit', (page.content || []).map((event) => item(
     `${event.action} · revision ${event.revision}`,
-    `By ${event.actorUserId} · ${new Date(event.occurredAt).toLocaleString()}`)),
+    `Target ${event.targetUserId || id} · By ${event.actorUserId} · ${new Date(event.occurredAt).toLocaleString()}`)),
   'No role changes recorded.');
   renderPageControls('#platform-role-audit-pagination', page,
     (nextPage) => loadPlatformRoleAudit(id, nextPage, token));
 }
 async function changePlatformRole(grant) {
   const id = state.platformTargetUserId;
+  const target = state.platformTargetUser;
   if (!id || $('#platform-user-id').value.trim() !== id)
     throw new Error('Inspect the exact user ID before changing their role.');
-  if (!window.confirm(`${grant ? 'Grant' : 'Revoke'} platform administrator access for user ${id}?`)) return;
-  await request(`/platform/users/${encodeURIComponent(id)}/role`,
-    { method: 'PUT', body: { platformAdmin: grant } });
-  await inspectPlatformUser(id);
-  notice(`Platform administrator access ${grant ? 'granted' : 'revoked'}.`);
+  const identity = target
+    ? `${target.displayName} <${target.email}>\nUser ID ${target.id}`
+    : `User ID ${id}`;
+  const currentRole = target?.platformAdmin ? 'platform administrator' : 'no platform role';
+  const nextRole = grant ? 'platform administrator' : 'no platform role';
+  if (!await confirmDialog(`${grant ? 'Grant' : 'Revoke'} platform administrator access?\n\n${identity}\n\nRole changes from ${currentRole} to ${nextRole}. The change is audited and applies immediately.`)) return;
+  $('#platform-grant-role').disabled = true;
+  $('#platform-revoke-role').disabled = true;
+  try {
+    await request(`/platform/users/${encodeURIComponent(id)}/role`,
+      { method: 'PUT', body: { platformAdmin: grant } });
+    await inspectPlatformUser(id);
+    notice(`Platform administrator access ${grant ? 'granted' : 'revoked'}.`);
+  } catch (error) {
+    $('#platform-grant-role').disabled = false;
+    $('#platform-revoke-role').disabled = false;
+    throw error;
+  }
 }
 async function loadOrganizationSettings() {
   const settings = await request(ownOrg('/settings'));
@@ -410,7 +588,96 @@ function item(title, meta, actions = []) {
 }
 function setList(selector, rows, emptyMessage) {
   const target = $(selector);
+  target.setAttribute('aria-busy', 'false');
   target.replaceChildren(...(rows.length ? rows : [node('p', emptyMessage, 'empty')]));
+}
+function beginList(selector, message = 'Loading…') {
+  const target = $(selector);
+  if (!target) return;
+  target.setAttribute('aria-busy', 'true');
+  target.replaceChildren(node('p', message, 'empty'));
+}
+async function loadList(selector, load, retryMessage = 'This list could not be loaded.') {
+  beginList(selector);
+  try {
+    await load();
+  } catch (error) {
+    const target = $(selector);
+    if (!target) throw error;
+    target.setAttribute('aria-busy', 'false');
+    target.replaceChildren(
+      node('p', `${retryMessage} ${error.message}`, 'empty'),
+      button('Retry', () => loadList(selector, load, retryMessage), 'button secondary small'));
+  }
+}
+function attachFilter(selector, placeholder) {
+  const target = $(selector);
+  if (!target) return;
+  const host = target.parentElement;
+  if (!host) return;
+  const apply = (input) => {
+    const term = input.value.trim().toLowerCase();
+    for (const row of target.querySelectorAll('.item')) {
+      row.classList.toggle('hidden', term.length > 0 && !(row.textContent || '').toLowerCase().includes(term));
+    }
+  };
+  const existing = host.querySelector(`input[data-filter-for="${selector}"]`);
+  if (existing) { apply(existing); return; }
+  const label = node('label', '', 'filter-row');
+  const input = node('input');
+  input.type = 'search';
+  input.placeholder = placeholder;
+  input.setAttribute('aria-label', placeholder);
+  input.setAttribute('data-filter-for', selector);
+  label.append('Filter this page', input);
+  host.insertBefore(label, target);
+  input.addEventListener('input', () => apply(input));
+}
+function confirmDialog(message) {
+  return new Promise((resolve) => {
+    const backdrop = node('div', '', 'modal-backdrop');
+    const dialog = node('div', '', 'modal');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    const lines = String(message).split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+    const title = lines[0] || 'Please confirm';
+    const heading = node('h2', title);
+    heading.id = 'confirm-dialog-title';
+    dialog.setAttribute('aria-labelledby', heading.id);
+    dialog.append(heading);
+    for (const line of lines.slice(1)) dialog.append(node('p', line, 'muted'));
+    const actions = node('div', '', 'modal-actions');
+    const cancel = node('button', 'Cancel', 'button quiet');
+    const confirm = node('button', 'Confirm', 'button primary');
+    cancel.type = 'button'; confirm.type = 'button';
+    const verb = title.match(/^(Revoke|Release|Close|Deactivate|Reactivate|Publish|Delete|Remove|Transfer|Change|Submit|Grant|Mark|Repair)\b/);
+    if (verb) confirm.textContent = verb[1];
+    if (verb && ['Revoke', 'Deactivate', 'Close', 'Delete', 'Remove'].includes(verb[1])) confirm.classList.add('danger-action');
+    actions.append(cancel, confirm);
+    dialog.append(actions);
+    backdrop.append(dialog);
+    const previouslyFocused = document.activeElement;
+    const onKeydown = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); close(false); return; }
+      if (event.key !== 'Tab') return;
+      const focusable = [...dialog.querySelectorAll('button')];
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    const close = (result) => {
+      document.removeEventListener('keydown', onKeydown, true);
+      backdrop.remove();
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+      resolve(result);
+    };
+    cancel.addEventListener('click', () => close(false));
+    confirm.addEventListener('click', () => close(true));
+    backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(false); });
+    document.addEventListener('keydown', onKeydown, true);
+    document.body.append(backdrop);
+    confirm.focus();
+  });
 }
 function renderPageControls(selector, page, onPage) {
   const target = $(selector); target.replaceChildren();
@@ -445,21 +712,36 @@ async function loadMembers(pageNumber = 0) {
       select.setAttribute('aria-label', `Role for ${member.displayName}`);
       actions.push(select);
       if (member.active) {
-        actions.push(button('Save role', async () => {
-          await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
-            { method: 'PUT', body: { role: select.value } });
-          await loadMembers(page.number); notice('Member role updated.');
-        }), button('Deactivate', async () => {
-          if (!window.confirm(`Deactivate ${member.displayName} from this workspace?`)) return;
-          await request(ownOrg(`/members/${encodeURIComponent(member.userId)}`), { method: 'DELETE' });
-          await loadMembers(page.number); notice('Member deactivated.');
-        }));
+        const save = button('Save role', async () => {
+          if (select.value === member.role) { notice('That is already the current role.'); return; }
+          if (!await confirmDialog(`Change ${member.displayName} from ${roleLabel(member.role)} to ${roleLabel(select.value)}?`)) return;
+          save.disabled = true;
+          try {
+            await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
+              { method: 'PUT', body: { role: select.value } });
+            await loadMembers(page.number); notice('Member role updated.');
+          } catch (error) { save.disabled = false; throw error; }
+        });
+        const deactivate = button('Deactivate', async () => {
+          if (!await confirmDialog(`Deactivate ${member.displayName} from this workspace?\n\nThey lose access until an admin reactivates them.`)) return;
+          deactivate.disabled = true;
+          try {
+            await request(ownOrg(`/members/${encodeURIComponent(member.userId)}`), { method: 'DELETE' });
+            await loadMembers(page.number); notice('Member deactivated.');
+          } catch (error) { deactivate.disabled = false; throw error; }
+        });
+        actions.push(save, deactivate);
       } else {
-        actions.push(button('Reactivate', async () => {
-          await request(ownOrg('/members'), { method: 'POST',
-            body: { email: member.email, role: select.value } });
-          await loadMembers(page.number); notice('Member reactivated.');
-        }));
+        const reactivate = button('Reactivate', async () => {
+          if (!await confirmDialog(`Reactivate ${member.displayName} with the role ${roleLabel(select.value)}?`)) return;
+          reactivate.disabled = true;
+          try {
+            await request(ownOrg('/members'), { method: 'POST',
+              body: { email: member.email, role: select.value } });
+            await loadMembers(page.number); notice('Member reactivated.');
+          } catch (error) { reactivate.disabled = false; throw error; }
+        });
+        actions.push(reactivate);
       }
     }
     const auditPanel = node('div', '', 'item-list');
@@ -482,12 +764,19 @@ async function loadMemberInvitations(pageNumber = 0) {
       : expired ? 'Expired' : 'Pending';
     const canRevoke = !invitation.accepted && !invitation.revoked && !expired
       && (invitation.role !== 'ORG_ADMIN' || state.organization.owner);
-    const actions = canRevoke ? [button('Revoke', async () => {
-      if (!window.confirm(`Revoke the invitation for ${invitation.email}?`)) return;
-      await request(ownOrg(`/invitations/${encodeURIComponent(invitation.id)}`), { method: 'DELETE' });
-      await loadMemberInvitations(page.number);
-      notice('Invitation revoked.');
-    })] : [];
+    const actions = [];
+    if (canRevoke) {
+      const revoke = button('Revoke', async () => {
+        if (!await confirmDialog(`Revoke the invitation for ${invitation.email}?\n\nThe link stops working immediately.`)) return;
+        revoke.disabled = true;
+        try {
+          await request(ownOrg(`/invitations/${encodeURIComponent(invitation.id)}`), { method: 'DELETE' });
+          await loadMemberInvitations(page.number);
+          notice('Invitation revoked.');
+        } catch (error) { revoke.disabled = false; throw error; }
+      });
+      actions.push(revoke);
+    }
     return item(invitation.email,
       `${invitation.role.replaceAll('_', ' ')} · ${status} · Expires ${new Date(invitation.expiresAt).toLocaleString()}`,
       actions);
@@ -553,13 +842,25 @@ function updateSelectedQuestionCount() {
 }
 async function loadAssessments(pageNumber = 0) {
   const page = await request(ownOrg(`/assessments?page=${pageNumber}`));
-  setList('#assessments-list', (page.content || []).map((assessment) => item(assessment.title,
-    `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
-    assessment.status === 'DRAFT' ? [button('Publish', async () => {
-      await request(ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/publish`), { method: 'POST' });
-      notice('Assessment published.'); await loadAssessments(page.number);
-      await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
-    })] : [])), 'No assessments yet.');
+  setList('#assessments-list', (page.content || []).map((assessment) => {
+    const actions = [];
+    if (assessment.status === 'DRAFT') {
+      const publish = button('Publish', async () => {
+        if (!await confirmDialog(`Publish "${assessment.title}"?\n\nPublishing freezes this version with ${assessment.questionIds.length} question(s) and a ${assessment.durationMinutes} minute limit, and adds it to the published list. A published version cannot be edited.`)) return;
+        publish.disabled = true;
+        try {
+          await request(ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/publish`), { method: 'POST' });
+          notice('Assessment published. It can now be assigned.');
+          await loadAssessments(page.number);
+          await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
+        } catch (error) { publish.disabled = false; throw error; }
+      });
+      actions.push(publish);
+    }
+    return item(assessment.title,
+      `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
+      actions);
+  }), 'No assessments yet.');
   renderPageControls('#assessments-pagination', page, loadAssessments);
 }
 async function loadPublishedAssessments(selectSelector, paginationSelector, pageNumber = 0) {
@@ -575,15 +876,26 @@ async function loadPublishedAssessments(selectSelector, paginationSelector, page
 }
 async function loadReviewQueue(pageNumber) {
   const page = await request(ownOrg(`/attempts/review/pending?page=${pageNumber}`));
-  const rows = (page.content || []).map((attempt) => item(
-    attempt.assessmentTitle,
-    `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
-    [button('Inspect answers', () => showStaffReview(attempt.attemptId)),
-      ...(attempt.percentage == null ? [] : [button('Release result', async () => {
-        await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
-        if (state.activeReviewAttemptId === attempt.attemptId) await showStaffReview(attempt.attemptId);
-        notice('Result released.'); await loadReviewQueue(page.number);
-      })])]));
+  const rows = (page.content || []).map((attempt) => {
+    const actions = [button('Inspect answers', () => showStaffReview(attempt.attemptId))];
+    if (attempt.percentage != null) {
+      const release = button('Release result', async () => {
+        const score = `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`;
+        if (!await confirmDialog(`Release this result to the participant?\n\n${attempt.assessmentTitle}\n${score}\nAttempt ${attempt.attemptId}\n\nReleasing queues a result email to the participant.`)) return;
+        release.disabled = true;
+        try {
+          await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
+          if (state.activeReviewAttemptId === attempt.attemptId) await showStaffReview(attempt.attemptId);
+          notice('Result released. A result email is queued for the participant.');
+          await loadReviewQueue(page.number);
+        } catch (error) { release.disabled = false; throw error; }
+      });
+      actions.push(release);
+    }
+    return item(attempt.assessmentTitle,
+      `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
+      actions);
+  });
   setList('#review-queue', rows, 'No results are waiting for release.');
   $('#review-page-label').textContent = `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`;
   $('#review-prev').disabled = page.first;
@@ -609,8 +921,8 @@ async function showStaffReview(attemptId) {
     if (question.type === 'SHORT_ANSWER') {
       const grade = question.correct == null ? 'Awaiting grade' : question.correct ? 'Correct' : 'Incorrect';
       const actions = question.textAnswer && question.correct == null && !review.resultReleasedAt
-        ? [button('Mark correct', () => gradeShortAnswer(review.attemptId, question.questionId, true)),
-          button('Mark incorrect', () => gradeShortAnswer(review.attemptId, question.questionId, false))] : [];
+        ? [gradeControl(review.attemptId, question.questionId, true),
+          gradeControl(review.attemptId, question.questionId, false)] : [];
       return item(question.prompt,
         `${question.topic} · ${grade} · Answer: ${question.textAnswer || 'No answer'}${question.gradedByUserId ? ` · Graded by ${question.gradedByUserId}` : ''}`, actions);
     }
@@ -634,6 +946,19 @@ async function loadManualGradeAudit(attemptId, pageNumber = 0) {
   renderPageControls('#manual-grade-audit-pagination', page,
     (nextPage) => loadManualGradeAudit(attemptId, nextPage));
 }
+function gradeControl(attemptId, questionId, correct) {
+  const control = button(correct ? 'Mark correct' : 'Mark incorrect', async () => {
+    if (!await confirmDialog(`Mark this answer ${correct ? 'correct' : 'incorrect'}?\n\nGrading is final and audited, and it changes the official score.`)) return;
+    control.disabled = true;
+    try {
+      await gradeShortAnswer(attemptId, questionId, correct);
+    } catch (error) {
+      control.disabled = false;
+      throw error;
+    }
+  });
+  return control;
+}
 async function gradeShortAnswer(attemptId, questionId, correct) {
   await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/review/questions/${encodeURIComponent(questionId)}/grade`),
     { method: 'PUT', body: { correct } });
@@ -644,15 +969,25 @@ async function gradeShortAnswer(attemptId, questionId, correct) {
 async function loadCampaigns(pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns?page=${pageNumber}`));
   state.campaigns = page.content || [];
-  setList('#campaigns-list', state.campaigns.map((campaign) => item(campaign.title,
-    `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
-    [button('Compare candidates', () => compareCandidates(campaign.id)),
-      button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title)),
-      ...(campaign.open ? [button('Close campaign', async () => {
-        if (!window.confirm('Close this campaign to new invitations?')) return;
-        await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
-        notice('Campaign closed.'); await loadCampaigns(page.number);
-      })] : [])])), 'No campaigns yet.');
+  setList('#campaigns-list', state.campaigns.map((campaign) => {
+    const actions = [button('Compare candidates', () => compareCandidates(campaign.id)),
+      button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title))];
+    if (campaign.open) {
+      const close = button('Close campaign', async () => {
+        if (!await confirmDialog(`Close "${campaign.title}" to new invitations?\n\nExisting assignments stay usable until their own windows end.`)) return;
+        close.disabled = true;
+        try {
+          await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
+          notice('Campaign closed.');
+          await loadCampaigns(page.number);
+        } catch (error) { close.disabled = false; throw error; }
+      });
+      actions.push(close);
+    }
+    return item(campaign.title,
+      `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
+      actions);
+  }), 'No campaigns yet.');
   renderPageControls('#campaigns-pagination', page, loadCampaigns);
   $('#invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
@@ -706,6 +1041,22 @@ $('#candidate-lookup-clear').addEventListener('click', () => run(async () => {
   $('#candidate-lookup-form').reset();
   await loadTalentCandidates();
 }));
+async function loadIntegrityEvents(attemptId, pageNumber, target) {
+  const page = await request(ownOrg(`/talent/attempts/${encodeURIComponent(attemptId)}/integrity/events?page=${pageNumber}`));
+  const rows = (page.content || []).map((event) => node('p',
+    `${event.type.replaceAll('_', ' ').toLowerCase()}${event.questionId ? ` · question ${event.questionId}` : ''} · ${new Date(event.receivedAt).toLocaleString()}`,
+    'item-meta'));
+  target.replaceChildren(node('p',
+    `${page.totalElements} recorded event(s) — these signals are client-reported, cannot be verified, and are not proof of misconduct.`,
+    'muted'), ...rows);
+  if (!rows.length) target.append(node('p', 'No raw events retained.', 'item-meta'));
+  const pager = node('div', '', 'item-actions');
+  const previous = button('Previous', () => loadIntegrityEvents(attemptId, page.number - 1, target));
+  const next = button('Next', () => loadIntegrityEvents(attemptId, page.number + 1, target));
+  previous.disabled = page.first; next.disabled = page.last;
+  pager.append(previous, next);
+  target.append(pager);
+}
 async function compareCandidates(campaignId, pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
   const rows = (page.content || []).map((candidate) => {
@@ -744,13 +1095,15 @@ async function compareCandidates(campaignId, pageNumber = 0) {
         node('p', counts || 'No signals recorded.'),
         node('p', report.interpretation, 'muted'));
     });
+    const eventsPanel = node('div', '', 'item-list');
+    const eventsButton = button('Event log', () => loadIntegrityEvents(candidate.attemptId, 0, eventsPanel));
     const auditPanel = node('div', '', 'item-list');
     const auditButton = button('Review history', () => run(() => loadReviewAudit(
       campaignId, candidate.candidateUserId, 0, auditPanel)));
     const wrapper = node('div', '', 'card panel');
     wrapper.append(info);
     if (reviewForm) wrapper.append(reviewForm);
-    wrapper.append(integrityButton, integrityPanel, auditButton, auditPanel); return wrapper;
+    wrapper.append(integrityButton, integrityPanel, eventsButton, eventsPanel, auditButton, auditPanel); return wrapper;
   });
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
   renderPageControls('#campaign-candidates-pagination', page,
@@ -773,26 +1126,58 @@ async function loadReviewAudit(campaignId, candidateId, pageNumber, target) {
 }
 async function loadAssignments(pageNumber = 0) {
   const page = await request(ownOrg(`/assignments/mine?page=${pageNumber}`));
-  setList('#assignments-list', (page.content || []).map((assignment) => item(
-    `Assessment assignment`, `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()} · ${assignment.attemptsAllowed} attempt(s)`,
-    [button('Start / resume', () => startAttempt(assignment.id)),
-      button('Attempt history', () => showHistory(assignment.id))])), 'No assignments yet.');
+  const inProgress = pendingAttempt();
+  setList('#assignments-list', (page.content || []).map((assignment) => {
+    const resumable = inProgress?.assignmentId === assignment.id;
+    return item(
+      resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
+      `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()} · ${assignment.attemptsAllowed} attempt(s)`,
+      [button(resumable ? 'Resume assessment' : 'Start / resume', () => startAttempt(assignment)),
+        button('Attempt history', () => showHistory(assignment))]);
+  }), 'No assignments yet.');
   renderPageControls('#assignments-pagination', page, loadAssignments);
 }
-async function showHistory(assignmentId) {
-  const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts/mine`));
+async function showHistory(assignment) {
+  const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignment.id)}/attempts/mine`));
   const panel = $('#result-panel'); panel.replaceChildren(node('h2', 'Attempt history'));
   if (!history.length) panel.append(node('p', 'No attempts yet.', 'muted'));
   for (const attempt of history) {
-    const controls = attempt.status === 'SUBMITTED'
+    const submitted = attempt.status === 'SUBMITTED';
+    const remaining = submitted ? 0 : Math.max(0, Math.ceil((Date.parse(attempt.deadline) - Date.now()) / 1000));
+    const meta = `${attempt.status} · ID: ${attempt.id}`
+      + (submitted ? '' : ` · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')} remaining`);
+    const controls = submitted
       ? [button('View result', () => showResult(attempt.id))]
-      : [button('Resume', () => startAttempt(assignmentId))];
-    panel.append(item(`Attempt ${attempt.attemptNumber}`, `${attempt.status} · ID: ${attempt.id}`, controls));
+      : [button('Resume', () => startAttempt(assignment))];
+    panel.append(item(`Attempt ${attempt.attemptNumber}`, meta, controls));
   }
   panel.classList.remove('hidden');
+  focusPanel(panel);
 }
-async function startAttempt(assignmentId) {
+function renderAttemptInstructions(assignment) {
+  const panel = $('#attempt-panel'); panel.replaceChildren(node('h2', 'Before you begin'));
+  const rules = node('ul', '', 'attempt-rules');
+  rules.append(
+    node('li', `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()}.`),
+    node('li', `${assignment.attemptsAllowed} attempt(s) allowed for this assignment.`),
+    node('li', 'The timer is controlled by the server and starts when the attempt begins. It cannot be paused.'),
+    node('li', 'If an attempt is already in progress, this continues that attempt instead of starting a new one.'),
+    node('li', 'Save each answer before you submit. Only saved answers are counted.'),
+    node('li', 'Answers cannot be changed after you submit.'));
+  panel.append(node('p', 'Read these notes, then begin.', 'muted'), rules);
+  panel.append(button('Begin attempt', () => beginAttempt(assignment.id), 'button primary'),
+    button('Cancel', () => panel.classList.add('hidden'), 'button quiet'));
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  focusPanel(panel);
+}
+async function startAttempt(assignment) {
+  if (assignment?.availableFrom && assignment?.availableUntil) { renderAttemptInstructions(assignment); return; }
+  await beginAttempt(assignment?.id || assignment);
+}
+async function beginAttempt(assignmentId) {
   state.activeAttempt = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts`), { method: 'POST' });
+  rememberAttempt(assignmentId, state.activeAttempt);
   $('#result-panel').classList.add('hidden');
   renderAttempt();
 }
@@ -819,63 +1204,159 @@ document.addEventListener('fullscreenchange', () => {
 });
 $('#attempt-panel').addEventListener('copy', () => { void sendTelemetry('COPY_ATTEMPT'); });
 $('#attempt-panel').addEventListener('paste', () => { void sendTelemetry('PASTE_ATTEMPT'); });
+const attemptAnswerState = new Map();
+function attemptHasExpired(attempt) {
+  return Date.now() >= Date.parse(attempt.deadline);
+}
+async function saveAttemptAnswer(attempt, question, body, statusPill, control, savedText) {
+  const path = savedText === undefined
+    ? `/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}`
+    : `/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}/text`;
+  control.disabled = true;
+  statusPill.textContent = 'Saving…';
+  statusPill.className = 'pill';
+  try {
+    await request(ownOrg(path), { method: 'PUT', body });
+    if (savedText === undefined) {
+      attempt.savedAnswers = { ...(attempt.savedAnswers || {}), [question.id]: body.selectedOptionIds };
+    } else {
+      attempt.savedTextAnswers = { ...(attempt.savedTextAnswers || {}), [question.id]: savedText };
+    }
+    attemptAnswerState.set(question.id, 'saved');
+    statusPill.textContent = 'Saved';
+    statusPill.className = 'pill ok';
+    void sendTelemetry('ANSWER_SAVED', question.id);
+    notice('Answer saved.');
+  } catch (error) {
+    attemptAnswerState.set(question.id, 'error');
+    statusPill.textContent = 'Save failed';
+    statusPill.className = 'pill danger';
+    throw error;
+  } finally {
+    control.disabled = attemptHasExpired(attempt);
+  }
+}
 function renderAttempt() {
   const attempt = state.activeAttempt;
-  const panel = $('#attempt-panel'); panel.replaceChildren(node('h2', 'Assessment in progress'));
-  if (talentAttemptActive() && document.fullscreenEnabled) {
-    panel.append(button('Use fullscreen (optional)', async () => {
-      await panel.requestFullscreen(); state.attemptFullscreen = true;
-    }));
-  }
-  const timer = node('p', '', 'pill warn'); panel.append(timer);
+  const panel = $('#attempt-panel');
+  panel.replaceChildren(node('h2', 'Assessment in progress'));
+  attemptAnswerState.clear();
+  let submitControl = null;
+  const announce = node('p', '', 'muted');
+  announce.setAttribute('aria-live', 'polite');
+  const timer = node('p', '', 'pill warn');
+  timer.setAttribute('role', 'timer');
+  let announced = null;
+  const expireAttempt = () => {
+    if (timer.dataset.expired === 'true') return;
+    timer.dataset.expired = 'true';
+    timer.className = 'pill danger';
+    announce.textContent = 'Time is up. Answers can no longer be saved; submit to send the answers that are already saved.';
+    for (const control of panel.querySelectorAll('[data-attempt-save]')) control.disabled = true;
+    if (submitControl) submitControl.textContent = 'Submit assessment (time is up)';
+    notice('Time is up. Submit to send the answers you already saved.', true);
+  };
   const updateTimer = () => {
     const seconds = Math.max(0, Math.ceil((Date.parse(attempt.deadline) - Date.now()) / 1000));
     timer.textContent = `Time remaining: ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-    if (seconds === 0) window.clearInterval(state.timer);
+    if (seconds <= 0) { window.clearInterval(state.timer); expireAttempt(); return; }
+    if (seconds <= 60 && announced !== 60) { announced = 60; announce.textContent = 'One minute remaining.'; }
+    else if (seconds <= 300 && announced !== 300) { announced = 300; announce.textContent = 'Five minutes remaining.'; }
   };
   window.clearInterval(state.timer); updateTimer(); state.timer = window.setInterval(updateTimer, 1000);
+  panel.append(node('p', 'Save each answer before submitting. The timer is set by the server.', 'muted'), timer, announce);
+  if (talentAttemptActive() && document.fullscreenEnabled) {
+    panel.append(button('Use fullscreen (optional)', async () => {
+      await panel.requestFullscreen(); state.attemptFullscreen = true; focusPanel(panel);
+    }));
+  }
+  const expired = attemptHasExpired(attempt);
   for (const [index, question] of attempt.questions.entries()) {
     const block = node('div', '', 'question-block');
     block.append(node('p', `${question.topic} · Question ${index + 1}`, 'eyebrow'), node('h3', question.prompt));
-    const choices = node('div', '', 'question-options');
+    const statusPill = node('span', 'Not saved', 'pill warn');
+    const actions = node('div', '', 'question-actions');
     if (question.type === 'SHORT_ANSWER') {
       const answer = node('textarea'); answer.rows = 5; answer.maxLength = 4000;
+      answer.setAttribute('aria-label', `Answer for question ${index + 1}`);
       answer.value = attempt.savedTextAnswers?.[question.id] || '';
-      block.append(answer, button('Save answer', async () => {
+      const stored = typeof attempt.savedTextAnswers?.[question.id] === 'string';
+      if (stored) { statusPill.textContent = 'Saved'; statusPill.className = 'pill ok'; }
+      attemptAnswerState.set(question.id, stored ? 'saved' : 'unsaved');
+      const save = button('Save answer', async () => {
         const text = answer.value.trim();
         if (!text) throw new Error('Write an answer before saving.');
-        await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}/text`),
-          { method: 'PUT', body: { text } });
-        attempt.savedTextAnswers = { ...(attempt.savedTextAnswers || {}), [question.id]: text };
-        void sendTelemetry('ANSWER_SAVED', question.id);
-        notice('Answer saved.');
-      }));
+        await saveAttemptAnswer(attempt, question, { text }, statusPill, save, text);
+      });
+      save.dataset.attemptSave = 'true';
+      save.disabled = expired;
+      answer.addEventListener('input', () => {
+        attemptAnswerState.set(question.id, 'unsaved');
+        statusPill.textContent = 'Not saved'; statusPill.className = 'pill warn';
+      });
+      actions.append(save, statusPill);
+      block.append(answer, actions);
       panel.append(block); continue;
     }
+    const stored = Array.isArray(attempt.savedAnswers?.[question.id]);
+    if (stored) { statusPill.textContent = 'Saved'; statusPill.className = 'pill ok'; }
+    attemptAnswerState.set(question.id, stored ? 'saved' : 'unsaved');
     const saved = new Set(attempt.savedAnswers?.[question.id] || []);
+    const choices = node('div', '', 'question-options');
     for (const option of question.options) {
       const label = node('label'); const input = node('input');
       input.type = question.type === 'SINGLE_CHOICE' ? 'radio' : 'checkbox';
       input.name = `answer-${question.id}`; input.value = option.id; input.checked = saved.has(option.id);
       label.append(input, node('span', option.text)); choices.append(label);
     }
-    block.append(choices, button('Save answer', async () => {
+    const save = button('Save answer', async () => {
       const selected = [...choices.querySelectorAll('input:checked')].map((input) => input.value);
-      await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}`),
-        { method: 'PUT', body: { selectedOptionIds: selected } });
-      attempt.savedAnswers = { ...(attempt.savedAnswers || {}), [question.id]: selected };
-      void sendTelemetry('ANSWER_SAVED', question.id);
-      notice('Answer saved.');
-    }));
+      await saveAttemptAnswer(attempt, question, { selectedOptionIds: selected }, statusPill, save);
+    });
+    save.dataset.attemptSave = 'true';
+    save.disabled = expired;
+    for (const input of choices.querySelectorAll('input')) {
+      input.addEventListener('change', () => {
+        attemptAnswerState.set(question.id, 'unsaved');
+        statusPill.textContent = 'Not saved'; statusPill.className = 'pill warn';
+      });
+    }
+    actions.append(save, statusPill);
+    block.append(choices, actions);
     panel.append(block);
   }
-  panel.append(button('Submit assessment', async () => {
-    if (!window.confirm('Submit now? Answers cannot be changed afterward.')) return;
-    const result = await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/submit`), { method: 'POST' });
-    window.clearInterval(state.timer); state.activeAttempt = null; panel.classList.add('hidden');
-    renderResult(result); notice('Assessment submitted.');
-  }, 'button primary'));
-  panel.classList.remove('hidden'); panel.scrollIntoView({ behavior: 'smooth' });
+  submitControl = node('button', expired ? 'Submit assessment (time is up)' : 'Submit assessment', 'button primary');
+  submitControl.type = 'button';
+  submitControl.addEventListener('click', () => run(async () => {
+    const unsaved = [...attemptAnswerState.values()].filter((value) => value !== 'saved').length;
+    const warning = unsaved === 1
+      ? '1 answer is not saved and will not be counted.'
+      : `${unsaved} answers are not saved and will not be counted.`;
+    const message = unsaved
+      ? `Submit now? ${warning} Answers cannot be changed after submission.`
+      : 'Submit now? Answers cannot be changed after submission.';
+    if (!await confirmDialog(message)) return;
+    submitControl.disabled = true;
+    submitControl.textContent = 'Submitting…';
+    try {
+      const result = await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/submit`), { method: 'POST' });
+      window.clearInterval(state.timer);
+      state.activeAttempt = null;
+      forgetAttempt();
+      panel.classList.add('hidden');
+      renderResult(result);
+      notice('Assessment submitted.');
+    } catch (error) {
+      submitControl.disabled = false;
+      submitControl.textContent = attemptHasExpired(attempt) ? 'Submit assessment (time is up)' : 'Submit assessment';
+      throw error;
+    }
+  }));
+  panel.append(submitControl);
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth' });
+  focusPanel(panel);
+  if (expired) expireAttempt();
 }
 async function showResult(attemptId) {
   renderResult(await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/result`)));
@@ -884,11 +1365,12 @@ function renderResult(result) {
   const panel = $('#result-panel'); panel.replaceChildren(node('h2', 'Your result'));
   panel.append(node('p', `Attempt ID: ${result.attemptId}`, 'item-meta'));
   if (!result.released) {
-    panel.append(node('p', 'Submitted. Manual grading or organization release may still be pending.', 'muted'));
+    panel.append(node('p', 'Submitted. Your score stays hidden until staff release the result or finish manual grading.', 'muted'));
+    panel.append(button('Check again', () => showResult(result.attemptId), 'button secondary'));
   } else {
     panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`));
     for (const topic of result.topics || []) panel.append(item(topic.topic, `${topic.correct} of ${topic.total} correct`));
-    if (state.organization.type === 'ACADEMY' && state.organization.myRole === 'LEARNER') {
+    if (state.organization?.type === 'ACADEMY' && state.organization?.myRole === 'LEARNER') {
       panel.append(button('View instructor feedback', async () => {
         const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(result.attemptId)}/feedback/mine`),
           { optional404: true });
@@ -902,19 +1384,27 @@ function renderResult(result) {
         panel.append(box);
       }));
       const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the AI Tutor'));
+      form.append(node('p', 'Tutoring uses the AI provider configured on this deployment. If none is available you will see an explanation here.', 'muted'));
       const label = node('label', 'Your question'); const input = node('textarea');
       input.required = true; input.maxLength = 1200; input.rows = 2; label.append(input);
       const submit = node('button', 'Ask tutor', 'button secondary'); submit.type = 'submit';
       form.append(label, submit);
       form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-        const reply = await request(ownOrg(`/attempts/${encodeURIComponent(result.attemptId)}/tutor`),
-          { method: 'POST', body: { question: input.value.trim() } });
-        panel.append(node('p', reply.explanation, 'result-box'));
+        try {
+          const reply = await request(ownOrg(`/attempts/${encodeURIComponent(result.attemptId)}/tutor`),
+            { method: 'POST', body: { question: input.value.trim() } });
+          panel.append(node('p', reply.explanation, 'result-box'));
+        } catch (error) {
+          const explanation = explainAiFailure(error);
+          if (!explanation) throw error;
+          panel.append(node('p', explanation, 'result-box'));
+        }
       }); });
       panel.append(form);
     }
   }
   panel.classList.remove('hidden'); panel.scrollIntoView({ behavior: 'smooth' });
+  focusPanel(panel);
 }
 async function loadCertificates(pageNumber = 0) {
   const page = await request(ownOrg(`/certificates/mine?page=${pageNumber}`));
@@ -1132,14 +1622,28 @@ async function loadConversationMessages(pageNumber = state.messagePage) {
 
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
-  const checkout = await request(ownOrg('/billing/orders'),
-    { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
-  window.location.assign(checkout.checkoutUrl);
+  const control = $('#start-ssl-demo');
+  control.disabled = true; control.textContent = 'Opening SSLCommerz sandbox…';
+  try {
+    const checkout = await request(ownOrg('/billing/orders'),
+      { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
+    window.location.assign(checkout.checkoutUrl);
+  } catch (error) {
+    control.disabled = false; control.textContent = 'Pay with SSLCommerz sandbox';
+    throw error;
+  }
 }));
 $('#start-bkash-demo').addEventListener('click', () => run(async () => {
-  const checkout = await request(ownOrg('/billing/orders'),
-    { method: 'POST', body: { provider: 'BKASH' } });
-  window.location.assign(checkout.checkoutUrl);
+  const control = $('#start-bkash-demo');
+  control.disabled = true; control.textContent = 'Opening bKash sandbox…';
+  try {
+    const checkout = await request(ownOrg('/billing/orders'),
+      { method: 'POST', body: { provider: 'BKASH' } });
+    window.location.assign(checkout.checkoutUrl);
+  } catch (error) {
+    control.disabled = false; control.textContent = 'Pay with direct bKash sandbox';
+    throw error;
+  }
 }));
 $('#register-tab').addEventListener('click', () => switchAuth('register'));
 function switchAuth(which) {
@@ -1148,11 +1652,31 @@ function switchAuth(which) {
   for (const name of ['login', 'register']) {
     const tab = $(`#${name}-tab`); tab.classList.toggle('active', name === which);
     tab.setAttribute('aria-selected', String(name === which));
+    tab.setAttribute('tabindex', name === which ? '0' : '-1');
   }
+  // A programmatic click does not move focus, so place it on the selected tab (the ARIA tab pattern)
+  // rather than leaving it on the old tab or on nothing.
+  const selected = $(`#${which}-tab`);
+  if (document.activeElement !== selected) selected.focus();
+}
+for (const tab of [$('#login-tab'), $('#register-tab')]) {
+  tab.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.currentTarget.id === 'login-tab' ? 'register' : 'login';
+    switchAuth(next);
+    $(`#${next}-tab`).focus();
+  });
 }
 async function setupGoogleSignIn() {
   const config = await request('/auth/google/config', { auth: false });
-  if (!config?.clientId) return;
+  if (!config?.clientId) {
+    // Honest unavailable state: never advertise a sign-in method this deployment cannot offer.
+    const area = $('#google-login-area');
+    area.replaceChildren(node('p', 'Google sign-in is not configured on this deployment. Use email and password instead.', 'muted'));
+    area.classList.remove('hidden');
+    return;
+  }
   const script = document.createElement('script');
   script.src = 'https://accounts.google.com/gsi/client';
   script.async = true;
@@ -1174,18 +1698,37 @@ async function setupGoogleSignIn() {
     $(area).classList.remove('hidden');
   }
 }
-run(setupGoogleSignIn);
+setupGoogleSignIn().catch(() => { /* optional provider: an unreachable config must not block sign-in */ });
 $('#login-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
-  const tokens = await request('/auth/login', { method: 'POST', auth: false,
-    body: { email: form.get('email'), password: form.get('password') } });
-  await signedIn(tokens);
+  const element = event.currentTarget;
+  const form = new FormData(element);
+  const control = element.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    const tokens = await request('/auth/login', { method: 'POST', auth: false,
+      body: { email: form.get('email'), password: form.get('password') } });
+    await signedIn(tokens);
+  } catch (error) {
+    fieldErrors(element, error);
+    throw error;
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
-  await request('/auth/register', { method: 'POST', auth: false,
-    body: { displayName: form.get('displayName'), email: form.get('email'), password: form.get('password') } });
-  event.currentTarget.reset(); switchAuth('login'); notice('Account created. Check your email to verify it.');
+  const element = event.currentTarget;
+  const form = new FormData(element);
+  const control = element.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    const created = await request('/auth/register', { method: 'POST', auth: false,
+      body: { displayName: form.get('displayName'), email: form.get('email'), password: form.get('password') } });
+    element.reset(); switchAuth('login');
+    notice(created?.message
+      ? `${created.message}. Delivery is queued by the server and is not confirmed on this screen.`
+      : 'Account created. The server queues a verification email; delivery is not confirmed on this screen.');
+  } catch (error) {
+    fieldErrors(element, error);
+    throw error;
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#logout').addEventListener('click', () => run(async () => {
   try { await request('/auth/logout', { method: 'POST', body: { refreshToken: state.refreshToken } }); }
@@ -1218,12 +1761,12 @@ $('#invite-member-form').addEventListener('submit', (event) => { event.preventDe
     body: { email: form.get('email').trim(), role: form.get('role') } });
   event.currentTarget.reset();
   await loadMemberInvitations(0);
-  notice('Workspace invitation queued for email delivery.');
+  notice('Invitation recorded. The server queues the email; this screen cannot confirm delivery.');
 }); });
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const email = new FormData(event.currentTarget).get('email').trim();
   const target = await request(ownOrg(`/members/admins/lookup?email=${encodeURIComponent(email)}`));
-  if (!window.confirm(`Transfer workspace ownership to ${target.displayName} (${target.email})? You will no longer be the owner.`)) return;
+  if (!await confirmDialog(`Transfer workspace ownership to ${target.displayName} (${target.email})? You will no longer be the owner.`)) return;
   await request(ownOrg('/owner'), { method: 'PUT', body: { targetUserId: target.userId } });
   await loadOrganizations();
   notice('Workspace ownership transferred.');
@@ -1253,10 +1796,19 @@ $('#question-form').addEventListener('submit', (event) => { event.preventDefault
   await loadQuestions(); notice('Question saved as a draft.');
 }); });
 $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
-  await request(ownOrg('/ai/question-drafts'), { method: 'POST',
-    body: { topic: form.get('topic'), brief: form.get('brief'), type: form.get('type') } });
-  event.currentTarget.reset(); await loadQuestions(); notice('AI draft saved. Review before approval.');
+  const element = event.currentTarget;
+  const form = new FormData(element);
+  const control = element.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    await request(ownOrg('/ai/question-drafts'), { method: 'POST',
+      body: { topic: form.get('topic'), brief: form.get('brief'), type: form.get('type') } });
+    element.reset(); await loadQuestions(); notice('AI draft saved. Review before approval.');
+  } catch (error) {
+    const explanation = explainAiFailure(error);
+    if (!explanation) throw error;
+    notice(explanation, true);
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#assessment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget); const questionIds = [...state.selectedQuestionIds];
@@ -1285,26 +1837,45 @@ $('#inspect-attempt').addEventListener('click', () => run(async () => {
 }));
 $('#release-result').addEventListener('click', () => run(async () => {
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
-  const result = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/release`), { method: 'POST' });
-  $('#review-output').textContent = `Released: ${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`;
-  $('#review-output').classList.remove('hidden'); notice('Result released.');
-  if (state.activeReviewAttemptId === id) await showStaffReview(id);
-  await loadReviewQueue(0);
+  const control = $('#release-result');
+  if (!await confirmDialog(`Release the result for attempt ${id}?\n\nReleasing queues a result email to the participant.`)) return;
+  control.disabled = true;
+  try {
+    const result = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/release`), { method: 'POST' });
+    $('#review-output').textContent = `Released: ${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'} · the participant can now see this result`;
+    $('#review-output').classList.remove('hidden');
+    notice('Result released. A result email is queued for the participant.');
+    if (state.activeReviewAttemptId === id) await showStaffReview(id);
+    await loadReviewQueue(0);
+  } finally { control.disabled = false; }
 }));
 $('#issue-certificate').addEventListener('click', () => run(async () => {
   if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
-  const certificate = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/certificate`), { method: 'POST' });
-  $('#review-certificate-id').value = certificate.id;
-  $('#review-output').textContent = `Certificate ID: ${certificate.id} · Verification code: ${certificate.verificationCode}`;
-  $('#review-output').classList.remove('hidden'); notice('Certificate issued.');
+  const control = $('#issue-certificate');
+  control.disabled = true;
+  try {
+    const certificate = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/certificate`), { method: 'POST' });
+    $('#review-certificate-id').value = certificate.id;
+    $('#review-output').textContent = `Certificate ID: ${certificate.id} · Verification code: ${certificate.verificationCode}`
+      + `\nPublic verification page: /certificates/${certificate.verificationCode}`
+      + '\nA learner email is queued; this screen cannot confirm delivery.';
+    $('#review-output').classList.remove('hidden');
+    notice('Certificate issued. A learner email is queued.');
+  } finally { control.disabled = false; }
 }));
 $('#revoke-certificate').addEventListener('click', () => run(async () => {
   if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
   const id = $('#review-certificate-id').value.trim(); if (!id) throw new Error('Enter a certificate ID.');
-  const certificate = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/revoke`), { method: 'POST' });
-  $('#review-output').textContent = `Certificate ${certificate.id} revoked. Its public code now verifies as invalid.`;
-  $('#review-output').classList.remove('hidden'); notice('Certificate revoked.');
+  if (!await confirmDialog(`Revoke certificate ${id}?\n\nRevocation is terminal: its public code will verify as invalid and this attempt cannot be issued a new certificate.`)) return;
+  const control = $('#revoke-certificate');
+  control.disabled = true;
+  try {
+    const certificate = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/revoke`), { method: 'POST' });
+    $('#review-output').textContent = `Certificate ${certificate.id} revoked. Its public code now verifies as invalid.`;
+    $('#review-output').classList.remove('hidden');
+    notice('Certificate revoked.');
+  } finally { control.disabled = false; }
 }));
 async function loadCertificateAudit(id, pageNumber = 0) {
   const organizationId = state.organization?.id;
@@ -1328,18 +1899,27 @@ $('#review-certificate-id').addEventListener('input', () => {
 $('#feedback-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   const attemptId = form.get('attemptId').trim();
-  const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback`),
-    { method: 'PUT', body: { summary: form.get('summary').trim(), nextSteps: form.get('nextSteps').trim() } });
-  $('#feedback-output').textContent = `Draft saved for attempt ${feedback.attemptId}.`;
-  $('#feedback-output').classList.remove('hidden'); notice('Feedback draft saved.');
+  const control = event.currentTarget.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback`),
+      { method: 'PUT', body: { summary: form.get('summary').trim(), nextSteps: form.get('nextSteps').trim() } });
+    $('#feedback-output').textContent = `Draft saved for attempt ${feedback.attemptId}.`;
+    $('#feedback-output').classList.remove('hidden'); notice('Feedback draft saved.');
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#publish-feedback').addEventListener('click', () => run(async () => {
   const attemptId = new FormData($('#feedback-form')).get('attemptId').trim();
   if (!attemptId) throw new Error('Enter an attempt ID first.');
-  const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback/publish`),
-    { method: 'POST' });
-  $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}.`;
-  $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
+  if (!await confirmDialog(`Publish this feedback for attempt ${attemptId}?\n\nPublished feedback is immutable and the learner can read it immediately. The result must already be released.`)) return;
+  const control = $('#publish-feedback');
+  control.disabled = true;
+  try {
+    const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback/publish`),
+      { method: 'POST' });
+    $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}. The learner can now read it.`;
+    $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
+  } finally { control.disabled = false; }
 }));
 $('#academy-course-select').addEventListener('change', () => run(loadAcademyBatches));
 $('#academy-batch-select').addEventListener('change', () => run(async () => {
@@ -1429,7 +2009,7 @@ $('#campaign-email-invite-form').addEventListener('submit', (event) => { event.p
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
   if (state.emailInvitationCampaignId === form.get('campaignId'))
     await loadEmailInvitations(state.emailInvitationCampaignId);
-  event.currentTarget.reset(); notice('Invitation created; email delivery requested.');
+  event.currentTarget.reset(); notice('Invitation created. The server queues the email; this screen cannot confirm delivery.');
 }); });
 $('#platform-refresh').addEventListener('click', () => run(loadPlatformView));
 $('#platform-inspect').addEventListener('click', () => run(() =>
@@ -1438,7 +2018,8 @@ $('#platform-repair-usage').addEventListener('click', () => run(async () => {
   const id = state.platformOrganizationId;
   if (!id || $('#platform-organization-id').value.trim() !== id)
     throw new Error('Inspect the selected organization before repairing its quota.');
-  if (!window.confirm(`Repair only provable quota gaps for organization ${id}? Review the preview first.`)) return;
+  const name = state.platformOrganizationName ? `"${state.platformOrganizationName}" (${id})` : id;
+  if (!await confirmDialog(`Repair provable quota gaps for ${name}?\n\nThe repair changes only counts justified by durable records. The preview above is not a promise of what will change, every run is audited, and ambiguous history still needs manual review.`)) return;
   $('#platform-repair-usage').disabled = true;
   try {
     await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation`,
