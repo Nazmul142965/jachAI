@@ -121,8 +121,12 @@ public class PaymentBillingService {
         if (order.status() == PaymentOrderStatus.VERIFIED) {
             return verifySslCallback(order.id(), order.gatewayValidationId());
         }
-        throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_VERIFIED",
-                "Waiting for a verified SSLCOMMERZ callback");
+        String validationId = ssl.findValidationId(order).orElseThrow(() ->
+                new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_VERIFIED",
+                        "No completed SSLCOMMERZ sandbox transaction was found"));
+        // The query locates a reference only. verifySslCallback independently validates
+        // status, order ID, currency, amount and risk before changing the plan.
+        return verifySslCallback(order.id(), validationId);
     }
 
     public PaymentOrderView verifySslCallback(String orderId, String validationId) {

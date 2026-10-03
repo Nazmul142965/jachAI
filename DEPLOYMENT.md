@@ -26,7 +26,7 @@ Keep liveness independent of external services: restarting every instance when A
 ## Release gates still open
 
 1. Run the opt-in `local,mongo-smoke` save/read/delete check against a non-production MongoDB, then verify indexes, TTL, tenant isolation, quota reservations, outbox retries, and audit repair against live MongoDB and Redis.
-2. Verify SMTP delivery and recovery, Google sign-in, Gemini/Groq/Ollama requests, and both payment sandboxes with their own test credentials. Do not accept browser redirects as payment proof.
+2. Verify SMTP delivery and recovery, Google sign-in, Gemini/Groq/Ollama requests, and both payment sandboxes with their own test credentials. For SSLCOMMERZ, test a completed payment whose browser callback/IPN is lost: admin reconciliation must query by merchant transaction ID, validate the returned reference through the independent validation API, and credit TEAM once. A pending/failed payment or ambiguous query must not credit TEAM. Do not accept browser redirects as payment proof.
 3. Walk the Academy and Talent workflows in a browser, including more than 20 rows, manual result release, certificate revocation, and stale-token handling.
 4. Add quota backfill/reconciliation before claiming billing limits are production-safe. Accepted email invitations create assignments without an extra reservation, so blindly counting all assignments would double-count them. Older reissued invitation documents may have lost their initial creation date.
 5. Verify trusted reverse-proxy client-IP handling with a live load balancer before relying on IP rate limits behind it. Monitor free-tier MongoDB storage, Redis availability, outbox failures, and payment-verification failures.

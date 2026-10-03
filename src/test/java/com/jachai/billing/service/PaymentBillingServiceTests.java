@@ -134,9 +134,41 @@ class PaymentBillingServiceTests {
     @Test
     void sslCheckoutCannotBeGrantedByAdminReconciliationWithoutGatewayReference() {
         when(orders.findByIdAndOrganizationId(ORDER_ID, "org")).thenReturn(Optional.of(readyOrder()));
+        when(ssl.findValidationId(any(PaymentOrder.class))).thenReturn(Optional.empty());
 
         assertEquals("PAYMENT_NOT_VERIFIED", assertThrows(ApiException.class,
                 () -> service().reconcile("admin", "org", ORDER_ID)).code());
+        verify(subscriptions, never()).save(any(Subscription.class));
+    }
+
+    @Test
+    void adminCanRecoverCompletedSslPaymentAfterLostCallbackOnlyAfterValidation() {
+        PaymentOrder ready = readyOrder();
+        when(orders.findByIdAndOrganizationId(ORDER_ID, "org")).thenReturn(Optional.of(ready));
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(ready));
+        when(ssl.findValidationId(ready)).thenReturn(Optional.of("validation1"));
+        when(ssl.verify(ready, "validation1"))
+                .thenReturn(new SslCommerzSandboxGateway.VerifiedPayment("validation1", "bank123"));
+        when(orders.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertEquals(PaymentOrderStatus.APPLIED, service().reconcile("admin", "org", ORDER_ID).status());
+        verify(ssl).verify(ready, "validation1");
+        verify(subscriptions).save(any(Subscription.class));
+    }
+
+    @Test
+    void sslQueryReferenceAloneCannotActivateTeam() {
+        PaymentOrder ready = readyOrder();
+        when(orders.findByIdAndOrganizationId(ORDER_ID, "org")).thenReturn(Optional.of(ready));
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(ready));
+        when(ssl.findValidationId(ready)).thenReturn(Optional.of("validation1"));
+        when(ssl.verify(ready, "validation1"))
+                .thenThrow(new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                        "PAYMENT_NOT_VERIFIED", "Payment was not verified"));
+
+        assertEquals("PAYMENT_NOT_VERIFIED", assertThrows(ApiException.class,
+                () -> service().reconcile("admin", "org", ORDER_ID)).code());
+        verify(orders, never()).save(any(PaymentOrder.class));
         verify(subscriptions, never()).save(any(Subscription.class));
     }
 

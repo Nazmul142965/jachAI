@@ -7,6 +7,9 @@ import com.jachai.shared.error.ApiException;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -105,6 +108,51 @@ public class SslCommerzSandboxGateway {
         } catch (RestClientException exception) {
             throw providerFailure();
         }
+    }
+
+    /** Query a lost callback by our merchant transaction ID; never treat this lookup as payment proof. */
+    public Optional<String> findValidationId(PaymentOrder order) {
+        requireConfigured();
+        if (order == null || order.id() == null || !order.id().matches("J[0-9a-f]{24}")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_REFERENCE",
+                    "Payment order reference is invalid");
+        }
+        try {
+            JsonNode response = client.get().uri(builder -> builder
+                    .path("/validator/api/merchantTransIDvalidationAPI.php")
+                    .queryParam("tran_id", order.id())
+                    .queryParam("store_id", storeId)
+                    .queryParam("store_passwd", storePassword)
+                    .queryParam("format", "json").build())
+                    .retrieve().body(JsonNode.class);
+            return validationIdFromQuery(order, response);
+        } catch (RestClientException exception) {
+            throw providerFailure();
+        }
+    }
+
+    static Optional<String> validationIdFromQuery(PaymentOrder order, JsonNode response) {
+        if (response == null || !"DONE".equals(response.path("APIConnect").asText())) {
+            throw providerFailure();
+        }
+        JsonNode elements = response.path("element");
+        if (elements.isMissingNode() || elements.isNull()) return Optional.empty();
+        if (!elements.isArray()) throw providerFailure();
+        Set<String> validatedIds = new HashSet<>();
+        for (JsonNode element : elements) {
+            String status = element.path("status").asText();
+            String id = element.path("val_id").asText();
+            if (("VALID".equals(status) || "VALIDATED".equals(status))
+                    && order.id().equals(element.path("tran_id").asText())
+                    && id.matches("[A-Za-z0-9_-]{1,50}")) {
+                validatedIds.add(id);
+            }
+        }
+        if (validatedIds.size() > 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_AMBIGUOUS",
+                    "Multiple successful gateway transactions need manual review");
+        }
+        return validatedIds.stream().findFirst();
     }
 
     static VerifiedPayment verifiedResponse(PaymentOrder order, String validationId,

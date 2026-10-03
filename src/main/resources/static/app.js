@@ -249,7 +249,7 @@ async function loadPaymentHistory(pageNumber = 0) {
   setList('#payment-history', (payments.content || []).map((order) => item(
     `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
     `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
-    (order.provider === 'BKASH' && order.status === 'CHECKOUT_READY') || order.status === 'VERIFIED'
+    order.status === 'CHECKOUT_READY' || order.status === 'VERIFIED'
       ? [button('Check payment', async () => {
           await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/reconcile`), { method: 'POST' });
           await loadEntitlements();
