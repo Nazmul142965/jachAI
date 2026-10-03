@@ -220,6 +220,33 @@ async function main() {
   await clickDialog('primary'); await wait(900);
   check(staff, 'revoke reports the code is now invalid', /verifies as invalid/.test(await ev(`document.querySelector('#review-output').textContent`)));
 
+  // Academy batch workspace: a distinct screen reached from the nav and from the batch list.
+  await view('Batch workspace'); await wait(1500);
+  const workspace = await ev(`document.querySelector('#academy-batch-view').textContent`);
+  check(staff, 'batch workspace is reachable from the nav and selects a course and batch',
+    /Java Fundamentals/.test(workspace) && /Batch A/.test(workspace));
+  check(staff, 'batch summary counts the server roster',
+    /Enrolled learners/.test(await ev(`document.querySelector('#academy-batch-summary').textContent`)));
+  check(staff, 'batch assessments offer progress and reconciliation',
+    await ev(`[...document.querySelectorAll('#academy-batch-assessments button')].some((b) => b.textContent === 'Reconcile assignments')`));
+  await clickText('#academy-batch-assessments', 'Progress & analytics'); await wait(1400);
+  const analyticsText = await ev(`document.querySelector('#academy-batch-analytics').textContent`);
+  check(staff, 'cohort analytics render for the selected assessment',
+    /Cohort coverage/.test(analyticsText) && /66.7%/.test(analyticsText));
+  check(staff, 'per-learner progress rows render',
+    /u-learner/.test(await ev(`document.querySelector('#academy-batch-progress').textContent`)));
+  await clickText('#academy-batch-assessments', 'Reconcile assignments'); await wait(500);
+  check(staff, 'reconcile confirms it only adds missing assignments', /never changed or removed/.test(await dialogText()));
+  await clickDialog('primary'); await wait(1000);
+  check(staff, 'reconcile reports created and already-present counts',
+    /2 assignment\(s\) added; 3 already present/.test(await ev(`document.querySelector('#notice').textContent`)));
+  await shot('academy-batch-workspace');
+  await ev(`document.querySelector('#academy-batch-back').click()`); await wait(1200);
+  check(staff, 'back navigation returns to Courses & batches',
+    await ev(`!document.querySelector('#academy-view').classList.contains('hidden')`));
+  check(staff, 'opening a view moves focus to the page heading',
+    (await ev(`document.activeElement.id`)) === 'page-title', await ev(`document.activeElement.id`));
+
   // ---------------------------------------------------------------- talent journey
   await load('talent-recruiter');
   const talent = 'talent-recruiter';

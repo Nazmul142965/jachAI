@@ -132,6 +132,13 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
 .compare-row:last-child { border-bottom:0; }
 .compare-row span { overflow-wrap:anywhere; }
 .compare-head { font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.screen-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:start; gap:14px; margin-bottom:14px; }
+.screen-head h2 { margin-bottom:6px; }
+.screen-head .muted { margin-bottom:0; }
+.subpanel { margin-top:14px; padding:15px; border:1px solid var(--line); border-radius:12px; }
+.subpanel h4 { margin:0 0 10px; color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+.subpanel .item { border:0; padding:10px 0; border-bottom:1px solid var(--line); border-radius:0; }
+.subpanel .item:last-child { border-bottom:0; }
 [aria-busy="true"] .item { opacity:.6; }
 @media(prefers-reduced-motion:reduce) { .button { transition:none; } }
 .result-box { margin-top:16px; padding:16px; border-radius:10px; background:#eff7f1; color:#1b5940; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }

@@ -7,9 +7,15 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
   selectedQuestionIds: new Set(),
   timer: null, activeConversationId: null, messageRefresh: null,
-  messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0, view: 'overview' };
-const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
-  'campaigns', 'attempts', 'certificates', 'platform'];
+  messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0,
+  batchWorkspaceCourses: [], batchWorkspaceBatches: [], batchWorkspaceCourseId: null,
+  batchWorkspaceBatchId: null, batchWorkspaceAssessmentId: null, batchWorkspaceAssessmentPage: 0,
+  batchWorkspaceToken: 0, campaignWorkspaceId: null, campaignWorkspaceCandidateId: null,
+  campaignWorkspaceToken: 0, campaignWorkspacePage: 0,
+  detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
+  view: 'overview' };
+const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+  'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'platform'];
 const invitationFromLink = new URLSearchParams(location.search).get('invitation');
 const memberInvitationFromLink = new URLSearchParams(location.search).get('memberInvitation');
 const billingReturn = new URLSearchParams(location.search).get('billing');
@@ -300,6 +306,7 @@ async function setOrganization() {
     group('Academy', [
       ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
         ? [['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']] : []),
+      ...(['ORG_ADMIN', 'INSTRUCTOR'].includes(role) ? [['academy-batch', 'Batch workspace']] : []),
       ...(['INSTRUCTOR', 'LEARNER'].includes(role) ? [['messages', 'Messages']] : []),
       ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
     ]);
@@ -360,6 +367,8 @@ async function loadOverviewMetrics() {
   if (state.organization.type === 'ACADEMY') {
     jobs.push(count('/questions?status=DRAFT&page=0', 'Questions awaiting approval', 'questions'));
     jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
+    // The card opens the batch workspace, which picks its first course and batch.
+    if (['ORG_ADMIN', 'INSTRUCTOR'].includes(role)) jobs.push(count('/academy/courses?page=0', 'Courses', 'academy-batch'));
   }
   if (state.organization.type === 'TALENT') {
     jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'campaigns'));
@@ -389,8 +398,9 @@ async function showView(key) {
     if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
   }
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
-    assessments: 'Assessments', academy: 'Courses & batches', messages: 'Messages',
-    campaigns: 'Hiring campaigns', attempts: 'My assessments',
+    assessments: 'Assessments', academy: 'Courses & batches', 'academy-batch': 'Batch workspace',
+    messages: 'Messages', campaigns: 'Hiring campaigns', 'talent-campaign': 'Campaign workspace',
+    attempts: 'My assessments', 'assessment-detail': 'Assessment detail',
     certificates: 'Certificates', platform: 'Platform' };
   $('#page-title').textContent = names[key];
   document.title = `${names[key]} · JachAI`;
@@ -425,6 +435,7 @@ async function showView(key) {
     await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
     attachFilter('#courses-list', 'Filter courses by name or description');
   }
+  if (key === 'academy-batch') await loadAcademyBatchWorkspace();
   if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') {
     await loadList('#campaigns-list', async () => {
@@ -433,10 +444,12 @@ async function showView(key) {
     }, 'Campaigns could not be loaded.');
     attachFilter('#campaigns-list', 'Filter campaigns by title or version');
   }
+  if (key === 'talent-campaign') return; // screen lands in its own commit; no nav entry yet
   if (key === 'attempts') {
     await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
     attachFilter('#assignments-list', 'Filter assignments by availability or attempt count');
   }
+  if (key === 'assessment-detail') return; // screen lands in its own commit; no nav entry yet
   if (key === 'certificates') {
     await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
     attachFilter('#certificates-list', 'Filter certificates by code, status or date');
@@ -1625,7 +1638,8 @@ async function loadAcademyBatches(pageNumber = 0) {
   const batches = page.content || [];
   state.academyBatches = batches;
   setList('#batches-list', batches.map((batch) => item(batch.name,
-    `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`)),
+    `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`,
+    [button('Open workspace', () => openBatchWorkspace(courseId, batch.id))])),
   'No batches for this course yet.');
   renderPageControls('#batches-pagination', page, loadAcademyBatches);
   const select = $('#academy-batch-select');
@@ -1701,6 +1715,197 @@ async function loadBatchProgressPage(route, pageNumber) {
   renderPageControls('#batch-progress-pagination', page,
     (nextPage) => loadBatchProgressPage(route, nextPage));
 }
+
+// ---------------------------------------------------------------- Academy batch workspace
+function batchWorkspaceRoute() {
+  return `/academy/courses/${encodeURIComponent(state.batchWorkspaceCourseId)}`
+    + `/batches/${encodeURIComponent(state.batchWorkspaceBatchId)}`;
+}
+function batchWorkspaceStale(token) {
+  return token !== state.batchWorkspaceToken || !state.organization;
+}
+function emptyBatchWorkspace(message) {
+  state.batchWorkspaceBatchId = null;
+  state.batchWorkspaceAssessmentId = null;
+  state.batchWorkspaceBatches = [];
+  $('#academy-batch-batch').replaceChildren();
+  $('#academy-batch-subtitle').textContent = message;
+  $('#academy-batch-selected').classList.add('hidden');
+  for (const selector of ['#academy-batch-summary', '#academy-batch-assessments', '#academy-batch-learners']) {
+    setList(selector, [], message);
+  }
+  for (const selector of ['#academy-batch-assessments-pagination', '#academy-batch-learners-pagination',
+    '#academy-batch-progress-pagination']) {
+    $(selector).replaceChildren();
+  }
+}
+async function loadAcademyBatchWorkspace() {
+  const token = ++state.batchWorkspaceToken;
+  state.batchWorkspaceAssessmentId = null;
+  state.batchWorkspaceAssessmentPage = 0;
+  $('#academy-batch-selected').classList.add('hidden');
+  await loadList('#academy-batch-summary', async () => {
+    const courses = await request(ownOrg('/academy/courses?page=0'));
+    if (batchWorkspaceStale(token)) return;
+    state.batchWorkspaceCourses = courses.content || [];
+    const select = $('#academy-batch-course');
+    const selected = state.batchWorkspaceCourses.find((course) => course.id === state.batchWorkspaceCourseId)
+      || state.batchWorkspaceCourses[0] || null;
+    select.replaceChildren(...state.batchWorkspaceCourses.map((course) => {
+      const option = node('option', course.name); option.value = course.id; return option;
+    }));
+    if (!selected) {
+      emptyBatchWorkspace('No course exists yet, so there is no batch to open. Create a course under Courses & batches.');
+      setList('#academy-batch-summary', [], 'No course exists yet.');
+      return;
+    }
+    select.value = selected.id;
+    state.batchWorkspaceCourseId = selected.id;
+    await loadAcademyWorkspaceBatches(token);
+  }, 'The course list could not be loaded.');
+}
+async function loadAcademyWorkspaceBatches(token) {
+  const courseId = state.batchWorkspaceCourseId;
+  if (!courseId) { emptyBatchWorkspace('Choose a course first.'); return; }
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches?page=0`));
+  if (batchWorkspaceStale(token)) return;
+  state.batchWorkspaceBatches = page.content || [];
+  const select = $('#academy-batch-batch');
+  const selected = state.batchWorkspaceBatches.find((batch) => batch.id === state.batchWorkspaceBatchId)
+    || state.batchWorkspaceBatches[0] || null;
+  select.replaceChildren(...state.batchWorkspaceBatches.map((batch) => {
+    const option = node('option', batch.name); option.value = batch.id; return option;
+  }));
+  if (!selected) {
+    emptyBatchWorkspace('This course has no batches yet. Create one under Courses & batches.');
+    setList('#academy-batch-summary', [], 'This course has no batches yet.');
+    return;
+  }
+  select.value = selected.id;
+  state.batchWorkspaceBatchId = selected.id;
+  await loadAcademyWorkspaceDetail(token);
+}
+async function loadAcademyWorkspaceDetail(token) {
+  const course = state.batchWorkspaceCourses.find((entry) => entry.id === state.batchWorkspaceCourseId);
+  const batch = state.batchWorkspaceBatches.find((entry) => entry.id === state.batchWorkspaceBatchId);
+  const courseName = course?.name || 'Course';
+  const batchName = batch?.name || 'Batch';
+  $('#academy-batch-title').textContent = batchName;
+  $('#academy-batch-subtitle').textContent = batch
+    ? `${courseName} · ${batchName} · ${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`
+    : `${courseName} · ${batchName}`;
+  state.batchWorkspaceAssessmentId = null;
+  state.batchWorkspaceAssessmentPage = 0;
+  $('#academy-batch-selected').classList.add('hidden');
+  await Promise.all([
+    loadList('#academy-batch-summary', () => loadAcademyWorkspaceSummary(courseName, batch, token),
+      'The batch summary could not be loaded.'),
+    loadList('#academy-batch-assessments', () => loadAcademyWorkspaceAssessments(token, 0),
+      'The batch assessments could not be loaded.'),
+    loadList('#academy-batch-learners', () => loadAcademyWorkspaceLearners(token, 0),
+      'The batch roster could not be loaded.')
+  ]);
+}
+async function loadAcademyWorkspaceSummary(courseName, batch, token) {
+  const roster = await request(ownOrg(`${batchWorkspaceRoute()}/learners?page=0`));
+  if (batchWorkspaceStale(token)) return;
+  const enrolled = roster.totalElements ?? (roster.content || []).length;
+  setList('#academy-batch-summary', [
+    item('Course', courseName),
+    item('Batch', batch?.name || 'Not reported'),
+    item('Batch dates', batch
+      ? `${new Date(batch.startsAt).toLocaleString()} – ${new Date(batch.endsAt).toLocaleString()}` : 'Not reported'),
+    item('Enrolled learners', `${enrolled} learner(s) on the server roster`),
+    item('Batch identifier', state.batchWorkspaceBatchId)
+  ], 'No batch summary is available.');
+}
+async function loadAcademyWorkspaceAssessments(token, pageNumber = 0) {
+  state.batchWorkspaceAssessmentPage = pageNumber;
+  const route = batchWorkspaceRoute();
+  const page = await request(ownOrg(`${route}/assessments?page=${pageNumber}`));
+  if (batchWorkspaceStale(token)) return;
+  setList('#academy-batch-assessments', (page.content || []).map((assessment) => item(
+    assessment.assessmentTitle,
+    `Version ${assessment.assessmentVersionId} · ${assessment.attemptsAllowed} attempt(s) allowed`
+      + ` · Available until ${new Date(assessment.availableUntil).toLocaleString()}`,
+    [button('Progress & analytics', () => loadAcademyWorkspaceAssessment(token, assessment)),
+      button('Reconcile assignments', async () => {
+        if (!await confirmDialog(`Reconcile assignments for "${assessment.assessmentTitle}"?\n\nReconciliation adds an assignment for each enrolled learner who does not already have one. Existing assignments are never changed or removed.`)) return;
+        const result = await request(ownOrg(`${route}/assessments/${encodeURIComponent(assessment.id)}/reconcile`),
+          { method: 'POST' });
+        notice(`${result.createdAssignments} assignment(s) added; ${result.alreadyAssigned} already present.`);
+        await loadAcademyWorkspaceAssessments(token, pageNumber);
+      })])), 'No assessment has been distributed to this batch yet.');
+  renderPageControls('#academy-batch-assessments-pagination', page,
+    (nextPage) => run(() => loadAcademyWorkspaceAssessments(token, nextPage)));
+}
+async function loadAcademyWorkspaceAssessment(token, assessment) {
+  state.batchWorkspaceAssessmentId = assessment.id;
+  $('#academy-batch-selected').classList.remove('hidden');
+  $('#academy-batch-selected-title').textContent = assessment.assessmentTitle;
+  await Promise.all([
+    loadList('#academy-batch-analytics', () => loadAcademyWorkspaceAnalytics(assessment, token),
+      'Cohort analytics could not be loaded.'),
+    loadList('#academy-batch-progress', () => loadAcademyWorkspaceProgress(assessment, token, 0),
+      'Learner progress could not be loaded.')
+  ]);
+  $('#academy-batch-selected').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+async function loadAcademyWorkspaceAnalytics(assessment, token) {
+  const analytics = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/${encodeURIComponent(assessment.id)}/analytics`));
+  if (batchWorkspaceStale(token)) return;
+  const awaitingGrades = analytics.submittedLearners - analytics.gradedLearners;
+  setList('#academy-batch-analytics', [
+    item('Cohort coverage', `${analytics.assignedLearners} assigned / ${analytics.activeLearners} active learners`),
+    item('Completion', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners)`),
+    item('Grading & pass rate', `${analytics.gradedLearners} graded · ${awaitingGrades} awaiting grading · ${analytics.passedLearners} passed (${analytics.gradedLearners ? `${analytics.passRatePercent}% of graded` : 'no graded results yet'})`),
+    item('Average latest score', analytics.averageLatestPercentage === null
+      ? 'No graded results yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
+  ], 'Analytics are unavailable.');
+}
+async function loadAcademyWorkspaceProgress(assessment, token, pageNumber = 0) {
+  const page = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/${encodeURIComponent(assessment.id)}/progress?page=${pageNumber}`));
+  if (batchWorkspaceStale(token)) return;
+  setList('#academy-batch-progress', (page.content || []).map((row) => item(
+    `Learner ${row.learnerUserId}`,
+    row.attemptId
+      ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
+      : 'No submitted attempt yet.')), 'No learner has been assigned this assessment yet.');
+  renderPageControls('#academy-batch-progress-pagination', page,
+    (nextPage) => run(() => loadAcademyWorkspaceProgress(assessment, token, nextPage)));
+}
+async function loadAcademyWorkspaceLearners(token, pageNumber = 0) {
+  const page = await request(ownOrg(`${batchWorkspaceRoute()}/learners?page=${pageNumber}`));
+  if (batchWorkspaceStale(token)) return;
+  setList('#academy-batch-learners', (page.content || []).map((enrollment) => item(
+    `Learner ${enrollment.learnerUserId}`,
+    `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
+  'No learner is enrolled in this batch yet.');
+  renderPageControls('#academy-batch-learners-pagination', page,
+    (nextPage) => run(() => loadAcademyWorkspaceLearners(token, nextPage)));
+}
+function openBatchWorkspace(courseId, batchId) {
+  state.batchWorkspaceCourseId = courseId || null;
+  state.batchWorkspaceBatchId = batchId || null;
+  state.batchWorkspaceAssessmentId = null;
+  return showView('academy-batch');
+}
+$('#academy-batch-back').addEventListener('click', () => run(() => showView('academy')));
+$('#academy-batch-reload').addEventListener('click', () => run(loadAcademyBatchWorkspace));
+$('#academy-batch-course').addEventListener('change', (event) => run(async () => {
+  state.batchWorkspaceCourseId = event.target.value;
+  state.batchWorkspaceBatchId = null;
+  state.batchWorkspaceAssessmentId = null;
+  await loadAcademyWorkspaceBatches(++state.batchWorkspaceToken);
+}));
+$('#academy-batch-batch').addEventListener('change', (event) => run(async () => {
+  state.batchWorkspaceBatchId = event.target.value;
+  await loadAcademyWorkspaceDetail(++state.batchWorkspaceToken);
+}));
+$('#academy-batch-selected-clear').addEventListener('click', () => {
+  state.batchWorkspaceAssessmentId = null;
+  $('#academy-batch-selected').classList.add('hidden');
+});
 
 function stopMessageRefresh() {
   window.clearInterval(state.messageRefresh);
