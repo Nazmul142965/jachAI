@@ -138,9 +138,9 @@ public class BatchAssessmentService {
                 organizationId, batchId);
         var totals = analyticsReader.totals(organizationId, batchAssessmentId);
         return new BatchAssessmentAnalyticsView(batchAssessmentId, activeLearners,
-                totals.assigned(), totals.submitted(), totals.passed(), totals.average(),
+                totals.assigned(), totals.submitted(), totals.graded(), totals.passed(), totals.average(),
                 percentage(totals.submitted(), activeLearners),
-                percentage(totals.passed(), totals.submitted()));
+                percentage(totals.passed(), totals.graded()));
     }
 
     private static double percentage(long numerator, long denominator) {

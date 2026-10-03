@@ -530,26 +530,29 @@ async function compareCandidates(campaignId, pageNumber = 0) {
   const rows = (page.content || []).map((candidate) => {
     const info = item(`Candidate ID: ${candidate.candidateUserId}`,
       candidate.attemptId
-        ? `Latest attempt: ${candidate.attemptId} · ${candidate.percentage == null ? 'Score pending' : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`} · ${candidate.decision || 'Not reviewed'}`
+        ? `Latest attempt: ${candidate.attemptId} · ${candidate.percentage == null ? 'Awaiting manual grading · Review unavailable' : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'} · ${candidate.decision || 'Not reviewed'}`}`
         : 'No submitted attempt yet.');
     if (!candidate.attemptId) return info;
-    const form = node('form', '', 'form-row');
-    const decisionLabel = node('label', 'Decision'); const select = node('select');
-    for (const decision of ['HOLD', 'SHORTLISTED', 'REJECTED']) {
-      const option = node('option', decision.replaceAll('_', ' ')); option.value = decision;
-      select.append(option);
+    let reviewForm = null;
+    if (candidate.percentage != null) {
+      reviewForm = node('form', '', 'form-row');
+      const decisionLabel = node('label', 'Decision'); const select = node('select');
+      for (const decision of ['HOLD', 'SHORTLISTED', 'REJECTED']) {
+        const option = node('option', decision.replaceAll('_', ' ')); option.value = decision;
+        select.append(option);
+      }
+      select.value = candidate.decision || 'HOLD'; decisionLabel.append(select);
+      const noteLabel = node('label', 'Reviewer note'); const noteInput = node('input');
+      noteInput.maxLength = 1000; noteInput.value = candidate.reviewerNote || '';
+      noteLabel.append(noteInput);
+      const save = node('button', 'Save review', 'button secondary small'); save.type = 'submit';
+      reviewForm.append(decisionLabel, noteLabel, save);
+      reviewForm.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+        await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates/${encodeURIComponent(candidate.candidateUserId)}/review`),
+          { method: 'PUT', body: { attemptId: candidate.attemptId, decision: select.value, note: noteInput.value } });
+        notice('Review saved.'); await compareCandidates(campaignId, page.number);
+      }); });
     }
-    select.value = candidate.decision || 'HOLD'; decisionLabel.append(select);
-    const noteLabel = node('label', 'Reviewer note'); const noteInput = node('input');
-    noteInput.maxLength = 1000; noteInput.value = candidate.reviewerNote || '';
-    noteLabel.append(noteInput);
-    const save = node('button', 'Save review', 'button secondary small'); save.type = 'submit';
-    form.append(decisionLabel, noteLabel, save);
-    form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-      await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates/${encodeURIComponent(candidate.candidateUserId)}/review`),
-        { method: 'PUT', body: { attemptId: candidate.attemptId, decision: select.value, note: noteInput.value } });
-      notice('Review saved.'); await compareCandidates(campaignId, page.number);
-    }); });
     const integrityPanel = node('div', '', 'item-list');
     const integrityButton = button('Integrity signals', async () => {
       const report = await request(ownOrg(`/talent/attempts/${encodeURIComponent(candidate.attemptId)}/integrity`));
@@ -564,7 +567,9 @@ async function compareCandidates(campaignId, pageNumber = 0) {
     const auditButton = button('Review history', () => run(() => loadReviewAudit(
       campaignId, candidate.candidateUserId, 0, auditPanel)));
     const wrapper = node('div', '', 'card panel');
-    wrapper.append(info, form, integrityButton, integrityPanel, auditButton, auditPanel); return wrapper;
+    wrapper.append(info);
+    if (reviewForm) wrapper.append(reviewForm);
+    wrapper.append(integrityButton, integrityPanel, auditButton, auditPanel); return wrapper;
   });
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
   renderPageControls('#campaign-candidates-pagination', page,
@@ -846,10 +851,12 @@ async function showBatchProgress(batchAssessmentId) {
   const batchId = $('#academy-batch-select').value;
   const route = `/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments/${encodeURIComponent(batchAssessmentId)}`;
   const analytics = await request(ownOrg(`${route}/analytics`));
+  const awaitingGrades = analytics.submittedLearners - analytics.gradedLearners;
   setList('#batch-analytics', [
     item('Cohort coverage', `${analytics.assignedLearners} assigned / ${analytics.activeLearners} active learners`),
-    item('Completion & pass rate', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners) · ${analytics.passedLearners} passed (${analytics.passRatePercent}% of submitted)`),
-    item('Average latest score', analytics.averageLatestPercentage === null ? 'No submitted attempts yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
+    item('Completion', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners)`),
+    item('Grading & pass rate', `${analytics.gradedLearners} graded · ${awaitingGrades} awaiting grading · ${analytics.passedLearners} passed (${analytics.gradedLearners ? `${analytics.passRatePercent}% of graded` : 'no graded results yet'})`),
+    item('Average latest score', analytics.averageLatestPercentage === null ? 'No graded results yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
   ], 'Analytics are unavailable.');
   await loadBatchProgressPage(route, 0);
   $('#batch-progress-panel').classList.remove('hidden');
@@ -859,7 +866,7 @@ async function loadBatchProgressPage(route, pageNumber) {
   const page = await request(ownOrg(`${route}/progress?page=${pageNumber}`));
   setList('#batch-progress-list', (page.content || []).map((row) => item(
     `Learner ${row.learnerUserId}`,
-    row.attemptId ? `Latest attempt: ${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'} · ${new Date(row.submittedAt).toLocaleString()}`
+    row.attemptId ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
       : 'No submitted attempt yet.')), 'No learners assigned yet.');
   renderPageControls('#batch-progress-pagination', page,
     (nextPage) => loadBatchProgressPage(route, nextPage));

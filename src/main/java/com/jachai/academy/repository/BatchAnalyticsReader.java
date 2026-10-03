@@ -37,14 +37,17 @@ public class BatchAnalyticsReader {
                 .append("assigned", new Document("$sum", 1))
                 .append("submitted", new Document("$sum", new Document("$cond", List.of(
                         new Document("$ifNull", List.of("$latestAttempt._id", false)), 1, 0))))
+                .append("graded", new Document("$sum", new Document("$cond", List.of(
+                        new Document("$gte", List.of(
+                                new Document("$ifNull", List.of("$latestAttempt.percentage", -1)), 0)), 1, 0))))
                 .append("passed", new Document("$sum", new Document("$cond", List.of(
                         new Document("$eq", List.of("$latestAttempt.passed", true)), 1, 0))))
                 .append("average", new Document("$avg", "$latestAttempt.percentage")));
         Document result = mongo.aggregate(Aggregation.newAggregation(match, lookup, unwind, group),
                 "assignments", Document.class).getUniqueMappedResult();
-        if (result == null) return new Totals(0, 0, 0, null);
+        if (result == null) return new Totals(0, 0, 0, 0, null);
         return new Totals(number(result, "assigned"), number(result, "submitted"),
-                number(result, "passed"), result.get("average") instanceof Number average
+                number(result, "graded"), number(result, "passed"), result.get("average") instanceof Number average
                         ? average.doubleValue() : null);
     }
 
@@ -52,5 +55,5 @@ public class BatchAnalyticsReader {
         return source.get(key) instanceof Number value ? value.longValue() : 0;
     }
 
-    public record Totals(long assigned, long submitted, long passed, Double average) { }
+    public record Totals(long assigned, long submitted, long graded, long passed, Double average) { }
 }

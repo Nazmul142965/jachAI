@@ -25,7 +25,7 @@ class BatchAnalyticsReaderTests {
 
     @Test
     void aggregationScopesAssignmentsAndLatestSubmittedAttemptToTenant() {
-        Document row = new Document("assigned", 5).append("submitted", 3)
+        Document row = new Document("assigned", 5).append("submitted", 3).append("graded", 2)
                 .append("passed", 2).append("average", 75.0);
         when(mongo.aggregate(any(Aggregation.class), eq("assignments"), eq(Document.class)))
                 .thenReturn(new AggregationResults<>(List.of(row), new Document()));
@@ -34,6 +34,7 @@ class BatchAnalyticsReaderTests {
 
         assertEquals(5, result.assigned());
         assertEquals(3, result.submitted());
+        assertEquals(2, result.graded());
         assertEquals(2, result.passed());
         assertEquals(75.0, result.average());
         ArgumentCaptor<Aggregation> capture = ArgumentCaptor.forClass(Aggregation.class);
@@ -43,6 +44,8 @@ class BatchAnalyticsReaderTests {
         assertEquals("ba-a", pipeline.getFirst().get("$match", Document.class).getString("batchAssessmentId"));
         assertTrue(pipeline.get(1).toJson().contains("$$organizationId"));
         assertTrue(pipeline.get(1).toJson().contains("SUBMITTED"));
+        assertTrue(pipeline.get(3).toJson().contains("\"graded\""));
+        assertTrue(pipeline.get(3).toJson().contains("$latestAttempt.percentage"));
     }
 
     @Test

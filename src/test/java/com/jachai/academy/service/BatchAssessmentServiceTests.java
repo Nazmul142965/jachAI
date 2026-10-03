@@ -1,6 +1,7 @@
 package com.jachai.academy.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -202,15 +203,38 @@ class BatchAssessmentServiceTests {
         when(enrollments.countByOrganizationIdAndBatchIdAndActiveTrue("org-a", "batch-a"))
                 .thenReturn(10L);
         when(analyticsReader.totals("org-a", "ba-a"))
-                .thenReturn(new BatchAnalyticsReader.Totals(9, 6, 4, 72.5));
+                .thenReturn(new BatchAnalyticsReader.Totals(9, 6, 5, 4, 72.5));
 
         var result = service.analytics("teacher", "org-a", "course-a", "batch-a", "ba-a");
 
         assertEquals(10, result.activeLearners());
         assertEquals(9, result.assignedLearners());
+        assertEquals(6, result.submittedLearners());
+        assertEquals(5, result.gradedLearners());
         assertEquals(60.0, result.completionRatePercent());
-        assertEquals(66.67, result.passRatePercent());
+        assertEquals(80.0, result.passRatePercent());
         assertEquals(72.5, result.averageLatestPercentage());
+    }
+
+    @Test
+    void pendingManualGradesDoNotBecomeFailedLearners() {
+        academy();
+        when(batches.findByIdAndOrganizationIdAndCourseId("batch-a", "org-a", "course-a"))
+                .thenReturn(Optional.of(batch()));
+        when(batchAssessments.findByIdAndOrganizationIdAndBatchId("ba-a", "org-a", "batch-a"))
+                .thenReturn(Optional.of(batchAssessment()));
+        when(enrollments.countByOrganizationIdAndBatchIdAndActiveTrue("org-a", "batch-a"))
+                .thenReturn(5L);
+        when(analyticsReader.totals("org-a", "ba-a"))
+                .thenReturn(new BatchAnalyticsReader.Totals(5, 3, 0, 0, null));
+
+        var result = service.analytics("teacher", "org-a", "course-a", "batch-a", "ba-a");
+
+        assertEquals(3, result.submittedLearners());
+        assertEquals(0, result.gradedLearners());
+        assertEquals(60.0, result.completionRatePercent());
+        assertEquals(0.0, result.passRatePercent());
+        assertNull(result.averageLatestPercentage());
     }
 
     @Test
