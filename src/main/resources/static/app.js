@@ -136,8 +136,9 @@ function explainAiFailure(error) {
       return null;
   }
 }
-async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false } = {}) {
-  const headers = { Accept: 'application/json' };
+async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false,
+  extraHeaders = {} } = {}) {
+  const headers = { Accept: 'application/json', ...extraHeaders };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
   pendingRequests += 1; updateBusyIndicator();
@@ -158,7 +159,7 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
       });
       state.accessToken = renewed.accessToken;
       state.refreshToken = renewed.refreshToken;
-      return request(path, { method, body, auth, retry: false, optional404 });
+      return request(path, { method, body, auth, retry: false, optional404, extraHeaders });
     } catch (_) { showSignedOut(); throw new Error('Your session expired. Please sign in again.'); }
   }
   if (response.status === 401 && auth) {
@@ -2762,7 +2763,8 @@ $('#assessment-form').addEventListener('submit', (event) => { event.preventDefau
   submit.disabled = true;
   try {
     await request(ownOrg(editing ? `/assessments/${encodeURIComponent(editing.id)}/${editing.status === 'DRAFT' ? 'draft' : 'versions'}` : '/assessments'), {
-      method: editing?.status === 'DRAFT' ? 'PUT' : 'POST', body: {
+      method: editing?.status === 'DRAFT' ? 'PUT' : 'POST',
+      extraHeaders: editing ? { 'If-Match': String(editing.revision) } : {}, body: {
     title: form.get('title'), instructions: form.get('instructions'),
     durationMinutes: Number(form.get('durationMinutes')),
     passingPercentage: Number(form.get('passingPercentage')), resultReleasePolicy: form.get('resultReleasePolicy') || null, questionIds

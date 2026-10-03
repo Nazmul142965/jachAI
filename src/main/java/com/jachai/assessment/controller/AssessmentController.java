@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,8 +51,9 @@ public class AssessmentController {
 
     @PutMapping("/{assessmentId}/draft")
     public Assessment updateDraft(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
-            @PathVariable String assessmentId, @Valid @RequestBody CreateAssessmentRequest request) {
-        return assessments.updateDraft(jwt.getSubject(), organizationId, assessmentId, request);
+            @PathVariable String assessmentId, @RequestHeader("If-Match") long expectedRevision,
+            @Valid @RequestBody CreateAssessmentRequest request) {
+        return assessments.updateDraft(jwt.getSubject(), organizationId, assessmentId, expectedRevision, request);
     }
 
     @GetMapping("/{assessmentId}/versions")
@@ -72,8 +74,10 @@ public class AssessmentController {
     @PostMapping("/{assessmentId}/versions")
     public Map<String, Object> reviseAndPublish(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String assessmentId,
+            @RequestHeader("If-Match") long expectedRevision,
             @Valid @RequestBody CreateAssessmentRequest request) {
-        var version = assessments.reviseAndPublish(jwt.getSubject(), organizationId, assessmentId, request);
+        var version = assessments.reviseAndPublish(jwt.getSubject(), organizationId, assessmentId,
+                expectedRevision, request);
         return Map.of("assessmentId", version.assessmentId(), "version", version.version(),
                 "publishedAt", version.publishedAt());
     }

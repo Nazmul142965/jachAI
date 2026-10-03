@@ -189,7 +189,7 @@ class AssessmentServiceTests {
         when(questions.findByIdAndOrganizationId("q2", "org-a")).thenReturn(Optional.of(question));
         when(assessments.save(any(Assessment.class))).thenAnswer(call -> call.getArgument(0));
 
-        var version = service().reviseAndPublish("teacher", "org-a", "a1",
+        var version = service().reviseAndPublish("teacher", "org-a", "a1", 3L,
                 new CreateAssessmentRequest(" Revised ", 45, 70, List.of("q2"), null,
                         " New instructions "));
 
@@ -215,7 +215,7 @@ class AssessmentServiceTests {
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
 
         ApiException error = assertThrows(ApiException.class, () ->
-                service().reviseAndPublish("teacher", "org-a", "a1",
+                service().reviseAndPublish("teacher", "org-a", "a1", 3L,
                         new CreateAssessmentRequest("Original", 30, 60, List.of(),
                                 ResultReleasePolicy.IMMEDIATE, "Rules")));
 
@@ -233,7 +233,7 @@ class AssessmentServiceTests {
                 .thenThrow(new OptimisticLockingFailureException("concurrent update"));
 
         ApiException error = assertThrows(ApiException.class, () ->
-                service().reviseAndPublish("teacher", "org-a", "a1",
+                service().reviseAndPublish("teacher", "org-a", "a1", 3L,
                         new CreateAssessmentRequest("Revised", 30, 60, List.of(),
                                 ResultReleasePolicy.IMMEDIATE, "Rules")));
 
@@ -250,7 +250,7 @@ class AssessmentServiceTests {
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
         when(assessments.save(any(Assessment.class))).thenAnswer(call -> call.getArgument(0));
 
-        var updated = service().updateDraft("teacher", "org-a", "a1",
+        var updated = service().updateDraft("teacher", "org-a", "a1", 2L,
                 new CreateAssessmentRequest(" New title ", 40, 75, List.of(), null, " New rules "));
 
         assertEquals("New title", updated.title());
@@ -270,7 +270,7 @@ class AssessmentServiceTests {
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
 
         ApiException error = assertThrows(ApiException.class, () ->
-                service().updateDraft("teacher", "org-a", "a1",
+                service().updateDraft("teacher", "org-a", "a1", 2L,
                         new CreateAssessmentRequest("Change", 30, 60, List.of(), null, "Rules")));
 
         assertEquals("NOT_DRAFT", error.code());
@@ -291,5 +291,21 @@ class AssessmentServiceTests {
 
         assertEquals(1, result.getNumber());
         assertEquals(2, result.getTotalPages());
+    }
+
+    @Test
+    void staleAssessmentFormCannotOverwriteNewerDraftOrPublishNewVersion() {
+        var current = new Assessment("a1", "org-a", "teacher", "Current", 30, 60,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.PUBLISHED, 2,
+                Instant.now(), 4L, "Rules");
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
+        var request = new CreateAssessmentRequest("Stale edit", 30, 60, List.of(), null, "Rules");
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service().reviseAndPublish("teacher", "org-a", "a1", 3L, request));
+
+        assertEquals("ASSESSMENT_CHANGED", error.code());
+        verify(versions, never()).insert(any(AssessmentVersion.class));
+        verify(assessments, never()).save(any(Assessment.class));
     }
 }

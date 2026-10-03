@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -58,9 +59,10 @@ public class AssessmentService {
     }
 
     public Assessment updateDraft(String userId, String organizationId, String assessmentId,
-                                  CreateAssessmentRequest request) {
+                                  long expectedRevision, CreateAssessmentRequest request) {
         requireAuthor(userId, organizationId);
         Assessment current = findAssessment(organizationId, assessmentId);
+        requireCurrentRevision(current, expectedRevision);
         if (current.status() != AssessmentStatus.DRAFT) {
             throw new ApiException(HttpStatus.CONFLICT, "NOT_DRAFT", "Published assessments require a new version");
         }
@@ -101,9 +103,10 @@ public class AssessmentService {
     }
 
     public AssessmentVersion reviseAndPublish(String userId, String organizationId, String assessmentId,
-                                              CreateAssessmentRequest request) {
+                                              long expectedRevision, CreateAssessmentRequest request) {
         requireAuthor(userId, organizationId);
         Assessment current = findAssessment(organizationId, assessmentId);
+        requireCurrentRevision(current, expectedRevision);
         if (current.status() != AssessmentStatus.PUBLISHED) {
             throw new ApiException(HttpStatus.CONFLICT, "NOT_PUBLISHED", "Publish the draft before creating another version");
         }
@@ -130,6 +133,13 @@ public class AssessmentService {
     private Assessment findAssessment(String organizationId, String assessmentId) {
         return assessments.findByIdAndOrganizationId(assessmentId, organizationId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Assessment not found"));
+    }
+
+    private void requireCurrentRevision(Assessment current, long expectedRevision) {
+        if (!Objects.equals(current.revision(), expectedRevision)) {
+            throw new ApiException(HttpStatus.PRECONDITION_FAILED, "ASSESSMENT_CHANGED",
+                    "Assessment changed since this form was opened; reload it before saving");
+        }
     }
 
     private void validateQuestionIds(String organizationId, List<String> questionIds) {
