@@ -112,4 +112,22 @@ class QueuedEmailSenderTests {
         new QueuedEmailSender(jobs, cipher).sendResultReleased("attempt-1", "learner@example.com",
                 "Learner", "https://example.test/");
     }
+
+    @Test
+    void assignmentReminderUsesOneEncryptedJobPerUtcDay() {
+        when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
+        QueuedEmailSender sender = new QueuedEmailSender(jobs, cipher);
+
+        assertTrue(sender.sendAssignmentReminder("assignment-1", "learner@example.com", "Learner",
+                "Java", "https://example.test/", Instant.now().plusSeconds(3600)));
+
+        ArgumentCaptor<EmailJob> job = ArgumentCaptor.forClass(EmailJob.class);
+        verify(jobs).insert(job.capture());
+        assertTrue(job.getValue().id().startsWith("assignment-reminder:assignment-1:"));
+        assertTrue(job.getValue().expiresAt().isAfter(Instant.now()));
+        ArgumentCaptor<EmailPayload> payload = ArgumentCaptor.forClass(EmailPayload.class);
+        verify(cipher).seal(any(), payload.capture());
+        assertEquals(EmailJobType.ASSIGNMENT_REMINDER, payload.getValue().type());
+        assertEquals("assignment-1", payload.getValue().resourceId());
+    }
 }

@@ -19,4 +19,6 @@ public interface AttemptRepository extends MongoRepository<Attempt, String> {
             String organizationId, List<String> assignmentIds, AttemptStatus status);
     Page<Attempt> findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
             String organizationId, AttemptStatus status, Pageable pageable);
+    boolean existsByOrganizationIdAndAssignmentIdAndStatus(
+            String organizationId, String assignmentId, AttemptStatus status);
 }

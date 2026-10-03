@@ -6,10 +6,13 @@ import com.jachai.auth.repository.UserRepository;
 import com.jachai.academy.model.CertificateStatus;
 import com.jachai.academy.repository.CertificateRepository;
 import com.jachai.attempt.model.AttemptStatus;
+import com.jachai.attempt.repository.AssignmentRepository;
 import com.jachai.attempt.repository.AttemptRepository;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.organization.repository.OrganizationInvitationRepository;
+import com.jachai.organization.repository.MembershipRepository;
+import com.jachai.organization.model.OrganizationRole;
 import com.jachai.talent.repository.CampaignEmailInvitationRepository;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -32,6 +35,8 @@ public class EmailLinkGuard {
     private final OrganizationInvitationRepository organizationInvitations;
     private final CertificateRepository certificates;
     private final AttemptRepository attempts;
+    private final AssignmentRepository assignments;
+    private final MembershipRepository memberships;
     private final UserRepository users;
 
     public boolean isCurrent(EmailPayload payload) {
@@ -40,6 +45,9 @@ public class EmailLinkGuard {
         }
         if (payload.type() == EmailJobType.RESULT_RELEASED) {
             return currentResult(payload);
+        }
+        if (payload.type() == EmailJobType.ASSIGNMENT_REMINDER) {
+            return currentAssignmentReminder(payload);
         }
         String token = tokenFrom(payload.url(),
                 payload.type() == EmailJobType.ASSESSMENT_INVITATION ? "invitation"
@@ -60,7 +68,31 @@ public class EmailLinkGuard {
                             && value.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case CERTIFICATE_ISSUED -> false;
             case RESULT_RELEASED -> false;
+            case ASSIGNMENT_REMINDER -> false;
         };
+    }
+
+    private boolean currentAssignmentReminder(EmailPayload payload) {
+        if (payload.resourceId() == null) return false;
+        try {
+            URI url = URI.create(payload.url());
+            if (!"/".equals(url.getPath()) || url.getQuery() != null) return false;
+            Instant now = Instant.now();
+            return assignments.findById(payload.resourceId())
+                    .filter(assignment -> assignment.availableUntil().isAfter(now))
+                    .filter(assignment -> !attempts.existsByOrganizationIdAndAssignmentIdAndStatus(
+                            assignment.organizationId(), assignment.id(), AttemptStatus.SUBMITTED))
+                    .filter(assignment -> memberships.findByUserIdAndOrganizationIdAndActiveTrue(
+                            assignment.assignedUserId(), assignment.organizationId())
+                            .filter(member -> member.role() == OrganizationRole.LEARNER
+                                    || member.role() == OrganizationRole.CANDIDATE).isPresent())
+                    .flatMap(assignment -> users.findById(assignment.assignedUserId()))
+                    .filter(user -> user.emailVerified() && !user.disabled()
+                            && user.email().equalsIgnoreCase(payload.recipient()))
+                    .isPresent();
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private boolean currentResult(EmailPayload payload) {

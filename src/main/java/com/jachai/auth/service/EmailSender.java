@@ -12,4 +12,6 @@ public interface EmailSender {
     void sendCertificateIssued(String certificateId, String recipient, String displayName,
                                String verificationUrl);
     void sendResultReleased(String attemptId, String recipient, String displayName, String signInUrl);
+    boolean sendAssignmentReminder(String assignmentId, String recipient, String displayName,
+                                   String assessmentTitle, String signInUrl, Instant availableUntil);
 }

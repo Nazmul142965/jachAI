@@ -16,11 +16,15 @@ import com.jachai.academy.model.CertificateStatus;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
+import com.jachai.attempt.repository.AssignmentRepository;
+import com.jachai.attempt.model.Assignment;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.organization.model.OrganizationInvitation;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.repository.OrganizationInvitationRepository;
+import com.jachai.organization.repository.MembershipRepository;
+import com.jachai.organization.model.Membership;
 import com.jachai.talent.model.CampaignEmailInvitation;
 import com.jachai.talent.repository.CampaignEmailInvitationRepository;
 import java.time.Instant;
@@ -39,11 +43,13 @@ class EmailLinkGuardTests {
     @Mock OrganizationInvitationRepository organizationInvitations;
     @Mock CertificateRepository certificates;
     @Mock AttemptRepository attempts;
+    @Mock AssignmentRepository assignments;
+    @Mock MembershipRepository memberships;
     @Mock UserRepository users;
 
     private EmailLinkGuard guard() {
         return new EmailLinkGuard(verificationTokens, resetTokens, invitations,
-                organizationInvitations, certificates, attempts, users);
+                organizationInvitations, certificates, attempts, assignments, memberships, users);
     }
 
     @Test
@@ -147,5 +153,29 @@ class EmailLinkGuardTests {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
                 "learner@example.com", "Learner", null, "https://example.test/",
                 now.plusSeconds(3600), "attempt")));
+    }
+
+    @Test
+    void assignmentReminderRequiresCurrentMemberEmailAndUnfinishedWindow() {
+        Instant now = Instant.now();
+        when(assignments.findById("assignment")).thenReturn(Optional.of(new Assignment(
+                "assignment", "org", "assessment", "assessment:1", null, null,
+                "learner", 1, now.minusSeconds(60), now.plusSeconds(3600), now)));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("learner", "org"))
+                .thenReturn(Optional.of(new Membership("member", "learner", "org",
+                        OrganizationRole.LEARNER, true, now)));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
+                "learner@example.com", "Learner", null, true, false, 0, now)));
+        EmailPayload payload = new EmailPayload(EmailJobType.ASSIGNMENT_REMINDER,
+                "learner@example.com", "Learner", "Assessment", "https://example.test/",
+                now.plusSeconds(3600), "assignment");
+
+        assertTrue(guard().isCurrent(payload));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.ASSIGNMENT_REMINDER,
+                "other@example.com", "Learner", "Assessment", "https://example.test/",
+                now.plusSeconds(3600), "assignment")));
+        when(attempts.existsByOrganizationIdAndAssignmentIdAndStatus(
+                "org", "assignment", AttemptStatus.SUBMITTED)).thenReturn(true);
+        assertFalse(guard().isCurrent(payload));
     }
 }

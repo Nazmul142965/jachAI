@@ -263,6 +263,7 @@ async function setOrganization() {
   updateQuestionEditor();
   $('#assessment-form').reset();
   updateAssessmentEditor();
+  $('#recent-assignment')?.remove();
   state.tutorHistory.clear();
   state.activeAttempt = null;
   state.activeReviewAttemptId = null;
@@ -2025,7 +2026,8 @@ async function loadBatchProgressPage(route, pageNumber) {
   setList('#batch-progress-list', (page.content || []).map((row) => item(
     `Learner ${row.learnerUserId}`,
     row.attemptId ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
-      : 'No submitted attempt yet.')), 'No learners assigned yet.');
+      : 'No submitted attempt yet.',
+    !row.attemptId && row.assignmentId ? [reminderButton(row.assignmentId)] : [])), 'No learners assigned yet.');
   renderPageControls('#batch-progress-pagination', page,
     (nextPage) => loadBatchProgressPage(route, nextPage));
 }
@@ -2344,7 +2346,8 @@ async function loadCampaignWorkspaceCandidate(candidate, token) {
     + `/candidates/${encodeURIComponent(candidate.candidateUserId)}`;
   setList('#talent-campaign-candidate-summary', [
     item(`Candidate ${candidate.candidateUserId}`,
-      `Assignment ${candidate.assignmentId || 'not reported'}`),
+      `Assignment ${candidate.assignmentId || 'not reported'}`,
+      candidate.assignmentId && !candidate.attemptId ? [reminderButton(candidate.assignmentId)] : []),
     item('Latest submitted attempt', candidate.attemptId
       ? `${candidate.attemptId} · ${candidate.percentage == null ? 'Awaiting manual grading' : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`}`
         + ` · Submitted ${candidate.submittedAt ? new Date(candidate.submittedAt).toLocaleString() : 'not reported'}`
@@ -2838,11 +2841,31 @@ $('#assignment-form').addEventListener('submit', (event) => { event.preventDefau
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
   if (availableUntil <= availableFrom) throw new Error('End time must follow start time.');
-  await request(ownOrg(`/assessments/${encodeURIComponent(form.get('assessmentId'))}/assignments`),
+  const assignment = await request(ownOrg(`/assessments/${encodeURIComponent(form.get('assessmentId'))}/assignments`),
     { method: 'POST', body: { userId: form.get('userId').trim(), attemptsAllowed: Number(form.get('attemptsAllowed')),
       availableFrom, availableUntil } });
-  event.currentTarget.reset(); notice('Assessment assigned.');
+  event.currentTarget.reset();
+  let recent = $('#recent-assignment');
+  if (!recent) {
+    recent = node('div', '', 'item-list'); recent.id = 'recent-assignment';
+    $('#assignment-form').after(recent);
+  }
+  recent.replaceChildren(item('Assignment created', `ID ${assignment.id} · recipient ${assignment.assignedUserId}`,
+    [reminderButton(assignment.id)]));
+  notice('Assessment assigned. A reminder is optional; no email has been sent yet.');
 }); });
+function reminderButton(assignmentId) {
+  const control = button('Queue email reminder', async () => {
+    if (!await confirmDialog(`Queue an assessment reminder?\n\nAssignment ${assignmentId}\nAt most one reminder per UTC day is queued. Delivery is not guaranteed.`)) return;
+    control.disabled = true;
+    try {
+      const result = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/reminders`),
+        { method: 'POST' });
+      notice(result.queued ? 'Reminder queued; delivery is pending.' : 'A reminder was already queued today.');
+    } finally { control.disabled = false; }
+  });
+  return control;
+}
 $('#inspect-attempt').addEventListener('click', () => run(async () => {
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
   await showStaffReview(id);

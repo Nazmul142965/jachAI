@@ -144,7 +144,7 @@ Use provider-specific variables such as `GROQ_API_KEY` and `GEMINI_API_KEY`; an 
 
 ## 10. Email and messaging
 
-Email is a product feature, not only a registration detail. Initial templates: verify email and reset password. Later: organization invitation, assessment invitation/reminder, result released, certificate issued, and billing notices.
+Email is a product feature, not only a registration detail. Initial templates: verify email and reset password. Later: organization invitation, assessment invitation/reminder, result released, certificate issued, and billing notices. Staff can explicitly queue one reminder per assignment per UTC day through `POST /api/v1/organizations/{organizationId}/assignments/{assignmentId}/reminders`. The encrypted outbox rechecks that the assignment is still open and unsubmitted and that the recipient remains an active, verified learner/candidate with the same email before delivery. This is a queued notification, not proof of delivery; no email is sent automatically when an assignment is created.
 
 Implement `EmailSender` so a local test sender and a production provider can be swapped. Create email jobs when an event occurs, then send asynchronously with retries and delivery status. Never use email delivery success as the sole source of truth for an assessment or payment state.
 

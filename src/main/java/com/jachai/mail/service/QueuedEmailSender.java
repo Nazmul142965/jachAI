@@ -8,6 +8,8 @@ import com.jachai.mail.model.EmailPayload;
 import com.jachai.mail.repository.EmailJobRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -68,6 +70,24 @@ public class QueuedEmailSender implements EmailSender {
             enqueue("result-released:" + attemptId, payload, null);
         } catch (DuplicateKeyException ignored) {
             // A released attempt has only one notification, even after retries.
+        }
+    }
+
+    @Override
+    public boolean sendAssignmentReminder(String assignmentId, String recipient, String displayName,
+                                          String assessmentTitle, String signInUrl, Instant availableUntil) {
+        Instant now = Instant.now();
+        Instant validUntil = availableUntil.isBefore(now.plus(Duration.ofDays(7)))
+                ? availableUntil : now.plus(Duration.ofDays(7));
+        EmailPayload payload = new EmailPayload(EmailJobType.ASSIGNMENT_REMINDER,
+                recipient, displayName, assessmentTitle, signInUrl, validUntil, assignmentId);
+        String day = LocalDate.ofInstant(now, ZoneOffset.UTC).toString();
+        try {
+            enqueue("assignment-reminder:" + assignmentId + ":" + day, payload,
+                    now.plus(RECORD_RETENTION));
+            return true;
+        } catch (DuplicateKeyException ignored) {
+            return false;
         }
     }
 

@@ -63,6 +63,13 @@ final class SmtpEmailSender implements EmailTransport {
                         + ",\n\nYour assessment result is available. Sign in and open My assessments to view it:\n"
                         + payload.url() + "\n\nIf you did not expect this message, contact your organization.");
             }
+            case ASSIGNMENT_REMINDER -> {
+                mail.setSubject("Reminder: your JachAI assessment");
+                mail.setText("Hello " + payload.displayName()
+                        + ",\n\nYour assessment \"" + payload.campaignTitle()
+                        + "\" is waiting for you. Sign in and open My assessments before the availability window ends:\n"
+                        + payload.url() + "\n\nIf you already completed it, no action is needed.");
+            }
         }
         mailSender.send(mail);
     }
