@@ -43,11 +43,11 @@ function button(text, action, className = 'button secondary small') {
 }
 function notice(message, error = false) {
   const area = $('#notice');
-  area.textContent = message;
+  area.textContent = error ? `Error: ${message}` : message;
   area.classList.toggle('error', error);
   area.classList.remove('hidden');
   window.clearTimeout(notice.timeout);
-  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), 7000);
+  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), error ? 12000 : 7000);
 }
 async function run(action) {
   try { await action(); } catch (error) { notice(error.message || 'Something went wrong.', true); }
@@ -298,6 +298,10 @@ async function showView(key) {
     campaigns: 'Hiring campaigns', attempts: 'My assessments',
     certificates: 'Certificates', platform: 'Platform' };
   $('#page-title').textContent = names[key];
+  document.title = `${names[key]} · JachAI`;
+  const heading = $('#page-title');
+  heading.setAttribute('tabindex', '-1');
+  heading.focus({ preventScroll: true });
   $('#page-subtitle').textContent = key === 'platform' ? 'Administration and support'
     : state.organization?.name || '';
   if (key === 'platform') { await loadPlatformView(); return; }
@@ -490,7 +494,7 @@ async function changePlatformRole(grant) {
   const id = state.platformTargetUserId;
   if (!id || $('#platform-user-id').value.trim() !== id)
     throw new Error('Inspect the exact user ID before changing their role.');
-  if (!window.confirm(`${grant ? 'Grant' : 'Revoke'} platform administrator access for user ${id}?`)) return;
+  if (!await confirmDialog(`${grant ? 'Grant' : 'Revoke'} platform administrator access for user ${id}?`)) return;
   await request(`/platform/users/${encodeURIComponent(id)}/role`,
     { method: 'PUT', body: { platformAdmin: grant } });
   await inspectPlatformUser(id);
@@ -558,6 +562,52 @@ function attachFilter(selector, placeholder) {
   host.insertBefore(label, target);
   input.addEventListener('input', () => apply(input));
 }
+function confirmDialog(message) {
+  return new Promise((resolve) => {
+    const backdrop = node('div', '', 'modal-backdrop');
+    const dialog = node('div', '', 'modal');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    const lines = String(message).split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+    const title = lines[0] || 'Please confirm';
+    const heading = node('h2', title);
+    heading.id = 'confirm-dialog-title';
+    dialog.setAttribute('aria-labelledby', heading.id);
+    dialog.append(heading);
+    for (const line of lines.slice(1)) dialog.append(node('p', line, 'muted'));
+    const actions = node('div', '', 'modal-actions');
+    const cancel = node('button', 'Cancel', 'button quiet');
+    const confirm = node('button', 'Confirm', 'button primary');
+    cancel.type = 'button'; confirm.type = 'button';
+    const verb = title.match(/^(Revoke|Release|Close|Deactivate|Reactivate|Publish|Delete|Remove|Transfer|Change|Submit|Grant|Mark|Repair)\b/);
+    if (verb) confirm.textContent = verb[1];
+    if (verb && ['Revoke', 'Deactivate', 'Close', 'Delete', 'Remove'].includes(verb[1])) confirm.classList.add('danger-action');
+    actions.append(cancel, confirm);
+    dialog.append(actions);
+    backdrop.append(dialog);
+    const previouslyFocused = document.activeElement;
+    const onKeydown = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); close(false); return; }
+      if (event.key !== 'Tab') return;
+      const focusable = [...dialog.querySelectorAll('button')];
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    const close = (result) => {
+      document.removeEventListener('keydown', onKeydown, true);
+      backdrop.remove();
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+      resolve(result);
+    };
+    cancel.addEventListener('click', () => close(false));
+    confirm.addEventListener('click', () => close(true));
+    backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(false); });
+    document.addEventListener('keydown', onKeydown, true);
+    document.body.append(backdrop);
+    confirm.focus();
+  });
+}
 function renderPageControls(selector, page, onPage) {
   const target = $(selector); target.replaceChildren();
   if ((page.totalPages || 0) <= 1) return;
@@ -593,7 +643,7 @@ async function loadMembers(pageNumber = 0) {
       if (member.active) {
         const save = button('Save role', async () => {
           if (select.value === member.role) { notice('That is already the current role.'); return; }
-          if (!window.confirm(`Change ${member.displayName} from ${member.role.replaceAll('_', ' ')} to ${select.value.replaceAll('_', ' ')}?`)) return;
+          if (!await confirmDialog(`Change ${member.displayName} from ${member.role.replaceAll('_', ' ')} to ${select.value.replaceAll('_', ' ')}?`)) return;
           save.disabled = true;
           try {
             await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
@@ -602,7 +652,7 @@ async function loadMembers(pageNumber = 0) {
           } catch (error) { save.disabled = false; throw error; }
         });
         const deactivate = button('Deactivate', async () => {
-          if (!window.confirm(`Deactivate ${member.displayName} from this workspace?\n\nThey lose access until an admin reactivates them.`)) return;
+          if (!await confirmDialog(`Deactivate ${member.displayName} from this workspace?\n\nThey lose access until an admin reactivates them.`)) return;
           deactivate.disabled = true;
           try {
             await request(ownOrg(`/members/${encodeURIComponent(member.userId)}`), { method: 'DELETE' });
@@ -612,7 +662,7 @@ async function loadMembers(pageNumber = 0) {
         actions.push(save, deactivate);
       } else {
         const reactivate = button('Reactivate', async () => {
-          if (!window.confirm(`Reactivate ${member.displayName} with the role ${select.value.replaceAll('_', ' ')}?`)) return;
+          if (!await confirmDialog(`Reactivate ${member.displayName} with the role ${select.value.replaceAll('_', ' ')}?`)) return;
           reactivate.disabled = true;
           try {
             await request(ownOrg('/members'), { method: 'POST',
@@ -646,7 +696,7 @@ async function loadMemberInvitations(pageNumber = 0) {
     const actions = [];
     if (canRevoke) {
       const revoke = button('Revoke', async () => {
-        if (!window.confirm(`Revoke the invitation for ${invitation.email}?\n\nThe link stops working immediately.`)) return;
+        if (!await confirmDialog(`Revoke the invitation for ${invitation.email}?\n\nThe link stops working immediately.`)) return;
         revoke.disabled = true;
         try {
           await request(ownOrg(`/invitations/${encodeURIComponent(invitation.id)}`), { method: 'DELETE' });
@@ -725,7 +775,7 @@ async function loadAssessments(pageNumber = 0) {
     const actions = [];
     if (assessment.status === 'DRAFT') {
       const publish = button('Publish', async () => {
-        if (!window.confirm(`Publish "${assessment.title}"?\n\nPublishing freezes this version with ${assessment.questionIds.length} question(s) and a ${assessment.durationMinutes} minute limit, and adds it to the published list. A published version cannot be edited.`)) return;
+        if (!await confirmDialog(`Publish "${assessment.title}"?\n\nPublishing freezes this version with ${assessment.questionIds.length} question(s) and a ${assessment.durationMinutes} minute limit, and adds it to the published list. A published version cannot be edited.`)) return;
         publish.disabled = true;
         try {
           await request(ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/publish`), { method: 'POST' });
@@ -760,7 +810,7 @@ async function loadReviewQueue(pageNumber) {
     if (attempt.percentage != null) {
       const release = button('Release result', async () => {
         const score = `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`;
-        if (!window.confirm(`Release this result to the participant?\n\n${attempt.assessmentTitle}\n${score}\nAttempt ${attempt.attemptId}\n\nReleasing queues a result email to the participant.`)) return;
+        if (!await confirmDialog(`Release this result to the participant?\n\n${attempt.assessmentTitle}\n${score}\nAttempt ${attempt.attemptId}\n\nReleasing queues a result email to the participant.`)) return;
         release.disabled = true;
         try {
           await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
@@ -827,7 +877,7 @@ async function loadManualGradeAudit(attemptId, pageNumber = 0) {
 }
 function gradeControl(attemptId, questionId, correct) {
   const control = button(correct ? 'Mark correct' : 'Mark incorrect', async () => {
-    if (!window.confirm(`Mark this answer ${correct ? 'correct' : 'incorrect'}?\n\nGrading is final and audited, and it changes the official score.`)) return;
+    if (!await confirmDialog(`Mark this answer ${correct ? 'correct' : 'incorrect'}?\n\nGrading is final and audited, and it changes the official score.`)) return;
     control.disabled = true;
     try {
       await gradeShortAnswer(attemptId, questionId, correct);
@@ -853,7 +903,7 @@ async function loadCampaigns(pageNumber = 0) {
       button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title))];
     if (campaign.open) {
       const close = button('Close campaign', async () => {
-        if (!window.confirm(`Close "${campaign.title}" to new invitations?\n\nExisting assignments stay usable until their own windows end.`)) return;
+        if (!await confirmDialog(`Close "${campaign.title}" to new invitations?\n\nExisting assignments stay usable until their own windows end.`)) return;
         close.disabled = true;
         try {
           await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
@@ -1214,7 +1264,7 @@ function renderAttempt() {
     const message = unsaved
       ? `Submit now? ${warning} Answers cannot be changed after submission.`
       : 'Submit now? Answers cannot be changed after submission.';
-    if (!window.confirm(message)) return;
+    if (!await confirmDialog(message)) return;
     submitControl.disabled = true;
     submitControl.textContent = 'Submitting…';
     try {
@@ -1524,7 +1574,20 @@ function switchAuth(which) {
   for (const name of ['login', 'register']) {
     const tab = $(`#${name}-tab`); tab.classList.toggle('active', name === which);
     tab.setAttribute('aria-selected', String(name === which));
+    tab.setAttribute('tabindex', name === which ? '0' : '-1');
   }
+  const target = $(which === 'login' ? '#login-form' : '#register-form');
+  const firstField = target?.querySelector('input');
+  if (firstField && document.activeElement?.getAttribute('role') === 'tab') firstField.focus();
+}
+for (const tab of [$('#login-tab'), $('#register-tab')]) {
+  tab.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.currentTarget.id === 'login-tab' ? 'register' : 'login';
+    switchAuth(next);
+    $(`#${next}-tab`).focus();
+  });
 }
 async function setupGoogleSignIn() {
   const config = await request('/auth/google/config', { auth: false });
@@ -1624,7 +1687,7 @@ $('#invite-member-form').addEventListener('submit', (event) => { event.preventDe
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const email = new FormData(event.currentTarget).get('email').trim();
   const target = await request(ownOrg(`/members/admins/lookup?email=${encodeURIComponent(email)}`));
-  if (!window.confirm(`Transfer workspace ownership to ${target.displayName} (${target.email})? You will no longer be the owner.`)) return;
+  if (!await confirmDialog(`Transfer workspace ownership to ${target.displayName} (${target.email})? You will no longer be the owner.`)) return;
   await request(ownOrg('/owner'), { method: 'PUT', body: { targetUserId: target.userId } });
   await loadOrganizations();
   notice('Workspace ownership transferred.');
@@ -1687,7 +1750,7 @@ $('#inspect-attempt').addEventListener('click', () => run(async () => {
 $('#release-result').addEventListener('click', () => run(async () => {
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
   const control = $('#release-result');
-  if (!window.confirm(`Release the result for attempt ${id}?\n\nReleasing queues a result email to the participant.`)) return;
+  if (!await confirmDialog(`Release the result for attempt ${id}?\n\nReleasing queues a result email to the participant.`)) return;
   control.disabled = true;
   try {
     const result = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/release`), { method: 'POST' });
@@ -1716,7 +1779,7 @@ $('#issue-certificate').addEventListener('click', () => run(async () => {
 $('#revoke-certificate').addEventListener('click', () => run(async () => {
   if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
   const id = $('#review-certificate-id').value.trim(); if (!id) throw new Error('Enter a certificate ID.');
-  if (!window.confirm(`Revoke certificate ${id}?\n\nRevocation is terminal: its public code will verify as invalid and this attempt cannot be issued a new certificate.`)) return;
+  if (!await confirmDialog(`Revoke certificate ${id}?\n\nRevocation is terminal: its public code will verify as invalid and this attempt cannot be issued a new certificate.`)) return;
   const control = $('#revoke-certificate');
   control.disabled = true;
   try {
@@ -1760,7 +1823,7 @@ $('#feedback-form').addEventListener('submit', (event) => { event.preventDefault
 $('#publish-feedback').addEventListener('click', () => run(async () => {
   const attemptId = new FormData($('#feedback-form')).get('attemptId').trim();
   if (!attemptId) throw new Error('Enter an attempt ID first.');
-  if (!window.confirm(`Publish this feedback for attempt ${attemptId}?\n\nPublished feedback is immutable and the learner can read it immediately. The result must already be released.`)) return;
+  if (!await confirmDialog(`Publish this feedback for attempt ${attemptId}?\n\nPublished feedback is immutable and the learner can read it immediately. The result must already be released.`)) return;
   const control = $('#publish-feedback');
   control.disabled = true;
   try {
@@ -1867,7 +1930,7 @@ $('#platform-repair-usage').addEventListener('click', () => run(async () => {
   const id = state.platformOrganizationId;
   if (!id || $('#platform-organization-id').value.trim() !== id)
     throw new Error('Inspect the selected organization before repairing its quota.');
-  if (!window.confirm(`Repair only provable quota gaps for organization ${id}? Review the preview first.`)) return;
+  if (!await confirmDialog(`Repair only provable quota gaps for organization ${id}? Review the preview first.`)) return;
   $('#platform-repair-usage').disabled = true;
   try {
     await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation`,

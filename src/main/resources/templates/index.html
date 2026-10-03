@@ -9,6 +9,7 @@
   <script type="module" src="/app.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#app">Skip to workspace content</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
     <span class="topbar-note">Technical assessment workspace</span>
@@ -46,7 +47,7 @@
     </section>
   </main>
 
-  <main id="app" class="workspace hidden">
+  <main id="app" class="workspace hidden" tabindex="-1">
     <aside class="sidebar">
       <p class="eyebrow">Workspace</p>
       <label class="select-label" for="organization-select">Organization</label>
