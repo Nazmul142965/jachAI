@@ -1,6 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
-  platformAdmin: false, platformOrganizationId: null, platformLoadToken: 0,
+  platformAdmin: false, platformUserId: null, platformOrganizationId: null,
+  platformLoadToken: 0, platformTargetUserId: null, platformUserLoadToken: 0,
   questions: [], campaigns: [], academyCourses: [], academyBatches: [],
   emailInvitationCampaignId: null, emailInvitationLoadToken: 0,
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
@@ -81,7 +82,8 @@ function showSignedOut() {
   window.clearInterval(state.timer);
   stopMessageRefresh();
   state.accessToken = null; state.refreshToken = null; state.organization = null;
-  state.platformAdmin = false; state.platformOrganizationId = null; state.platformLoadToken++;
+  state.platformAdmin = false; state.platformUserId = null; state.platformOrganizationId = null;
+  state.platformTargetUserId = null; state.platformLoadToken++; state.platformUserLoadToken++;
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
   state.activeReviewAttemptId = null;
   state.emailInvitationCampaignId = null;
@@ -127,7 +129,9 @@ async function signedIn(tokens) {
 }
 async function loadOrganizations() {
   const previous = state.organization?.id;
-  state.platformAdmin = (await request('/platform/me')).platformAdmin;
+  const platformAccess = await request('/platform/me');
+  state.platformAdmin = platformAccess.platformAdmin;
+  state.platformUserId = platformAccess.userId;
   state.organizations = await request('/organizations');
   const select = $('#organization-select');
   select.replaceChildren();
@@ -273,6 +277,7 @@ async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
   await Promise.all([loadPlatformOperations(), loadPlatformOrganizations(0)]);
   if (state.platformOrganizationId) await inspectPlatformOrganization(state.platformOrganizationId);
+  if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
 }
 async function loadPlatformOperations() {
   const summary = await request('/platform/operations/summary');
@@ -344,6 +349,49 @@ async function loadPlatformUsageAudit(id, pageNumber, token) {
   'No platform repair runs recorded.');
   renderPageControls('#platform-usage-audit-pagination', page,
     (nextPage) => loadPlatformUsageAudit(id, nextPage, token));
+}
+async function inspectPlatformUser(userId) {
+  const id = userId?.trim();
+  if (!id) throw new Error('Enter an exact user ID first.');
+  state.platformTargetUserId = id;
+  $('#platform-user-id').value = id;
+  const token = ++state.platformUserLoadToken;
+  $('#platform-grant-role').disabled = true;
+  $('#platform-revoke-role').disabled = true;
+  const [user, role] = await Promise.all([
+    request(`/platform/users/${encodeURIComponent(id)}`),
+    request(`/platform/users/${encodeURIComponent(id)}/role`)
+  ]);
+  if (token !== state.platformUserLoadToken) return;
+  setList('#platform-user-summary', [
+    item(user.displayName, `${user.email} · ${user.id}`),
+    item(role.platformAdmin ? 'Platform administrator' : 'No platform role',
+      `${user.emailVerified ? 'Verified' : 'Unverified'} · ${user.disabled ? 'Disabled' : 'Active'}${role.bootstrapAdmin ? ' · Environment bootstrap' : ''}`)
+  ], 'No user selected.');
+  const canChange = id !== state.platformUserId && !role.bootstrapAdmin;
+  $('#platform-grant-role').disabled = !canChange || role.platformAdmin || !user.emailVerified || user.disabled;
+  $('#platform-revoke-role').disabled = !canChange || !role.platformAdmin;
+  await loadPlatformRoleAudit(id, 0, token);
+}
+async function loadPlatformRoleAudit(id, pageNumber, token) {
+  const page = await request(`/platform/users/${encodeURIComponent(id)}/role/audit?page=${pageNumber}`);
+  if (token !== state.platformUserLoadToken) return;
+  setList('#platform-role-audit', (page.content || []).map((event) => item(
+    `${event.action} · revision ${event.revision}`,
+    `By ${event.actorUserId} · ${new Date(event.occurredAt).toLocaleString()}`)),
+  'No role changes recorded.');
+  renderPageControls('#platform-role-audit-pagination', page,
+    (nextPage) => loadPlatformRoleAudit(id, nextPage, token));
+}
+async function changePlatformRole(grant) {
+  const id = state.platformTargetUserId;
+  if (!id || $('#platform-user-id').value.trim() !== id)
+    throw new Error('Inspect the exact user ID before changing their role.');
+  if (!window.confirm(`${grant ? 'Grant' : 'Revoke'} platform administrator access for user ${id}?`)) return;
+  await request(`/platform/users/${encodeURIComponent(id)}/role`,
+    { method: 'PUT', body: { platformAdmin: grant } });
+  await inspectPlatformUser(id);
+  notice(`Platform administrator access ${grant ? 'granted' : 'revoked'}.`);
 }
 async function loadOrganizationSettings() {
   const settings = await request(ownOrg('/settings'));
@@ -1400,3 +1448,7 @@ $('#platform-repair-usage').addEventListener('click', () => run(async () => {
     notice('Quota repair finished. Check the report and audit for manual follow-up.');
   } finally { $('#platform-repair-usage').disabled = false; }
 }));
+$('#platform-inspect-user').addEventListener('click', () => run(() =>
+  inspectPlatformUser($('#platform-user-id').value)));
+$('#platform-grant-role').addEventListener('click', () => run(() => changePlatformRole(true)));
+$('#platform-revoke-role').addEventListener('click', () => run(() => changePlatformRole(false)));

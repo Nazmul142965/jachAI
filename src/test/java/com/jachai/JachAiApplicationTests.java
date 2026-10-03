@@ -312,7 +312,9 @@ class JachAiApplicationTests {
                 .andExpect(content().string(containsString("inspect-attempt")))
                 .andExpect(content().string(containsString("platform-view")))
                 .andExpect(content().string(containsString("platform-repair-usage")))
-                .andExpect(content().string(containsString("platform-usage-audit-pagination")));
+                .andExpect(content().string(containsString("platform-usage-audit-pagination")))
+                .andExpect(content().string(containsString("platform-grant-role")))
+                .andExpect(content().string(containsString("platform-role-audit-pagination")));
         mvc.perform(get("/verify-email.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("JachAI email verification")));
