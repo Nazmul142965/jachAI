@@ -142,6 +142,11 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
 [aria-busy="true"] .item { opacity:.6; }
 @media(prefers-reduced-motion:reduce) { .button { transition:none; } }
 .result-box { margin-top:16px; padding:16px; border-radius:10px; background:#eff7f1; color:#1b5940; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }
+.tutor-thread { display:grid; gap:10px; max-height:360px; overflow:auto; }
+.tutor-turn { padding:12px 14px; border-radius:10px; overflow-wrap:anywhere; white-space:pre-wrap; }
+.tutor-turn p { margin:6px 0 0; }
+.tutor-learner { background:#eef2f8; color:#253c60; }
+.tutor-reply { background:#eff7f1; color:#1b5940; }
 .question-block { padding:20px 0; border-top:1px solid var(--line); }
 .question-block:first-of-type { border-top:0; }
 .question-block h3 { font-size:16px; }

@@ -5,6 +5,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   questions: [], campaigns: [], academyCourses: [], academyBatches: [],
   emailInvitationCampaignId: null, emailInvitationLoadToken: 0,
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
+  tutorHistory: new Map(),
   selectedQuestionIds: new Set(),
   timer: null, activeConversationId: null, messageRefresh: null,
   messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0,
@@ -186,6 +187,7 @@ function showSignedOut() {
   state.platformAdmin = false; state.platformUserId = null; state.platformOrganizationId = null;
   state.platformTargetUserId = null; state.platformLoadToken++; state.platformUserLoadToken++;
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
+  state.tutorHistory.clear();
   state.activeReviewAttemptId = null;
   state.emailInvitationCampaignId = null;
   state.emailInvitationLoadToken++;
@@ -250,6 +252,7 @@ async function loadOrganizations() {
 }
 async function setOrganization() {
   state.selectedQuestionIds.clear();
+  state.tutorHistory.clear();
   state.activeAttempt = null;
   state.activeReviewAttemptId = null;
   state.reviewLoadToken++;
@@ -1672,20 +1675,44 @@ function renderResult(result, target = '#result-panel') {
         panel.append(box);
       }));
       const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the AI Tutor'));
-      form.append(node('p', 'Tutoring uses the AI provider configured on this deployment. If none is available you will see an explanation here.', 'muted'));
+      form.append(node('p', 'Ask follow-up questions here. The last three exchanges stay in this tab only; reloading or switching workspaces clears them.', 'muted'));
+      let history = state.tutorHistory.get(result.attemptId) || [];
+      const transcript = node('div', '', 'tutor-thread');
+      transcript.setAttribute('role', 'log');
+      transcript.setAttribute('aria-label', 'AI Tutor conversation');
+      transcript.setAttribute('aria-live', 'polite');
+      const addTurn = (turn) => {
+        const item = node('div', '', `tutor-turn ${turn.role === 'LEARNER' ? 'tutor-learner' : 'tutor-reply'}`);
+        item.append(node('strong', turn.role === 'LEARNER' ? 'You' : 'AI Tutor'), node('p', turn.content));
+        transcript.append(item);
+      };
+      history.forEach(addTurn);
+      form.append(transcript);
       const label = node('label', 'Your question'); const input = node('textarea');
       input.required = true; input.maxLength = 1200; input.rows = 2; label.append(input);
       const submit = node('button', 'Ask tutor', 'button secondary'); submit.type = 'submit';
       form.append(label, submit);
       form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+        const question = input.value.trim();
+        if (!question || submit.disabled) return;
+        submit.disabled = true;
         try {
           const reply = await request(ownOrg(`/attempts/${encodeURIComponent(result.attemptId)}/tutor`),
-            { method: 'POST', body: { question: input.value.trim() } });
-          panel.append(node('p', reply.explanation, 'result-box'));
+            { method: 'POST', body: { question, history: history.slice(-6).map((turn) => ({
+              role: turn.role, content: turn.content.slice(0, 800)
+            })) } });
+          const next = [{ role: 'LEARNER', content: question },
+            { role: 'TUTOR', content: reply.explanation }];
+          next.forEach(addTurn);
+          history = [...history, ...next].slice(-6);
+          state.tutorHistory.set(result.attemptId, history);
+          input.value = '';
         } catch (error) {
           const explanation = explainAiFailure(error);
           if (!explanation) throw error;
-          panel.append(node('p', explanation, 'result-box'));
+          notice(explanation, true);
+        } finally {
+          submit.disabled = false;
         }
       }); });
       panel.append(form);
