@@ -43,6 +43,14 @@ final class SmtpEmailSender implements EmailTransport {
                         + "and accept the invitation:\n" + payload.url()
                         + "\n\nIf you did not expect this invitation, ignore this email.");
             }
+            case ORGANIZATION_INVITATION -> {
+                mail.setSubject("Join " + payload.displayName() + " on JachAI");
+                mail.setText("You have been invited to join " + payload.displayName()
+                        + " as " + payload.campaignTitle().replace('_', ' ')
+                        + ".\n\nOpen this link, register or sign in using this email address, "
+                        + "and accept the invitation:\n" + payload.url()
+                        + "\n\nIf you did not expect this invitation, ignore this email.");
+            }
             case CERTIFICATE_ISSUED -> {
                 mail.setSubject("Your JachAI certificate is ready");
                 mail.setText("Hello " + payload.displayName()

@@ -45,6 +45,24 @@ class QueuedEmailSenderTests {
     }
 
     @Test
+    void organizationInvitationLinkIsQueuedEncryptedWithItsExpiry() {
+        when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
+        QueuedEmailSender sender = new QueuedEmailSender(jobs, cipher);
+        Instant expiry = Instant.now().plusSeconds(3600);
+
+        sender.sendOrganizationInvitation("person@example.com", "Acme", "INSTRUCTOR",
+                "https://example.test/?memberInvitation=secret", expiry);
+
+        ArgumentCaptor<EmailPayload> payload = ArgumentCaptor.forClass(EmailPayload.class);
+        verify(cipher).seal(any(), payload.capture());
+        assertEquals(EmailJobType.ORGANIZATION_INVITATION, payload.getValue().type());
+        assertEquals(expiry, payload.getValue().validUntil());
+        ArgumentCaptor<EmailJob> job = ArgumentCaptor.forClass(EmailJob.class);
+        verify(jobs).insert(job.capture());
+        assertEquals("ciphertext", job.getValue().encryptedPayload());
+    }
+
+    @Test
     void certificateEmailUsesPermanentDeterministicJobId() {
         when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
         QueuedEmailSender sender = new QueuedEmailSender(jobs, cipher);

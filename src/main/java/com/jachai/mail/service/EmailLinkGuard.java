@@ -9,6 +9,7 @@ import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
+import com.jachai.organization.repository.OrganizationInvitationRepository;
 import com.jachai.talent.repository.CampaignEmailInvitationRepository;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -28,6 +29,7 @@ public class EmailLinkGuard {
     private final EmailVerificationTokenRepository verificationTokens;
     private final PasswordResetTokenRepository resetTokens;
     private final CampaignEmailInvitationRepository invitations;
+    private final OrganizationInvitationRepository organizationInvitations;
     private final CertificateRepository certificates;
     private final AttemptRepository attempts;
     private final UserRepository users;
@@ -40,8 +42,8 @@ public class EmailLinkGuard {
             return currentResult(payload);
         }
         String token = tokenFrom(payload.url(),
-                payload.type() == EmailJobType.ASSESSMENT_INVITATION
-                        ? "invitation" : "token");
+                payload.type() == EmailJobType.ASSESSMENT_INVITATION ? "invitation"
+                        : payload.type() == EmailJobType.ORGANIZATION_INVITATION ? "memberInvitation" : "token");
         if (token == null) return false;
         String hash = hash(token);
         Instant now = Instant.now();
@@ -52,6 +54,10 @@ public class EmailLinkGuard {
                     .filter(value -> value.expiresAt().isAfter(now)).isPresent();
             case ASSESSMENT_INVITATION -> invitations.findByTokenHash(hash)
                     .filter(value -> value.acceptedAt() == null && value.expiresAt().isAfter(now)).isPresent();
+            case ORGANIZATION_INVITATION -> organizationInvitations.findByTokenHash(hash)
+                    .filter(value -> value.acceptedAt() == null && value.revokedAt() == null
+                            && value.expiresAt().isAfter(now)
+                            && value.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case CERTIFICATE_ISSUED -> false;
             case RESULT_RELEASED -> false;
         };

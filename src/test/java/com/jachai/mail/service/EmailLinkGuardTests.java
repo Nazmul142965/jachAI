@@ -18,6 +18,9 @@ import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
+import com.jachai.organization.model.OrganizationInvitation;
+import com.jachai.organization.model.OrganizationRole;
+import com.jachai.organization.repository.OrganizationInvitationRepository;
 import com.jachai.talent.model.CampaignEmailInvitation;
 import com.jachai.talent.repository.CampaignEmailInvitationRepository;
 import java.time.Instant;
@@ -33,12 +36,14 @@ class EmailLinkGuardTests {
     @Mock EmailVerificationTokenRepository verificationTokens;
     @Mock PasswordResetTokenRepository resetTokens;
     @Mock CampaignEmailInvitationRepository invitations;
+    @Mock OrganizationInvitationRepository organizationInvitations;
     @Mock CertificateRepository certificates;
     @Mock AttemptRepository attempts;
     @Mock UserRepository users;
 
     private EmailLinkGuard guard() {
-        return new EmailLinkGuard(verificationTokens, resetTokens, invitations, certificates, attempts, users);
+        return new EmailLinkGuard(verificationTokens, resetTokens, invitations,
+                organizationInvitations, certificates, attempts, users);
     }
 
     @Test
@@ -66,6 +71,24 @@ class EmailLinkGuardTests {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.ASSESSMENT_INVITATION,
                 "person@example.com", "Org", "Campaign", "https://example.test/?invitation=secret",
                 Instant.now().plusSeconds(3600))));
+    }
+
+    @Test
+    void currentOrganizationInvitationCanBeDeliveredButAcceptedOrWrongRecipientCannot() {
+        OrganizationInvitation pending = new OrganizationInvitation("id", "org", "person@example.com",
+                OrganizationRole.LEARNER, "owner", "hash", Instant.now(),
+                Instant.now().plusSeconds(3600), null, null, 1L);
+        when(organizationInvitations.findByTokenHash(any())).thenReturn(Optional.of(pending));
+        EmailPayload valid = new EmailPayload(EmailJobType.ORGANIZATION_INVITATION,
+                "person@example.com", "Org", "LEARNER",
+                "https://example.test/?memberInvitation=secret", Instant.now().plusSeconds(3600));
+
+        assertTrue(guard().isCurrent(valid));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.ORGANIZATION_INVITATION,
+                "wrong@example.com", "Org", "LEARNER", valid.url(), valid.validUntil())));
+
+        when(organizationInvitations.findByTokenHash(any())).thenReturn(Optional.of(pending.accepted(Instant.now())));
+        assertFalse(guard().isCurrent(valid));
     }
 
     @Test

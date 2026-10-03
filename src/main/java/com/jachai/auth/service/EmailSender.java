@@ -7,6 +7,8 @@ public interface EmailSender {
     void sendPasswordReset(String recipient, String displayName, String resetUrl);
     void sendAssessmentInvitation(String recipient, String organizationName,
                                   String campaignTitle, String invitationUrl, Instant expiresAt);
+    void sendOrganizationInvitation(String recipient, String organizationName,
+                                    String role, String invitationUrl, Instant expiresAt);
     void sendCertificateIssued(String certificateId, String recipient, String displayName,
                                String verificationUrl);
     void sendResultReleased(String attemptId, String recipient, String displayName, String signInUrl);

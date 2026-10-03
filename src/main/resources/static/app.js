@@ -9,9 +9,14 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
   'campaigns', 'attempts', 'certificates'];
 const invitationFromLink = new URLSearchParams(location.search).get('invitation');
+const memberInvitationFromLink = new URLSearchParams(location.search).get('memberInvitation');
 const billingReturn = new URLSearchParams(location.search).get('billing');
 if (invitationFromLink) {
   sessionStorage.setItem('jachaiPendingInvitation', invitationFromLink);
+  history.replaceState(null, '', location.pathname);
+}
+if (memberInvitationFromLink) {
+  sessionStorage.setItem('jachaiPendingMemberInvitation', memberInvitationFromLink);
   history.replaceState(null, '', location.pathname);
 }
 if (billingReturn) {
@@ -101,6 +106,18 @@ async function signedIn(tokens) {
       invitationMessage = 'Invitation accepted. Your assessment is under My assignments.';
     } catch (error) {
       invitationMessage = `Signed in, but the invitation was not accepted: ${error.message}`;
+    }
+  }
+  const pendingMember = sessionStorage.getItem('jachaiPendingMemberInvitation');
+  if (pendingMember) {
+    try {
+      const accepted = await request('/organization-invitations/accept',
+        { method: 'POST', body: { token: pendingMember } });
+      sessionStorage.removeItem('jachaiPendingMemberInvitation');
+      state.organization = { id: accepted.organizationId };
+      invitationMessage = `Joined ${accepted.organizationId}. Open the workspace to continue.`;
+    } catch (error) {
+      invitationMessage = `Signed in, but the workspace invitation was not accepted: ${error.message}`;
     }
   }
   await loadOrganizations();
@@ -273,6 +290,9 @@ async function loadMembers(pageNumber = 0) {
     : ['ORG_ADMIN', 'RECRUITER', 'CANDIDATE'];
   const roles = state.organization.owner ? allRoles : allRoles.filter((role) => role !== 'ORG_ADMIN');
   $('#member-role').replaceChildren(...roles.map((role) => { const option = node('option', role.replaceAll('_', ' ')); option.value = role; return option; }));
+  $('#invited-member-role').replaceChildren(...roles.map((role) => {
+    const option = node('option', role.replaceAll('_', ' ')); option.value = role; return option;
+  }));
   setList('#members-list', members.map((member) => {
     const actions = [];
     if (!member.owner && (state.organization.owner || member.role !== 'ORG_ADMIN')) {
@@ -311,7 +331,28 @@ async function loadMembers(pageNumber = 0) {
     return wrapper;
   }), 'No members yet.');
   renderPageControls('#members-pagination', page, loadMembers);
+  await loadMemberInvitations(0);
   await loadOwnershipAudit(0);
+}
+async function loadMemberInvitations(pageNumber = 0) {
+  const page = await request(ownOrg(`/invitations?page=${pageNumber}`));
+  setList('#member-invitations-list', (page.content || []).map((invitation) => {
+    const expired = new Date(invitation.expiresAt) <= new Date();
+    const status = invitation.accepted ? 'Accepted' : invitation.revoked ? 'Revoked'
+      : expired ? 'Expired' : 'Pending';
+    const canRevoke = !invitation.accepted && !invitation.revoked && !expired
+      && (invitation.role !== 'ORG_ADMIN' || state.organization.owner);
+    const actions = canRevoke ? [button('Revoke', async () => {
+      if (!window.confirm(`Revoke the invitation for ${invitation.email}?`)) return;
+      await request(ownOrg(`/invitations/${encodeURIComponent(invitation.id)}`), { method: 'DELETE' });
+      await loadMemberInvitations(page.number);
+      notice('Invitation revoked.');
+    })] : [];
+    return item(invitation.email,
+      `${invitation.role.replaceAll('_', ' ')} · ${status} · Expires ${new Date(invitation.expiresAt).toLocaleString()}`,
+      actions);
+  }), 'No recent invitations.');
+  renderPageControls('#member-invitations-pagination', page, loadMemberInvitations);
 }
 async function loadOwnershipAudit(pageNumber) {
   const page = await request(ownOrg(`/ownership/audit?page=${pageNumber}`));
@@ -1030,6 +1071,14 @@ $('#add-member-form').addEventListener('submit', (event) => { event.preventDefau
   const form = new FormData(event.currentTarget);
   await request(ownOrg('/members'), { method: 'POST', body: { email: form.get('email'), role: form.get('role') } });
   event.currentTarget.reset(); await loadMembers(); notice('Member added.');
+}); });
+$('#invite-member-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = new FormData(event.currentTarget);
+  await request(ownOrg('/invitations'), { method: 'POST',
+    body: { email: form.get('email').trim(), role: form.get('role') } });
+  event.currentTarget.reset();
+  await loadMemberInvitations(0);
+  notice('Workspace invitation queued for email delivery.');
 }); });
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const email = new FormData(event.currentTarget).get('email').trim();

@@ -40,6 +40,13 @@ public class QueuedEmailSender implements EmailSender {
     }
 
     @Override
+    public void sendOrganizationInvitation(String recipient, String organizationName,
+                                           String role, String invitationUrl, Instant expiresAt) {
+        enqueue(new EmailPayload(EmailJobType.ORGANIZATION_INVITATION,
+                recipient, organizationName, role, invitationUrl, expiresAt));
+    }
+
+    @Override
     public void sendCertificateIssued(String certificateId, String recipient, String displayName,
                                       String verificationUrl) {
         EmailPayload payload = new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
