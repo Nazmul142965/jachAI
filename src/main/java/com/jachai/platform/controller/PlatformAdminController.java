@@ -4,6 +4,7 @@ import com.jachai.platform.dto.PlatformOrganizationView;
 import com.jachai.platform.dto.PlatformBillingView;
 import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.billing.dto.UsageReconciliationReport;
+import com.jachai.billing.model.PlatformUsageRepairEvent;
 import com.jachai.billing.service.EntitlementUsageReconciliationService;
 import com.jachai.platform.dto.ChangePlatformRoleRequest;
 import com.jachai.platform.dto.PlatformRoleAuditView;
@@ -73,6 +74,12 @@ public class PlatformAdminController {
     public UsageReconciliationReport repairUsage(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId) {
         return usageReconciliation.repairForPlatform(jwt.getSubject(), organizationId);
+    }
+
+    @GetMapping("/organizations/{organizationId}/billing/usage-reconciliation/audit")
+    public Page<PlatformUsageRepairEvent> usageRepairAudit(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+        return usageReconciliation.platformRepairHistory(jwt.getSubject(), organizationId, page);
     }
 
     @GetMapping("/users/{userId}")

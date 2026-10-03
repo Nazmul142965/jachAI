@@ -21,7 +21,10 @@ import com.jachai.billing.model.PlanTier;
 import com.jachai.billing.model.UsageBucket;
 import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.model.UsageReconciliationStatus;
+import com.jachai.billing.model.PlatformUsageRepairEvent;
+import com.jachai.billing.model.PlatformUsageRepairStage;
 import com.jachai.billing.repository.EntitlementUsageStore;
+import com.jachai.billing.repository.PlatformUsageRepairEventRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.platform.service.PlatformAdminService;
@@ -44,6 +47,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class EntitlementUsageReconciliationServiceTests {
@@ -55,6 +62,7 @@ class EntitlementUsageReconciliationServiceTests {
     @Mock TenantAccessService access;
     @Mock PlatformAdminService platform;
     @Mock OrganizationRepository organizations;
+    @Mock PlatformUsageRepairEventRepository repairEvents;
 
     private InMemoryUsageStore store;
 
@@ -66,6 +74,7 @@ class EntitlementUsageReconciliationServiceTests {
 
     private EntitlementUsageReconciliationService service() {
         return new EntitlementUsageReconciliationService(store, entitlements, access, platform, organizations,
+                repairEvents,
                 GRACE, LOOKBACK,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -100,6 +109,7 @@ class EntitlementUsageReconciliationServiceTests {
         verify(organizations, never()).existsById("org-a");
         assertEquals(0, store.writes);
         assertTrue(store.organizationsSeen().isEmpty());
+        verify(repairEvents, never()).insert(any(PlatformUsageRepairEvent.class));
     }
 
     @Test
@@ -131,6 +141,40 @@ class EntitlementUsageReconciliationServiceTests {
         assertEquals("platform-admin", store.reconciledBy("org-a", "2026-10"));
         assertEquals(0, store.used("other-org", UsageMetric.CERTIFICATE, "2026-10"));
         verify(access, never()).requireRole(any(), any(), any());
+        ArgumentCaptor<PlatformUsageRepairEvent> events = ArgumentCaptor.forClass(PlatformUsageRepairEvent.class);
+        verify(repairEvents, times(2)).insert(events.capture());
+        assertEquals(List.of(PlatformUsageRepairStage.REQUESTED, PlatformUsageRepairStage.COMPLETED),
+                events.getAllValues().stream().map(PlatformUsageRepairEvent::stage).toList());
+        assertEquals(events.getAllValues().get(0).runId(), events.getAllValues().get(1).runId());
+        assertEquals("platform-admin", events.getAllValues().get(0).actorUserId());
+        assertEquals(1, events.getAllValues().get(1).changedBuckets());
+    }
+
+    @Test
+    void auditInsertFailurePreventsPlatformRepair() {
+        when(platform.isPlatformAdmin("platform-admin")).thenReturn(true);
+        when(organizations.existsById("org-a")).thenReturn(true);
+        store.certificate("org-a", october(5));
+        org.mockito.Mockito.when(repairEvents.insert(any(PlatformUsageRepairEvent.class)))
+                .thenThrow(new IllegalStateException("audit unavailable"));
+
+        assertThrows(IllegalStateException.class,
+                () -> service().repairForPlatform("platform-admin", "org-a"));
+        assertEquals(0, store.writes);
+    }
+
+    @Test
+    void platformRepairAuditIsScopedToExistingOrganization() {
+        when(platform.isPlatformAdmin("platform-admin")).thenReturn(true);
+        when(organizations.existsById("org-a")).thenReturn(true);
+        PageRequest request = PageRequest.of(2, 20, Sort.by(Sort.Direction.DESC, "occurredAt"));
+        when(repairEvents.findByOrganizationId("org-a", request))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertTrue(service().platformRepairHistory("platform-admin", "org-a", 2).isEmpty());
+        verify(repairEvents).findByOrganizationId("org-a", request);
+        assertEquals("INVALID_PAGE", assertThrows(ApiException.class,
+                () -> service().platformRepairHistory("platform-admin", "org-a", 501)).code());
     }
 
     @Test
@@ -561,10 +605,10 @@ class EntitlementUsageReconciliationServiceTests {
     @Test
     void anInvalidGraceOrLookbackFailsFast() {
         assertThrows(IllegalArgumentException.class, () -> new EntitlementUsageReconciliationService(
-                store, entitlements, access, platform, organizations,
+                store, entitlements, access, platform, organizations, repairEvents,
                 Duration.ofSeconds(-1), LOOKBACK, Clock.systemUTC()));
         assertThrows(IllegalArgumentException.class, () -> new EntitlementUsageReconciliationService(
-                store, entitlements, access, platform, organizations,
+                store, entitlements, access, platform, organizations, repairEvents,
                 GRACE, 0, Clock.systemUTC()));
     }
 

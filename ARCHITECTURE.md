@@ -306,6 +306,10 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 - An organization admin sets a tenant-scoped default of `IMMEDIATE` or `MANUAL`; absent settings read as `IMMEDIATE` without creating a document. Assessment authors may override the default at draft creation. The resolved policy is stored on the assessment and frozen into each published version, so later setting changes never retroactively release or conceal past results. Settings use optimistic versioning to reject concurrent updates; live MongoDB behavior remains to be verified.
 
+## Platform quota repair audit
+
+- Platform quota repair records an append-only `REQUESTED` event before mutation and a `COMPLETED` event afterward; an incomplete or unconfirmed run requires a fresh report. The audit history is scoped to the tenant and available only to platform admins. Live MongoDB verification of this cross-document failure mode remains open.
+
 ## Frontend pagination implementation decision
 
 - Campaign lists, candidate comparison, Academy catalog/batch/enrollment/assignment lists, Academy batch-progress rows, messaging partners/conversations/messages, and sandbox payment history follow the server's 20-row pages. Source review also found page controls on the other paged dashboard lists; this still needs browser verification with more than 20 records and empty/error pages. Message polling runs only on the newest page. Cohort analytics are fetched once when staff open progress, not on every progress-page change. Page controls do not replace tenant authorization on the server.

@@ -135,6 +135,8 @@ class JachAiApplicationTests {
                 .andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/platform/organizations/org/billing/usage-reconciliation"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/platform/organizations/org/billing/usage-reconciliation/audit"))
+                .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/users/target"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/users/target/role"))

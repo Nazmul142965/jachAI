@@ -7,7 +7,10 @@ import com.jachai.billing.model.UsageBucket;
 import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.model.UsageReconciliationStatus;
 import com.jachai.billing.model.UsageWindow;
+import com.jachai.billing.model.PlatformUsageRepairEvent;
+import com.jachai.billing.model.PlatformUsageRepairStage;
 import com.jachai.billing.repository.EntitlementUsageStore;
+import com.jachai.billing.repository.PlatformUsageRepairEventRepository;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
@@ -22,11 +25,15 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -41,6 +48,7 @@ public class EntitlementUsageReconciliationService {
     private final TenantAccessService access;
     private final PlatformAdminService platform;
     private final OrganizationRepository organizations;
+    private final PlatformUsageRepairEventRepository repairEvents;
     private final Duration downwardGrace;
     private final int lookbackMonths;
     private final Clock clock;
@@ -51,17 +59,19 @@ public class EntitlementUsageReconciliationService {
                                                  TenantAccessService access,
                                                  PlatformAdminService platform,
                                                  OrganizationRepository organizations,
+                                                 PlatformUsageRepairEventRepository repairEvents,
                                                  @Value("${app.billing.usage-reconciliation.downward-grace:PT5M}")
                                                  Duration downwardGrace,
                                                  @Value("${app.billing.usage-reconciliation.lookback-months:15}")
                                                  int lookbackMonths) {
-        this(store, entitlements, access, platform, organizations,
+        this(store, entitlements, access, platform, organizations, repairEvents,
                 downwardGrace, lookbackMonths, Clock.systemUTC());
     }
 
     EntitlementUsageReconciliationService(EntitlementUsageStore store, EntitlementService entitlements,
                                           TenantAccessService access, PlatformAdminService platform,
-                                          OrganizationRepository organizations, Duration downwardGrace,
+                                          OrganizationRepository organizations,
+                                          PlatformUsageRepairEventRepository repairEvents, Duration downwardGrace,
                                           int lookbackMonths, Clock clock) {
         if (downwardGrace.isNegative()) {
             throw new IllegalArgumentException("downwardGrace must not be negative");
@@ -74,6 +84,7 @@ public class EntitlementUsageReconciliationService {
         this.access = access;
         this.platform = platform;
         this.organizations = organizations;
+        this.repairEvents = repairEvents;
         this.downwardGrace = downwardGrace;
         this.lookbackMonths = lookbackMonths;
         this.clock = clock;
@@ -96,7 +107,39 @@ public class EntitlementUsageReconciliationService {
 
     public UsageReconciliationReport repairForPlatform(String actorUserId, String organizationId) {
         requirePlatformAccess(actorUserId, organizationId);
-        return analyze(organizationId, true, actorUserId);
+        String runId = UUID.randomUUID().toString();
+        recordPlatformRepair(runId, organizationId, actorUserId, PlatformUsageRepairStage.REQUESTED, null);
+        try {
+            UsageReconciliationReport report = analyze(organizationId, true, actorUserId);
+            int changed = Math.toIntExact(report.entries().stream()
+                    .filter(entry -> entry.appliedUsage() != null).count());
+            recordPlatformRepair(runId, organizationId, actorUserId, PlatformUsageRepairStage.COMPLETED, changed);
+            return report;
+        } catch (RuntimeException exception) {
+            try {
+                recordPlatformRepair(runId, organizationId, actorUserId,
+                        PlatformUsageRepairStage.OUTCOME_UNCONFIRMED, null);
+            } catch (RuntimeException auditFailure) {
+                exception.addSuppressed(auditFailure);
+            }
+            throw exception;
+        }
+    }
+
+    public Page<PlatformUsageRepairEvent> platformRepairHistory(String actorUserId,
+                                                                 String organizationId, int page) {
+        requirePlatformAccess(actorUserId, organizationId);
+        if (page < 0 || page > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Page must be between 0 and 500");
+        }
+        return repairEvents.findByOrganizationId(organizationId,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")));
+    }
+
+    private void recordPlatformRepair(String runId, String organizationId, String actorUserId,
+                                      PlatformUsageRepairStage stage, Integer changedBuckets) {
+        repairEvents.insert(new PlatformUsageRepairEvent(UUID.randomUUID().toString(), runId,
+                organizationId, actorUserId, stage, changedBuckets, clock.instant()));
     }
 
     private void requirePlatformAccess(String actorUserId, String organizationId) {
