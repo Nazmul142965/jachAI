@@ -73,7 +73,8 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
         String orgId = generateTestId("org");
         String bucketId = orgId + ":CERTIFICATE:2026-10";
 
-        Instant futureExpiry = Instant.now().plusSeconds(86400);
+        // BSON dates retain milliseconds, not Instant's nanoseconds.
+        Instant futureExpiry = Instant.ofEpochMilli(Instant.now().toEpochMilli()).plusSeconds(86400);
 
         UsageBucket bucket = new UsageBucket(
                 bucketId,

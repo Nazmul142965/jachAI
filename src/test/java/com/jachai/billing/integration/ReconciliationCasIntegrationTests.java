@@ -224,7 +224,7 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
     }
 
     @Test
-    void reconciliationWithConcurrentReservation() throws InterruptedException {
+    void staleReconciliationCannotEraseConcurrentReservation() throws InterruptedException {
         setupStore();
 
         String orgId = generateTestId("org");
@@ -247,14 +247,13 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                         .append("issuedAt", Instant.now())
         ));
 
-        // The bucket under-counts the two recorded certificates so reconciliation has real work to do,
-        // and it already exists so the reservation takes the update path rather than the insert path.
+        // The bucket reflects both durable certificates before the reservation starts.
         UsageBucket initialBucket = new UsageBucket(
                 bucketId,
                 orgId,
                 UsageMetric.CERTIFICATE,
                 window,
-                1,
+                2,
                 Instant.now(),
                 Instant.now().plusSeconds(86400),
                 Instant.now()
@@ -265,9 +264,9 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         long recordedCertificates = store.total("certificates", orgId);
         assertEquals(2, recordedCertificates, "Fixture should record two certificates");
 
-        int reconcileAttempts = 10;
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch snapshotTaken = new CountDownLatch(1);
+        CountDownLatch reservationFinished = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(2);
         AtomicInteger reconcileSuccess = new AtomicInteger(0);
         AtomicInteger reserveSuccess = new AtomicInteger(0);
@@ -275,17 +274,15 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
 
         executor.submit(() -> {
             try {
-                startLatch.await();
-                for (int attempt = 0; attempt < reconcileAttempts; attempt++) {
-                    UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
-                    if (current != null) {
-                        boolean replaced = store.replaceUsage(orgId, bucketId, current.used(),
-                                recordedCertificates, current.revision(), Instant.now(), "reconciler");
-                        if (replaced) {
-                            reconcileSuccess.incrementAndGet();
-                            break;
-                        }
-                    }
+                UsageBucket snapshot = mongoTemplate.findById(bucketId, UsageBucket.class);
+                if (snapshot == null) throw new IllegalStateException("Usage bucket disappeared");
+                snapshotTaken.countDown();
+                if (!reservationFinished.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Reservation did not finish");
+                }
+                if (store.replaceUsage(orgId, bucketId, snapshot.used(), recordedCertificates,
+                        snapshot.revision(), Instant.now(), "reconciler")) {
+                    reconcileSuccess.incrementAndGet();
                 }
             } catch (Exception e) {
                 synchronized (exceptions) {
@@ -298,8 +295,13 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
 
         executor.submit(() -> {
             try {
-                startLatch.await();
+                if (!snapshotTaken.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Reconciliation did not take a snapshot");
+                }
                 String reservedBucketId = entitlementService.reserve(orgId, UsageMetric.CERTIFICATE);
+                if (!bucketId.equals(reservedBucketId)) {
+                    throw new IllegalStateException("Reservation moved to another UTC month");
+                }
                 trackDocumentId("entitlement_usage", reservedBucketId);
                 reserveSuccess.incrementAndGet();
             } catch (Exception e) {
@@ -307,11 +309,11 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                     exceptions.add(e);
                 }
             } finally {
+                reservationFinished.countDown();
                 doneLatch.countDown();
             }
         });
 
-        startLatch.countDown();
         assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both workers should complete");
         executor.shutdown();
 
@@ -319,12 +321,10 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         assertNotNull(finalBucket);
         assertEquals(1, reserveSuccess.get(),
                 "The reservation must actually succeed through EntitlementService.reserve");
-        assertTrue(reconcileSuccess.get() >= 1,
-                "Reconciliation should succeed at least once within its retry budget");
-        assertTrue(finalBucket.used() >= recordedCertificates,
-                "Reconciled usage must never fall below the recorded certificate count");
-        assertTrue(finalBucket.revision() > 1L,
-                "Reservation and reconciliation must both advance the revision");
+        assertEquals(0, reconcileSuccess.get(), "A stale reconciliation snapshot must lose the CAS");
+        assertEquals(recordedCertificates + 1, finalBucket.used(),
+                "The reservation must remain above the two durable certificate charges");
+        assertEquals(2L, finalBucket.revision(), "Only the successful reservation advances the revision");
         assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
     }
 

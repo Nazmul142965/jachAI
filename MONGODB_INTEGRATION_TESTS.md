@@ -115,9 +115,9 @@ $env:MONGODB_TEST_URI='mongodb://localhost:27017/jachai_it_billing'
 .\mvnw.cmd -o test -Dtest=TtlIndexBehaviorIntegrationTests
 ```
 
-Delete the `jachai_it_*` database when finished. Atlas free tier (M0) has a hard storage limit, and the
-TTL monitor runs roughly once a minute, so the TTL class should be run on its own and read patiently —
-no test waits for a document to actually expire.
+Tests remove only their own tracked documents. Do not drop a database as routine test cleanup; an
+operator may remove a confirmed disposable database separately if needed. The TTL monitor is
+asynchronous, so the TTL class should be run on its own and no test waits for actual expiry.
 
 ## Coverage
 
@@ -205,10 +205,9 @@ success.
 
 ## Known limits and follow-ups
 
-- **Reconciliation can legitimately overwrite a concurrent reservation.** Reconciliation sets `used` to
-  the recorded source-of-truth count, so a reservation that lands first can be hidden by a later
-  reconcile. The asserted invariant is "usage never drops below the recorded count", not "usage equals
-  count + reservations".
+- The concurrent reservation test forces reconciliation to use a pre-reservation snapshot. Its stale
+  revision must lose the CAS, leaving the reservation counted above the two durable certificates.
+  This tests the store-level race, not the full reconciliation service's grace-period policy.
 - **Nothing here verifies live behaviour yet.** No live run has happened; the five classes have executed
   0 tests each.
 - **Production follow-up (not part of this test slice):** `EntitlementService.reserve` upserts with
