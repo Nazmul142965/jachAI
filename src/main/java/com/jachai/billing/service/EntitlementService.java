@@ -63,13 +63,17 @@ public class EntitlementService {
                 .setOnInsert("window", window.window())
                 .setOnInsert("createdAt", now);
         if (window.expiresAt() != null) update.setOnInsert("expiresAt", window.expiresAt());
+        UsageBucket reserved;
         try {
-            UsageBucket reserved = mongo.findAndModify(query, update,
+            reserved = mongo.findAndModify(query, update,
                     FindAndModifyOptions.options().upsert(true).returnNew(true), UsageBucket.class);
-            if (reserved == null) throw limitReached(metric);
         } catch (DuplicateKeyException exception) {
-            throw limitReached(metric);
+            // Another request may have inserted the first bucket after our upsert query ran.
+            // Retry as an update so free capacity is not misreported as an exhausted plan.
+            reserved = mongo.findAndModify(query, update,
+                    FindAndModifyOptions.options().upsert(false).returnNew(true), UsageBucket.class);
         }
+        if (reserved == null) throw limitReached(metric);
         return window.bucketId();
     }
 

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import com.jachai.billing.model.PlanTier;
@@ -147,12 +148,37 @@ class EntitlementServiceTests {
     void duplicateBucketAtLimitIsReportedAsPlanLimit() {
         when(mongo.findAndModify(any(Query.class), any(Update.class), any(FindAndModifyOptions.class),
                 org.mockito.ArgumentMatchers.eq(UsageBucket.class)))
-                .thenThrow(new DuplicateKeyException("full"));
+                .thenThrow(new DuplicateKeyException("full"))
+                .thenReturn((UsageBucket) null);
 
         ApiException error = assertThrows(ApiException.class,
                 () -> service().reserve("org", UsageMetric.INVITATION));
 
         assertEquals("PLAN_LIMIT_REACHED", error.code());
+        ArgumentCaptor<FindAndModifyOptions> options = ArgumentCaptor.forClass(FindAndModifyOptions.class);
+        verify(mongo, times(2)).findAndModify(any(Query.class), any(Update.class), options.capture(),
+                org.mockito.ArgumentMatchers.eq(UsageBucket.class));
+        assertTrue(options.getAllValues().getFirst().isUpsert());
+        assertFalse(options.getAllValues().get(1).isUpsert());
+    }
+
+    @Test
+    void concurrentFirstInsertRetriesExistingBucketWithoutUpsert() {
+        when(mongo.findAndModify(any(Query.class), any(Update.class), any(FindAndModifyOptions.class),
+                org.mockito.ArgumentMatchers.eq(UsageBucket.class)))
+                .thenThrow(new DuplicateKeyException("another reservation created the bucket"))
+                .thenReturn(new UsageBucket("org:PUBLISHED_ASSESSMENT:all", "org",
+                        UsageMetric.PUBLISHED_ASSESSMENT, "all", 2,
+                        Instant.now(), null, Instant.now()));
+
+        assertEquals("org:PUBLISHED_ASSESSMENT:all",
+                service().reserve("org", UsageMetric.PUBLISHED_ASSESSMENT));
+
+        ArgumentCaptor<FindAndModifyOptions> options = ArgumentCaptor.forClass(FindAndModifyOptions.class);
+        verify(mongo, times(2)).findAndModify(any(Query.class), any(Update.class), options.capture(),
+                org.mockito.ArgumentMatchers.eq(UsageBucket.class));
+        assertTrue(options.getAllValues().getFirst().isUpsert());
+        assertFalse(options.getAllValues().get(1).isUpsert());
     }
 
     @Test
