@@ -28,6 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
@@ -81,8 +82,11 @@ public class CampaignEmailInvitationService {
             throw new ApiException(HttpStatus.CONFLICT, "CAMPAIGN_CLOSED", "Campaign is closed to new invitations");
         }
         Instant now = Instant.now();
-        if (!request.availableUntil().isAfter(request.availableFrom())
-                || !request.availableUntil().isAfter(now)) {
+        // MongoDB stores dates with millisecond precision. Persist and compare the same window
+        // representation so a retry with sub-millisecond input can rotate its pending link.
+        Instant availableFrom = request.availableFrom().truncatedTo(ChronoUnit.MILLIS);
+        Instant availableUntil = request.availableUntil().truncatedTo(ChronoUnit.MILLIS);
+        if (!availableUntil.isAfter(availableFrom) || !availableUntil.isAfter(now)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WINDOW", "Availability must end in the future after it starts");
         }
         String email = request.email().trim().toLowerCase(Locale.ROOT);
@@ -91,22 +95,22 @@ public class CampaignEmailInvitationService {
         if (existing != null && existing.acceptedAt() != null) {
             throw new ApiException(HttpStatus.CONFLICT, "ALREADY_INVITED", "This email already accepted this campaign");
         }
-        byte[] secret = new byte[32];
-        RANDOM.nextBytes(secret);
-        String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
-        Instant expiresAt = now.plus(MAX_LIFETIME);
-        if (request.availableUntil().isBefore(expiresAt)) expiresAt = request.availableUntil();
-        CampaignEmailInvitation invitation = existing == null
-                ? new CampaignEmailInvitation(UUID.randomUUID().toString(), organizationId, campaignId, email,
-                        campaign.assessmentId(), campaign.assessmentVersionId(), request.attemptsAllowed(),
-                        request.availableFrom(), request.availableUntil(), hash(rawToken), now, expiresAt, null, null)
-                : existing.reissued(hash(rawToken), expiresAt);
         if (existing != null && (existing.attemptsAllowed() != request.attemptsAllowed()
-                || !existing.availableFrom().equals(request.availableFrom())
-                || !existing.availableUntil().equals(request.availableUntil()))) {
+                || !existing.availableFrom().equals(availableFrom)
+                || !existing.availableUntil().equals(availableUntil))) {
             throw new ApiException(HttpStatus.CONFLICT, "INVITATION_WINDOW_CHANGED",
                     "An invitation already exists with different availability; use its original window");
         }
+        byte[] secret = new byte[32];
+        RANDOM.nextBytes(secret);
+        String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+        Instant expiresAt = now.plus(MAX_LIFETIME).truncatedTo(ChronoUnit.MILLIS);
+        if (availableUntil.isBefore(expiresAt)) expiresAt = availableUntil;
+        CampaignEmailInvitation invitation = existing == null
+                ? new CampaignEmailInvitation(UUID.randomUUID().toString(), organizationId, campaignId, email,
+                        campaign.assessmentId(), campaign.assessmentVersionId(), request.attemptsAllowed(),
+                        availableFrom, availableUntil, hash(rawToken), now, expiresAt, null, null)
+                : existing.reissued(hash(rawToken), expiresAt);
         String reservation = existing == null
                 ? entitlements.reserve(organizationId, UsageMetric.INVITATION) : null;
         try {

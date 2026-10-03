@@ -186,6 +186,26 @@ class CampaignEmailInvitationServiceTests {
     }
 
     @Test
+    void retryAcceptsTheSameWindowAfterMongoDropsSubMillisecondPrecision() {
+        when(organizations.findById("org")).thenReturn(Optional.of(
+                new Organization("org", "Acme", OrganizationType.TALENT, "owner", Instant.now())));
+        when(campaigns.findByIdAndOrganizationId("campaign", "org"))
+                .thenReturn(Optional.of(campaign(true)));
+        when(invitations.findByOrganizationIdAndCampaignIdAndEmail("org", "campaign", "candidate@example.com"))
+                .thenReturn(Optional.of(invitation(Instant.now().plusSeconds(3600), null)));
+        when(invitations.save(any(CampaignEmailInvitation.class))).thenAnswer(call -> call.getArgument(0));
+
+        var view = service().invite("recruiter", "org", "campaign",
+                new CreateEmailInvitationRequest("candidate@example.com", 2,
+                        Instant.parse("2026-10-01T00:00:00.000987654Z"),
+                        Instant.parse("2026-11-01T00:00:00.000987654Z")));
+
+        assertEquals("invite", view.invitationId());
+        verify(invitations).save(any(CampaignEmailInvitation.class));
+        verify(emailSender).sendAssessmentInvitation(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void candidateMustUseMatchingVerifiedEmail() {
         when(invitations.findByTokenHash(any())).thenReturn(Optional.of(invitation(Instant.now().plusSeconds(3600), null)));
         when(users.findById("candidate")).thenReturn(Optional.of(new User("candidate", "wrong@example.com", "Wrong",
