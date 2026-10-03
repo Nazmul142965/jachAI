@@ -119,6 +119,7 @@ class AttemptServiceTests {
         assertEquals("Java", detail.assessmentTitle());
         assertEquals(20, detail.durationMinutes());
         assertEquals(1, detail.questionCount());
+        assertEquals("No external references.", detail.instructions());
         verify(access).requireRole("learner", "org-a", OrganizationRole.LEARNER, OrganizationRole.CANDIDATE);
         assertEquals("NOT_FOUND", assertThrows(ApiException.class,
                 () -> service().myAssignment("other-user", "org-a", "a1")).code());
@@ -138,7 +139,7 @@ class AttemptServiceTests {
                 List.of(new AssessmentVersion.QuestionSnapshot("q1", "Java", "Which option is correct?",
                         QuestionType.SINGLE_CHOICE,
                         List.of(new Question.Option("a", "One"), new Question.Option("b", "Two")),
-                        Set.of("a"))), Instant.now());
+                        Set.of("a"))), Instant.now(), "No external references.");
     }
 
     private AssessmentVersion shortVersion(ResultReleasePolicy policy) {

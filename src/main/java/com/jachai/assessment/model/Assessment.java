@@ -25,10 +25,20 @@ public record Assessment(
         AssessmentStatus status,
         int latestVersion,
         Instant createdAt,
-        @Version Long revision) {
+        @Version Long revision,
+        String instructions) {
+
+    public Assessment(String id, String organizationId, String authorUserId, String title,
+                      int durationMinutes, int passingPercentage, List<String> questionIds,
+                      ResultReleasePolicy resultReleasePolicy, AssessmentStatus status,
+                      int latestVersion, Instant createdAt, Long revision) {
+        this(id, organizationId, authorUserId, title, durationMinutes, passingPercentage,
+                questionIds, resultReleasePolicy, status, latestVersion, createdAt, revision, "");
+    }
 
     public Assessment published(int version) {
         return new Assessment(id, organizationId, authorUserId, title, durationMinutes,
-                passingPercentage, questionIds, resultReleasePolicy, AssessmentStatus.PUBLISHED, version, createdAt, revision);
+                passingPercentage, questionIds, resultReleasePolicy, AssessmentStatus.PUBLISHED,
+                version, createdAt, revision, instructions);
     }
 }

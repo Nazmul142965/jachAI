@@ -89,6 +89,7 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
 .item-main { min-width:0; }
 .item-title { display:block; font-weight:800; overflow-wrap:anywhere; }
 .item-meta { margin:4px 0 0; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.assessment-instructions .item-meta { white-space:pre-wrap; }
 .item-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:end; }
 .pill { display:inline-block; padding:4px 8px; background:#edf3ef; color:#466b5b; border-radius:6px; font-size:11px; font-weight:800; }
 .pill.warn { background:#fff2d8; color:#8b6320; }

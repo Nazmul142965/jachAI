@@ -34,10 +34,11 @@ class AssessmentMetadataIntegrationTests extends BaseMongoIntegrationTest {
 
         assertEquals(List.of(ownId), ownResults.stream().map(AssessmentVersion::id).toList());
         assertEquals(List.of(otherId), otherResults.stream().map(AssessmentVersion::id).toList());
+        assertEquals("No external references.", ownResults.getFirst().instructions());
     }
 
     private static AssessmentVersion version(String id, String organizationId, String title) {
         return new AssessmentVersion(id, organizationId, id, 1, title, 10, 60,
-                ResultReleasePolicy.IMMEDIATE, List.of(), Instant.now());
+                ResultReleasePolicy.IMMEDIATE, List.of(), Instant.now(), "No external references.");
     }
 }

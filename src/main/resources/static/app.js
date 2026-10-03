@@ -1779,12 +1779,16 @@ async function renderAssessmentDetail(assignment, token) {
   const used = history.length;
   const allowed = assignment.attemptsAllowed || 0;
   const remaining = Math.max(0, allowed - used);
+  const instructionRow = item('Instructions', assignment.instructions?.trim()
+    || 'Read each question carefully. Your timer starts when you begin, and the server enforces the deadline.');
+  instructionRow.classList.add('assessment-instructions');
   setList('#assessment-detail-summary', [
     item('Availability window', `${when(assignment.availableFrom)} – ${when(assignment.availableUntil)}`),
     item('Right now', availability),
     item('Attempts', `${used} used of ${allowed} allowed · ${remaining} remaining`),
     item('Where it came from', origin),
     item('Assessment', assignment.assessmentTitle || 'Name unavailable'),
+    instructionRow,
     item('Time limit', assignment.durationMinutes != null
       ? `${assignment.durationMinutes} minutes, controlled by the server` : 'Unavailable'),
     item('Questions', assignment.questionCount != null
@@ -2701,7 +2705,8 @@ $('#assessment-form').addEventListener('submit', (event) => { event.preventDefau
   const form = new FormData(event.currentTarget); const questionIds = [...state.selectedQuestionIds];
   if (!questionIds.length) throw new Error('Select at least one approved question.');
   await request(ownOrg('/assessments'), { method: 'POST', body: {
-    title: form.get('title'), durationMinutes: Number(form.get('durationMinutes')),
+    title: form.get('title'), instructions: form.get('instructions'),
+    durationMinutes: Number(form.get('durationMinutes')),
     passingPercentage: Number(form.get('passingPercentage')), resultReleasePolicy: form.get('resultReleasePolicy') || null, questionIds
   } });
   event.currentTarget.reset(); state.selectedQuestionIds.clear();

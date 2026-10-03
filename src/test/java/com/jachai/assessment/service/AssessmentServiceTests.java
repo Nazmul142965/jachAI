@@ -80,7 +80,8 @@ class AssessmentServiceTests {
     @Test
     void publicationFreezesApprovedQuestionAndAnswerKey() {
         var assessment = new Assessment("a1", "org-a", "teacher", "Java basics", 30, 70,
-                List.of("q1"), ResultReleasePolicy.MANUAL, AssessmentStatus.DRAFT, 0, Instant.now(), null);
+                List.of("q1"), ResultReleasePolicy.MANUAL, AssessmentStatus.DRAFT, 0, Instant.now(), null,
+                "No external references. Answer every question.");
         var question = new Question("q1", "org-a", "teacher", "Java", "Which is a record?",
                 QuestionType.SINGLE_CHOICE,
                 List.of(new Question.Option("a", "Immutable carrier"), new Question.Option("b", "Thread")),
@@ -92,6 +93,7 @@ class AssessmentServiceTests {
 
         assertEquals(1, result.version());
         assertEquals(ResultReleasePolicy.MANUAL, result.resultReleasePolicy());
+        assertEquals("No external references. Answer every question.", result.instructions());
         assertEquals(Set.of("a"), result.questions().getFirst().correctOptionIds());
         ArgumentCaptor<AssessmentVersion> saved = ArgumentCaptor.forClass(AssessmentVersion.class);
         verify(versions).insert(saved.capture());
@@ -163,9 +165,11 @@ class AssessmentServiceTests {
         when(assessments.save(any(Assessment.class))).thenAnswer(call -> call.getArgument(0));
 
         Assessment created = service().create("teacher", "org-a", new CreateAssessmentRequest(
-                "Java", 30, 60, List.of("q1"), ResultReleasePolicy.IMMEDIATE));
+                "Java", 30, 60, List.of("q1"), ResultReleasePolicy.IMMEDIATE,
+                "  You may use a calculator.  "));
 
         assertEquals(ResultReleasePolicy.IMMEDIATE, created.resultReleasePolicy());
+        assertEquals("You may use a calculator.", created.instructions());
         verify(organizationSettings, never()).defaultPolicy("org-a");
     }
 }

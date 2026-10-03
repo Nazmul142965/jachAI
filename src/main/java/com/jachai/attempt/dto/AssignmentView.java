@@ -19,7 +19,8 @@ public record AssignmentView(
         Instant createdAt,
         String assessmentTitle,
         Integer durationMinutes,
-        Integer questionCount) {
+        Integer questionCount,
+        String instructions) {
 
     public static AssignmentView from(Assignment assignment, AssessmentVersion version) {
         return new AssignmentView(assignment.id(), assignment.organizationId(), assignment.assessmentId(),
@@ -28,6 +29,7 @@ public record AssignmentView(
                 assignment.availableUntil(), assignment.createdAt(),
                 version == null ? null : version.title(),
                 version == null ? null : version.durationMinutes(),
-                version == null ? null : version.questions().size());
+                version == null ? null : version.questions().size(),
+                version == null || version.instructions() == null ? "" : version.instructions());
     }
 }

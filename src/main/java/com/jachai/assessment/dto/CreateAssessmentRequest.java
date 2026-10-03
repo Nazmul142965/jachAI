@@ -13,5 +13,10 @@ public record CreateAssessmentRequest(
         @Min(1) @Max(180) int durationMinutes,
         @Min(0) @Max(100) int passingPercentage,
         @NotEmpty @Size(max = 100) List<@NotBlank String> questionIds,
-        ResultReleasePolicy resultReleasePolicy) {
+        ResultReleasePolicy resultReleasePolicy,
+        @Size(max = 2000) String instructions) {
+    public CreateAssessmentRequest(String title, int durationMinutes, int passingPercentage,
+                                   List<String> questionIds, ResultReleasePolicy resultReleasePolicy) {
+        this(title, durationMinutes, passingPercentage, questionIds, resultReleasePolicy, null);
+    }
 }

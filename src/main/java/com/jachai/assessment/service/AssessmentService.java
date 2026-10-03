@@ -52,7 +52,8 @@ public class AssessmentService {
                 List.copyOf(request.questionIds()),
                 request.resultReleasePolicy() == null
                         ? organizationSettings.defaultPolicy(organizationId) : request.resultReleasePolicy(),
-                AssessmentStatus.DRAFT, 0, Instant.now(), null));
+                AssessmentStatus.DRAFT, 0, Instant.now(), null,
+                request.instructions() == null ? "" : request.instructions().trim()));
     }
 
     public Page<Assessment> list(String userId, String organizationId,
@@ -84,7 +85,7 @@ public class AssessmentService {
         AssessmentVersion version = new AssessmentVersion(assessment.id() + ":" + nextVersion,
                 organizationId, assessment.id(), nextVersion, assessment.title(),
                 assessment.durationMinutes(), assessment.passingPercentage(), assessment.resultReleasePolicy(),
-                List.copyOf(snapshots), Instant.now());
+                List.copyOf(snapshots), Instant.now(), assessment.instructions());
         String reservation = entitlements.reserve(organizationId, UsageMetric.PUBLISHED_ASSESSMENT);
         try {
             try {

@@ -21,7 +21,16 @@ public record AssessmentVersion(
         int passingPercentage,
         ResultReleasePolicy resultReleasePolicy,
         List<QuestionSnapshot> questions,
-        Instant publishedAt) {
+        Instant publishedAt,
+        String instructions) {
+
+    public AssessmentVersion(String id, String organizationId, String assessmentId, int version,
+                             String title, int durationMinutes, int passingPercentage,
+                             ResultReleasePolicy resultReleasePolicy,
+                             List<QuestionSnapshot> questions, Instant publishedAt) {
+        this(id, organizationId, assessmentId, version, title, durationMinutes,
+                passingPercentage, resultReleasePolicy, questions, publishedAt, "");
+    }
 
     public record QuestionSnapshot(String questionId, String topic, String prompt, QuestionType type,
                                    List<Question.Option> options, Set<String> correctOptionIds) { }
