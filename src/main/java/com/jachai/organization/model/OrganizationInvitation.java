@@ -1,5 +1,6 @@
 package com.jachai.organization.model;
 
+import java.time.Duration;
 import java.time.Instant;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
@@ -36,7 +37,7 @@ public record OrganizationInvitation(
 
     public OrganizationInvitation accepted(Instant at) {
         return new OrganizationInvitation(id, organizationId, email, role, invitedByUserId,
-                tokenHash, createdAt, expiresAt, at, revokedAt, revision);
+                tokenHash, createdAt, at.plus(Duration.ofDays(7)), at, revokedAt, revision);
     }
 
     public OrganizationInvitation revoked(Instant at) {

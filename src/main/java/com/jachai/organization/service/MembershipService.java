@@ -7,6 +7,7 @@ import com.jachai.organization.dto.MemberResponse;
 import com.jachai.organization.dto.MemberAuditView;
 import com.jachai.organization.model.Membership;
 import com.jachai.organization.model.Organization;
+import com.jachai.organization.model.OrganizationInvitation;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.repository.MembershipRepository;
@@ -80,6 +81,49 @@ public class MembershipService {
         }
         ensureAudit(member);
         return new MemberResponse(user.id(), user.email(), user.displayName(), request.role());
+    }
+
+    void acceptInvitation(OrganizationInvitation invitation, User user) {
+        if (invitation.acceptedAt() == null || invitation.revokedAt() != null
+                || user.disabled() || !user.emailVerified()
+                || !user.email().equalsIgnoreCase(invitation.email())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INVITATION",
+                    "An accepted invitation for this verified account is required");
+        }
+        Organization organization = organization(invitation.organizationId());
+        if (organization.ownerUserId().equals(user.id())
+                || !allowedForType(organization.type(), invitation.role())) {
+            throw new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT",
+                    "Invitation does not match an eligible membership");
+        }
+        Membership existing = memberships.findByUserIdAndOrganizationId(user.id(), invitation.organizationId())
+                .orElse(null);
+        if (existing != null) {
+            if (existing.role() != invitation.role() || !existing.active())
+                throw invitationMembershipConflict();
+            ensureAudit(existing);
+            return;
+        }
+        Instant now = Instant.now();
+        Membership member = new Membership(UUID.randomUUID().toString(), user.id(),
+                invitation.organizationId(), invitation.role(), true, now,
+                UUID.randomUUID().toString(), user.id(), now, null, false);
+        try {
+            memberships.insert(member);
+        } catch (DuplicateKeyException exception) {
+            Membership raced = memberships.findByUserIdAndOrganizationId(user.id(), invitation.organizationId())
+                    .filter(Membership::active)
+                    .filter(value -> value.role() == invitation.role())
+                    .orElseThrow(this::invitationMembershipConflict);
+            ensureAudit(raced);
+            return;
+        }
+        ensureAudit(member);
+    }
+
+    private ApiException invitationMembershipConflict() {
+        return new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT",
+                "An existing membership does not match the accepted invitation");
     }
 
     public Page<MemberResponse> list(String actorId, String organizationId, Pageable pageable) {

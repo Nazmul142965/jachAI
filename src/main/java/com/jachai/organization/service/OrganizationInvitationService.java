@@ -3,10 +3,8 @@ package com.jachai.organization.service;
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.EmailSender;
-import com.jachai.organization.dto.AddMemberRequest;
 import com.jachai.organization.dto.CreateOrganizationInvitationRequest;
 import com.jachai.organization.dto.OrganizationInvitationView;
-import com.jachai.organization.model.Membership;
 import com.jachai.organization.model.Organization;
 import com.jachai.organization.model.OrganizationInvitation;
 import com.jachai.organization.model.OrganizationRole;
@@ -59,14 +57,18 @@ public class OrganizationInvitationService {
         users.findByEmail(email).ifPresent(user -> {
             if (organization.ownerUserId().equals(user.id()) || memberships
                     .findByUserIdAndOrganizationId(user.id(), organizationId)
-                    .filter(Membership::active).isPresent()) {
+                    .isPresent()) {
                 throw new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_EXISTS",
-                        "This person already belongs to the organization");
+                        "This person already has a membership; manage it directly instead");
             }
         });
 
         OrganizationInvitation existing = invitations.findByOrganizationIdAndEmail(organizationId, email)
                 .orElse(null);
+        if (existing != null && existing.acceptedAt() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVITATION_ACCEPTED",
+                    "This invitation has already been accepted; manage the membership instead");
+        }
         if (existing != null && existing.role() == OrganizationRole.ORG_ADMIN
                 && !organization.ownerUserId().equals(actorId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "OWNER_ONLY",
@@ -130,12 +132,11 @@ public class OrganizationInvitationService {
                     "Sign in with the verified email address that received this invitation");
         }
         if (invitation.revokedAt() != null) throw invalidInvitation();
-        if (invitation.acceptedAt() == null && !invitation.expiresAt().isAfter(Instant.now()))
+        if (!invitation.expiresAt().isAfter(Instant.now()))
             throw invalidInvitation();
         OrganizationRole invitedRole = invitation.role();
         memberships.findByUserIdAndOrganizationId(user.id(), invitation.organizationId())
-                .filter(Membership::active)
-                .filter(member -> member.role() != invitedRole)
+                .filter(member -> !member.active() || member.role() != invitedRole)
                 .ifPresent(ignored -> { throw membershipConflict(); });
         if (invitation.acceptedAt() == null) {
             Organization organization = organization(invitation.organizationId());
@@ -149,26 +150,8 @@ public class OrganizationInvitationService {
                         "Invitation changed concurrently; reload and retry");
             }
         }
-        ensureMembership(invitation, user);
+        memberService.acceptInvitation(invitation, user);
         return OrganizationInvitationView.from(invitation);
-    }
-
-    private void ensureMembership(OrganizationInvitation invitation, User user) {
-        Membership existing = memberships.findByUserIdAndOrganizationId(user.id(), invitation.organizationId())
-                .orElse(null);
-        if (existing != null && existing.active()) {
-            if (existing.role() != invitation.role()) throw membershipConflict();
-            return;
-        }
-        try {
-            memberService.add(invitation.invitedByUserId(), invitation.organizationId(),
-                    new AddMemberRequest(user.email(), invitation.role()));
-        } catch (ApiException exception) {
-            if (!"MEMBERSHIP_EXISTS".equals(exception.code())) throw exception;
-            Membership raced = memberships.findByUserIdAndOrganizationId(user.id(), invitation.organizationId())
-                    .filter(Membership::active).filter(member -> member.role() == invitation.role())
-                    .orElseThrow(OrganizationInvitationService::membershipConflict);
-        }
     }
 
     private Organization organization(String organizationId) {

@@ -13,7 +13,6 @@ import static org.mockito.Mockito.when;
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.EmailSender;
-import com.jachai.organization.dto.AddMemberRequest;
 import com.jachai.organization.dto.CreateOrganizationInvitationRequest;
 import com.jachai.organization.model.Membership;
 import com.jachai.organization.model.Organization;
@@ -117,6 +116,19 @@ class OrganizationInvitationServiceTests {
     }
 
     @Test
+    void acceptedInvitationCannotBeReissuedBeforeMembershipRepair() {
+        when(organizations.findById("org")).thenReturn(Optional.of(organization()));
+        when(invitations.findByOrganizationIdAndEmail("org", "learner@example.com"))
+                .thenReturn(Optional.of(invitation(Instant.now().plusSeconds(3600), Instant.now(), null)));
+
+        assertEquals("INVITATION_ACCEPTED", assertThrows(ApiException.class,
+                () -> service().invite("owner", "org",
+                        new CreateOrganizationInvitationRequest("learner@example.com", OrganizationRole.LEARNER)))
+                .code());
+        verify(invitations, never()).save(any(OrganizationInvitation.class));
+    }
+
+    @Test
     void nonOwnerCannotReplaceOwnersPendingAdminInvitation() {
         OrganizationInvitation prior = new OrganizationInvitation("invite", "org", "admin@example.com",
                 OrganizationRole.ORG_ADMIN, "owner", "old-hash", Instant.now(),
@@ -167,6 +179,21 @@ class OrganizationInvitationServiceTests {
     }
 
     @Test
+    void inactiveMemberMustBeReactivatedByAdminNotByInvitation() {
+        when(organizations.findById("org")).thenReturn(Optional.of(organization()));
+        when(users.findByEmail("learner@example.com")).thenReturn(Optional.of(learner()));
+        when(memberships.findByUserIdAndOrganizationId("learner", "org"))
+                .thenReturn(Optional.of(new Membership("member", "learner", "org",
+                        OrganizationRole.LEARNER, false, Instant.now())));
+
+        assertEquals("MEMBERSHIP_EXISTS", assertThrows(ApiException.class,
+                () -> service().invite("owner", "org",
+                        new CreateOrganizationInvitationRequest("learner@example.com", OrganizationRole.LEARNER)))
+                .code());
+        verify(invitations, never()).insert(any(OrganizationInvitation.class));
+    }
+
+    @Test
     void staffListIsScopedToTheirOrganization() {
         var pageable = PageRequest.of(0, 20);
         when(organizations.findById("org")).thenReturn(Optional.of(organization()));
@@ -205,7 +232,7 @@ class OrganizationInvitationServiceTests {
 
         assertTrue(view.revoked());
         verify(invitations).save(any(OrganizationInvitation.class));
-        verify(memberService, never()).add(any(), any(), any());
+        verify(memberService, never()).acceptInvitation(any(), any());
     }
 
     @Test
@@ -219,11 +246,13 @@ class OrganizationInvitationServiceTests {
         var view = service().accept("learner", "raw-link-token");
 
         assertTrue(view.accepted());
-        ArgumentCaptor<AddMemberRequest> add = ArgumentCaptor.forClass(AddMemberRequest.class);
-        verify(memberService).add(org.mockito.ArgumentMatchers.eq("owner"),
-                org.mockito.ArgumentMatchers.eq("org"), add.capture());
-        assertEquals("learner@example.com", add.getValue().email());
-        assertEquals(OrganizationRole.LEARNER, add.getValue().role());
+        assertTrue(view.expiresAt().isAfter(Instant.now().plusSeconds(6 * 86400)),
+                "Accepted invitations remain available for membership repair retries");
+        ArgumentCaptor<OrganizationInvitation> accepted = ArgumentCaptor.forClass(OrganizationInvitation.class);
+        verify(memberService).acceptInvitation(accepted.capture(), any(User.class));
+        assertEquals("learner@example.com", accepted.getValue().email());
+        assertEquals(OrganizationRole.LEARNER, accepted.getValue().role());
+        assertTrue(accepted.getValue().acceptedAt() != null);
     }
 
     @Test
@@ -237,7 +266,7 @@ class OrganizationInvitationServiceTests {
 
         assertEquals("INVITATION_ACCOUNT_MISMATCH", error.code());
         verify(invitations, never()).save(any());
-        verify(memberService, never()).add(any(), any(), any());
+        verify(memberService, never()).acceptInvitation(any(), any());
     }
 
     @Test
@@ -252,35 +281,49 @@ class OrganizationInvitationServiceTests {
         assertEquals("MEMBERSHIP_CONFLICT", assertThrows(ApiException.class,
                 () -> service().accept("learner", "raw-link-token")).code());
         verify(invitations, never()).save(any(OrganizationInvitation.class));
-        verify(memberService, never()).add(any(), any(), any());
+        verify(memberService, never()).acceptInvitation(any(), any());
+    }
+
+    @Test
+    void deactivatedMemberCannotConsumeAnOldPendingInvitation() {
+        when(invitations.findByTokenHash(any())).thenReturn(Optional.of(
+                invitation(Instant.now().plusSeconds(3600), null, null)));
+        when(users.findById("learner")).thenReturn(Optional.of(learner()));
+        when(memberships.findByUserIdAndOrganizationId("learner", "org"))
+                .thenReturn(Optional.of(new Membership("member", "learner", "org",
+                        OrganizationRole.LEARNER, false, Instant.now())));
+
+        assertEquals("MEMBERSHIP_CONFLICT", assertThrows(ApiException.class,
+                () -> service().accept("learner", "raw-link-token")).code());
+        verify(invitations, never()).save(any(OrganizationInvitation.class));
+        verify(memberService, never()).acceptInvitation(any(), any());
     }
 
     @Test
     void revokedOrExpiredLinkCannotCreateMembership() {
         when(invitations.findByTokenHash(any()))
                 .thenReturn(Optional.of(invitation(Instant.now().minusSeconds(1), null, null)))
-                .thenReturn(Optional.of(invitation(Instant.now().plusSeconds(3600), null, Instant.now())));
+                .thenReturn(Optional.of(invitation(Instant.now().plusSeconds(3600), null, Instant.now())))
+                .thenReturn(Optional.of(invitation(Instant.now().minusSeconds(1), Instant.now().minusSeconds(86400), null)));
         when(users.findById("learner")).thenReturn(Optional.of(learner()));
 
         assertEquals("INVALID_INVITATION", assertThrows(ApiException.class,
                 () -> service().accept("learner", "expired")).code());
         assertEquals("INVALID_INVITATION", assertThrows(ApiException.class,
                 () -> service().accept("learner", "revoked")).code());
-        verify(memberService, never()).add(any(), any(), any());
+        assertEquals("INVALID_INVITATION", assertThrows(ApiException.class,
+                () -> service().accept("learner", "accepted-and-expired")).code());
+        verify(memberService, never()).acceptInvitation(any(), any());
     }
 
     @Test
-    void acceptedRetryDoesNotCreateAnotherMembership() {
+    void acceptedRetryRunsMembershipRepairWithoutRecheckingInviterRole() {
         when(invitations.findByTokenHash(any())).thenReturn(Optional.of(
                 invitation(Instant.now().plusSeconds(3600), Instant.now(), null)));
         when(users.findById("learner")).thenReturn(Optional.of(learner()));
-        when(memberships.findByUserIdAndOrganizationId("learner", "org"))
-                .thenReturn(Optional.of(new Membership("member", "learner", "org",
-                        OrganizationRole.LEARNER, true, Instant.now())));
-
         assertTrue(service().accept("learner", "raw-link-token").accepted());
 
-        verify(memberService, never()).add(any(), any(), any());
+        verify(memberService).acceptInvitation(any(OrganizationInvitation.class), any(User.class));
     }
 
     @Test
@@ -294,6 +337,6 @@ class OrganizationInvitationServiceTests {
 
         assertEquals("INVITATION_CONFLICT", assertThrows(ApiException.class,
                 () -> service().accept("learner", "old-token")).code());
-        verify(memberService, never()).add(any(), any(), any());
+        verify(memberService, never()).acceptInvitation(any(), any());
     }
 }

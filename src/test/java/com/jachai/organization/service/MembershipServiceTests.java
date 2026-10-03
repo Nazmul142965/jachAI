@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -16,6 +17,7 @@ import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.organization.model.Membership;
 import com.jachai.organization.model.Organization;
+import com.jachai.organization.model.OrganizationInvitation;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.dto.AddMemberRequest;
@@ -38,6 +40,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.dao.DuplicateKeyException;
 import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +62,18 @@ class MembershipServiceTests {
 
     private Membership member(String userId, OrganizationRole role, boolean active) {
         return new Membership("membership-" + userId, userId, "org-a", role, active, Instant.now());
+    }
+
+    private OrganizationInvitation acceptedInvitation() {
+        Instant now = Instant.now();
+        return new OrganizationInvitation("invite", "org-a", "learner@example.com",
+                OrganizationRole.LEARNER, "former-admin", "token-hash", now.minusSeconds(60),
+                now.plusSeconds(3600), now, null, 2L);
+    }
+
+    private User invitedLearner() {
+        return new User("learner", "learner@example.com", "Learner", null,
+                true, false, 0, Instant.now());
     }
 
     private void successfulUpdate() {
@@ -406,5 +421,79 @@ class MembershipServiceTests {
         ArgumentCaptor<AuditEvent> event = ArgumentCaptor.forClass(AuditEvent.class);
         verify(auditEvents).insert(event.capture());
         assertEquals("membership:change-1", event.getValue().id());
+    }
+
+    @Test
+    void acceptedInvitationCreatesMembershipWithoutInviterPermission() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+
+        service().acceptInvitation(acceptedInvitation(), invitedLearner());
+
+        ArgumentCaptor<Membership> member = ArgumentCaptor.forClass(Membership.class);
+        verify(memberships).insert(member.capture());
+        assertEquals("learner", member.getValue().userId());
+        assertEquals("org-a", member.getValue().organizationId());
+        assertEquals(OrganizationRole.LEARNER, member.getValue().role());
+        ArgumentCaptor<AuditEvent> audit = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditEvents).insert(audit.capture());
+        assertEquals(AuditAction.MEMBERSHIP_ADDED, audit.getValue().action());
+        assertEquals("learner", audit.getValue().actorUserId());
+        verifyNoInteractions(access);
+    }
+
+    @Test
+    void acceptedInvitationRetryRepairsAuditWithoutAnotherMembership() {
+        Instant now = Instant.now();
+        Membership created = new Membership("member", "learner", "org-a",
+                OrganizationRole.LEARNER, true, now, "change-1", "learner", now, null, false);
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(memberships.findByUserIdAndOrganizationId("learner", "org-a"))
+                .thenReturn(Optional.of(created));
+
+        service().acceptInvitation(acceptedInvitation(), invitedLearner());
+
+        verify(memberships, never()).insert(any(Membership.class));
+        ArgumentCaptor<AuditEvent> audit = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditEvents).insert(audit.capture());
+        assertEquals("membership:change-1", audit.getValue().id());
+    }
+
+    @Test
+    void acceptedInvitationCannotUndoAdminDeactivation() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(memberships.findByUserIdAndOrganizationId("learner", "org-a"))
+                .thenReturn(Optional.of(member("learner", OrganizationRole.LEARNER, false)));
+
+        assertEquals("MEMBERSHIP_CONFLICT", assertThrows(ApiException.class,
+                () -> service().acceptInvitation(acceptedInvitation(), invitedLearner())).code());
+
+        verify(memberships, never()).insert(any(Membership.class));
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(Membership.class));
+    }
+
+    @Test
+    void acceptedInvitationCannotChangeAnExistingDifferentRole() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(memberships.findByUserIdAndOrganizationId("learner", "org-a"))
+                .thenReturn(Optional.of(member("learner", OrganizationRole.INSTRUCTOR, false)));
+
+        assertEquals("MEMBERSHIP_CONFLICT", assertThrows(ApiException.class,
+                () -> service().acceptInvitation(acceptedInvitation(), invitedLearner())).code());
+        verify(memberships, never()).insert(any(Membership.class));
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(Membership.class));
+    }
+
+    @Test
+    void duplicateMemberInsertCanConvergeOnMatchingActiveMembership() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(memberships.findByUserIdAndOrganizationId("learner", "org-a"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(member("learner", OrganizationRole.LEARNER, true)));
+        doThrow(new DuplicateKeyException("concurrent insert"))
+                .when(memberships).insert(any(Membership.class));
+
+        service().acceptInvitation(acceptedInvitation(), invitedLearner());
+
+        verify(memberships).insert(any(Membership.class));
     }
 }
