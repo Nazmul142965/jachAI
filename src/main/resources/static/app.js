@@ -1186,13 +1186,23 @@ async function loadReviewAudit(campaignId, candidateId, pageNumber, target) {
 async function loadAssignments(pageNumber = 0) {
   const page = await request(ownOrg(`/assignments/mine?page=${pageNumber}`));
   const inProgress = pendingAttempt();
+  const now = Date.now();
   setList('#assignments-list', (page.content || []).map((assignment) => {
     const resumable = inProgress?.assignmentId === assignment.id;
-    return item(
-      resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
-      `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()} · ${assignment.attemptsAllowed} attempt(s)`,
-      [button(resumable ? 'Resume assessment' : 'Start / resume', () => startAttempt(assignment)),
-        button('Attempt history', () => showHistory(assignment))]);
+    const from = Date.parse(assignment.availableFrom);
+    const until = Date.parse(assignment.availableUntil);
+    const state = now < from ? `Opens ${new Date(from).toLocaleString()}` : now > until ? 'Closed' : 'Open now';
+    const start = button(resumable ? 'Resume assessment' : 'Start / resume', () => startAttempt(assignment));
+    if (state === 'Closed') {
+      start.disabled = true;
+      start.title = 'The availability window for this assignment has ended.';
+    }
+    const origin = assignment.batchAssessmentId ? ' · Assigned through a batch'
+      : assignment.campaignId ? ' · Assigned through a hiring campaign' : '';
+    return item(resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
+      `${state} · Available ${new Date(from).toLocaleString()} – ${new Date(until).toLocaleString()}`
+        + ` · ${assignment.attemptsAllowed} attempt(s)${origin}`,
+      [start, button('Attempt history', () => showHistory(assignment))]);
   }), 'No assignments yet.');
   renderPageControls('#assignments-pagination', page, loadAssignments);
 }
@@ -1264,6 +1274,13 @@ document.addEventListener('fullscreenchange', () => {
 $('#attempt-panel').addEventListener('copy', () => { void sendTelemetry('COPY_ATTEMPT'); });
 $('#attempt-panel').addEventListener('paste', () => { void sendTelemetry('PASTE_ATTEMPT'); });
 const attemptAnswerState = new Map();
+let attemptProgressElement = null;
+function refreshAttemptProgress() {
+  if (!attemptProgressElement) return;
+  const total = state.activeAttempt?.questions?.length || 0;
+  const saved = [...attemptAnswerState.values()].filter((value) => value === 'saved').length;
+  attemptProgressElement.textContent = `${saved} of ${total} saved`;
+}
 function attemptHasExpired(attempt) {
   return Date.now() >= Date.parse(attempt.deadline);
 }
@@ -1284,6 +1301,7 @@ async function saveAttemptAnswer(attempt, question, body, statusPill, control, s
     attemptAnswerState.set(question.id, 'saved');
     statusPill.textContent = 'Saved';
     statusPill.className = 'pill ok';
+    refreshAttemptProgress();
     void sendTelemetry('ANSWER_SAVED', question.id);
     notice('Answer saved.');
   } catch (error) {
@@ -1323,7 +1341,12 @@ function renderAttempt() {
     else if (seconds <= 300 && announced !== 300) { announced = 300; announce.textContent = 'Five minutes remaining.'; }
   };
   window.clearInterval(state.timer); updateTimer(); state.timer = window.setInterval(updateTimer, 1000);
-  panel.append(node('p', 'Save each answer before submitting. The timer is set by the server.', 'muted'), timer, announce);
+  const progress = node('p', '', 'pill');
+  attemptProgressElement = progress;
+  const header = node('div', '', 'attempt-head');
+  header.append(node('p', 'Save each answer before submitting. The timer is set by the server.', 'muted'), timer, progress, announce);
+  panel.append(header);
+  refreshAttemptProgress();
   if (talentAttemptActive() && document.fullscreenEnabled) {
     panel.append(button('Use fullscreen (optional)', async () => {
       await panel.requestFullscreen(); state.attemptFullscreen = true; focusPanel(panel);
@@ -1427,8 +1450,27 @@ function renderResult(result) {
     panel.append(node('p', 'Submitted. Your score stays hidden until staff release the result or finish manual grading.', 'muted'));
     panel.append(button('Check again', () => showResult(result.attemptId), 'button secondary'));
   } else {
-    panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`));
-    for (const topic of result.topics || []) panel.append(item(topic.topic, `${topic.correct} of ${topic.total} correct`));
+    panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`),
+      node('p', [result.submittedAt ? `Submitted ${new Date(result.submittedAt).toLocaleString()}` : null,
+        result.releasedAt ? `Released ${new Date(result.releasedAt).toLocaleString()}` : null]
+        .filter(Boolean).join(' · '), 'item-meta'));
+    for (const topic of result.topics || []) {
+      const share = topic.total ? Math.round((topic.correct / topic.total) * 100) : 0;
+      const main = node('div', '', 'item-main');
+      main.append(node('span', topic.topic, 'item-title'),
+        node('p', `${topic.correct} of ${topic.total} correct (${share}%)`, 'item-meta'));
+      const bar = node('div', '', 'bar');
+      const fill = node('div', '', 'bar-fill');
+      fill.style.width = `${share}%`;
+      bar.append(fill);
+      main.append(bar);
+      const row = node('div', '', 'item');
+      row.append(main);
+      panel.append(row);
+    }
+    if (result.passed && state.organization?.type === 'ACADEMY' && state.organization?.myRole === 'LEARNER') {
+      panel.append(button('My certificates', () => showView('certificates'), 'button secondary'));
+    }
     if (state.organization?.type === 'ACADEMY' && state.organization?.myRole === 'LEARNER') {
       panel.append(button('View instructor feedback', async () => {
         const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(result.attemptId)}/feedback/mine`),
