@@ -121,6 +121,11 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
 .attempt-head .muted { flex:1 1 100%; margin:0; }
 .bar { height:6px; margin-top:10px; border-radius:4px; background:#e7f3ed; overflow:hidden; }
 .bar-fill { height:100%; border-radius:4px; background:var(--forest); }
+.metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:14px; }
+.metric { display:grid; gap:6px; padding:20px; text-align:left; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); }
+.metric:hover { border-color:#bcd8cb; }
+.metric-value { font-size:28px; font-weight:800; letter-spacing:-.04em; color:var(--forest); }
+.metric-label { color:var(--muted); font-size:12.5px; font-weight:700; }
 [aria-busy="true"] .item { opacity:.6; }
 @media(prefers-reduced-motion:reduce) { .button { transition:none; } }
 .result-box { margin-top:16px; padding:16px; border-radius:10px; background:#eff7f1; color:#1b5940; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }

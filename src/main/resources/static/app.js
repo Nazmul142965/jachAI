@@ -342,6 +342,43 @@ async function setOrganization() {
   quick.replaceChildren(...actions);
   await showView('overview');
 }
+async function loadOverviewMetrics() {
+  const container = $('#overview-metrics');
+  const role = state.organization?.myRole;
+  const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
+  if (!state.organization || !staff) {
+    container.classList.add('hidden');
+    container.replaceChildren();
+    return;
+  }
+  container.classList.remove('hidden');
+  beginList('#overview-metrics', 'Loading workspace counts…');
+  const count = (path, label, view) => request(ownOrg(path))
+    .then((page) => ({ label, value: page.totalElements ?? (page.content || []).length, view }))
+    .catch(() => null);
+  const jobs = [count('/attempts/review/pending?page=0', 'Waiting for release', 'assessments')];
+  if (state.organization.type === 'ACADEMY') {
+    jobs.push(count('/questions?status=DRAFT&page=0', 'Questions awaiting approval', 'questions'));
+    jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
+  }
+  if (state.organization.type === 'TALENT') {
+    jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'campaigns'));
+    jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
+  }
+  if (role === 'ORG_ADMIN') jobs.push(count('/members?page=0', 'Members', 'members'));
+  const metrics = (await Promise.all(jobs)).filter(Boolean);
+  if (!metrics.length) {
+    container.replaceChildren(node('p', 'Workspace counts are unavailable right now.', 'empty'));
+    return;
+  }
+  container.replaceChildren(...metrics.map((metric) => {
+    const card = node('button', '', 'metric');
+    card.type = 'button';
+    card.append(node('span', String(metric.value), 'metric-value'), node('span', metric.label, 'metric-label'));
+    card.addEventListener('click', () => run(() => showView(metric.view)));
+    return card;
+  }));
+}
 async function showView(key) {
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
@@ -363,6 +400,7 @@ async function showView(key) {
   $('#page-subtitle').textContent = key === 'platform' ? 'Administration and support'
     : state.organization?.name || '';
   if (key === 'platform') { await loadPlatformView(); return; }
+  if (key === 'overview') await loadOverviewMetrics();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
   }
