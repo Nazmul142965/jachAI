@@ -51,15 +51,16 @@ if (Test-LocalPort $Port) {
 }
 
 $java21Home = Join-Path $env:USERPROFILE '.jdks\ms-21.0.12.1'
-if ((Test-Path -LiteralPath (Join-Path $java21Home 'bin\java.exe')) -and
-    (-not $env:JAVA_HOME -or -not ((& (Join-Path $env:JAVA_HOME 'bin\java.exe') -version 2>&1 | Out-String) -match 'version "21'))) {
+function Test-Java21Home([string]$JdkDirectory) {
+    if (-not $JdkDirectory) { return $false }
+    $executable = Join-Path $JdkDirectory 'bin\java.exe'
+    if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { return $false }
+    return (Get-Item -LiteralPath $executable).VersionInfo.ProductVersion -match '^21(\.|$)'
+}
+if (-not (Test-Java21Home $env:JAVA_HOME) -and (Test-Java21Home $java21Home)) {
     $env:JAVA_HOME = $java21Home
 }
-if (-not $env:JAVA_HOME -or -not (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
-    throw 'JDK 21 is required. Set JAVA_HOME to your JDK 21 installation.'
-}
-$javaVersion = & (Join-Path $env:JAVA_HOME 'bin\java.exe') -version 2>&1 | Out-String
-if ($javaVersion -notmatch 'version "21') {
+if (-not (Test-Java21Home $env:JAVA_HOME)) {
     throw 'JAVA_HOME must point to JDK 21.'
 }
 $env:Path = (Join-Path $env:JAVA_HOME 'bin') + [IO.Path]::PathSeparator + $env:Path
@@ -72,7 +73,8 @@ $env:AI_PROVIDER = 'none'
 $env:AI_TUTOR_PROVIDER = 'none'
 if (-not $env:JWT_SECRET) {
     $secretBytes = New-Object byte[] 48
-    [Security.Cryptography.RandomNumberGenerator]::Fill($secretBytes)
+    $random = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $random.GetBytes($secretBytes) } finally { $random.Dispose() }
     $env:JWT_SECRET = [Convert]::ToBase64String($secretBytes)
     Write-Warning 'Using a temporary local JWT secret. Existing sign-ins will expire after restart.'
 }
