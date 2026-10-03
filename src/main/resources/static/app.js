@@ -79,6 +79,7 @@ function focusPanel(panel) {
   panel.focus({ preventScroll: true });
 }
 const roleLabel = (role) => String(role).replaceAll('_', ' ').toLowerCase();
+const roleTitle = (role) => roleLabel(role).replace(/\b\w/g, (letter) => letter.toUpperCase());
 let pendingRequests = 0;
 function updateBusyIndicator() {
   document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
@@ -264,7 +265,9 @@ async function setOrganization() {
   $('#conversation-panel').classList.add('hidden');
   $('#empty-org').classList.toggle('hidden', !!state.organization);
   $('#organization-select').classList.toggle('hidden', !state.organization);
-  $('#workspace-role').textContent = state.organization?.myRole?.replaceAll('_', ' ') || '';
+  $('#workspace-role').textContent = state.organization
+    ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${roleTitle(state.organization.myRole)}`
+    : '';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
     $('#page-title').textContent = 'Start here';
@@ -285,32 +288,65 @@ async function setOrganization() {
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
   $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
-  const pages = [['overview', 'Overview']];
-  if (role === 'ORG_ADMIN') pages.push(['members', 'Members']);
-  if (staff) pages.push(['questions', 'Question bank'], ['assessments', 'Assessments']);
-  if (state.organization.type === 'ACADEMY' && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role))
-    pages.push(['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']);
-  if (state.organization.type === 'ACADEMY' && ['INSTRUCTOR', 'LEARNER'].includes(role))
-    pages.push(['messages', 'Messages']);
-  if (staff && state.organization.type === 'TALENT') pages.push(['campaigns', 'Hiring campaigns']);
-  if (['LEARNER', 'CANDIDATE'].includes(role)) pages.push(['attempts', 'My assessments']);
-  if (role === 'LEARNER' && state.organization.type === 'ACADEMY') pages.push(['certificates', 'Certificates']);
-  if (state.platformAdmin) pages.push(['platform', 'Platform']);
-  for (const [key, title] of pages) {
-    const tab = node('button', title); tab.type = 'button'; tab.dataset.view = key;
-    tab.addEventListener('click', () => run(() => showView(key)));
-    nav.append(tab);
+  // Navigation is grouped by intent so Academy and Talent read as related but distinct products.
+  const groups = [];
+  const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
+  group('', [['overview', 'Overview']]);
+  group('Assessment engine', [
+    ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : []),
+    ...(staff ? [['questions', 'Question bank'], ['assessments', 'Assessments']] : [])
+  ]);
+  if (state.organization.type === 'ACADEMY') {
+    group('Academy', [
+      ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
+        ? [['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']] : []),
+      ...(['INSTRUCTOR', 'LEARNER'].includes(role) ? [['messages', 'Messages']] : []),
+      ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
+    ]);
+  }
+  if (state.organization.type === 'TALENT') {
+    group('Talent', staff ? [['campaigns', 'Hiring campaigns']] : []);
+  }
+  group('My work', ['LEARNER', 'CANDIDATE'].includes(role) ? [['attempts', 'My assessments']] : []);
+  group('Administration', state.platformAdmin ? [['platform', 'Platform']] : []);
+  for (const [heading, items] of groups) {
+    if (heading) nav.append(node('p', heading, 'nav-heading'));
+    for (const [key, title] of items) {
+      const tab = node('button', title); tab.type = 'button'; tab.dataset.view = key;
+      tab.addEventListener('click', () => run(() => showView(key)));
+      nav.append(tab);
+    }
   }
   $('#overview-hint').textContent = staff
     ? 'Start with a reviewed question, publish an assessment, then assign it to a verified member.'
     : 'Open My assessments to begin an assignment or revisit a result.';
+  const quick = $('#overview-actions');
+  const shortcut = (label, key) => {
+    const control = node('button', label, 'button quiet small');
+    control.type = 'button';
+    control.addEventListener('click', () => run(() => showView(key)));
+    return control;
+  };
+  const academyStaff = state.organization.type === 'ACADEMY' && ['ORG_ADMIN', 'INSTRUCTOR'].includes(role);
+  const talentStaff = state.organization.type === 'TALENT' && staff;
+  const actions = [];
+  if (academyStaff) actions.push(shortcut('Question bank', 'questions'), shortcut('Assessments & review', 'assessments'),
+    shortcut('Courses & batches', 'academy'), shortcut('Messages', 'messages'));
+  if (talentStaff) actions.push(shortcut('Hiring campaigns', 'campaigns'), shortcut('Assessments & review', 'assessments'));
+  if (role === 'ORG_ADMIN') actions.push(shortcut('Members', 'members'));
+  if (['LEARNER', 'CANDIDATE'].includes(role)) actions.push(shortcut('My assessments', 'attempts'));
+  if (role === 'LEARNER' && state.organization.type === 'ACADEMY') {
+    actions.push(shortcut('My batches', 'academy'), shortcut('Certificates', 'certificates'));
+  }
+  if (state.platformAdmin) actions.push(shortcut('Platform', 'platform'));
+  quick.replaceChildren(...actions);
   await showView('overview');
 }
 async function showView(key) {
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
-  for (const tab of $('#workspace-nav').children) {
+  for (const tab of $('#workspace-nav').querySelectorAll('button')) {
     const active = tab.dataset.view === key;
     tab.classList.toggle('active', active);
     if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
@@ -1643,6 +1679,11 @@ async function loadConversationMessages(pageNumber = state.messagePage) {
   renderPageControls('#conversation-messages-pagination', page, loadConversationMessages);
 }
 
+$('#verify-code-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const code = $('#verify-code').value.trim();
+  if (!code) throw new Error('Enter the verification code printed on the certificate.');
+  window.location.assign(`/certificates/${encodeURIComponent(code)}`);
+}); });
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   const control = $('#start-ssl-demo');

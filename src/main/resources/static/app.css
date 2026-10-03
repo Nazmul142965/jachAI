@@ -106,6 +106,16 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
 .button.danger-action { background:var(--danger); color:#fff; }
 .skip-link { position:absolute; left:-9999px; top:0; z-index:30; padding:10px 16px; background:var(--forest); color:#fff; font-weight:700; }
 .skip-link:focus { left:0; }
+.nav-heading { margin:14px 11px 6px; color:var(--muted); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.14em; }
+.nav-heading:first-child { margin-top:2px; }
+.hero-trust { margin:16px 0 0; color:var(--forest); font-size:12.5px; font-weight:700; }
+.hint { margin:-16px 0 20px; font-size:12.5px; }
+.verify-row { margin-top:28px; max-width:440px; }
+.verify-row .muted { margin:8px 0 0; font-size:12px; }
+.verify-controls { display:flex; gap:10px; align-items:center; }
+.verify-controls input { flex:1 1 auto; }
+.inline-link { text-decoration:underline; text-underline-offset:3px; }
+#overview-actions { justify-content:flex-start; margin-top:14px; }
 [aria-busy="true"] .item { opacity:.6; }
 @media(prefers-reduced-motion:reduce) { .button { transition:none; } }
 .result-box { margin-top:16px; padding:16px; border-radius:10px; background:#eff7f1; color:#1b5940; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }
@@ -127,4 +137,5 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
   .result-box { max-height:340px; overflow:auto; }
   .modal { padding:18px; }
   .filter-row { max-width:none; }
+  .nav-heading { grid-column:1 / -1; margin:10px 2px 2px; }
 }
