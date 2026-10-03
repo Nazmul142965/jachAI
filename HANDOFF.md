@@ -2,6 +2,8 @@
 
 Updated: 2026-10-03. This file is a living checkpoint, not a claim that the project is finished. Inspect the worktree and `ARCHITECTURE.md` before relying on any status below.
 
+Current integration checkpoint (2026-10-03 evening): `frontend/dashboard`'s ten frontend-only commits were merged into `main` as `8d397e0`. On that merged revision, JavaScript syntax passed, the full Java 21 offline suite passed **401 tests, 0 failures/errors/skips**, and an executable JAR was packaged. The original worktree is clean. The frontend agent reported Chrome fixture checks, but those were not independently reproduced here and did not use a live database. `MONGODB_TEST_URI` is absent from this shell; live Atlas, Redis, SMTP, AI, Google, both payment sandboxes, and Docker are still unverified. Do not use a credential found in `.idea` or an earlier chat message; the previously shared Atlas password should be rotated before creating a dedicated `jachai_it_*` test URI. Continue from the current source, not the older milestones below.
+
 ## Objective and user decisions
 
 - Complete the single Spring Boot application and responsive frontend described in `ARCHITECTURE.md`; no microservices.
