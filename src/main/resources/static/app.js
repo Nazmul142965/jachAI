@@ -23,8 +23,10 @@ if (memberInvitationFromLink) {
 }
 if (billingReturn) {
   history.replaceState(null, '', location.pathname);
-  if (billingReturn === 'verified') notice('Sandbox payment verified. Sign in to see your plan and transaction.');
-  else notice(`Sandbox checkout ${billingReturn}. Sign in to review transaction history.`);
+  const outcome = { verified: 'returned from the sandbox gateway', cancelled: 'was cancelled at the sandbox gateway',
+    failed: 'did not complete at the sandbox gateway' }[billingReturn];
+  notice(`${outcome ? `Sandbox checkout ${outcome}.` : `Sandbox checkout returned "${billingReturn}".`} `
+    + 'A browser redirect cannot confirm a payment — sign in and use Check payment to read the server-verified result.');
 }
 
 function node(tag, text = '', className = '') {
@@ -283,10 +285,15 @@ async function loadEntitlements() {
   const options = await request(ownOrg('/billing/options'));
   const checkout = $('#start-ssl-demo');
   checkout.disabled = !options.sslCommerzAvailable;
-  $('#start-bkash-demo').disabled = !options.bkashAvailable;
-  $('#billing-hint').textContent = options.sslCommerzAvailable || options.bkashAvailable
+  $('#start-bkash-demo').disabled = !options.directBkashAvailable;
+  const sandboxNote = options.sandboxOnly === false
+    ? ' This deployment does not report sandbox-only mode — do not enter real payment details.' : '';
+  $('#billing-hint').textContent = (options.sslCommerzAvailable || options.directBkashAvailable
     ? `Sandbox only · TEAM demo price: ৳${options.demoTeamPriceBdt} for 30 days. No real money is charged.`
-    : 'Sandbox merchant credentials are not configured yet. No real money is charged.';
+    : 'Sandbox merchant credentials are not configured yet, so both demo checkout buttons stay disabled. No real money is charged.')
+    + (options.sslCommerzAvailable ? '' : ' SSLCOMMERZ sandbox credentials are not configured.')
+    + (options.directBkashAvailable ? '' : ' Direct bKash sandbox credentials are not configured.')
+    + sandboxNote;
   await loadPaymentHistory();
 }
 async function loadPaymentHistory(pageNumber = 0) {
@@ -1311,7 +1318,13 @@ function switchAuth(which) {
 }
 async function setupGoogleSignIn() {
   const config = await request('/auth/google/config', { auth: false });
-  if (!config?.clientId) return;
+  if (!config?.clientId) {
+    // Honest unavailable state: never advertise a sign-in method this deployment cannot offer.
+    const area = $('#google-login-area');
+    area.replaceChildren(node('p', 'Google sign-in is not configured on this deployment. Use email and password instead.', 'muted'));
+    area.classList.remove('hidden');
+    return;
+  }
   const script = document.createElement('script');
   script.src = 'https://accounts.google.com/gsi/client';
   script.async = true;
@@ -1333,7 +1346,7 @@ async function setupGoogleSignIn() {
     $(area).classList.remove('hidden');
   }
 }
-run(setupGoogleSignIn);
+setupGoogleSignIn().catch(() => { /* optional provider: an unreachable config must not block sign-in */ });
 $('#login-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   const tokens = await request('/auth/login', { method: 'POST', auth: false,
@@ -1342,9 +1355,12 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
 }); });
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
-  await request('/auth/register', { method: 'POST', auth: false,
+  const created = await request('/auth/register', { method: 'POST', auth: false,
     body: { displayName: form.get('displayName'), email: form.get('email'), password: form.get('password') } });
-  event.currentTarget.reset(); switchAuth('login'); notice('Account created. Check your email to verify it.');
+  event.currentTarget.reset(); switchAuth('login');
+  notice(created?.message
+    ? `${created.message}. Delivery is queued by the server and is not confirmed on this screen.`
+    : 'Account created. The server queues a verification email; delivery is not confirmed on this screen.');
 }); });
 $('#logout').addEventListener('click', () => run(async () => {
   try { await request('/auth/logout', { method: 'POST', body: { refreshToken: state.refreshToken } }); }
@@ -1377,7 +1393,7 @@ $('#invite-member-form').addEventListener('submit', (event) => { event.preventDe
     body: { email: form.get('email').trim(), role: form.get('role') } });
   event.currentTarget.reset();
   await loadMemberInvitations(0);
-  notice('Workspace invitation queued for email delivery.');
+  notice('Invitation recorded. The server queues the email; this screen cannot confirm delivery.');
 }); });
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const email = new FormData(event.currentTarget).get('email').trim();
@@ -1588,7 +1604,7 @@ $('#campaign-email-invite-form').addEventListener('submit', (event) => { event.p
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
   if (state.emailInvitationCampaignId === form.get('campaignId'))
     await loadEmailInvitations(state.emailInvitationCampaignId);
-  event.currentTarget.reset(); notice('Invitation created; email delivery requested.');
+  event.currentTarget.reset(); notice('Invitation created. The server queues the email; this screen cannot confirm delivery.');
 }); });
 $('#platform-refresh').addEventListener('click', () => run(loadPlatformView));
 $('#platform-inspect').addEventListener('click', () => run(() =>
