@@ -1082,7 +1082,9 @@ async function loadCampaigns(pageNumber = 0) {
       actions.push(close);
     }
     return item(campaign.title,
-      `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
+      `${campaign.open ? 'Open for new invitations' : 'Closed to new invitations'}`
+        + ` · Frozen version ${campaign.assessmentVersionId}`
+        + (campaign.createdAt ? ` · Created ${new Date(campaign.createdAt).toLocaleDateString()}` : ''),
       actions);
   }), 'No campaigns yet.');
   renderPageControls('#campaigns-pagination', page, loadCampaigns);
@@ -1202,6 +1204,23 @@ async function compareCandidates(campaignId, pageNumber = 0) {
     if (reviewForm) wrapper.append(reviewForm);
     wrapper.append(integrityButton, integrityPanel, eventsButton, eventsPanel, auditButton, auditPanel); return wrapper;
   });
+  const summary = node('div', '', 'card panel');
+  summary.append(node('h3', 'At a glance'),
+    node('p', 'Latest submitted attempt per invited candidate. Decisions are visible to Talent staff only.', 'muted'));
+  const head = node('div', '', 'compare-row compare-head');
+  head.append(node('span', 'Candidate'), node('span', 'Latest attempt'), node('span', 'Decision'));
+  summary.append(head);
+  for (const candidate of page.content || []) {
+    const row = node('div', '', 'compare-row');
+    const attempt = candidate.attemptId
+      ? (candidate.percentage == null ? 'Awaiting grading'
+        : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`)
+      : 'No submitted attempt';
+    row.append(node('span', candidate.candidateUserId), node('span', attempt),
+      node('span', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'));
+    summary.append(row);
+  }
+  rows.unshift(summary);
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
   renderPageControls('#campaign-candidates-pagination', page,
     (nextPage) => compareCandidates(campaignId, nextPage));
