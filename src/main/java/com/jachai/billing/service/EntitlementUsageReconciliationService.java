@@ -9,7 +9,10 @@ import com.jachai.billing.model.UsageReconciliationStatus;
 import com.jachai.billing.model.UsageWindow;
 import com.jachai.billing.repository.EntitlementUsageStore;
 import com.jachai.organization.model.OrganizationRole;
+import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
+import com.jachai.platform.service.PlatformAdminService;
+import com.jachai.shared.error.ApiException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -35,6 +39,8 @@ public class EntitlementUsageReconciliationService {
     private final EntitlementUsageStore store;
     private final EntitlementService entitlements;
     private final TenantAccessService access;
+    private final PlatformAdminService platform;
+    private final OrganizationRepository organizations;
     private final Duration downwardGrace;
     private final int lookbackMonths;
     private final Clock clock;
@@ -43,15 +49,19 @@ public class EntitlementUsageReconciliationService {
     public EntitlementUsageReconciliationService(EntitlementUsageStore store,
                                                  EntitlementService entitlements,
                                                  TenantAccessService access,
+                                                 PlatformAdminService platform,
+                                                 OrganizationRepository organizations,
                                                  @Value("${app.billing.usage-reconciliation.downward-grace:PT5M}")
                                                  Duration downwardGrace,
                                                  @Value("${app.billing.usage-reconciliation.lookback-months:15}")
                                                  int lookbackMonths) {
-        this(store, entitlements, access, downwardGrace, lookbackMonths, Clock.systemUTC());
+        this(store, entitlements, access, platform, organizations,
+                downwardGrace, lookbackMonths, Clock.systemUTC());
     }
 
     EntitlementUsageReconciliationService(EntitlementUsageStore store, EntitlementService entitlements,
-                                          TenantAccessService access, Duration downwardGrace,
+                                          TenantAccessService access, PlatformAdminService platform,
+                                          OrganizationRepository organizations, Duration downwardGrace,
                                           int lookbackMonths, Clock clock) {
         if (downwardGrace.isNegative()) {
             throw new IllegalArgumentException("downwardGrace must not be negative");
@@ -62,6 +72,8 @@ public class EntitlementUsageReconciliationService {
         this.store = store;
         this.entitlements = entitlements;
         this.access = access;
+        this.platform = platform;
+        this.organizations = organizations;
         this.downwardGrace = downwardGrace;
         this.lookbackMonths = lookbackMonths;
         this.clock = clock;
@@ -75,6 +87,26 @@ public class EntitlementUsageReconciliationService {
     public UsageReconciliationReport repair(String actorUserId, String organizationId) {
         access.requireRole(actorUserId, organizationId, OrganizationRole.ORG_ADMIN);
         return analyze(organizationId, true, actorUserId);
+    }
+
+    public UsageReconciliationReport reportForPlatform(String actorUserId, String organizationId) {
+        requirePlatformAccess(actorUserId, organizationId);
+        return analyze(organizationId, false, actorUserId);
+    }
+
+    public UsageReconciliationReport repairForPlatform(String actorUserId, String organizationId) {
+        requirePlatformAccess(actorUserId, organizationId);
+        return analyze(organizationId, true, actorUserId);
+    }
+
+    private void requirePlatformAccess(String actorUserId, String organizationId) {
+        if (!platform.isPlatformAdmin(actorUserId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "PLATFORM_ADMIN_REQUIRED",
+                    "Platform administrator access required");
+        }
+        if (!organizations.existsById(organizationId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Organization not found");
+        }
     }
 
     private UsageReconciliationReport analyze(String organizationId, boolean repair, String actorUserId) {

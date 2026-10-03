@@ -11,6 +11,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 import com.jachai.billing.dto.PlanEntitlements;
 import com.jachai.billing.dto.UsageReconciliationEntry;
@@ -21,6 +23,8 @@ import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.model.UsageReconciliationStatus;
 import com.jachai.billing.repository.EntitlementUsageStore;
 import com.jachai.organization.service.TenantAccessService;
+import com.jachai.organization.repository.OrganizationRepository;
+import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.shared.error.ApiException;
 import java.time.Clock;
 import java.time.Duration;
@@ -49,6 +53,8 @@ class EntitlementUsageReconciliationServiceTests {
 
     @Mock EntitlementService entitlements;
     @Mock TenantAccessService access;
+    @Mock PlatformAdminService platform;
+    @Mock OrganizationRepository organizations;
 
     private InMemoryUsageStore store;
 
@@ -59,7 +65,8 @@ class EntitlementUsageReconciliationServiceTests {
     }
 
     private EntitlementUsageReconciliationService service() {
-        return new EntitlementUsageReconciliationService(store, entitlements, access, GRACE, LOOKBACK,
+        return new EntitlementUsageReconciliationService(store, entitlements, access, platform, organizations,
+                GRACE, LOOKBACK,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -82,6 +89,48 @@ class EntitlementUsageReconciliationServiceTests {
 
     private UsageReconciliationEntry entry(UsageReconciliationReport report, UsageMetric metric, String window) {
         return report.entry(metric, window);
+    }
+
+    @Test
+    void nonPlatformActorCannotReportOrRepairAnotherTenant() {
+        assertEquals("PLATFORM_ADMIN_REQUIRED", assertThrows(ApiException.class,
+                () -> service().reportForPlatform("ordinary", "org-a")).code());
+        assertEquals("PLATFORM_ADMIN_REQUIRED", assertThrows(ApiException.class,
+                () -> service().repairForPlatform("ordinary", "org-a")).code());
+        verify(organizations, never()).existsById("org-a");
+        assertEquals(0, store.writes);
+        assertTrue(store.organizationsSeen().isEmpty());
+    }
+
+    @Test
+    void platformActorCannotRepairUnknownOrganization() {
+        when(platform.isPlatformAdmin("platform-admin")).thenReturn(true);
+
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().repairForPlatform("platform-admin", "unknown")).code());
+        assertEquals(0, store.writes);
+        assertTrue(store.organizationsSeen().isEmpty());
+    }
+
+    @Test
+    void platformReportIsReadOnlyAndRepairStampsActorOnScopedBucket() {
+        when(platform.isPlatformAdmin("platform-admin")).thenReturn(true);
+        when(organizations.existsById("org-a")).thenReturn(true);
+        store.certificate("org-a", october(5));
+        store.certificate("other-org", october(5));
+
+        UsageReconciliationReport preview = service().reportForPlatform("platform-admin", "org-a");
+        assertEquals(UsageReconciliationStatus.BACKFILL_REQUIRED,
+                entry(preview, UsageMetric.CERTIFICATE, "2026-10").status());
+        assertEquals(0, store.writes);
+
+        UsageReconciliationReport result = service().repairForPlatform("platform-admin", "org-a");
+        assertEquals(UsageReconciliationStatus.BACKFILLED,
+                entry(result, UsageMetric.CERTIFICATE, "2026-10").status());
+        assertEquals(1, store.used("org-a", UsageMetric.CERTIFICATE, "2026-10"));
+        assertEquals("platform-admin", store.reconciledBy("org-a", "2026-10"));
+        assertEquals(0, store.used("other-org", UsageMetric.CERTIFICATE, "2026-10"));
+        verify(access, never()).requireRole(any(), any(), any());
     }
 
     @Test
@@ -512,9 +561,11 @@ class EntitlementUsageReconciliationServiceTests {
     @Test
     void anInvalidGraceOrLookbackFailsFast() {
         assertThrows(IllegalArgumentException.class, () -> new EntitlementUsageReconciliationService(
-                store, entitlements, access, Duration.ofSeconds(-1), LOOKBACK, Clock.systemUTC()));
+                store, entitlements, access, platform, organizations,
+                Duration.ofSeconds(-1), LOOKBACK, Clock.systemUTC()));
         assertThrows(IllegalArgumentException.class, () -> new EntitlementUsageReconciliationService(
-                store, entitlements, access, GRACE, 0, Clock.systemUTC()));
+                store, entitlements, access, platform, organizations,
+                GRACE, 0, Clock.systemUTC()));
     }
 
     static final class InMemoryUsageStore implements EntitlementUsageStore {

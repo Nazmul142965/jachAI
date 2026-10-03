@@ -3,6 +3,8 @@ package com.jachai.platform.controller;
 import com.jachai.platform.dto.PlatformOrganizationView;
 import com.jachai.platform.dto.PlatformBillingView;
 import com.jachai.billing.dto.PaymentOrderView;
+import com.jachai.billing.dto.UsageReconciliationReport;
+import com.jachai.billing.service.EntitlementUsageReconciliationService;
 import com.jachai.platform.dto.ChangePlatformRoleRequest;
 import com.jachai.platform.dto.PlatformRoleAuditView;
 import com.jachai.platform.dto.PlatformRoleView;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,10 +32,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlatformAdminController {
     private final PlatformAdminService platform;
     private final PlatformBillingSupportService billingSupport;
+    private final EntitlementUsageReconciliationService usageReconciliation;
 
-    public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport) {
+    public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport,
+                                   EntitlementUsageReconciliationService usageReconciliation) {
         this.platform = platform;
         this.billingSupport = billingSupport;
+        this.usageReconciliation = usageReconciliation;
     }
 
     @GetMapping("/me")
@@ -55,6 +61,18 @@ public class PlatformAdminController {
     public Page<PaymentOrderView> billingOrders(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
         return billingSupport.orders(jwt.getSubject(), organizationId, page);
+    }
+
+    @GetMapping("/organizations/{organizationId}/billing/usage-reconciliation")
+    public UsageReconciliationReport usageReport(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId) {
+        return usageReconciliation.reportForPlatform(jwt.getSubject(), organizationId);
+    }
+
+    @PostMapping("/organizations/{organizationId}/billing/usage-reconciliation")
+    public UsageReconciliationReport repairUsage(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId) {
+        return usageReconciliation.repairForPlatform(jwt.getSubject(), organizationId);
     }
 
     @GetMapping("/users/{userId}")

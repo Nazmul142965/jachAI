@@ -43,6 +43,7 @@ import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.talent.service.CampaignEmailInvitationService;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.billing.service.PaymentBillingService;
+import com.jachai.billing.service.EntitlementUsageReconciliationService;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
 import com.jachai.auth.repository.UserRepository;
@@ -87,6 +88,7 @@ class JachAiApplicationTests {
     @MockitoBean CampaignEmailInvitationService campaignEmailInvitationService;
     @MockitoBean EntitlementService entitlementService;
     @MockitoBean PaymentBillingService paymentBillingService;
+    @MockitoBean EntitlementUsageReconciliationService entitlementUsageReconciliationService;
     @MockitoBean PlatformAdminService platformAdminService;
     @MockitoBean PlatformBillingSupportService platformBillingSupportService;
 
@@ -128,6 +130,10 @@ class JachAiApplicationTests {
         mvc.perform(get("/api/v1/platform/organizations/org/billing"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/organizations/org/billing/orders"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/platform/organizations/org/billing/usage-reconciliation"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/platform/organizations/org/billing/usage-reconciliation"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/users/target"))
                 .andExpect(status().isUnauthorized());
