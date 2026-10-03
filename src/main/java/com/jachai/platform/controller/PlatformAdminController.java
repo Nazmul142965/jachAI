@@ -2,6 +2,7 @@ package com.jachai.platform.controller;
 
 import com.jachai.platform.dto.PlatformOrganizationView;
 import com.jachai.platform.dto.PlatformBillingView;
+import com.jachai.platform.dto.PlatformOperationsView;
 import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.billing.dto.UsageReconciliationReport;
 import com.jachai.billing.model.PlatformUsageRepairEvent;
@@ -12,6 +13,7 @@ import com.jachai.platform.dto.PlatformRoleView;
 import com.jachai.platform.dto.PlatformUserView;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
+import com.jachai.platform.service.PlatformOperationsService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
@@ -34,17 +36,25 @@ public class PlatformAdminController {
     private final PlatformAdminService platform;
     private final PlatformBillingSupportService billingSupport;
     private final EntitlementUsageReconciliationService usageReconciliation;
+    private final PlatformOperationsService operations;
 
     public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport,
-                                   EntitlementUsageReconciliationService usageReconciliation) {
+                                   EntitlementUsageReconciliationService usageReconciliation,
+                                   PlatformOperationsService operations) {
         this.platform = platform;
         this.billingSupport = billingSupport;
         this.usageReconciliation = usageReconciliation;
+        this.operations = operations;
     }
 
     @GetMapping("/me")
     public PlatformAccessView me(@AuthenticationPrincipal Jwt jwt) {
         return new PlatformAccessView(jwt.getSubject(), platform.isPlatformAdmin(jwt.getSubject()));
+    }
+
+    @GetMapping("/operations/summary")
+    public PlatformOperationsView operations(@AuthenticationPrincipal Jwt jwt) {
+        return operations.summary(jwt.getSubject());
     }
 
     @GetMapping("/organizations")

@@ -5,11 +5,16 @@ import java.time.Instant;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("payment_orders")
-@CompoundIndex(name = "payment_org_created", def = "{'organizationId': 1, 'createdAt': -1}")
+@CompoundIndexes({
+        @CompoundIndex(name = "payment_org_created", def = "{'organizationId': 1, 'createdAt': -1}"),
+        @CompoundIndex(name = "payment_status_created", def = "{'status': 1, 'createdAt': 1}"),
+        @CompoundIndex(name = "payment_status_verified", def = "{'status': 1, 'verifiedAt': 1}")
+})
 public record PaymentOrder(
         @Id String id,
         String organizationId,

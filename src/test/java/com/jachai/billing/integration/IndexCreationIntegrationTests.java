@@ -108,4 +108,26 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
 
         assertTrue(hasIdIndex, "MongoDB should have default _id index");
     }
+
+    @Test
+    void operationalBacklogQueriesHaveApplicationCreatedIndexes() {
+        assertIndex("email_jobs", "mail_due", "status", "nextAttemptAt");
+        assertIndex("payment_orders", "payment_status_created", "status", "createdAt");
+        assertIndex("payment_orders", "payment_status_verified", "status", "verifiedAt");
+        assertIndex("platform_usage_repair_events", "stage", "stage");
+    }
+
+    private void assertIndex(String collectionName, String name, String... fields) {
+        MongoCollection<Document> collection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
+        boolean found = false;
+        for (Document index : collection.listIndexes()) {
+            if (!name.equals(index.getString("name"))) continue;
+            Document keys = index.get("key", Document.class);
+            assertNotNull(keys, name + " must have index keys");
+            assertEquals(fields.length, keys.size(), name + " should not have extra fields");
+            for (String field : fields) assertTrue(keys.containsKey(field), name + " is missing " + field);
+            found = true;
+        }
+        assertTrue(found, "Expected application-created index " + name + " on " + collectionName);
+    }
 }

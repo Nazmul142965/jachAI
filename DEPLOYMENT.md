@@ -17,6 +17,8 @@ Provider settings are optional until those features are tested: Gemini, Groq, Go
 
 ## Health probes
 
+An authenticated platform admin can poll `GET /api/v1/platform/operations/summary` for global backlog counts. Alert on nonzero failed mail jobs, verified-but-unapplied sandbox orders older than five minutes, or quota repair requests without completion. Overdue pending mail is measured after a fifteen-minute grace; open sandbox checkouts are considered old after 24 hours and may simply be abandoned. The endpoint does not reveal recipients, orders, or credentials. MongoDB/Redis readiness and Atlas storage need separate monitoring; these counts require MongoDB to be reachable.
+
 - `GET /api/v1/health` and `GET /actuator/health/liveness` mean the process is responding. They do not prove MongoDB or Redis works.
 - `GET /actuator/health/readiness` includes MongoDB and Redis in the production profile. An unhealthy dependency returns an unhealthy readiness response; do not route assessment traffic to that instance.
 - Health details are hidden from anonymous callers. Only the health endpoint is exposed through Actuator.
