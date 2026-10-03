@@ -132,9 +132,10 @@ public class OrganizationInvitationService {
         if (invitation.revokedAt() != null) throw invalidInvitation();
         if (invitation.acceptedAt() == null && !invitation.expiresAt().isAfter(Instant.now()))
             throw invalidInvitation();
+        OrganizationRole invitedRole = invitation.role();
         memberships.findByUserIdAndOrganizationId(user.id(), invitation.organizationId())
                 .filter(Membership::active)
-                .filter(member -> member.role() != invitation.role())
+                .filter(member -> member.role() != invitedRole)
                 .ifPresent(ignored -> { throw membershipConflict(); });
         if (invitation.acceptedAt() == null) {
             Organization organization = organization(invitation.organizationId());
