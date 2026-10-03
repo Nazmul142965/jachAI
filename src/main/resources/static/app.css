@@ -95,6 +95,9 @@ legend { padding:0 5px; font-size:13px; font-weight:700; }
 .attempt-rules { margin:0; padding-left:20px; color:var(--muted); line-height:1.6; }
 .attempt-rules li { margin-bottom:6px; }
 .button:focus-visible,.tab:focus-visible,.side-nav button:focus-visible,a:focus-visible { outline:3px solid var(--forest); outline-offset:2px; }
+[aria-invalid="true"] { border-color:var(--danger); box-shadow:0 0 0 3px rgba(167,53,53,.12); }
+.field-error { color:var(--danger); font-size:12px; font-weight:700; }
+[aria-busy="true"] .item { opacity:.6; }
 @media(prefers-reduced-motion:reduce) { .button { transition:none; } }
 .result-box { margin-top:16px; padding:16px; border-radius:10px; background:#eff7f1; color:#1b5940; line-height:1.55; overflow-wrap:anywhere; white-space:pre-wrap; }
 .question-block { padding:20px 0; border-top:1px solid var(--line); }

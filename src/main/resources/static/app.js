@@ -78,13 +78,47 @@ function focusPanel(panel) {
   panel.setAttribute('tabindex', '-1');
   panel.focus({ preventScroll: true });
 }
+let pendingRequests = 0;
+function updateBusyIndicator() {
+  document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
+  const indicator = $('#busy');
+  if (!indicator) return;
+  indicator.classList.toggle('hidden', pendingRequests === 0);
+  indicator.textContent = pendingRequests === 0 ? '' : 'Working…';
+}
+function fieldErrors(form, error) {
+  for (const element of form.querySelectorAll('[aria-invalid]')) {
+    element.removeAttribute('aria-invalid');
+    const note = element.closest('label')?.querySelector('.field-error');
+    if (note) note.remove();
+  }
+  const details = error?.details;
+  if (!details || typeof details !== 'object') return false;
+  let marked = false;
+  for (const [field, message] of Object.entries(details)) {
+    const input = form.elements?.[field];
+    if (!input) continue;
+    marked = true;
+    input.setAttribute('aria-invalid', 'true');
+    (input.closest('label') || input.parentElement || form).append(node('span', message, 'field-error'));
+  }
+  return marked;
+}
 async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
-  const response = await fetch(`/api/v1${path}`, {
-    method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'
-  });
+  pendingRequests += 1; updateBusyIndicator();
+  let response;
+  try {
+    response = await fetch(`/api/v1${path}`, {
+      method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'
+    });
+  } catch (_) {
+    throw new Error('Could not reach JachAI. Check your connection and try again.');
+  } finally {
+    pendingRequests -= 1; updateBusyIndicator();
+  }
   if (response.status === 401 && auth && retry && state.refreshToken) {
     try {
       const renewed = await request('/auth/refresh', {
@@ -95,11 +129,23 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
       return request(path, { method, body, auth, retry: false, optional404 });
     } catch (_) { showSignedOut(); throw new Error('Your session expired. Please sign in again.'); }
   }
+  if (response.status === 401 && auth) {
+    // Without a refresh token the shell must not stay open with every action failing.
+    showSignedOut();
+    throw new Error('Your session is no longer valid. Please sign in again.');
+  }
   const raw = await response.text();
   let data;
   try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = null; }
   if (response.status === 404 && optional404) return null;
-  if (!response.ok) throw new Error(data?.message || `Request failed (${response.status}).`);
+  if (!response.ok) {
+    const failure = new Error(response.status === 403
+      ? (data?.message ? `Not allowed: ${data.message}` : 'Your role does not allow this action.')
+      : (data?.message || `Request failed (${response.status}).`));
+    failure.status = response.status;
+    failure.details = data?.details || null;
+    throw failure;
+  }
   return data;
 }
 function showSignedOut() {
@@ -258,22 +304,26 @@ async function showView(key) {
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
   }
-  if (key === 'members') await loadMembers();
-  if (key === 'questions') await loadQuestions();
+  if (key === 'members') await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
+  if (key === 'questions') await loadList('#questions-list', () => loadQuestions(), 'Questions could not be loaded.');
   if (key === 'assessments') {
-    await loadApprovedQuestions(); await loadAssessments();
-    await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
-    await loadReviewQueue(0);
+    await loadList('#assessments-list', async () => {
+      await loadApprovedQuestions(); await loadAssessments();
+      await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
+    }, 'Assessments could not be loaded.');
+    await loadList('#review-queue', () => loadReviewQueue(0), 'The review queue could not be loaded.');
     await loadOrganizationSettings();
   }
-  if (key === 'academy') await loadAcademyCatalog();
+  if (key === 'academy') await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
   if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') {
-    await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
-    await loadCampaigns(); await loadTalentCandidates();
+    await loadList('#campaigns-list', async () => {
+      await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
+      await loadCampaigns(); await loadTalentCandidates();
+    }, 'Campaigns could not be loaded.');
   }
-  if (key === 'attempts') await loadAssignments();
-  if (key === 'certificates') await loadCertificates();
+  if (key === 'attempts') await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
+  if (key === 'certificates') await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
 }
 async function loadEntitlements() {
   const plan = await request(ownOrg('/billing/entitlements'));
@@ -446,7 +496,27 @@ function item(title, meta, actions = []) {
 }
 function setList(selector, rows, emptyMessage) {
   const target = $(selector);
+  target.setAttribute('aria-busy', 'false');
   target.replaceChildren(...(rows.length ? rows : [node('p', emptyMessage, 'empty')]));
+}
+function beginList(selector, message = 'Loading…') {
+  const target = $(selector);
+  if (!target) return;
+  target.setAttribute('aria-busy', 'true');
+  target.replaceChildren(node('p', message, 'empty'));
+}
+async function loadList(selector, load, retryMessage = 'This list could not be loaded.') {
+  beginList(selector);
+  try {
+    await load();
+  } catch (error) {
+    const target = $(selector);
+    if (!target) throw error;
+    target.setAttribute('aria-busy', 'false');
+    target.replaceChildren(
+      node('p', `${retryMessage} ${error.message}`, 'empty'),
+      button('Retry', () => loadList(selector, load, retryMessage), 'button secondary small'));
+  }
 }
 function renderPageControls(selector, page, onPage) {
   const target = $(selector); target.replaceChildren();
@@ -1352,14 +1422,28 @@ async function loadConversationMessages(pageNumber = state.messagePage) {
 
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
-  const checkout = await request(ownOrg('/billing/orders'),
-    { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
-  window.location.assign(checkout.checkoutUrl);
+  const control = $('#start-ssl-demo');
+  control.disabled = true; control.textContent = 'Opening SSLCommerz sandbox…';
+  try {
+    const checkout = await request(ownOrg('/billing/orders'),
+      { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
+    window.location.assign(checkout.checkoutUrl);
+  } catch (error) {
+    control.disabled = false; control.textContent = 'Pay with SSLCommerz sandbox';
+    throw error;
+  }
 }));
 $('#start-bkash-demo').addEventListener('click', () => run(async () => {
-  const checkout = await request(ownOrg('/billing/orders'),
-    { method: 'POST', body: { provider: 'BKASH' } });
-  window.location.assign(checkout.checkoutUrl);
+  const control = $('#start-bkash-demo');
+  control.disabled = true; control.textContent = 'Opening bKash sandbox…';
+  try {
+    const checkout = await request(ownOrg('/billing/orders'),
+      { method: 'POST', body: { provider: 'BKASH' } });
+    window.location.assign(checkout.checkoutUrl);
+  } catch (error) {
+    control.disabled = false; control.textContent = 'Pay with direct bKash sandbox';
+    throw error;
+  }
 }));
 $('#register-tab').addEventListener('click', () => switchAuth('register'));
 function switchAuth(which) {
@@ -1402,19 +1486,35 @@ async function setupGoogleSignIn() {
 }
 setupGoogleSignIn().catch(() => { /* optional provider: an unreachable config must not block sign-in */ });
 $('#login-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
-  const tokens = await request('/auth/login', { method: 'POST', auth: false,
-    body: { email: form.get('email'), password: form.get('password') } });
-  await signedIn(tokens);
+  const element = event.currentTarget;
+  const form = new FormData(element);
+  const control = element.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    const tokens = await request('/auth/login', { method: 'POST', auth: false,
+      body: { email: form.get('email'), password: form.get('password') } });
+    await signedIn(tokens);
+  } catch (error) {
+    fieldErrors(element, error);
+    throw error;
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
-  const created = await request('/auth/register', { method: 'POST', auth: false,
-    body: { displayName: form.get('displayName'), email: form.get('email'), password: form.get('password') } });
-  event.currentTarget.reset(); switchAuth('login');
-  notice(created?.message
-    ? `${created.message}. Delivery is queued by the server and is not confirmed on this screen.`
-    : 'Account created. The server queues a verification email; delivery is not confirmed on this screen.');
+  const element = event.currentTarget;
+  const form = new FormData(element);
+  const control = element.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    const created = await request('/auth/register', { method: 'POST', auth: false,
+      body: { displayName: form.get('displayName'), email: form.get('email'), password: form.get('password') } });
+    element.reset(); switchAuth('login');
+    notice(created?.message
+      ? `${created.message}. Delivery is queued by the server and is not confirmed on this screen.`
+      : 'Account created. The server queues a verification email; delivery is not confirmed on this screen.');
+  } catch (error) {
+    fieldErrors(element, error);
+    throw error;
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#logout').addEventListener('click', () => run(async () => {
   try { await request('/auth/logout', { method: 'POST', body: { refreshToken: state.refreshToken } }); }
