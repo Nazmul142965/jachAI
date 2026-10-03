@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -544,14 +545,16 @@ class EntitlementUsageReconciliationServiceTests {
 
         @Override
         public boolean replaceUsage(String organizationId, String bucketId, long expectedUsage, long newUsage,
-                                    Instant reconciledAt, String actorUserId) {
+                                    Instant expectedLastChangedAt, Instant reconciledAt, String actorUserId) {
             writes++;
             runWriteHook();
             if (failWritesFor != null && failWritesFor.equals(bucketId)) {
                 throw new IllegalStateException("write failed");
             }
             UsageBucket bucket = byId.get(bucketId);
-            if (bucket == null || !bucket.organizationId().equals(organizationId) || bucket.used() != expectedUsage) {
+            if (bucket == null || !bucket.organizationId().equals(organizationId)
+                    || bucket.used() != expectedUsage
+                    || !Objects.equals(bucket.lastChangedAt(), expectedLastChangedAt)) {
                 return false;
             }
             byId.put(bucketId, new UsageBucket(bucketId, organizationId, bucket.metric(), bucket.window(),

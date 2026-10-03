@@ -51,10 +51,11 @@ public class MongoEntitlementUsageStore implements EntitlementUsageStore {
 
     @Override
     public boolean replaceUsage(String organizationId, String bucketId, long expectedUsage, long newUsage,
-                                Instant reconciledAt, String actorUserId) {
+                                Instant expectedLastChangedAt, Instant reconciledAt, String actorUserId) {
         Query query = Query.query(Criteria.where("_id").is(bucketId)
                 .and("organizationId").is(organizationId)
-                .and("used").is(expectedUsage));
+                .and("used").is(expectedUsage)
+                .and("lastChangedAt").is(expectedLastChangedAt));
         Update update = new Update().set("used", newUsage)
                 .set("lastReconciledAt", reconciledAt)
                 .set("reconciledByUserId", actorUserId);

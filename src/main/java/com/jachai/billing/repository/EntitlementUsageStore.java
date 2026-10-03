@@ -16,8 +16,15 @@ public interface EntitlementUsageStore {
 
     boolean insertBucket(UsageBucket bucket);
 
+    /**
+     * Replaces {@code used} only while it still equals {@code expectedUsage} and the activity marker
+     * has not changed. This prevents ABA races where a reserve+refund pair leaves {@code used}
+     * unchanged but the bucket was still touched.
+     *
+     * @return true when exactly one bucket matched and was updated
+     */
     boolean replaceUsage(String organizationId, String bucketId, long expectedUsage, long newUsage,
-                         Instant reconciledAt, String actorUserId);
+                         Instant expectedLastChangedAt, Instant reconciledAt, String actorUserId);
 
     long total(String collection, String organizationId);
 

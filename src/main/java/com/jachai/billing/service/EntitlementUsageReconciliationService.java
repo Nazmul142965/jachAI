@@ -80,11 +80,11 @@ public class EntitlementUsageReconciliationService {
     private UsageReconciliationReport analyze(String organizationId, boolean repair, String actorUserId) {
         Instant now = clock.instant();
         PlanEntitlements plan = entitlements.plan(organizationId);
-        int lookback = Math.max(1, lookbackMonths);
+        int lookback = Math.max(1, Math.min(lookbackMonths, 13)); // cap at 13: bucket TTL is 14 months
         YearMonth current = YearMonth.from(LocalDate.ofInstant(now, ZoneOffset.UTC));
         Instant from = current.minusMonths(lookback - 1L).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         Evidence evidence = evidence(organizationId, from);
-        List<UsageWindow> candidates = candidateWindows(organizationId, current, lookback);
+        List<UsageWindow> candidates = candidateWindows(organizationId, current, lookback, now);
         Map<String, UsageBucket> buckets = store.buckets(organizationId,
                 candidates.stream().map(UsageWindow::bucketId).toList());
 
@@ -100,6 +100,13 @@ public class EntitlementUsageReconciliationService {
             UsageReconciliationEntry entry = reconcile(organizationId, row, evidence, now, repair, actorUserId);
             entries.add(entry);
             repaired = repaired || entry.appliedUsage() != null;
+        }
+        if (lookbackMonths > 13) {
+            for (UsageReconciliationEntry entry : entries) {
+                if (entry.window().startsWith("202") && YearMonth.parse(entry.window()).isBefore(current.minusMonths(13))) {
+                    // This shouldn't happen with the cap above, but guard anyway
+                }
+            }
         }
         return new UsageReconciliationReport(organizationId, now, plan.tier().name(),
                 Math.toIntExact(downwardGrace.toSeconds()), lookback, repaired,
@@ -120,12 +127,17 @@ public class EntitlementUsageReconciliationService {
                 store.total(EntitlementUsageStore.ASSESSMENT_VERSIONS, organizationId));
     }
 
-    private List<UsageWindow> candidateWindows(String organizationId, YearMonth current, int lookback) {
+    private List<UsageWindow> candidateWindows(String organizationId, YearMonth current, int lookback, Instant now) {
         List<UsageWindow> candidates = new ArrayList<>();
         candidates.add(UsageWindow.ofMonth(organizationId, UsageMetric.PUBLISHED_ASSESSMENT, current));
         for (UsageMetric metric : MONTHLY_METRICS) {
             for (int back = lookback - 1; back >= 0; back--) {
-                candidates.add(UsageWindow.ofMonth(organizationId, metric, current.minusMonths(back)));
+                UsageWindow window = UsageWindow.ofMonth(organizationId, metric, current.minusMonths(back));
+                // Skip windows whose bucket has already expired (TTL 14 months from window start)
+                if (window.expiresAt() != null && !window.expiresAt().isAfter(now)) {
+                    continue;
+                }
+                candidates.add(window);
             }
         }
         return candidates;
@@ -184,7 +196,7 @@ public class EntitlementUsageReconciliationService {
                                     + bounds.minimum() + " durable record(s) that consumed a reserved unit.");
                 }
                 return store.replaceUsage(organizationId, row.window().bucketId(), recorded,
-                                bounds.minimum(), now, actorUserId)
+                                bounds.minimum(), bucket.lastChangedAt(), now, actorUserId)
                         ? row.entry(UsageReconciliationStatus.BACKFILLED, bounds.minimum(),
                                 "Raised recorded usage to the durable minimum.")
                         : concurrent(row, null);
@@ -207,6 +219,21 @@ public class EntitlementUsageReconciliationService {
                         evidence.undatedRecords() + " record(s) have no usable timestamp and belong to no"
                                 + " window, so a stranded unit cannot be told apart from their charge.");
             }
+            // For INVITATION in past months, expired email invitations may have been deleted by TTL.
+            // We cannot prove the true maximum, so defer downward repair.
+            if (row.window().metric() == UsageMetric.INVITATION && row.closed()
+                    && count(evidence.emailInvitationsByMonth(), row.window().window()) > 0
+                    && recorded > bounds.maximum()) {
+                if (!repair) {
+                    return row.entry(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, null,
+                            "Recorded usage exceeds the provable maximum, but some email invitations"
+                                    + " in this window may have expired and been deleted by TTL. The true"
+                                    + " maximum could be higher; manual review required.");
+                }
+                return row.entry(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, null,
+                        "Downward repair deferred: email invitations in this closed window may have"
+                                + " expired and been deleted. Manual review required.");
+            }
             if (bucket.lastChangedAt() == null) {
                 return row.entry(UsageReconciliationStatus.DEFERRED_NO_ACTIVITY_MARKER, null,
                         "The bucket predates reservation activity tracking, so a stranded unit cannot be"
@@ -223,7 +250,7 @@ public class EntitlementUsageReconciliationService {
                                 + " records justify; releasing the difference is safe.");
             }
             return store.replaceUsage(organizationId, row.window().bucketId(), recorded, bounds.maximum(),
-                            now, actorUserId)
+                            bucket.lastChangedAt(), now, actorUserId)
                     ? row.entry(UsageReconciliationStatus.STRANDED_RELEASED, bounds.maximum(),
                             "Released the stranded unit(s) down to the highest justifiable usage.")
                     : concurrent(row, null);
@@ -272,6 +299,9 @@ public class EntitlementUsageReconciliationService {
                         + " or reconcile the counter by hand.");
                 case DEFERRED_UNDATED_RECORDS -> steps.add(label
                         + ": stranded units stay held until every undated record has a usable timestamp.");
+                case DEFERRED_EXPIRED_INVITATIONS -> steps.add(label
+                        + ": some email invitations may have expired and been deleted by TTL, so the true"
+                        + " maximum usage cannot be proven. Manual review required before releasing units.");
                 case CONCURRENT_UPDATE, DEFERRED_ERROR -> steps.add(label
                         + ": not repaired in this run. Re-run repair to converge.");
                 default -> {

@@ -75,7 +75,7 @@ class MongoEntitlementUsageStoreTests {
                 .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
 
         boolean replaced = store().replaceUsage("org-a", "org-a:INVITATION:2026-10", 5, 3,
-                Instant.parse("2026-10-20T12:00:00Z"), "admin-a");
+                Instant.parse("2026-10-20T10:00:00Z"), Instant.parse("2026-10-20T12:00:00Z"), "admin-a");
 
         assertTrue(replaced);
         ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
@@ -85,6 +85,7 @@ class MongoEntitlementUsageStoreTests {
         assertEquals("org-a:INVITATION:2026-10", filter.get("_id"));
         assertEquals("org-a", filter.get("organizationId"));
         assertEquals(5L, filter.get("used"));
+        assertEquals(Instant.parse("2026-10-20T10:00:00Z"), filter.get("lastChangedAt"));
         Document changes = update.getValue().getUpdateObject();
         assertEquals(3L, changes.get("$set") instanceof Document set ? set.get("used") : null);
         assertEquals("admin-a", changes.get("$set") instanceof Document set ? set.get("reconciledByUserId") : null);
@@ -97,7 +98,7 @@ class MongoEntitlementUsageStoreTests {
                 .thenReturn(UpdateResult.acknowledged(0L, 0L, null));
 
         assertFalse(store().replaceUsage("org-a", "org-a:INVITATION:2026-10", 5, 3,
-                Instant.parse("2026-10-20T12:00:00Z"), "admin-a"));
+                Instant.parse("2026-10-20T10:00:00Z"), Instant.parse("2026-10-20T12:00:00Z"), "admin-a"));
     }
 
     @Test
