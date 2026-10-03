@@ -17,6 +17,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
+import org.springframework.boot.autoconfigure.web.ServerProperties.ForwardHeadersStrategy;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,6 +28,12 @@ class RateLimitedControllerTests {
     @Mock CertificateService certificates;
     @Mock RateLimitService limits;
 
+    private TrustedClientIpResolver resolver(String trusted) {
+        ServerProperties server = new ServerProperties();
+        server.setForwardHeadersStrategy(ForwardHeadersStrategy.NONE);
+        return new TrustedClientIpResolver(trusted, server);
+    }
+
     @Test
     void loginLimitRunsBeforePasswordCheck() {
         MockHttpServletRequest servlet = new MockHttpServletRequest();
@@ -33,7 +41,7 @@ class RateLimitedControllerTests {
         doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many requests"))
                 .when(limits).consume(RateLimitPolicy.LOGIN_IP, "192.0.2.1");
 
-        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits)
+        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits, resolver(""))
                 .login(new LoginRequest("person@example.com", "irrelevant-password"), servlet));
 
         verify(auth, never()).login(org.mockito.ArgumentMatchers.any());
@@ -46,7 +54,7 @@ class RateLimitedControllerTests {
         doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many requests"))
                 .when(limits).consume(RateLimitPolicy.LOGIN_IP, "192.0.2.3");
 
-        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits)
+        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits, resolver(""))
                 .googleLogin(new AuthController.GoogleCredentialRequest("credential"), servlet));
 
         verify(google, never()).login(org.mockito.ArgumentMatchers.any());
@@ -59,9 +67,57 @@ class RateLimitedControllerTests {
         doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many requests"))
                 .when(limits).consume(RateLimitPolicy.CERTIFICATE_IP, "192.0.2.2");
 
-        assertThrows(ApiException.class, () -> new PublicCertificateController(certificates, limits)
+        assertThrows(ApiException.class, () -> new PublicCertificateController(certificates, limits, resolver(""))
                 .verify("verification-code", servlet));
 
         verify(certificates, never()).verify("verification-code");
+    }
+
+    @Test
+    void authLoginUsesResolvedFirstUntrustedHopNotSpoofedPrefix() {
+        MockHttpServletRequest servlet = new MockHttpServletRequest();
+        servlet.setRemoteAddr("10.0.0.2");
+        servlet.addHeader("X-Forwarded-For", "198.51.100.250, 203.0.113.7, 10.0.0.3");
+
+        new AuthController(auth, google, limits, resolver("10.0.0.0/24"))
+                .login(new LoginRequest("person@example.com", "password"), servlet);
+
+        verify(limits).consume(RateLimitPolicy.LOGIN_IP, "203.0.113.7");
+    }
+
+    @Test
+    void authLoginIgnoresForwardedHeaderFromUntrustedSocketPeer() {
+        MockHttpServletRequest servlet = new MockHttpServletRequest();
+        servlet.setRemoteAddr("203.0.113.7");
+        servlet.addHeader("X-Forwarded-For", "198.51.100.250");
+
+        new AuthController(auth, google, limits, resolver("10.0.0.0/24"))
+                .login(new LoginRequest("person@example.com", "password"), servlet);
+
+        verify(limits).consume(RateLimitPolicy.LOGIN_IP, "203.0.113.7");
+    }
+
+    @Test
+    void publicCertificateUsesResolvedClientAndNotForgedForwardedPrefix() {
+        MockHttpServletRequest servlet = new MockHttpServletRequest();
+        servlet.setRemoteAddr("10.0.0.2");
+        servlet.addHeader("X-Forwarded-For", "198.51.100.250, 203.0.113.7, 10.0.0.3");
+
+        new PublicCertificateController(certificates, limits, resolver("10.0.0.0/24"))
+                .verify("verification-code", servlet);
+
+        verify(limits).consume(RateLimitPolicy.CERTIFICATE_IP, "203.0.113.7");
+    }
+
+    @Test
+    void publicCertificateFallsBackToProxyPeerOnMalformedChain() {
+        MockHttpServletRequest servlet = new MockHttpServletRequest();
+        servlet.setRemoteAddr("10.0.0.2");
+        servlet.addHeader("X-Forwarded-For", "198.51.100.250, not-an-ip");
+
+        new PublicCertificateController(certificates, limits, resolver("10.0.0.0/24"))
+                .verify("verification-code", servlet);
+
+        verify(limits).consume(RateLimitPolicy.CERTIFICATE_IP, "10.0.0.2");
     }
 }

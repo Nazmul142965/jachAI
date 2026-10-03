@@ -4,6 +4,7 @@ import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.academy.service.CertificateService;
 import com.jachai.shared.security.RateLimitPolicy;
 import com.jachai.shared.security.RateLimitService;
+import com.jachai.shared.security.TrustedClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,13 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class PublicCertificateController {
     private final CertificateService certificates;
     private final RateLimitService limits;
+    private final TrustedClientIpResolver clientIps;
 
     @GetMapping("/{verificationCode}")
     public CertificateVerificationView verify(@PathVariable String verificationCode,
                                                HttpServletRequest servlet) {
-        String address = servlet.getRemoteAddr();
-        limits.consume(RateLimitPolicy.CERTIFICATE_IP,
-                address == null || address.isBlank() ? "unknown" : address);
+        limits.consume(RateLimitPolicy.CERTIFICATE_IP, clientIps.resolve(servlet));
         return certificates.verify(verificationCode);
     }
 }
