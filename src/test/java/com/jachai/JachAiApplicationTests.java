@@ -44,6 +44,7 @@ import com.jachai.talent.service.CampaignEmailInvitationService;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.billing.service.PaymentBillingService;
 import com.jachai.platform.service.PlatformAdminService;
+import com.jachai.platform.service.PlatformBillingSupportService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
@@ -87,6 +88,7 @@ class JachAiApplicationTests {
     @MockitoBean EntitlementService entitlementService;
     @MockitoBean PaymentBillingService paymentBillingService;
     @MockitoBean PlatformAdminService platformAdminService;
+    @MockitoBean PlatformBillingSupportService platformBillingSupportService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
@@ -122,6 +124,10 @@ class JachAiApplicationTests {
     @Test
     void platformMetadataApiRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/platform/organizations"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/platform/organizations/org/billing"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/platform/organizations/org/billing/orders"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/platform/users/target"))
                 .andExpect(status().isUnauthorized());

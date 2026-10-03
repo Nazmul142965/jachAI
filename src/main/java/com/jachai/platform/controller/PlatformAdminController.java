@@ -1,11 +1,14 @@
 package com.jachai.platform.controller;
 
 import com.jachai.platform.dto.PlatformOrganizationView;
+import com.jachai.platform.dto.PlatformBillingView;
+import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.platform.dto.ChangePlatformRoleRequest;
 import com.jachai.platform.dto.PlatformRoleAuditView;
 import com.jachai.platform.dto.PlatformRoleView;
 import com.jachai.platform.dto.PlatformUserView;
 import com.jachai.platform.service.PlatformAdminService;
+import com.jachai.platform.service.PlatformBillingSupportService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
@@ -25,9 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/platform")
 public class PlatformAdminController {
     private final PlatformAdminService platform;
+    private final PlatformBillingSupportService billingSupport;
 
-    public PlatformAdminController(PlatformAdminService platform) {
+    public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport) {
         this.platform = platform;
+        this.billingSupport = billingSupport;
     }
 
     @GetMapping("/me")
@@ -39,6 +44,17 @@ public class PlatformAdminController {
     public Page<PlatformOrganizationView> organizations(@AuthenticationPrincipal Jwt jwt,
             @RequestParam(defaultValue = "0") @Min(0) int page) {
         return platform.organizations(jwt.getSubject(), page);
+    }
+
+    @GetMapping("/organizations/{organizationId}/billing")
+    public PlatformBillingView billing(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId) {
+        return billingSupport.billing(jwt.getSubject(), organizationId);
+    }
+
+    @GetMapping("/organizations/{organizationId}/billing/orders")
+    public Page<PaymentOrderView> billingOrders(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+        return billingSupport.orders(jwt.getSubject(), organizationId, page);
     }
 
     @GetMapping("/users/{userId}")
