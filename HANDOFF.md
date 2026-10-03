@@ -6,6 +6,8 @@ Current integration checkpoint (2026-10-03 evening): frontend work through `4639
 
 ## Objective and user decisions
 
+Follow-up live check (2026-10-03): `AssessmentMetadataIntegrationTests` passed **1/1** on the dedicated local `jachai_it_*` MongoDB database. It verifies that the new batched published-version lookup used by learner assignment summaries cannot return another tenant's metadata. This is separate from the 27 billing integration tests above; it is not a live browser or Atlas verification.
+
 - Complete the single Spring Boot application and responsive frontend described in `ARCHITECTURE.md`; no microservices.
 - The product has Academy and Talent modules sharing one assessment engine.
 - Preserve concurrent user changes. Work autonomously; ask only for genuinely required choices or credentials.

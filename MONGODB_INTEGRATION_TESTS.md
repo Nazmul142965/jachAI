@@ -3,8 +3,10 @@
 Opt-in real-MongoDB tests for the billing/assessment foundation, plus the offline guard test that
 protects them.
 
-**Live local checkpoint (2026-10-03):** all five classes below ran together against a loopback-only
-MongoDB 8.0 standalone using a dedicated `jachai_it_*` database: **27 tests, 0 failures/errors/skips**.
+**Live local checkpoint (2026-10-03):** all five billing classes ran together against a loopback-only
+MongoDB 8.0 standalone using a dedicated `jachai_it_*` database: **27 billing tests, 0 failures/errors/skips**.
+The separate learner assignment-metadata tenant query also passed **1/1** against the same local
+database. These are separate invocations, not a claimed 28-test combined run.
 The first live run exposed stale test fixtures: certificate documents omitted unique-indexed fields,
 and the `mail_due` assertion omitted `leaseUntil`. Those fixtures were corrected before the passing run.
 This does not verify Atlas, replica-set behavior, actual asynchronous TTL expiry, or other services.
@@ -15,7 +17,7 @@ This does not verify Atlas, replica-set behavior, actual asynchronous TTL expiry
 |---|---|---|
 | Command | `.\mvnw.cmd -o test` (JDK 21) | same command **with `MONGODB_TEST_URI` set** |
 | Requires MongoDB | no | yes, a dedicated `jachai_it_*` database |
-| Classes | Unit and mock-based classes; check the current run for its count | the five `billing.integration.*IntegrationTests` classes; **27 passed locally** |
+| Classes | Unit and mock-based classes; check the current run for its count | five `billing.integration.*IntegrationTests` classes (**27 passed locally**) plus `AssessmentMetadataIntegrationTests` (**1 passed locally**) |
 | What it proves | unit and mock-based behaviour | real index creation, CAS, concurrency, tenant-scoped reads |
 
 ### A green offline run does not mean the live tests passed
@@ -111,6 +113,7 @@ $env:MONGODB_TEST_URI='mongodb://localhost:27017/jachai_it_billing'
 .\mvnw.cmd -o test -Dtest=ReconciliationCasIntegrationTests
 .\mvnw.cmd -o test -Dtest=IndexCreationIntegrationTests
 .\mvnw.cmd -o test -Dtest=TtlIndexBehaviorIntegrationTests
+.\mvnw.cmd -o test -Dtest=AssessmentMetadataIntegrationTests
 ```
 
 Tests remove only their own tracked documents. Do not drop a database as routine test cleanup; an
@@ -128,6 +131,11 @@ asynchronous, so the TTL class should be run on its own and no test waits for ac
 
 - usage bucket reads scoped to tenant; `MongoTemplate` queries scoped to tenant; aggregate counts
   scoped to tenant
+
+### AssessmentMetadataIntegrationTests (real Spring Data repository)
+
+- a batched `assessment_versions` lookup by IDs and organization returns only that organization's
+  published metadata, even when the requested ID set also contains another tenant's version
 
 ### EntitlementReservationCasIntegrationTests (own `MongoTemplate`, real `EntitlementService`)
 

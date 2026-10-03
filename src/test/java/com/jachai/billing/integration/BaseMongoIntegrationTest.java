@@ -38,7 +38,7 @@ public abstract class BaseMongoIntegrationTest {
      * automatic index creation happens, so a rejected URI is never used for a connection.
      */
     @DynamicPropertySource
-    static void bindDedicatedTestDatabase(DynamicPropertyRegistry registry) {
+    protected static void bindDedicatedTestDatabase(DynamicPropertyRegistry registry) {
         String testUri = System.getenv("MONGODB_TEST_URI");
         MongoTestUriGuard.requireDedicatedTestDatabase(testUri);
         registry.add("spring.data.mongodb.uri", () -> testUri);
@@ -49,7 +49,7 @@ public abstract class BaseMongoIntegrationTest {
      * is created, and skips the whole container when {@code MONGODB_TEST_URI} is not set.
      */
     @BeforeAll
-    static void validateTestUriAndConnect() {
+    protected static void validateTestUriAndConnect() {
         String testUri = System.getenv("MONGODB_TEST_URI");
         if (testUri == null || testUri.isBlank()) {
             assumeTrue(false, "MONGODB_TEST_URI not set - live MongoDB integration tests skipped");
@@ -60,7 +60,7 @@ public abstract class BaseMongoIntegrationTest {
     }
 
     @AfterAll
-    static void closeClient() {
+    protected static void closeClient() {
         if (mongoClient != null) {
             mongoClient.close();
         }
@@ -73,7 +73,7 @@ public abstract class BaseMongoIntegrationTest {
      * credentials.
      */
     @AfterEach
-    void cleanupTestDocuments() {
+    protected void cleanupTestDocuments() {
         if (testDatabase == null || createdDocumentIds.isEmpty()) {
             return;
         }
