@@ -129,7 +129,8 @@ public class CampaignEmailInvitationService {
     }
 
     public Assignment accept(String actorId, String rawToken) {
-        CampaignEmailInvitation invitation = invitations.findByTokenHash(hash(rawToken))
+        String tokenHash = hash(rawToken);
+        CampaignEmailInvitation invitation = invitations.findByTokenHash(tokenHash)
                 .orElseThrow(() -> invalidInvitation());
         User user = users.findById(actorId).orElseThrow(() -> invalidInvitation());
         if (!user.emailVerified() || user.disabled()
@@ -138,29 +139,37 @@ public class CampaignEmailInvitationService {
                     "Sign in with the verified email address that received this invitation");
         }
         String assignmentId = assignmentId(invitation.campaignId(), user.id());
-        if (invitation.acceptedAt() != null) {
-            return ownAssignment(invitation, assignmentId, user.id());
+        if (invitation.acceptedAt() == null) {
+            if (!invitation.expiresAt().isAfter(Instant.now())) throw invalidInvitation();
+            try {
+                // Win the versioned write before creating access. If a resend rotated this token,
+                // the stale link must not leave a membership or assignment behind.
+                invitation = invitations.save(invitation.accepted(Instant.now()));
+            } catch (OptimisticLockingFailureException exception) {
+                String invitationId = invitation.id();
+                invitation = invitations.findByTokenHash(tokenHash)
+                        .filter(current -> invitationId.equals(current.id()) && current.acceptedAt() != null)
+                        .orElseThrow(() -> invalidInvitation());
+            }
         }
-        if (!invitation.expiresAt().isAfter(Instant.now())) throw invalidInvitation();
-        ensureMembership(invitation.organizationId(), user.id());
+        return materializeAssignment(invitation, assignmentId, user.id());
+    }
+
+    private Assignment materializeAssignment(CampaignEmailInvitation invitation, String assignmentId, String userId) {
+        ensureMembership(invitation.organizationId(), userId);
         Assignment assignment = assignments.findByIdAndOrganizationId(assignmentId, invitation.organizationId())
                 .orElse(null);
         if (assignment == null) {
             assignment = new Assignment(assignmentId, invitation.organizationId(), invitation.assessmentId(),
-                    invitation.assessmentVersionId(), invitation.campaignId(), null, user.id(),
+                    invitation.assessmentVersionId(), invitation.campaignId(), null, userId,
                     invitation.attemptsAllowed(), invitation.availableFrom(), invitation.availableUntil(), Instant.now());
             try {
                 assignment = assignments.insert(assignment);
             } catch (DuplicateKeyException exception) {
-                assignment = ownAssignment(invitation, assignmentId, user.id());
+                assignment = ownAssignment(invitation, assignmentId, userId);
             }
         } else {
-            verifyAssignment(invitation, assignment, user.id());
-        }
-        try {
-            invitations.save(invitation.accepted(Instant.now()));
-        } catch (OptimisticLockingFailureException exception) {
-            // The deterministic membership and assignment make concurrent acceptance idempotent.
+            verifyAssignment(invitation, assignment, userId);
         }
         return assignment;
     }

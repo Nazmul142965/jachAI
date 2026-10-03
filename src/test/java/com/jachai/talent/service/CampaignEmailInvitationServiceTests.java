@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.jachai.attempt.model.Assignment;
@@ -42,6 +43,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -249,11 +251,49 @@ class CampaignEmailInvitationServiceTests {
     }
 
     @Test
+    void rotatedTokenCannotCreateCandidateAccessAfterOptimisticConflict() {
+        when(invitations.findByTokenHash(any())).thenReturn(
+                Optional.of(invitation(Instant.now().plusSeconds(3600), null)), Optional.empty());
+        when(users.findById("candidate")).thenReturn(Optional.of(new User("candidate", "candidate@example.com",
+                "Candidate", "hash", true, false, 0, Instant.now())));
+        when(invitations.save(any(CampaignEmailInvitation.class)))
+                .thenThrow(new OptimisticLockingFailureException("token rotated"));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service().accept("candidate", "old-token"));
+
+        assertEquals("INVALID_INVITATION", error.code());
+        verifyNoInteractions(memberships, assignments);
+    }
+
+    @Test
+    void simultaneousAcceptanceOfSameTokenCanRepairMaterialization() {
+        CampaignEmailInvitation pending = invitation(Instant.now().plusSeconds(3600), null);
+        CampaignEmailInvitation accepted = pending.accepted(Instant.now());
+        when(invitations.findByTokenHash(any())).thenReturn(Optional.of(pending), Optional.of(accepted));
+        when(users.findById("candidate")).thenReturn(Optional.of(new User("candidate", "candidate@example.com",
+                "Candidate", "hash", true, false, 0, Instant.now())));
+        when(invitations.save(any(CampaignEmailInvitation.class)))
+                .thenThrow(new OptimisticLockingFailureException("already accepted"));
+        when(memberships.insert(any(Membership.class))).thenAnswer(call -> call.getArgument(0));
+        when(assignments.insert(any(Assignment.class))).thenAnswer(call -> call.getArgument(0));
+
+        Assignment result = service().accept("candidate", "same-token");
+
+        assertEquals("candidate", result.assignedUserId());
+        verify(memberships).insert(any(Membership.class));
+        verify(assignments).insert(any(Assignment.class));
+    }
+
+    @Test
     void acceptedInvitationReturnsExistingAssignmentWithoutNewWrites() {
         when(invitations.findByTokenHash(any())).thenReturn(Optional.of(
                 invitation(Instant.now().minusSeconds(1), Instant.now().minusSeconds(10))));
         when(users.findById("candidate")).thenReturn(Optional.of(new User("candidate", "candidate@example.com",
                 "Candidate", "hash", true, false, 0, Instant.now())));
+        when(memberships.findByUserIdAndOrganizationId("candidate", "org"))
+                .thenReturn(Optional.of(new Membership("member", "candidate", "org",
+                        OrganizationRole.CANDIDATE, true, Instant.now())));
         when(assignments.findByIdAndOrganizationId(any(), org.mockito.ArgumentMatchers.eq("org")))
                 .thenReturn(Optional.of(assignment()));
 
