@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
+import com.jachai.assessment.repository.AssessmentVersionRepository;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
@@ -55,13 +56,15 @@ class AttemptServiceTests {
     @Mock AttemptRepository attempts;
     @Mock AttemptAnswerStore answerStore;
     @Mock PublishedVersionStore versions;
+    @Mock AssessmentVersionRepository versionRepository;
     @Mock TenantAccessService access;
     @Mock UserRepository users;
     @Mock EmailSender emailSender;
     @Mock AuditEventRepository auditEvents;
 
     private AttemptService service() {
-        return new AttemptService(assignments, attempts, answerStore, versions, access, users, emailSender, auditEvents,
+        return new AttemptService(assignments, attempts, answerStore, versions, versionRepository,
+                access, users, emailSender, auditEvents,
                 "https://jachai.example/");
     }
 
@@ -77,6 +80,28 @@ class AttemptServiceTests {
         assertEquals(2, result.getTotalPages());
         verify(access).requireRole("learner", "org-a", OrganizationRole.LEARNER, OrganizationRole.CANDIDATE);
         verify(assignments).findByOrganizationIdAndAssignedUserId("org-a", "learner", pageable);
+    }
+
+    @Test
+    void participantAssignmentsShowPublishedMetadataWithoutQuestionContent() {
+        var pageable = PageRequest.of(0, 20);
+        var first = new Assignment("a1", "org-a", "assessment", "assessment:1", null, null,
+                "learner", 2, Instant.now(), Instant.now().plusSeconds(3600), Instant.now());
+        var second = new Assignment("a2", "org-a", "assessment", "assessment:1", null, null,
+                "learner", 2, Instant.now(), Instant.now().plusSeconds(3600), Instant.now());
+        when(assignments.findByOrganizationIdAndAssignedUserId("org-a", "learner", pageable))
+                .thenReturn(new PageImpl<>(List.of(first, second), pageable, 2));
+        when(versionRepository.findByIdInAndOrganizationId(Set.of("assessment:1"), "org-a"))
+                .thenReturn(List.of(version()));
+
+        var result = service().myAssignments("learner", "org-a", pageable);
+
+        assertEquals(2, result.getContent().size());
+        assertEquals("Java", result.getContent().get(0).assessmentTitle());
+        assertEquals(20, result.getContent().get(0).durationMinutes());
+        assertEquals(1, result.getContent().get(0).questionCount());
+        assertEquals("Java", result.getContent().get(1).assessmentTitle());
+        verify(versionRepository).findByIdInAndOrganizationId(Set.of("assessment:1"), "org-a");
     }
 
     private void recipient() {

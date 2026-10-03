@@ -2,6 +2,7 @@ package com.jachai.attempt.controller;
 
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
+import com.jachai.attempt.dto.AssignmentView;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.dto.ReviewAttemptView;
 import com.jachai.attempt.dto.StaffAttemptReviewView;
@@ -9,7 +10,6 @@ import com.jachai.attempt.dto.SaveAnswerRequest;
 import com.jachai.attempt.dto.SaveTextAnswerRequest;
 import com.jachai.attempt.dto.GradeTextAnswerRequest;
 import com.jachai.attempt.dto.ManualGradeAuditView;
-import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.service.AttemptService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -40,7 +40,7 @@ public class AttemptController {
     public AttemptController(AttemptService attempts) { this.attempts = attempts; }
 
     @GetMapping("/assignments/mine")
-    public Page<Assignment> mine(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
+    public Page<AssignmentView> mine(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
             @RequestParam(defaultValue = "0") @Min(0) int page) {
         return attempts.myAssignments(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));

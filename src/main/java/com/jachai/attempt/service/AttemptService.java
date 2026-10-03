@@ -2,11 +2,13 @@ package com.jachai.attempt.service;
 
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
+import com.jachai.assessment.repository.AssessmentVersionRepository;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.attempt.dto.AttemptView;
 import com.jachai.attempt.dto.AttemptSummary;
+import com.jachai.attempt.dto.AssignmentView;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.dto.ReviewAttemptView;
 import com.jachai.attempt.dto.StaffAttemptReviewView;
@@ -32,6 +34,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.LinkedHashMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
@@ -50,6 +54,7 @@ public class AttemptService {
     private final AttemptRepository attempts;
     private final AttemptAnswerStore answerStore;
     private final PublishedVersionStore versions;
+    private final AssessmentVersionRepository versionRepository;
     private final TenantAccessService access;
     private final UserRepository users;
     private final EmailSender emailSender;
@@ -58,13 +63,15 @@ public class AttemptService {
 
     public AttemptService(AssignmentRepository assignments, AttemptRepository attempts,
                           AttemptAnswerStore answerStore,
-                          PublishedVersionStore versions, TenantAccessService access,
+                          PublishedVersionStore versions, AssessmentVersionRepository versionRepository,
+                          TenantAccessService access,
                           UserRepository users, EmailSender emailSender, AuditEventRepository auditEvents,
                           @Value("${app.public-base-url}") String publicBaseUrl) {
         this.assignments = assignments;
         this.attempts = attempts;
         this.answerStore = answerStore;
         this.versions = versions;
+        this.versionRepository = versionRepository;
         this.access = access;
         this.users = users;
         this.emailSender = emailSender;
@@ -72,9 +79,17 @@ public class AttemptService {
         this.publicBaseUrl = publicBaseUrl;
     }
 
-    public Page<Assignment> myAssignments(String userId, String organizationId, Pageable pageable) {
+    public Page<AssignmentView> myAssignments(String userId, String organizationId, Pageable pageable) {
         requireParticipant(userId, organizationId);
-        return assignments.findByOrganizationIdAndAssignedUserId(organizationId, userId, pageable);
+        Page<Assignment> page = assignments.findByOrganizationIdAndAssignedUserId(organizationId, userId, pageable);
+        if (page.isEmpty()) return page.map(assignment -> AssignmentView.from(assignment, null));
+        var versionIds = page.getContent().stream().map(Assignment::assessmentVersionId)
+                .collect(Collectors.toSet());
+        Map<String, AssessmentVersion> metadata = versionRepository
+                .findByIdInAndOrganizationId(versionIds, organizationId).stream()
+                .collect(Collectors.toMap(AssessmentVersion::id, Function.identity()));
+        return page.map(assignment -> AssignmentView.from(assignment,
+                metadata.get(assignment.assessmentVersionId())));
     }
 
     public List<AttemptSummary> myAttempts(String userId, String organizationId, String assignmentId) {
