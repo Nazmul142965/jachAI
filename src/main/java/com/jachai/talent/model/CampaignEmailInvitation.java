@@ -1,5 +1,6 @@
 package com.jachai.talent.model;
 
+import java.time.Duration;
 import java.time.Instant;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
@@ -22,9 +23,12 @@ public record CampaignEmailInvitation(
         Instant acceptedAt, @Version Long revision) {
 
     public CampaignEmailInvitation accepted(Instant when) {
+        // Retain the accepted record for partial-write repair; acceptedAt keeps the link unusable.
+        Instant retainUntil = when.plus(Duration.ofDays(7));
         return new CampaignEmailInvitation(id, organizationId, campaignId, email,
                 assessmentId, assessmentVersionId, attemptsAllowed, availableFrom,
-                availableUntil, tokenHash, createdAt, expiresAt, when, revision);
+                availableUntil, tokenHash, createdAt,
+                expiresAt.isAfter(retainUntil) ? expiresAt : retainUntil, when, revision);
     }
 
     public CampaignEmailInvitation reissued(String nextTokenHash, Instant nextExpiry) {
