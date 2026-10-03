@@ -22,21 +22,31 @@
       <p class="eyebrow">Built for meaningful evaluation</p>
       <h1>Skills deserve more than a score.</h1>
       <p>Build reviewed assessments, invite your people, understand their strengths, and verify what they have achieved.</p>
+      <p class="hero-trust">Server-timed attempts · Human-reviewed publishing · Verifiable certificates</p>
       <div class="hero-points"><span>01&nbsp; Create</span><span>02&nbsp; Assess</span><span>03&nbsp; Verify</span></div>
+      <form id="verify-code-form" class="verify-row">
+        <label for="verify-code">Verify a certificate</label>
+        <div class="verify-controls">
+          <input id="verify-code" maxlength="120" autocomplete="off" placeholder="Verification code" required>
+          <button class="button secondary" type="submit">Verify</button>
+        </div>
+        <p class="muted">Public check — no account needed. Only the organization and assessment names are shown.</p>
+      </form>
     </section>
     <section class="auth-card card" aria-label="Account access">
       <div class="tabs" role="tablist" aria-label="Account action">
         <button id="login-tab" class="tab active" type="button" role="tab" aria-selected="true">Sign in</button>
         <button id="register-tab" class="tab" type="button" role="tab" aria-selected="false">Create account</button>
       </div>
-      <form id="login-form" class="stack">
+      <p class="muted hint">Invited to a workspace or an assessment? Open the link from your email — signing in with that address joins you automatically.</p>
+      <form id="login-form" class="stack" role="tabpanel" aria-labelledby="login-tab">
         <h2>Welcome back</h2><p class="muted">Sign in with your verified email.</p>
         <label>Email<input name="email" type="email" autocomplete="email" required></label>
         <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="button primary" type="submit">Sign in</button>
         <a class="inline-link" href="/reset-password.html">Forgot your password?</a>
       </form>
-      <form id="register-form" class="stack hidden">
+      <form id="register-form" class="stack hidden" role="tabpanel" aria-labelledby="register-tab">
         <h2>Start a workspace</h2><p class="muted">Verify your email before signing in.</p>
         <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
         <label>Email<input name="email" type="email" autocomplete="email" required></label>
@@ -60,7 +70,7 @@
       <div class="page-head"><div><p class="eyebrow">JachAI workspace</p><h1 id="page-title">Overview</h1><p id="page-subtitle" class="muted"></p></div><span id="busy" class="pill hidden" role="status" aria-live="polite"></span></div>
 
       <section id="empty-org" class="card panel hidden">
-        <h2>Create your first organization</h2><p class="muted">Academy is for learning and certificates. Talent is for hiring assessments.</p>
+        <h2>Create your first organization</h2><p class="muted">Academy is for learning and certificates. Talent is for hiring assessments. If a colleague invited you, open the invitation link from your email instead of creating a new workspace.</p>
         <form id="create-org-form" class="form-row">
           <label>Name<input name="name" minlength="2" maxlength="120" required placeholder="Your organization"></label>
           <label>Module<select name="type"><option value="ACADEMY">Academy</option><option value="TALENT">Talent</option></select></label>
@@ -78,12 +88,13 @@
       </section>
 
       <section id="overview-view" class="view hidden">
+        <div id="overview-metrics" class="metrics hidden"></div>
         <div class="overview-grid">
           <article class="card feature"><span class="feature-icon">01</span><h2>Build with care</h2><p>Review every question before publishing an assessment.</p></article>
           <article class="card feature"><span class="feature-icon">02</span><h2>Trust the result</h2><p>Server-timed attempts and versioned scoring protect the assessment lifecycle.</p></article>
           <article class="card feature"><span class="feature-icon">03</span><h2>Share achievement</h2><p>Release results deliberately and verify Academy certificates publicly.</p></article>
         </div>
-        <div class="card panel"><h2>What would you like to do?</h2><p id="overview-hint" class="muted"></p></div>
+        <div class="card panel"><h2>What would you like to do?</h2><p id="overview-hint" class="muted"></p><div id="overview-actions" class="item-actions"></div></div>
         <div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div>
         <div id="organization-settings-panel" class="card panel hidden"><h2>Result release default</h2><p class="muted">This applies to newly created assessments unless their author selects an override. Published assessment versions keep their existing policy.</p><form id="organization-settings-form" class="form-row"><label>Default policy<select name="defaultResultReleasePolicy"><option value="IMMEDIATE">On submission</option><option value="MANUAL">After staff release</option></select></label><button class="button secondary" type="submit">Save default</button></form></div>
         <div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted"></p><button id="start-ssl-demo" class="button secondary" type="button" disabled>Pay with SSLCommerz sandbox</button> <button id="start-bkash-demo" class="button secondary" type="button" disabled>Pay with direct bKash sandbox</button><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div><div id="payment-history-pagination"></div></div>

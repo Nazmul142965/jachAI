@@ -107,6 +107,17 @@ async function main() {
   await page.send('Page.enable');
 
   const ev = (expression) => page.evaluate(expression);
+  const WANT_SCREENS = process.argv.includes('--screens');
+  const shot = async (name) => {
+    if (!WANT_SCREENS) return;
+    const { data } = await page.send('Page.captureScreenshot', { format: 'png' });
+    fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+    fs.writeFileSync(path.join(EVIDENCE_DIR, `${name}.png`), Buffer.from(data, 'base64'));
+  };
+  await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  await page.send('Page.navigate', { url: `${server.url}/` });
+  await wait(1500);
+  await shot('landing-signed-out');
   const APP = `${server.url}/`;
   const view = (label) => ev(`(() => { const tab = [...document.querySelectorAll('#workspace-nav button')]
     .find((b) => b.textContent === ${JSON.stringify(label)}); if (!tab) return false; tab.click(); return true; })()`);
@@ -126,6 +137,7 @@ async function main() {
       document.querySelector('#login-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
       return true; })()`);
     await wait(1500);
+    await shot(`overview-${role}${storage === 'ok' ? '' : `-${storage}`}`);
   }
 
   // ---------------------------------------------------------------- learner journey
@@ -149,6 +161,7 @@ async function main() {
   check(journey, 'attempt renders every question', started.blocks === 2, `blocks=${started.blocks}`);
   check(journey, 'server timer is displayed', /Time remaining: \d+:\d\d/.test(started.timer), started.timer);
   check(journey, 'answers start unsaved', started.pills.every((p) => p === 'Not saved'), started.pills.join('/'));
+  await shot('learner-attempt');
   await ev(`(() => { const b = document.querySelectorAll('#attempt-panel .question-block')[0];
     b.querySelector('input[type=radio]').click();
     [...b.querySelectorAll('button')].find((x) => x.textContent === 'Save answer').click(); return true; })()`);
@@ -194,6 +207,7 @@ async function main() {
   await wait(1000);
   const reviewDetail = await ev(`document.querySelector('#attempt-review-detail').textContent`);
   check(staff, 'staff review exposes the answer key', /Answer key/.test(reviewDetail) && /A: Java/.test(reviewDetail));
+  await shot('academy-staff-review');
   await clickText('#attempt-review-questions', 'Mark correct'); await wait(500);
   check(staff, 'grading confirms it is final and audited', /final and audited/.test(await dialogText()));
   await clickDialog('primary'); await wait(1000);
@@ -220,6 +234,7 @@ async function main() {
   check(talent, 'event log warns the signals are not proof', /not proof of misconduct/.test(events));
   check(talent, 'review decision control is offered', await ev(`(() => { const f = document.querySelector('#campaign-candidates form');
     return !!f && !!f.querySelector('select'); })()`));
+  await shot('talent-integrity');
 
   // ---------------------------------------------------------------- platform journey + storage states
   await load('platform-admin', 'ok');
@@ -231,6 +246,7 @@ async function main() {
   check(platform, 'storage shows the estimated size and breakdown', /Estimated logical size/.test(platformText) && /Data .* · Indexes/.test(platformText));
   check(platform, 'storage states the threshold source', /ATLAS_STORAGE_WARNING_BYTES/.test(platformText));
   check(platform, 'storage explains it is not the official quota', /not Atlas's official quota/.test(await ev(`document.querySelector('#platform-view').textContent`)));
+  await shot('platform');
   check(platform, 'organizations carry owner and creation date', /Owner u-admin/.test(platformText));
   await ev(`(() => { document.querySelector('#platform-user-id').value = 'u-target';
     document.querySelector('#platform-inspect-user').click(); return true; })()`);
@@ -258,17 +274,21 @@ async function main() {
   await load('academy-staff');
   // Members rows carry the small action buttons, so the tap-target check measures a real control.
   await view('Members'); await wait(1200);
-  check(mobile, 'page exposes small action buttons to measure', await ev(`!!document.querySelector('.button.small')`));
+  check(mobile, 'page exposes a visible small action button to measure', await ev(`[...document.querySelectorAll('.button.small')]
+    .some((b) => b.offsetParent !== null && b.getBoundingClientRect().height > 0)`));
   for (const width of [320, 375]) {
     await page.send('Emulation.setDeviceMetricsOverride', { width, height: 720, deviceScaleFactor: 1, mobile: false });
     await wait(600);
     const layout = await ev(`(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth,
       nav: getComputedStyle(document.querySelector('.side-nav')).display,
       columns: getComputedStyle(document.querySelector('.side-nav')).gridTemplateColumns.split(' ').length,
-      small: (() => { const b = document.querySelector('.button.small'); return b ? Math.round(b.getBoundingClientRect().height) : null; })() }))()`);
+      small: (() => { const b = [...document.querySelectorAll('.button.small')]
+        .find((x) => x.offsetParent !== null && x.getBoundingClientRect().height > 0);
+        return b ? Math.round(b.getBoundingClientRect().height) : null; })() }))()`);
     check(mobile, `${width}px viewport has no horizontal overflow`, layout.scroll <= layout.inner + 1, `scroll=${layout.scroll} inner=${layout.inner}`);
     check(mobile, `${width}px sidebar nav is a grid`, layout.nav === 'grid' && layout.columns >= 2, `${layout.nav}/${layout.columns}`);
     check(mobile, `${width}px small action buttons reach 44px`, layout.small !== null && layout.small >= 44, `height=${layout.small}`);
+    await shot(`members-${width}px`);
   }
   await page.send('Emulation.clearDeviceMetricsOverride');
 

@@ -79,6 +79,7 @@ function focusPanel(panel) {
   panel.focus({ preventScroll: true });
 }
 const roleLabel = (role) => String(role).replaceAll('_', ' ').toLowerCase();
+const roleTitle = (role) => roleLabel(role).replace(/\b\w/g, (letter) => letter.toUpperCase());
 let pendingRequests = 0;
 function updateBusyIndicator() {
   document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
@@ -264,7 +265,9 @@ async function setOrganization() {
   $('#conversation-panel').classList.add('hidden');
   $('#empty-org').classList.toggle('hidden', !!state.organization);
   $('#organization-select').classList.toggle('hidden', !state.organization);
-  $('#workspace-role').textContent = state.organization?.myRole?.replaceAll('_', ' ') || '';
+  $('#workspace-role').textContent = state.organization
+    ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${roleTitle(state.organization.myRole)}`
+    : '';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
     $('#page-title').textContent = 'Start here';
@@ -285,32 +288,102 @@ async function setOrganization() {
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
   $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
-  const pages = [['overview', 'Overview']];
-  if (role === 'ORG_ADMIN') pages.push(['members', 'Members']);
-  if (staff) pages.push(['questions', 'Question bank'], ['assessments', 'Assessments']);
-  if (state.organization.type === 'ACADEMY' && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role))
-    pages.push(['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']);
-  if (state.organization.type === 'ACADEMY' && ['INSTRUCTOR', 'LEARNER'].includes(role))
-    pages.push(['messages', 'Messages']);
-  if (staff && state.organization.type === 'TALENT') pages.push(['campaigns', 'Hiring campaigns']);
-  if (['LEARNER', 'CANDIDATE'].includes(role)) pages.push(['attempts', 'My assessments']);
-  if (role === 'LEARNER' && state.organization.type === 'ACADEMY') pages.push(['certificates', 'Certificates']);
-  if (state.platformAdmin) pages.push(['platform', 'Platform']);
-  for (const [key, title] of pages) {
-    const tab = node('button', title); tab.type = 'button'; tab.dataset.view = key;
-    tab.addEventListener('click', () => run(() => showView(key)));
-    nav.append(tab);
+  // Navigation is grouped by intent so Academy and Talent read as related but distinct products.
+  const groups = [];
+  const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
+  group('', [['overview', 'Overview']]);
+  group('Assessment engine', [
+    ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : []),
+    ...(staff ? [['questions', 'Question bank'], ['assessments', 'Assessments']] : [])
+  ]);
+  if (state.organization.type === 'ACADEMY') {
+    group('Academy', [
+      ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
+        ? [['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']] : []),
+      ...(['INSTRUCTOR', 'LEARNER'].includes(role) ? [['messages', 'Messages']] : []),
+      ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
+    ]);
+  }
+  if (state.organization.type === 'TALENT') {
+    group('Talent', staff ? [['campaigns', 'Hiring campaigns']] : []);
+  }
+  group('My work', ['LEARNER', 'CANDIDATE'].includes(role) ? [['attempts', 'My assessments']] : []);
+  group('Administration', state.platformAdmin ? [['platform', 'Platform']] : []);
+  for (const [heading, items] of groups) {
+    if (heading) nav.append(node('p', heading, 'nav-heading'));
+    for (const [key, title] of items) {
+      const tab = node('button', title); tab.type = 'button'; tab.dataset.view = key;
+      tab.addEventListener('click', () => run(() => showView(key)));
+      nav.append(tab);
+    }
   }
   $('#overview-hint').textContent = staff
     ? 'Start with a reviewed question, publish an assessment, then assign it to a verified member.'
     : 'Open My assessments to begin an assignment or revisit a result.';
+  const quick = $('#overview-actions');
+  const shortcut = (label, key) => {
+    const control = node('button', label, 'button quiet small');
+    control.type = 'button';
+    control.addEventListener('click', () => run(() => showView(key)));
+    return control;
+  };
+  const academyStaff = state.organization.type === 'ACADEMY' && ['ORG_ADMIN', 'INSTRUCTOR'].includes(role);
+  const talentStaff = state.organization.type === 'TALENT' && staff;
+  const actions = [];
+  if (academyStaff) actions.push(shortcut('Question bank', 'questions'), shortcut('Assessments & review', 'assessments'),
+    shortcut('Courses & batches', 'academy'), shortcut('Messages', 'messages'));
+  if (talentStaff) actions.push(shortcut('Hiring campaigns', 'campaigns'), shortcut('Assessments & review', 'assessments'));
+  if (role === 'ORG_ADMIN') actions.push(shortcut('Members', 'members'));
+  if (['LEARNER', 'CANDIDATE'].includes(role)) actions.push(shortcut('My assessments', 'attempts'));
+  if (role === 'LEARNER' && state.organization.type === 'ACADEMY') {
+    actions.push(shortcut('My batches', 'academy'), shortcut('Certificates', 'certificates'));
+  }
+  if (state.platformAdmin) actions.push(shortcut('Platform', 'platform'));
+  quick.replaceChildren(...actions);
   await showView('overview');
+}
+async function loadOverviewMetrics() {
+  const container = $('#overview-metrics');
+  const role = state.organization?.myRole;
+  const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
+  if (!state.organization || !staff) {
+    container.classList.add('hidden');
+    container.replaceChildren();
+    return;
+  }
+  container.classList.remove('hidden');
+  beginList('#overview-metrics', 'Loading workspace counts…');
+  const count = (path, label, view) => request(ownOrg(path))
+    .then((page) => ({ label, value: page.totalElements ?? (page.content || []).length, view }))
+    .catch(() => null);
+  const jobs = [count('/attempts/review/pending?page=0', 'Waiting for release', 'assessments')];
+  if (state.organization.type === 'ACADEMY') {
+    jobs.push(count('/questions?status=DRAFT&page=0', 'Questions awaiting approval', 'questions'));
+    jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
+  }
+  if (state.organization.type === 'TALENT') {
+    jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'campaigns'));
+    jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
+  }
+  if (role === 'ORG_ADMIN') jobs.push(count('/members?page=0', 'Members', 'members'));
+  const metrics = (await Promise.all(jobs)).filter(Boolean);
+  if (!metrics.length) {
+    container.replaceChildren(node('p', 'Workspace counts are unavailable right now.', 'empty'));
+    return;
+  }
+  container.replaceChildren(...metrics.map((metric) => {
+    const card = node('button', '', 'metric');
+    card.type = 'button';
+    card.append(node('span', String(metric.value), 'metric-value'), node('span', metric.label, 'metric-label'));
+    card.addEventListener('click', () => run(() => showView(metric.view)));
+    return card;
+  }));
 }
 async function showView(key) {
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
-  for (const tab of $('#workspace-nav').children) {
+  for (const tab of $('#workspace-nav').querySelectorAll('button')) {
     const active = tab.dataset.view === key;
     tab.classList.toggle('active', active);
     if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
@@ -327,6 +400,7 @@ async function showView(key) {
   $('#page-subtitle').textContent = key === 'platform' ? 'Administration and support'
     : state.organization?.name || '';
   if (key === 'platform') { await loadPlatformView(); return; }
+  if (key === 'overview') await loadOverviewMetrics();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
   }
@@ -1008,7 +1082,9 @@ async function loadCampaigns(pageNumber = 0) {
       actions.push(close);
     }
     return item(campaign.title,
-      `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
+      `${campaign.open ? 'Open for new invitations' : 'Closed to new invitations'}`
+        + ` · Frozen version ${campaign.assessmentVersionId}`
+        + (campaign.createdAt ? ` · Created ${new Date(campaign.createdAt).toLocaleDateString()}` : ''),
       actions);
   }), 'No campaigns yet.');
   renderPageControls('#campaigns-pagination', page, loadCampaigns);
@@ -1128,6 +1204,23 @@ async function compareCandidates(campaignId, pageNumber = 0) {
     if (reviewForm) wrapper.append(reviewForm);
     wrapper.append(integrityButton, integrityPanel, eventsButton, eventsPanel, auditButton, auditPanel); return wrapper;
   });
+  const summary = node('div', '', 'card panel');
+  summary.append(node('h3', 'At a glance'),
+    node('p', 'Latest submitted attempt per invited candidate. Decisions are visible to Talent staff only.', 'muted'));
+  const head = node('div', '', 'compare-row compare-head');
+  head.append(node('span', 'Candidate'), node('span', 'Latest attempt'), node('span', 'Decision'));
+  summary.append(head);
+  for (const candidate of page.content || []) {
+    const row = node('div', '', 'compare-row');
+    const attempt = candidate.attemptId
+      ? (candidate.percentage == null ? 'Awaiting grading'
+        : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`)
+      : 'No submitted attempt';
+    row.append(node('span', candidate.candidateUserId), node('span', attempt),
+      node('span', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'));
+    summary.append(row);
+  }
+  rows.unshift(summary);
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
   renderPageControls('#campaign-candidates-pagination', page,
     (nextPage) => compareCandidates(campaignId, nextPage));
@@ -1150,13 +1243,24 @@ async function loadReviewAudit(campaignId, candidateId, pageNumber, target) {
 async function loadAssignments(pageNumber = 0) {
   const page = await request(ownOrg(`/assignments/mine?page=${pageNumber}`));
   const inProgress = pendingAttempt();
+  const now = Date.now();
   setList('#assignments-list', (page.content || []).map((assignment) => {
     const resumable = inProgress?.assignmentId === assignment.id;
-    return item(
-      resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
-      `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()} · ${assignment.attemptsAllowed} attempt(s)`,
-      [button(resumable ? 'Resume assessment' : 'Start / resume', () => startAttempt(assignment)),
-        button('Attempt history', () => showHistory(assignment))]);
+    const from = Date.parse(assignment.availableFrom);
+    const until = Date.parse(assignment.availableUntil);
+    const state = now < from ? `Opens ${new Date(from).toLocaleString()}` : now >= until ? 'Closed' : 'Open now';
+    const start = button(resumable ? 'Resume assessment' : 'Start / resume', () => startAttempt(assignment));
+    if (state !== 'Open now') {
+      start.disabled = true;
+      start.title = state === 'Closed' ? 'The availability window for this assignment has ended.'
+        : 'The availability window for this assignment has not opened yet.';
+    }
+    const origin = assignment.batchAssessmentId ? ' · Assigned through a batch'
+      : assignment.campaignId ? ' · Assigned through a hiring campaign' : '';
+    return item(resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
+      `${state} · Available ${new Date(from).toLocaleString()} – ${new Date(until).toLocaleString()}`
+        + ` · ${assignment.attemptsAllowed} attempt(s)${origin}`,
+      [start, button('Attempt history', () => showHistory(assignment))]);
   }), 'No assignments yet.');
   renderPageControls('#assignments-pagination', page, loadAssignments);
 }
@@ -1228,6 +1332,13 @@ document.addEventListener('fullscreenchange', () => {
 $('#attempt-panel').addEventListener('copy', () => { void sendTelemetry('COPY_ATTEMPT'); });
 $('#attempt-panel').addEventListener('paste', () => { void sendTelemetry('PASTE_ATTEMPT'); });
 const attemptAnswerState = new Map();
+let attemptProgressElement = null;
+function refreshAttemptProgress() {
+  if (!attemptProgressElement) return;
+  const total = state.activeAttempt?.questions?.length || 0;
+  const saved = [...attemptAnswerState.values()].filter((value) => value === 'saved').length;
+  attemptProgressElement.textContent = `${saved} of ${total} saved`;
+}
 function attemptHasExpired(attempt) {
   return Date.now() >= Date.parse(attempt.deadline);
 }
@@ -1248,6 +1359,7 @@ async function saveAttemptAnswer(attempt, question, body, statusPill, control, s
     attemptAnswerState.set(question.id, 'saved');
     statusPill.textContent = 'Saved';
     statusPill.className = 'pill ok';
+    refreshAttemptProgress();
     void sendTelemetry('ANSWER_SAVED', question.id);
     notice('Answer saved.');
   } catch (error) {
@@ -1287,7 +1399,12 @@ function renderAttempt() {
     else if (seconds <= 300 && announced !== 300) { announced = 300; announce.textContent = 'Five minutes remaining.'; }
   };
   window.clearInterval(state.timer); updateTimer(); state.timer = window.setInterval(updateTimer, 1000);
-  panel.append(node('p', 'Save each answer before submitting. The timer is set by the server.', 'muted'), timer, announce);
+  const progress = node('p', '', 'pill');
+  attemptProgressElement = progress;
+  const header = node('div', '', 'attempt-head');
+  header.append(node('p', 'Save each answer before submitting. The timer is set by the server.', 'muted'), timer, progress, announce);
+  panel.append(header);
+  refreshAttemptProgress();
   if (talentAttemptActive() && document.fullscreenEnabled) {
     panel.append(button('Use fullscreen (optional)', async () => {
       await panel.requestFullscreen(); state.attemptFullscreen = true; focusPanel(panel);
@@ -1391,8 +1508,27 @@ function renderResult(result) {
     panel.append(node('p', 'Submitted. Your score stays hidden until staff release the result or finish manual grading.', 'muted'));
     panel.append(button('Check again', () => showResult(result.attemptId), 'button secondary'));
   } else {
-    panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`));
-    for (const topic of result.topics || []) panel.append(item(topic.topic, `${topic.correct} of ${topic.total} correct`));
+    panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`),
+      node('p', [result.submittedAt ? `Submitted ${new Date(result.submittedAt).toLocaleString()}` : null,
+        result.releasedAt ? `Released ${new Date(result.releasedAt).toLocaleString()}` : null]
+        .filter(Boolean).join(' · '), 'item-meta'));
+    for (const topic of result.topics || []) {
+      const share = topic.total ? Math.round((topic.correct / topic.total) * 100) : 0;
+      const main = node('div', '', 'item-main');
+      main.append(node('span', topic.topic, 'item-title'),
+        node('p', `${topic.correct} of ${topic.total} correct (${share}%)`, 'item-meta'));
+      const bar = node('div', '', 'bar');
+      const fill = node('div', '', 'bar-fill');
+      fill.style.width = `${share}%`;
+      bar.append(fill);
+      main.append(bar);
+      const row = node('div', '', 'item');
+      row.append(main);
+      panel.append(row);
+    }
+    if (result.passed && state.organization?.type === 'ACADEMY' && state.organization?.myRole === 'LEARNER') {
+      panel.append(button('My certificates', () => showView('certificates'), 'button secondary'));
+    }
     if (state.organization?.type === 'ACADEMY' && state.organization?.myRole === 'LEARNER') {
       panel.append(button('View instructor feedback', async () => {
         const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(result.attemptId)}/feedback/mine`),
@@ -1643,6 +1779,11 @@ async function loadConversationMessages(pageNumber = state.messagePage) {
   renderPageControls('#conversation-messages-pagination', page, loadConversationMessages);
 }
 
+$('#verify-code-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const code = $('#verify-code').value.trim();
+  if (!code) throw new Error('Enter the verification code printed on the certificate.');
+  window.location.assign(`/certificates/${encodeURIComponent(code)}`);
+}); });
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   const control = $('#start-ssl-demo');

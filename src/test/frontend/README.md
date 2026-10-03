@@ -57,6 +57,13 @@ instructions are accepted).
 is renamed, update the fixture **and** the check: a fixture that no longer matches the contract turns
 a real regression into a green run.
 
+## Known API gaps (documented, not patched from the frontend)
+
+| Endpoint | Problem | Effect on the UI | Suggested backend change |
+| --- | --- | --- | --- |
+| `GET /api/v1/organizations/{orgId}/assignments/mine` | returns `Assignment`, which carries no assessment title, duration or question count | a learner's assignment row cannot name the assessment or show its time limit before starting; the assessment routes are staff-only (403 for learners) | add `assessmentTitle` and `durationMinutes` to the assignment payload, or expose a learner-readable assignment summary |
+| `GET /api/v1/organizations/{orgId}/attempts/{attemptId}/result` | `ResultView` exposes only a boolean `released` | "awaiting manual grading" and "awaiting staff release" are indistinguishable to the learner, so the pending copy must stay generic | add a pending reason or a granular release state |
+
 ## Live gate (pending)
 
 Live checks must not run until a disposable `MONGODB_TEST_URI` is supplied through the environment
