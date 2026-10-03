@@ -101,13 +101,6 @@ public class EntitlementUsageReconciliationService {
             entries.add(entry);
             repaired = repaired || entry.appliedUsage() != null;
         }
-        if (lookbackMonths > 13) {
-            for (UsageReconciliationEntry entry : entries) {
-                if (entry.window().startsWith("202") && YearMonth.parse(entry.window()).isBefore(current.minusMonths(13))) {
-                    // This shouldn't happen with the cap above, but guard anyway
-                }
-            }
-        }
         return new UsageReconciliationReport(organizationId, now, plan.tier().name(),
                 Math.toIntExact(downwardGrace.toSeconds()), lookback, repaired,
                 List.copyOf(entries), manualSteps(entries, evidence.undatedRecords()));
@@ -172,6 +165,11 @@ public class EntitlementUsageReconciliationService {
         try {
             if (bucket == null) {
                 if (bounds.minimum() == 0) {
+                    if (row.window().metric() == UsageMetric.INVITATION) {
+                        return row.entry(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, null,
+                                "No surviving invitation records or bucket exist, but TTL may have removed"
+                                        + " invitations from this window; exact usage cannot be proven.");
+                    }
                     return row.entry(UsageReconciliationStatus.IN_SYNC, null,
                             "No bucket and no durable records consume this quota.");
                 }
@@ -182,7 +180,7 @@ public class EntitlementUsageReconciliationService {
                 }
                 UsageBucket created = new UsageBucket(row.window().bucketId(), organizationId,
                         row.window().metric(), row.window().window(), bounds.minimum(), now,
-                        row.window().expiresAt(), null, now, actorUserId);
+                        row.window().expiresAt(), null, now, actorUserId, 1L);
                 return store.insertBucket(created)
                         ? row.entry(UsageReconciliationStatus.BACKFILLED, bounds.minimum(),
                                 "Created the missing bucket at the usage durable records prove.")
@@ -196,12 +194,17 @@ public class EntitlementUsageReconciliationService {
                                     + bounds.minimum() + " durable record(s) that consumed a reserved unit.");
                 }
                 return store.replaceUsage(organizationId, row.window().bucketId(), recorded,
-                                bounds.minimum(), bucket.lastChangedAt(), now, actorUserId)
+                                bounds.minimum(), bucket.revision(), now, actorUserId)
                         ? row.entry(UsageReconciliationStatus.BACKFILLED, bounds.minimum(),
                                 "Raised recorded usage to the durable minimum.")
                         : concurrent(row, null);
             }
             if (recorded == bounds.minimum()) {
+                if (row.window().metric() == UsageMetric.INVITATION) {
+                    return row.entry(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, null,
+                            "Recorded usage matches the surviving lower bound, but invitation TTL"
+                                    + " may have removed additional charged records; exact usage cannot be proven.");
+                }
                 return row.entry(UsageReconciliationStatus.IN_SYNC, null, bounds.maximum() > bounds.minimum()
                         ? "Recorded usage equals the proven minimum; " + (bounds.maximum() - bounds.minimum())
                         + " record(s) may or may not have been charged."
@@ -214,25 +217,17 @@ public class EntitlementUsageReconciliationService {
                                 + (bounds.maximum() - bounds.minimum())
                                 + " record(s) cannot be classified as charged, so no change is safe.");
             }
+            // Invitation documents expire even in the current month and all of them may be gone.
+            // No surviving count proves a safe ceiling, so never auto-decrement this metric.
+            if (row.window().metric() == UsageMetric.INVITATION) {
+                return row.entry(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, null,
+                        "Downward repair deferred: invitation records may have expired and been"
+                                + " deleted by TTL, including in the current month. Manual review required.");
+            }
             if (evidence.undatedRecords() > 0) {
                 return row.entry(UsageReconciliationStatus.DEFERRED_UNDATED_RECORDS, null,
                         evidence.undatedRecords() + " record(s) have no usable timestamp and belong to no"
                                 + " window, so a stranded unit cannot be told apart from their charge.");
-            }
-            // For INVITATION in past months, expired email invitations may have been deleted by TTL.
-            // We cannot prove the true maximum, so defer downward repair.
-            if (row.window().metric() == UsageMetric.INVITATION && row.closed()
-                    && count(evidence.emailInvitationsByMonth(), row.window().window()) > 0
-                    && recorded > bounds.maximum()) {
-                if (!repair) {
-                    return row.entry(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, null,
-                            "Recorded usage exceeds the provable maximum, but some email invitations"
-                                    + " in this window may have expired and been deleted by TTL. The true"
-                                    + " maximum could be higher; manual review required.");
-                }
-                return row.entry(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, null,
-                        "Downward repair deferred: email invitations in this closed window may have"
-                                + " expired and been deleted. Manual review required.");
             }
             if (bucket.lastChangedAt() == null) {
                 return row.entry(UsageReconciliationStatus.DEFERRED_NO_ACTIVITY_MARKER, null,
@@ -250,7 +245,7 @@ public class EntitlementUsageReconciliationService {
                                 + " records justify; releasing the difference is safe.");
             }
             return store.replaceUsage(organizationId, row.window().bucketId(), recorded, bounds.maximum(),
-                            bucket.lastChangedAt(), now, actorUserId)
+                            bucket.revision(), now, actorUserId)
                     ? row.entry(UsageReconciliationStatus.STRANDED_RELEASED, bounds.maximum(),
                             "Released the stranded unit(s) down to the highest justifiable usage.")
                     : concurrent(row, null);

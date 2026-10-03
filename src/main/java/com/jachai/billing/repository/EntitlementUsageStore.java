@@ -17,14 +17,14 @@ public interface EntitlementUsageStore {
     boolean insertBucket(UsageBucket bucket);
 
     /**
-     * Replaces {@code used} only while it still equals {@code expectedUsage} and the activity marker
-     * has not changed. This prevents ABA races where a reserve+refund pair leaves {@code used}
-     * unchanged but the bucket was still touched.
+     * Replaces {@code used} only while the observed monotonic revision still matches. A
+     * reserve+refund pair can restore {@code used} and its BSON-millisecond activity timestamp,
+     * but must not restore the revision. Null matches a legacy bucket without this field.
      *
      * @return true when exactly one bucket matched and was updated
      */
     boolean replaceUsage(String organizationId, String bucketId, long expectedUsage, long newUsage,
-                         Instant expectedLastChangedAt, Instant reconciledAt, String actorUserId);
+                         Long expectedRevision, Instant reconciledAt, String actorUserId);
 
     long total(String collection, String organizationId);
 

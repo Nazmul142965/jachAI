@@ -51,14 +51,17 @@ public class MongoEntitlementUsageStore implements EntitlementUsageStore {
 
     @Override
     public boolean replaceUsage(String organizationId, String bucketId, long expectedUsage, long newUsage,
-                                Instant expectedLastChangedAt, Instant reconciledAt, String actorUserId) {
+                                Long expectedRevision, Instant reconciledAt, String actorUserId) {
         Query query = Query.query(Criteria.where("_id").is(bucketId)
                 .and("organizationId").is(organizationId)
                 .and("used").is(expectedUsage)
-                .and("lastChangedAt").is(expectedLastChangedAt));
+                .and("revision").is(expectedRevision));
         Update update = new Update().set("used", newUsage)
                 .set("lastReconciledAt", reconciledAt)
                 .set("reconciledByUserId", actorUserId);
+        // Legacy documents have no revision field; initialize them under the same CAS.
+        if (expectedRevision == null) update.set("revision", 1L);
+        else update.inc("revision", 1L);
         return template().updateFirst(query, update, UsageBucket.class).getMatchedCount() == 1;
     }
 

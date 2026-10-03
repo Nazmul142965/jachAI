@@ -98,12 +98,13 @@ class EntitlementUsageReconciliationServiceTests {
         assertEquals(List.of("org-a:PUBLISHED_ASSESSMENT:all", "org-a:INVITATION:2026-08",
                 "org-a:INVITATION:2026-09", "org-a:INVITATION:2026-10", "org-a:CERTIFICATE:2026-08",
                 "org-a:CERTIFICATE:2026-09", "org-a:CERTIFICATE:2026-10"), store.requestedBucketIds);
-        assertEquals(UsageReconciliationStatus.IN_SYNC, entry(report, UsageMetric.INVITATION, "2026-10").status());
+        assertEquals(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS,
+                entry(report, UsageMetric.INVITATION, "2026-10").status());
         assertEquals(UsageReconciliationStatus.IN_SYNC, entry(report, UsageMetric.CERTIFICATE, "2026-10").status());
         assertEquals(UsageReconciliationStatus.IN_SYNC,
                 entry(report, UsageMetric.PUBLISHED_ASSESSMENT, "all").status());
         assertEquals(3, report.entries().size());
-        assertTrue(report.reconciled());
+        assertFalse(report.reconciled(), "surviving invitations cannot prove an exact count after TTL");
         assertFalse(report.repaired());
         assertEquals(0, store.writes);
     }
@@ -120,7 +121,7 @@ class EntitlementUsageReconciliationServiceTests {
         assertTrue(august.windowClosed());
         assertEquals(4, report.entries().size());
         assertTrue(report.entries().stream().noneMatch(candidate -> candidate.window().equals("2026-09")));
-        assertTrue(report.reconciled());
+        assertFalse(report.reconciled(), "current invitation history can be incomplete after TTL");
     }
 
     @Test
@@ -152,8 +153,9 @@ class EntitlementUsageReconciliationServiceTests {
         assertEquals(UsageReconciliationStatus.BACKFILLED, published.status());
         assertEquals(3, published.appliedUsage());
         assertEquals(3, store.used("org-a", UsageMetric.PUBLISHED_ASSESSMENT, "all"));
+        assertEquals(2L, store.revision("org-a:PUBLISHED_ASSESSMENT:all"));
         assertTrue(report.repaired());
-        assertTrue(report.reconciled());
+        assertFalse(report.reconciled(), "current invitation history can be incomplete after TTL");
     }
 
     @Test
@@ -250,10 +252,10 @@ class EntitlementUsageReconciliationServiceTests {
 
         UsageReconciliationReport verified = service().report("admin-a", "org-a");
         UsageReconciliationEntry charged = entry(verified, UsageMetric.INVITATION, "2026-10");
-        assertEquals(UsageReconciliationStatus.IN_SYNC, charged.status());
+        assertEquals(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, charged.status());
         assertEquals(2, charged.provenMinimumUsage());
         assertEquals(3, charged.provenMaximumUsage());
-        assertTrue(verified.reconciled());
+        assertFalse(verified.reconciled());
 
         store.put(bucket("org-a", UsageMetric.INVITATION, "2026-10", 3, october(3)));
         UsageReconciliationReport report = service().repair("admin-a", "org-a");
@@ -280,6 +282,46 @@ class EntitlementUsageReconciliationServiceTests {
     }
 
     @Test
+    void currentMonthInvitationWithZeroSurvivorsIsNeverDecremented() {
+        store.put(bucket("org-a", UsageMetric.INVITATION, "2026-10", 4, NOW.minusSeconds(3600)));
+
+        UsageReconciliationReport report = service().repair("admin-a", "org-a");
+
+        UsageReconciliationEntry invitation = entry(report, UsageMetric.INVITATION, "2026-10");
+        assertEquals(0, invitation.provenMaximumUsage());
+        assertEquals(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, invitation.status());
+        assertNull(invitation.appliedUsage());
+        assertEquals(4, store.used("org-a", UsageMetric.INVITATION, "2026-10"));
+        assertFalse(report.reconciled());
+    }
+
+    @Test
+    void closedMonthInvitationWithZeroSurvivorsIsNeverDecremented() {
+        store.put(bucket("org-a", UsageMetric.INVITATION, "2026-09", 4, NOW.minusSeconds(86_400)));
+
+        UsageReconciliationReport report = service().repair("admin-a", "org-a");
+
+        UsageReconciliationEntry invitation = entry(report, UsageMetric.INVITATION, "2026-09");
+        assertTrue(invitation.windowClosed());
+        assertEquals(0, invitation.provenMaximumUsage());
+        assertEquals(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, invitation.status());
+        assertNull(invitation.appliedUsage());
+        assertEquals(4, store.used("org-a", UsageMetric.INVITATION, "2026-09"));
+    }
+
+    @Test
+    void expiredInvitationDeferralTakesPrecedenceOverUndatedRecords() {
+        store.put(bucket("org-a", UsageMetric.INVITATION, "2026-10", 4, NOW.minusSeconds(3600)));
+        store.doc(EntitlementUsageStore.ASSIGNMENTS, "org-a", null, false, null);
+
+        UsageReconciliationEntry invitation = entry(service().repair("admin-a", "org-a"),
+                UsageMetric.INVITATION, "2026-10");
+
+        assertEquals(UsageReconciliationStatus.DEFERRED_EXPIRED_INVITATIONS, invitation.status());
+        assertEquals(4, store.used("org-a", UsageMetric.INVITATION, "2026-10"));
+    }
+
+    @Test
     void aReservationLandingDuringRepairIsNeverOverwritten() {
         store.certificate("org-a", october(2));
         store.put(bucket("org-a", UsageMetric.CERTIFICATE, "2026-10", 4, NOW.minusSeconds(3600)));
@@ -292,6 +334,26 @@ class EntitlementUsageReconciliationServiceTests {
         assertEquals(5, store.used("org-a", UsageMetric.CERTIFICATE, "2026-10"),
                 "the concurrent reservation must survive the repair");
         assertTrue(report.manualSteps().stream().anyMatch(step -> step.contains("Re-run repair")));
+    }
+
+    @Test
+    void sameMillisecondReserveRefundAbaCannotPassRevisionCompareAndSet() {
+        Instant persistedMillisecond = Instant.parse("2026-10-20T11:00:00.000Z");
+        UsageBucket observed = bucket("org-a", UsageMetric.CERTIFICATE, "2026-10", 4,
+                persistedMillisecond);
+        store.certificate("org-a", october(2));
+        store.put(observed);
+        store.onWrite = () -> store.put(new UsageBucket(observed.id(), observed.organizationId(),
+                observed.metric(), observed.window(), observed.used(), observed.createdAt(),
+                observed.expiresAt(), persistedMillisecond, observed.lastReconciledAt(),
+                observed.reconciledByUserId(), observed.revision() + 2));
+
+        UsageReconciliationEntry result = entry(service().repair("admin-a", "org-a"),
+                UsageMetric.CERTIFICATE, "2026-10");
+
+        assertEquals(UsageReconciliationStatus.CONCURRENT_UPDATE, result.status());
+        assertEquals(4, store.used("org-a", UsageMetric.CERTIFICATE, "2026-10"));
+        assertEquals(3L, store.revision(observed.id()));
     }
 
     @Test
@@ -315,7 +377,7 @@ class EntitlementUsageReconciliationServiceTests {
         UsageReconciliationReport retried = service().repair("admin-a", "org-a");
         assertEquals(UsageReconciliationStatus.BACKFILLED,
                 entry(retried, UsageMetric.CERTIFICATE, "2026-10").status());
-        assertTrue(retried.reconciled());
+        assertFalse(retried.reconciled(), "current invitation history can be incomplete after TTL");
     }
 
     @Test
@@ -332,10 +394,10 @@ class EntitlementUsageReconciliationServiceTests {
         UsageReconciliationReport second = service.repair("admin-a", "org-a");
 
         assertTrue(first.repaired());
-        assertTrue(first.reconciled());
+        assertFalse(first.reconciled(), "current invitation history can be incomplete after TTL");
         assertEquals(writesAfterFirstRun, store.writes, "a second run must not write again");
         assertFalse(second.repaired());
-        assertTrue(second.reconciled());
+        assertFalse(second.reconciled(), "current invitation history can be incomplete after TTL");
         assertEquals(UsageReconciliationStatus.IN_SYNC,
                 entry(second, UsageMetric.CERTIFICATE, "2026-10").status());
     }
@@ -503,6 +565,10 @@ class EntitlementUsageReconciliationServiceTests {
             return found == null ? 0 : found.used();
         }
 
+        Long revision(String bucketId) {
+            return byId.get(bucketId).revision();
+        }
+
         Instant expiresAt(String organizationId, String window) {
             return byId.get(organizationId + ":CERTIFICATE:" + window).expiresAt();
         }
@@ -545,7 +611,7 @@ class EntitlementUsageReconciliationServiceTests {
 
         @Override
         public boolean replaceUsage(String organizationId, String bucketId, long expectedUsage, long newUsage,
-                                    Instant expectedLastChangedAt, Instant reconciledAt, String actorUserId) {
+                                    Long expectedRevision, Instant reconciledAt, String actorUserId) {
             writes++;
             runWriteHook();
             if (failWritesFor != null && failWritesFor.equals(bucketId)) {
@@ -554,12 +620,12 @@ class EntitlementUsageReconciliationServiceTests {
             UsageBucket bucket = byId.get(bucketId);
             if (bucket == null || !bucket.organizationId().equals(organizationId)
                     || bucket.used() != expectedUsage
-                    || !Objects.equals(bucket.lastChangedAt(), expectedLastChangedAt)) {
+                    || !Objects.equals(bucket.revision(), expectedRevision)) {
                 return false;
             }
             byId.put(bucketId, new UsageBucket(bucketId, organizationId, bucket.metric(), bucket.window(),
                     newUsage, bucket.createdAt(), bucket.expiresAt(), bucket.lastChangedAt(),
-                    reconciledAt, actorUserId));
+                    reconciledAt, actorUserId, expectedRevision == null ? 1L : expectedRevision + 1L));
             return true;
         }
 

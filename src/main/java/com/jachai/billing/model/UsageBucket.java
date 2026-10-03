@@ -10,10 +10,17 @@ public record UsageBucket(@Id String id, String organizationId, UsageMetric metr
                           String window, long used, Instant createdAt,
                           @Indexed(expireAfter = "0s") Instant expiresAt,
                           Instant lastChangedAt, Instant lastReconciledAt,
-                          String reconciledByUserId) {
+                          String reconciledByUserId, Long revision) {
 
     public UsageBucket(String id, String organizationId, UsageMetric metric, String window,
                        long used, Instant createdAt, Instant expiresAt, Instant lastChangedAt) {
-        this(id, organizationId, metric, window, used, createdAt, expiresAt, lastChangedAt, null, null);
+        this(id, organizationId, metric, window, used, createdAt, expiresAt, lastChangedAt, null, null, 1L);
+    }
+
+    public UsageBucket(String id, String organizationId, UsageMetric metric, String window,
+                       long used, Instant createdAt, Instant expiresAt, Instant lastChangedAt,
+                       Instant lastReconciledAt, String reconciledByUserId) {
+        this(id, organizationId, metric, window, used, createdAt, expiresAt, lastChangedAt,
+                lastReconciledAt, reconciledByUserId, 1L);
     }
 }

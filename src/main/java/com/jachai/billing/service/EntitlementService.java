@@ -56,7 +56,7 @@ public class EntitlementService {
         Instant now = Instant.now();
         UsageWindow window = UsageWindow.of(organizationId, metric, now);
         Query query = Query.query(Criteria.where("_id").is(window.bucketId()).and("used").lt(limit));
-        Update update = new Update().inc("used", 1)
+        Update update = new Update().inc("used", 1).inc("revision", 1L)
                 .set("lastChangedAt", now)
                 .setOnInsert("organizationId", organizationId)
                 .setOnInsert("metric", metric)
@@ -76,7 +76,8 @@ public class EntitlementService {
     public void refund(String bucketId) {
         if (bucketId == null) return;
         mongo.updateFirst(Query.query(Criteria.where("_id").is(bucketId).and("used").gt(0)),
-                new Update().inc("used", -1L).set("lastChangedAt", Instant.now()), UsageBucket.class);
+                new Update().inc("used", -1L).inc("revision", 1L)
+                        .set("lastChangedAt", Instant.now()), UsageBucket.class);
     }
 
     private ApiException limitReached(UsageMetric metric) {

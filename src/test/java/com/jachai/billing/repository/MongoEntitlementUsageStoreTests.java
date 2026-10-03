@@ -75,7 +75,7 @@ class MongoEntitlementUsageStoreTests {
                 .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
 
         boolean replaced = store().replaceUsage("org-a", "org-a:INVITATION:2026-10", 5, 3,
-                Instant.parse("2026-10-20T10:00:00Z"), Instant.parse("2026-10-20T12:00:00Z"), "admin-a");
+                7L, Instant.parse("2026-10-20T12:00:00Z"), "admin-a");
 
         assertTrue(replaced);
         ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
@@ -85,11 +85,14 @@ class MongoEntitlementUsageStoreTests {
         assertEquals("org-a:INVITATION:2026-10", filter.get("_id"));
         assertEquals("org-a", filter.get("organizationId"));
         assertEquals(5L, filter.get("used"));
-        assertEquals(Instant.parse("2026-10-20T10:00:00Z"), filter.get("lastChangedAt"));
+        assertEquals(7L, filter.get("revision"));
+        assertFalse(filter.containsKey("lastChangedAt"),
+                "BSON Date has millisecond precision and cannot serve as an ABA guard");
         Document changes = update.getValue().getUpdateObject();
         assertEquals(3L, changes.get("$set") instanceof Document set ? set.get("used") : null);
         assertEquals("admin-a", changes.get("$set") instanceof Document set ? set.get("reconciledByUserId") : null);
         assertTrue(changes.get("$set") instanceof Document set && set.containsKey("lastReconciledAt"));
+        assertEquals(1L, ((Document) changes.get("$inc")).get("revision"));
     }
 
     @Test
@@ -98,7 +101,24 @@ class MongoEntitlementUsageStoreTests {
                 .thenReturn(UpdateResult.acknowledged(0L, 0L, null));
 
         assertFalse(store().replaceUsage("org-a", "org-a:INVITATION:2026-10", 5, 3,
-                Instant.parse("2026-10-20T10:00:00Z"), Instant.parse("2026-10-20T12:00:00Z"), "admin-a"));
+                7L, Instant.parse("2026-10-20T12:00:00Z"), "admin-a"));
+    }
+
+    @Test
+    void legacyBucketWithoutRevisionUsesNullCasThenInitializesRevision() {
+        when(mongo.updateFirst(any(Query.class), any(Update.class), eq(UsageBucket.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertTrue(store().replaceUsage("org-a", "org-a:CERTIFICATE:2026-10", 3, 2,
+                null, Instant.parse("2026-10-20T12:00:00Z"), "admin-a"));
+
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> update = ArgumentCaptor.forClass(Update.class);
+        verify(mongo).updateFirst(query.capture(), update.capture(), eq(UsageBucket.class));
+        assertTrue(query.getValue().getQueryObject().containsKey("revision"));
+        assertEquals(null, query.getValue().getQueryObject().get("revision"));
+        assertEquals(1L, ((Document) update.getValue().getUpdateObject().get("$set")).get("revision"));
+        assertFalse(update.getValue().getUpdateObject().containsKey("$inc"));
     }
 
     @Test

@@ -111,6 +111,7 @@ class EntitlementServiceTests {
                 org.mockito.ArgumentMatchers.eq(UsageBucket.class));
         assertTrue(update.getValue().getUpdateObject().get("$set") instanceof Document set);
         assertTrue(((Document) update.getValue().getUpdateObject().get("$set")).containsKey("lastChangedAt"));
+        assertEquals(1L, ((Document) update.getValue().getUpdateObject().get("$inc")).get("revision"));
     }
 
     @Test
@@ -171,5 +172,6 @@ class EntitlementServiceTests {
                 org.mockito.ArgumentMatchers.eq(UsageBucket.class));
         assertTrue(((Document) update.getValue().getUpdateObject().get("$set")).containsKey("lastChangedAt"));
         assertEquals(-1L, ((Document) update.getValue().getUpdateObject().get("$inc")).get("used"));
+        assertEquals(1L, ((Document) update.getValue().getUpdateObject().get("$inc")).get("revision"));
     }
 }
