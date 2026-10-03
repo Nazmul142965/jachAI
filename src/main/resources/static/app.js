@@ -304,26 +304,43 @@ async function showView(key) {
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
   }
-  if (key === 'members') await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
-  if (key === 'questions') await loadList('#questions-list', () => loadQuestions(), 'Questions could not be loaded.');
+  if (key === 'members') {
+    await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
+    attachFilter('#members-list', 'Filter members by name, email, role or ID');
+  }
+  if (key === 'questions') {
+    await loadList('#questions-list', () => loadQuestions(), 'Questions could not be loaded.');
+    attachFilter('#questions-list', 'Filter questions by topic, prompt or status');
+  }
   if (key === 'assessments') {
     await loadList('#assessments-list', async () => {
       await loadApprovedQuestions(); await loadAssessments();
       await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
     }, 'Assessments could not be loaded.');
+    attachFilter('#assessments-list', 'Filter assessments by title, status or release policy');
     await loadList('#review-queue', () => loadReviewQueue(0), 'The review queue could not be loaded.');
     await loadOrganizationSettings();
   }
-  if (key === 'academy') await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
+  if (key === 'academy') {
+    await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
+    attachFilter('#courses-list', 'Filter courses by name or description');
+  }
   if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') {
     await loadList('#campaigns-list', async () => {
       await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
       await loadCampaigns(); await loadTalentCandidates();
     }, 'Campaigns could not be loaded.');
+    attachFilter('#campaigns-list', 'Filter campaigns by title or version');
   }
-  if (key === 'attempts') await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
-  if (key === 'certificates') await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
+  if (key === 'attempts') {
+    await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
+    attachFilter('#assignments-list', 'Filter assignments by availability or attempt count');
+  }
+  if (key === 'certificates') {
+    await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
+    attachFilter('#certificates-list', 'Filter certificates by code, status or date');
+  }
 }
 async function loadEntitlements() {
   const plan = await request(ownOrg('/billing/entitlements'));
@@ -518,6 +535,29 @@ async function loadList(selector, load, retryMessage = 'This list could not be l
       button('Retry', () => loadList(selector, load, retryMessage), 'button secondary small'));
   }
 }
+function attachFilter(selector, placeholder) {
+  const target = $(selector);
+  if (!target) return;
+  const host = target.parentElement;
+  if (!host) return;
+  const apply = (input) => {
+    const term = input.value.trim().toLowerCase();
+    for (const row of target.querySelectorAll('.item')) {
+      row.classList.toggle('hidden', term.length > 0 && !(row.textContent || '').toLowerCase().includes(term));
+    }
+  };
+  const existing = host.querySelector(`input[data-filter-for="${selector}"]`);
+  if (existing) { apply(existing); return; }
+  const label = node('label', '', 'filter-row');
+  const input = node('input');
+  input.type = 'search';
+  input.placeholder = placeholder;
+  input.setAttribute('aria-label', placeholder);
+  input.setAttribute('data-filter-for', selector);
+  label.append('Filter this page', input);
+  host.insertBefore(label, target);
+  input.addEventListener('input', () => apply(input));
+}
 function renderPageControls(selector, page, onPage) {
   const target = $(selector); target.replaceChildren();
   if ((page.totalPages || 0) <= 1) return;
@@ -551,21 +591,36 @@ async function loadMembers(pageNumber = 0) {
       select.setAttribute('aria-label', `Role for ${member.displayName}`);
       actions.push(select);
       if (member.active) {
-        actions.push(button('Save role', async () => {
-          await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
-            { method: 'PUT', body: { role: select.value } });
-          await loadMembers(page.number); notice('Member role updated.');
-        }), button('Deactivate', async () => {
-          if (!window.confirm(`Deactivate ${member.displayName} from this workspace?`)) return;
-          await request(ownOrg(`/members/${encodeURIComponent(member.userId)}`), { method: 'DELETE' });
-          await loadMembers(page.number); notice('Member deactivated.');
-        }));
+        const save = button('Save role', async () => {
+          if (select.value === member.role) { notice('That is already the current role.'); return; }
+          if (!window.confirm(`Change ${member.displayName} from ${member.role.replaceAll('_', ' ')} to ${select.value.replaceAll('_', ' ')}?`)) return;
+          save.disabled = true;
+          try {
+            await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
+              { method: 'PUT', body: { role: select.value } });
+            await loadMembers(page.number); notice('Member role updated.');
+          } catch (error) { save.disabled = false; throw error; }
+        });
+        const deactivate = button('Deactivate', async () => {
+          if (!window.confirm(`Deactivate ${member.displayName} from this workspace?\n\nThey lose access until an admin reactivates them.`)) return;
+          deactivate.disabled = true;
+          try {
+            await request(ownOrg(`/members/${encodeURIComponent(member.userId)}`), { method: 'DELETE' });
+            await loadMembers(page.number); notice('Member deactivated.');
+          } catch (error) { deactivate.disabled = false; throw error; }
+        });
+        actions.push(save, deactivate);
       } else {
-        actions.push(button('Reactivate', async () => {
-          await request(ownOrg('/members'), { method: 'POST',
-            body: { email: member.email, role: select.value } });
-          await loadMembers(page.number); notice('Member reactivated.');
-        }));
+        const reactivate = button('Reactivate', async () => {
+          if (!window.confirm(`Reactivate ${member.displayName} with the role ${select.value.replaceAll('_', ' ')}?`)) return;
+          reactivate.disabled = true;
+          try {
+            await request(ownOrg('/members'), { method: 'POST',
+              body: { email: member.email, role: select.value } });
+            await loadMembers(page.number); notice('Member reactivated.');
+          } catch (error) { reactivate.disabled = false; throw error; }
+        });
+        actions.push(reactivate);
       }
     }
     const auditPanel = node('div', '', 'item-list');
@@ -588,12 +643,19 @@ async function loadMemberInvitations(pageNumber = 0) {
       : expired ? 'Expired' : 'Pending';
     const canRevoke = !invitation.accepted && !invitation.revoked && !expired
       && (invitation.role !== 'ORG_ADMIN' || state.organization.owner);
-    const actions = canRevoke ? [button('Revoke', async () => {
-      if (!window.confirm(`Revoke the invitation for ${invitation.email}?`)) return;
-      await request(ownOrg(`/invitations/${encodeURIComponent(invitation.id)}`), { method: 'DELETE' });
-      await loadMemberInvitations(page.number);
-      notice('Invitation revoked.');
-    })] : [];
+    const actions = [];
+    if (canRevoke) {
+      const revoke = button('Revoke', async () => {
+        if (!window.confirm(`Revoke the invitation for ${invitation.email}?\n\nThe link stops working immediately.`)) return;
+        revoke.disabled = true;
+        try {
+          await request(ownOrg(`/invitations/${encodeURIComponent(invitation.id)}`), { method: 'DELETE' });
+          await loadMemberInvitations(page.number);
+          notice('Invitation revoked.');
+        } catch (error) { revoke.disabled = false; throw error; }
+      });
+      actions.push(revoke);
+    }
     return item(invitation.email,
       `${invitation.role.replaceAll('_', ' ')} · ${status} · Expires ${new Date(invitation.expiresAt).toLocaleString()}`,
       actions);
@@ -786,15 +848,25 @@ async function gradeShortAnswer(attemptId, questionId, correct) {
 async function loadCampaigns(pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns?page=${pageNumber}`));
   state.campaigns = page.content || [];
-  setList('#campaigns-list', state.campaigns.map((campaign) => item(campaign.title,
-    `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
-    [button('Compare candidates', () => compareCandidates(campaign.id)),
-      button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title)),
-      ...(campaign.open ? [button('Close campaign', async () => {
-        if (!window.confirm('Close this campaign to new invitations?')) return;
-        await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
-        notice('Campaign closed.'); await loadCampaigns(page.number);
-      })] : [])])), 'No campaigns yet.');
+  setList('#campaigns-list', state.campaigns.map((campaign) => {
+    const actions = [button('Compare candidates', () => compareCandidates(campaign.id)),
+      button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title))];
+    if (campaign.open) {
+      const close = button('Close campaign', async () => {
+        if (!window.confirm(`Close "${campaign.title}" to new invitations?\n\nExisting assignments stay usable until their own windows end.`)) return;
+        close.disabled = true;
+        try {
+          await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
+          notice('Campaign closed.');
+          await loadCampaigns(page.number);
+        } catch (error) { close.disabled = false; throw error; }
+      });
+      actions.push(close);
+    }
+    return item(campaign.title,
+      `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
+      actions);
+  }), 'No campaigns yet.');
   renderPageControls('#campaigns-pagination', page, loadCampaigns);
   $('#invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
