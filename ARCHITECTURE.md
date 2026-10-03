@@ -308,7 +308,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Frontend pagination implementation decision
 
-- Campaign lists, candidate comparison, Academy catalog/batch/enrollment/assignment lists, Academy batch-progress rows, messaging partners/conversations/messages, and sandbox payment history now follow the server's 20-row pages. Message polling runs only on the newest page. Cohort analytics are fetched once when staff open progress, not on every progress-page change. Other first-page-only lists and a browser walkthrough remain open work; page controls do not replace tenant authorization on the server.
+- Campaign lists, candidate comparison, Academy catalog/batch/enrollment/assignment lists, Academy batch-progress rows, messaging partners/conversations/messages, and sandbox payment history follow the server's 20-row pages. Source review also found page controls on the other paged dashboard lists; this still needs browser verification with more than 20 records and empty/error pages. Message polling runs only on the newest page. Cohort analytics are fetched once when staff open progress, not on every progress-page change. Page controls do not replace tenant authorization on the server.
 
 ## Deployment and health-probe implementation decision
 
