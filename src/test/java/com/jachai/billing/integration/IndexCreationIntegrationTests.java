@@ -13,23 +13,21 @@ import java.util.ArrayList;
 import java.util.List;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
+@SpringBootTest
+@ActiveProfiles("integration")
 class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
 
+    @Autowired
     private MongoTemplate mongoTemplate;
-
-    private void setupStore() {
-        SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(mongoClient, databaseName);
-        mongoTemplate = new MongoTemplate(factory);
-    }
 
     @Test
     void uniqueIndexOnIdPreventsDuplicateInserts() {
-        setupStore();
-
         String orgId = generateTestId("org");
         String bucketId = orgId + ":INVITATION:2026-10";
 
@@ -59,8 +57,6 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test
     void applicationCreatedTtlIndexIsConfiguredOnExpiresAtField() {
-        setupStore();
-
         MongoDatabase db = mongoClient.getDatabase(databaseName);
         MongoCollection<Document> collection = db.getCollection("entitlement_usage");
 
@@ -74,13 +70,11 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
             return key != null && key.containsKey("expiresAt");
         });
 
-        assertTrue(hasTtlIndex, "Application should create TTL index on expiresAt field in UsageBucket mapping");
+        assertTrue(hasTtlIndex, "Spring Boot should create TTL index on expiresAt field in UsageBucket mapping");
     }
 
     @Test
     void applicationCreatedTtlIndexConfigurationIsVerified() {
-        setupStore();
-
         MongoDatabase db = mongoClient.getDatabase(databaseName);
         MongoCollection<Document> collection = db.getCollection("entitlement_usage");
 
@@ -100,8 +94,6 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test
     void applicationCreatedIdIndexExists() {
-        setupStore();
-
         MongoDatabase db = mongoClient.getDatabase(databaseName);
         MongoCollection<Document> collection = db.getCollection("entitlement_usage");
 

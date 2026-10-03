@@ -1,15 +1,15 @@
 package com.jachai.billing.integration;
 
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-import com.mongodb.MongoClientURI;
+import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 import org.bson.Document;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +22,7 @@ public abstract class BaseMongoIntegrationTest {
     protected static MongoClient mongoClient;
     protected static MongoDatabase testDatabase;
     protected static String databaseName;
-    protected static final Set<String> createdDocumentIds = ConcurrentHashMap.newKeySet();
+    protected Set<String> createdDocumentIds = new HashSet<>();
 
     @BeforeAll
     static void validateTestUriAndConnect() {
@@ -32,13 +32,13 @@ public abstract class BaseMongoIntegrationTest {
         }
 
         try {
-            MongoClientURI uri = new MongoClientURI(testUri);
-            databaseName = uri.getDatabase();
+            ConnectionString connectionString = new ConnectionString(testUri);
+            databaseName = connectionString.getDatabase();
             if (databaseName == null || !databaseName.startsWith("jachai_it_")) {
-                assumeTrue(false, "MONGODB_TEST_URI must point to a dedicated database beginning with 'jachai_it_' - got: " + databaseName);
+                fail("MONGODB_TEST_URI must point to a dedicated database beginning with 'jachai_it_'");
             }
         } catch (Exception e) {
-            assumeTrue(false, "MONGODB_TEST_URI is invalid: " + e.getMessage());
+            fail("MONGODB_TEST_URI is invalid");
         }
 
         mongoClient = MongoClients.create(testUri);
@@ -64,7 +64,7 @@ public abstract class BaseMongoIntegrationTest {
                         testDatabase.getCollection(parts[0]).deleteOne(new Document("_id", parts[1]));
                     }
                 } catch (Exception e) {
-                    // Log but continue cleanup
+                    fail("Failed to clean up test document: " + e.getMessage());
                 }
             }
         }
@@ -81,6 +81,6 @@ public abstract class BaseMongoIntegrationTest {
     }
 
     protected String generateTestId(String prefix) {
-        return prefix + "-" + System.currentTimeMillis() + "-" + Thread.currentThread().getId();
+        return prefix + "-" + UUID.randomUUID().toString();
     }
 }

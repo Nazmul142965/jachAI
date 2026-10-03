@@ -11,10 +11,10 @@ import com.jachai.billing.repository.MongoEntitlementUsageStore;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
@@ -101,7 +101,7 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
     }
 
     @Test
-    void concurrentReconcileOperationsPreventLostUpdates() throws ExecutionException, InterruptedException {
+    void concurrentReconcileOperationsPreventLostUpdates() throws InterruptedException {
         setupStore();
 
         String orgId = generateTestId("org");
@@ -145,14 +145,17 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
 
         int threadCount = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
         AtomicInteger successCount = new AtomicInteger(0);
         List<Long> finalRevisions = new ArrayList<>();
+        List<Throwable> exceptions = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
             final int threadIndex = i;
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+            executor.submit(() -> {
                 try {
+                    startLatch.await();
                     for (int attempt = 0; attempt < 10; attempt++) {
                         UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                         if (current != null) {
@@ -173,13 +176,17 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                         }
                     }
                 } catch (Exception e) {
-                    // Thread failed
+                    synchronized (exceptions) {
+                        exceptions.add(e);
+                    }
+                } finally {
+                    doneLatch.countDown();
                 }
-            }, executor);
-            futures.add(future);
+            });
         }
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        startLatch.countDown();
+        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All threads should complete");
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
@@ -187,6 +194,7 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         assertEquals(3, finalBucket.used(), "Final usage should match actual count");
         assertEquals(1, successCount.get(), "Exactly one reconcile should succeed");
         assertTrue(finalBucket.revision() > 1L, "Revision should have incremented");
+        assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
 
         synchronized (finalRevisions) {
             assertEquals(1, finalRevisions.stream().distinct().count(),
@@ -195,7 +203,7 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
     }
 
     @Test
-    void reconciliationWithConcurrentReservation() throws ExecutionException, InterruptedException {
+    void reconciliationWithConcurrentReservation() throws InterruptedException {
         setupStore();
 
         String orgId = generateTestId("org");
@@ -230,12 +238,15 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         trackDocumentId("entitlement_usage", bucketId);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(2);
         AtomicInteger reconcileSuccess = new AtomicInteger(0);
         AtomicInteger reserveSuccess = new AtomicInteger(0);
+        List<Throwable> exceptions = new ArrayList<>();
 
-        CompletableFuture<Void> reconcileFuture = CompletableFuture.runAsync(() -> {
+        executor.submit(() -> {
             try {
+                startLatch.await();
                 for (int attempt = 0; attempt < 10; attempt++) {
                     UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                     if (current != null) {
@@ -249,13 +260,17 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                // Thread failed
+                synchronized (exceptions) {
+                    exceptions.add(e);
+                }
+            } finally {
+                doneLatch.countDown();
             }
-        }, executor);
-        futures.add(reconcileFuture);
+        });
 
-        CompletableFuture<Void> reserveFuture = CompletableFuture.runAsync(() -> {
+        executor.submit(() -> {
             try {
+                startLatch.await();
                 for (int attempt = 0; attempt < 10; attempt++) {
                     UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                     if (current != null && current.used() < 10) {
@@ -276,21 +291,26 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                // Thread failed
+                synchronized (exceptions) {
+                    exceptions.add(e);
+                }
+            } finally {
+                doneLatch.countDown();
             }
-        }, executor);
-        futures.add(reserveFuture);
+        });
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        startLatch.countDown();
+        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both threads should complete");
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
         assertTrue(finalBucket.used() >= 2, "Usage should not decrease below actual count");
+        assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
     }
 
     @Test
-    void sameMillisecondAbaPreventedByMonotonicRevision() throws ExecutionException, InterruptedException {
+    void sameMillisecondAbaPreventedByMonotonicRevision() throws InterruptedException {
         setupStore();
 
         String orgId = generateTestId("org");
@@ -311,13 +331,16 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         trackDocumentId("entitlement_usage", bucketId);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(2);
         AtomicInteger successCount = new AtomicInteger(0);
+        List<Throwable> exceptions = new ArrayList<>();
 
         for (int i = 0; i < 2; i++) {
             final int threadIndex = i;
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+            executor.submit(() -> {
                 try {
+                    startLatch.await();
                     for (int attempt = 0; attempt < 10; attempt++) {
                         UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                         if (current != null) {
@@ -331,19 +354,24 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                         }
                     }
                 } catch (Exception e) {
-                    // Thread failed
+                    synchronized (exceptions) {
+                        exceptions.add(e);
+                    }
+                } finally {
+                    doneLatch.countDown();
                 }
-            }, executor);
-            futures.add(future);
+            });
         }
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        startLatch.countDown();
+        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both threads should complete");
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
         assertEquals(1, successCount.get(), "Only one operation should succeed");
         assertTrue(finalBucket.revision() > 1L, "Revision should have incremented");
+        assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
     }
 
     @Test

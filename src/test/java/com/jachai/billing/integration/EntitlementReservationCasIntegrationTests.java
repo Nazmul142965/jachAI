@@ -10,27 +10,30 @@ import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.repository.MongoEntitlementUsageStore;
 import com.jachai.billing.repository.SubscriptionRepository;
 import com.jachai.billing.service.EntitlementService;
+import com.jachai.organization.model.Organization;
+import com.jachai.organization.model.OrganizationType;
+import com.jachai.organization.repository.MembershipRepository;
+import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.test.context.support.WithMockUser;
 
-@WithMockUser(username = "admin", roles = {"PLATFORM_ADMIN"})
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest {
 
     private MongoTemplate mongoTemplate;
@@ -57,9 +60,17 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
             }
         };
         store = new MongoEntitlementUsageStore(provider);
-        SubscriptionRepository subscriptionRepository = new SubscriptionRepository(mongoTemplate);
-        TenantAccessService tenantAccessService = new TenantAccessService(subscriptionRepository, null);
+        
+        // Mock subscription and organization services for reservation tests
+        SubscriptionRepository subscriptionRepository = mock(SubscriptionRepository.class);
+        MembershipRepository membershipRepository = mock(MembershipRepository.class);
+        OrganizationRepository organizationRepository = mock(OrganizationRepository.class);
+        TenantAccessService tenantAccessService = new TenantAccessService(membershipRepository, organizationRepository);
         entitlementService = new EntitlementService(subscriptionRepository, mongoTemplate, tenantAccessService);
+        
+        // Configure mocks to allow any organization
+        when(organizationRepository.findById(any())).thenReturn(java.util.Optional.of(
+                new Organization("test-org", "Test Organization", OrganizationType.ACADEMY, "owner", Instant.now())));
     }
 
     @Test
@@ -243,46 +254,54 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
     }
 
     @Test
-    void concurrentReservationsAreSerializedByCas() throws ExecutionException, InterruptedException {
+    void concurrentReservationsAreSerializedByCas() throws InterruptedException {
         setupStore();
 
         String orgId = generateTestId("org");
         int threadCount = 10;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger failureCount = new AtomicInteger(0);
+        List<Throwable> exceptions = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+            executor.submit(() -> {
                 try {
+                    startLatch.await();
                     String bucketId = entitlementService.reserve(orgId, UsageMetric.CERTIFICATE);
                     trackDocumentId("entitlement_usage", bucketId);
                     successCount.incrementAndGet();
                 } catch (Exception e) {
                     failureCount.incrementAndGet();
+                    synchronized (exceptions) {
+                        exceptions.add(e);
+                    }
+                } finally {
+                    doneLatch.countDown();
                 }
-            }, executor);
-            futures.add(future);
+            });
         }
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        startLatch.countDown();
+        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All threads should complete");
         executor.shutdown();
 
-        assertEquals(30, successCount.get(), "All 30 reservations should succeed within FREE plan limit");
+        assertEquals(threadCount, successCount.get(), "All " + threadCount + " reservations should succeed within FREE plan limit");
         assertEquals(0, failureCount.get(), "No reservations should fail within plan limit");
+        assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
 
         UsageBucket bucket = mongoTemplate.findById(orgId + ":CERTIFICATE:" + 
                 java.time.YearMonth.from(java.time.LocalDate.ofInstant(Instant.now(), java.time.ZoneOffset.UTC)).toString(), 
                 UsageBucket.class);
-        if (bucket != null) {
-            trackDocumentId("entitlement_usage", bucket.id());
-            assertEquals(30, bucket.used());
-        }
+        assertNotNull(bucket, "Bucket should exist after reservations");
+        trackDocumentId("entitlement_usage", bucket.id());
+        assertEquals(threadCount, bucket.used(), "Bucket should have " + threadCount + " reservations");
     }
 
     @Test
-    void concurrentReconcileOperationsAreSerializedByRevision() throws ExecutionException, InterruptedException {
+    void concurrentReconcileOperationsAreSerializedByRevision() throws InterruptedException {
         setupStore();
 
         String orgId = generateTestId("org");
@@ -304,12 +323,15 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
 
         int threadCount = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
         AtomicInteger successCount = new AtomicInteger(0);
+        List<Throwable> exceptions = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+            executor.submit(() -> {
                 try {
+                    startLatch.await();
                     for (int attempt = 0; attempt < 10; attempt++) {
                         UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                         if (current != null) {
@@ -323,16 +345,21 @@ class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest
                         }
                     }
                 } catch (Exception e) {
-                    // Thread failed
+                    synchronized (exceptions) {
+                        exceptions.add(e);
+                    }
+                } finally {
+                    doneLatch.countDown();
                 }
-            }, executor);
-            futures.add(future);
+            });
         }
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+        startLatch.countDown();
+        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All threads should complete");
         executor.shutdown();
 
         assertEquals(1, successCount.get(), "Only one reconcile should succeed");
+        assertTrue(exceptions.isEmpty(), "No exceptions should occur: " + exceptions);
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
