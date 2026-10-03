@@ -78,6 +78,7 @@ function focusPanel(panel) {
   panel.setAttribute('tabindex', '-1');
   panel.focus({ preventScroll: true });
 }
+const roleLabel = (role) => String(role).replaceAll('_', ' ').toLowerCase();
 let pendingRequests = 0;
 function updateBusyIndicator() {
   document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
@@ -713,7 +714,7 @@ async function loadMembers(pageNumber = 0) {
       if (member.active) {
         const save = button('Save role', async () => {
           if (select.value === member.role) { notice('That is already the current role.'); return; }
-          if (!await confirmDialog(`Change ${member.displayName} from ${member.role.replaceAll('_', ' ')} to ${select.value.replaceAll('_', ' ')}?`)) return;
+          if (!await confirmDialog(`Change ${member.displayName} from ${roleLabel(member.role)} to ${roleLabel(select.value)}?`)) return;
           save.disabled = true;
           try {
             await request(ownOrg(`/members/${encodeURIComponent(member.userId)}/role`),
@@ -732,7 +733,7 @@ async function loadMembers(pageNumber = 0) {
         actions.push(save, deactivate);
       } else {
         const reactivate = button('Reactivate', async () => {
-          if (!await confirmDialog(`Reactivate ${member.displayName} with the role ${select.value.replaceAll('_', ' ')}?`)) return;
+          if (!await confirmDialog(`Reactivate ${member.displayName} with the role ${roleLabel(select.value)}?`)) return;
           reactivate.disabled = true;
           try {
             await request(ownOrg('/members'), { method: 'POST',
