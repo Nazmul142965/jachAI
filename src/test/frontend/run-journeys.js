@@ -179,7 +179,7 @@ async function main() {
   check(journey, 'dialog counts unsaved answers', /1 answer is not saved/.test(await dialogText()));
   await clickDialog('primary'); await wait(1500);
   const result = await ev(`document.querySelector('#result-panel').textContent`);
-  check(journey, 'pending-release result hides the score', result.includes('Your score stays hidden') && !/%/.test(result));
+  check(journey, 'pending-grading result hides the score', result.includes('Manual grading is still in progress') && !/%/.test(result));
   check(journey, 'pending result offers Check again', await ev(`[...document.querySelectorAll('#result-panel button')].some((b) => b.textContent === 'Check again')`));
 
   // Learner assessment detail: window, attempts, result, feedback and tutor on one screen.
@@ -188,8 +188,10 @@ async function main() {
     /Assignment asg-1/.test(await ev(`document.querySelector('#assessment-detail-view').textContent`)));
   check(journey, 'attempt usage is counted from the server attempt list',
     /1 used of 2 allowed/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
-  check(journey, 'an assessment name the API does not return is reported, not invented',
-    /does not return them to a learner/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
+  check(journey, 'assessment metadata from the API is shown before starting',
+    /Java Basics/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`))
+      && /20 minutes/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`))
+      && /5 question/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
   await clickText('#assessment-detail-attempts', 'View result, feedback and tutor'); await wait(1400);
   check(journey, 'released result and topic feedback render in the detail screen',
     /4 of 5 correct/.test(await ev(`document.querySelector('#assessment-detail-result').textContent`)));

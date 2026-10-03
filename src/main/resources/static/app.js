@@ -1274,9 +1274,12 @@ async function loadAssignments(pageNumber = 0) {
     }
     const origin = assignment.batchAssessmentId ? ' · Assigned through a batch'
       : assignment.campaignId ? ' · Assigned through a hiring campaign' : '';
-    return item(resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
+    return item(assignment.assessmentTitle
+      ? `${assignment.assessmentTitle}${resumable ? ' · attempt in progress' : ''}`
+      : resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
       `${state} · Available ${new Date(from).toLocaleString()} – ${new Date(until).toLocaleString()}`
-        + ` · ${assignment.attemptsAllowed} attempt(s)${origin}`,
+        + ` · ${assignment.attemptsAllowed} attempt(s)${origin}`
+        + (assignment.durationMinutes != null ? ` · ${assignment.durationMinutes} min` : ''),
       [button('Open assessment', () => openAssessmentDetail(assignment)),
         start, button('Attempt history', () => showHistory(assignment))]);
   }), 'No assignments yet.');
@@ -1525,8 +1528,13 @@ function renderResult(result, target = '#result-panel') {
   const panel = $(target); panel.replaceChildren(node('h2', 'Your result'));
   panel.append(node('p', `Attempt ID: ${result.attemptId}`, 'item-meta'));
   if (!result.released) {
-    panel.append(node('p', 'Submitted. Your score stays hidden until staff release the result or finish manual grading.', 'muted'));
-    panel.append(button('Check again', () => showResult(result.attemptId), 'button secondary'));
+    const message = result.state === 'GRADING_PENDING'
+      ? 'Submitted. Manual grading is still in progress; your score is not available yet.'
+      : result.state === 'RELEASE_PENDING'
+        ? 'Submitted and graded. Staff have not released your result yet.'
+        : 'Submitted. Your score stays hidden until grading and staff release are complete.';
+    panel.append(node('p', message, 'muted'));
+    panel.append(button('Check again', () => showResult(result.attemptId, target), 'button secondary'));
   } else {
     panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`),
       node('p', [result.submittedAt ? `Submitted ${new Date(result.submittedAt).toLocaleString()}` : null,
@@ -1611,7 +1619,9 @@ async function loadAssessmentDetail() {
   }
   await loadList('#assessment-detail-summary', async () => {
     let assignment = state.detailAssignment;
-    if (!assignment) {
+    if (!assignment && state.detailAssignmentId) {
+      assignment = await request(ownOrg(`/assignments/${encodeURIComponent(state.detailAssignmentId)}`));
+    } else if (!assignment) {
       const page = await request(ownOrg('/assignments/mine?page=0'));
       if (assessmentDetailStale(token)) return;
       assignment = (page.content || [])[0] || null;
@@ -1634,7 +1644,7 @@ async function renderAssessmentDetail(assignment, token) {
   const origin = assignment.batchAssessmentId ? 'Assigned through a batch'
     : assignment.campaignId ? 'Assigned through a hiring campaign' : 'Assigned directly';
   $('#assessment-detail-empty').classList.add('hidden');
-  $('#assessment-detail-title').textContent = 'Assessment detail';
+  $('#assessment-detail-title').textContent = assignment.assessmentTitle || 'Assessment detail';
   $('#assessment-detail-subtitle').textContent = `${availability} · ${origin} · Assignment ${assignment.id}`;
   const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignment.id)}/attempts/mine`));
   if (assessmentDetailStale(token)) return;
@@ -1646,8 +1656,11 @@ async function renderAssessmentDetail(assignment, token) {
     item('Right now', availability),
     item('Attempts', `${used} used of ${allowed} allowed · ${remaining} remaining`),
     item('Where it came from', origin),
-    item('Assessment name and time limit',
-      'The current assignment API does not return them to a learner, so they are not shown here instead of being guessed.'),
+    item('Assessment', assignment.assessmentTitle || 'Name unavailable'),
+    item('Time limit', assignment.durationMinutes != null
+      ? `${assignment.durationMinutes} minutes, controlled by the server` : 'Unavailable'),
+    item('Questions', assignment.questionCount != null
+      ? `${assignment.questionCount} question(s)` : 'Unavailable'),
     item('Assignment identifier', assignment.id)
   ], 'No assignment detail is available.');
   const start = button(remaining === 0 ? 'No attempts remaining' : 'Start an attempt',

@@ -53,16 +53,17 @@ instructions are accepted).
 ## Keeping fixtures honest
 
 `fixtures.js` mirrors the Java records (`AttemptView`, `StaffAttemptReviewView`, `ResultView`,
-`Assignment`, `Platform*View`, `UsageReconciliationReport`, `TelemetryEventView`). If a backend field
+`AssignmentView`, `Platform*View`, `UsageReconciliationReport`, `TelemetryEventView`). If a backend field
 is renamed, update the fixture **and** the check: a fixture that no longer matches the contract turns
 a real regression into a green run.
 
-## Known API gaps (documented, not patched from the frontend)
+## Learner API gaps closed in main
 
-| Endpoint | Problem | Effect on the UI | Suggested backend change |
-| --- | --- | --- | --- |
-| `GET /api/v1/organizations/{orgId}/assignments/mine` | returns `Assignment`, which carries no assessment title, duration or question count | a learner's assignment row cannot name the assessment or show its time limit before starting; the assessment routes are staff-only (403 for learners) | add `assessmentTitle` and `durationMinutes` to the assignment payload, or expose a learner-readable assignment summary |
-| `GET /api/v1/organizations/{orgId}/attempts/{attemptId}/result` | `ResultView` exposes only a boolean `released` | "awaiting manual grading" and "awaiting staff release" are indistinguishable to the learner, so the pending copy must stay generic | add a pending reason or a granular release state |
+`GET .../assignments/mine` now returns `AssignmentView` with `assessmentTitle`,
+`durationMinutes`, and `questionCount`; `GET .../assignments/{id}` retrieves only the signed-in
+learner's or candidate's own assignment. Neither route exposes questions or answer keys.
+`ResultView.state` now distinguishes `GRADING_PENDING`, `RELEASE_PENDING`, and `RELEASED` without
+revealing a score before release. The fixture journey checks that the learner screen uses those fields.
 
 ## Live gate (pending)
 

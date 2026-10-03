@@ -49,12 +49,12 @@ in-app screens and the platform manual-plan controls are still to do (checklist 
    a full `mvnw -o test` at the end. Do not boot Spring for static fixture checks; use
    `node src/test/frontend/run-journeys.js --screens`.
 
-## Documented API gaps (frontend works around them)
+## Documented API gaps resolved in main
 
 | Endpoint | Problem |
 | --- | --- |
-| `GET …/assignments/mine` | `Assignment` carries no assessment title, duration or question count, so a learner cannot see what an assignment is before starting |
-| `GET …/attempts/{id}/result` | `ResultView` exposes only a boolean `released`, so "awaiting manual grading" and "awaiting staff release" cannot be distinguished |
+| `GET …/assignments/mine` | Resolved by `AssignmentView` with assessment title, duration and question count; own-assignment detail is available at `GET …/assignments/{id}`. |
+| `GET …/attempts/{id}/result` | Resolved by `ResultView.state`: `GRADING_PENDING`, `RELEASE_PENDING`, `RELEASED`. |
 
 ## Live gate (pending)
 
