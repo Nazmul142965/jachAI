@@ -406,10 +406,33 @@ async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
   await Promise.all([
     loadList('#platform-operations', () => loadPlatformOperations(), 'Operational counts could not be loaded.'),
+    loadList('#platform-storage', () => loadPlatformStorage(), 'Storage metrics could not be loaded.'),
     loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')
   ]);
   if (state.platformOrganizationId) await inspectPlatformOrganization(state.platformOrganizationId);
   if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
+}
+function formatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value < 0) return 'not reported';
+  const mb = value / 1048576;
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  return `${Math.round(value / 1024)} KB`;
+}
+async function loadPlatformStorage() {
+  const storage = await request('/platform/operations/storage');
+  const rows = [
+    item(`${storage.warning ? 'Warning: ' : ''}Estimated logical size ${formatBytes(storage.estimatedLogicalBytes)}`,
+      `Data ${formatBytes(storage.dataBytes)} · Indexes ${formatBytes(storage.indexBytes)}`
+        + ` · measured ${storage.generatedAt ? new Date(storage.generatedAt).toLocaleString() : 'unknown'}`),
+    item('Configured warning threshold', `${formatBytes(storage.warningThresholdBytes)} · set by ATLAS_STORAGE_WARNING_BYTES`)
+  ];
+  if (storage.warning) {
+    rows.push(item('Above the configured threshold',
+      'Treat this as a prompt to review retention, telemetry, audit and email growth — not as proof that a quota has been exceeded.'));
+  }
+  setList('#platform-storage', rows, 'Storage metrics are unavailable.');
 }
 async function loadPlatformOperations() {
   const summary = await request('/platform/operations/summary');
