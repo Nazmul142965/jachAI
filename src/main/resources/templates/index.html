@@ -108,7 +108,7 @@
             <fieldset id="question-correct-options"><legend>Correct option(s)</legend><label class="check"><input type="checkbox" name="correct" value="A"> A</label><label class="check"><input type="checkbox" name="correct" value="B"> B</label><label class="check"><input type="checkbox" name="correct" value="C"> C</label><label class="check"><input type="checkbox" name="correct" value="D"> D</label></fieldset>
             <button class="button primary" type="submit">Save draft</button></form>
         </div>
-        <div class="card panel"><h2>AI-assisted draft</h2><p class="muted">An available AI provider and quota are required. Generated questions remain drafts.</p>
+        <div class="card panel"><h2>AI-assisted draft</h2><p class="muted">Optional. AI drafting needs an AI provider configured on the server (Gemini or local Ollama) and the AI quota service (Redis). Generated questions are always drafts that a human must review, and AI never sets an official score.</p>
           <form id="ai-draft-form" class="stack"><div class="form-row"><label>Topic<input name="topic" maxlength="80" required></label><label>Type<select name="type"><option value="SINGLE_CHOICE">Single choice</option><option value="MULTIPLE_CHOICE">Multiple choice</option></select></label></div><label>Brief<textarea name="brief" rows="2" maxlength="1200" required placeholder="What should this question test?"></textarea></label><button class="button secondary" type="submit">Generate draft</button></form>
         </div>
       </section>

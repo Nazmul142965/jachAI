@@ -104,6 +104,26 @@ function fieldErrors(form, error) {
   }
   return marked;
 }
+function explainAiFailure(error) {
+  switch (error?.code) {
+    case 'PLAN_FEATURE_UNAVAILABLE':
+      return 'AI is not part of this workspace plan. Write the question manually, or ask an administrator about the plan.';
+    case 'AI_QUOTA_EXCEEDED':
+      return 'The AI quota for today is used up. It resets daily and manual authoring still works.';
+    case 'AI_QUOTA_UNAVAILABLE':
+      return 'AI is unavailable because the quota service (Redis) cannot be reached. This deployment fails closed instead of skipping the quota.';
+    case 'AI_UNAVAILABLE':
+      return 'No AI provider is configured, or the configured provider could not be reached. AI drafting is an optional server setting (Gemini or local Ollama); write the question manually meanwhile.';
+    case 'AI_INVALID_OUTPUT':
+      return 'The AI provider returned content JachAI could not use. Try again, or write the question manually.';
+    case 'AI_QUESTION_TYPE_UNSUPPORTED':
+      return 'AI drafting supports single-choice and multiple-choice questions only.';
+    case 'TUTOR_NOT_READY':
+      return 'Tutoring is available only after the result has been graded and released.';
+    default:
+      return null;
+  }
+}
 async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -143,6 +163,7 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
       ? (data?.message ? `Not allowed: ${data.message}` : 'Your role does not allow this action.')
       : (data?.message || `Request failed (${response.status}).`));
     failure.status = response.status;
+    failure.code = data?.code || null;
     failure.details = data?.details || null;
     throw failure;
   }
@@ -1362,14 +1383,21 @@ function renderResult(result) {
         panel.append(box);
       }));
       const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the AI Tutor'));
+      form.append(node('p', 'Tutoring uses the AI provider configured on this deployment. If none is available you will see an explanation here.', 'muted'));
       const label = node('label', 'Your question'); const input = node('textarea');
       input.required = true; input.maxLength = 1200; input.rows = 2; label.append(input);
       const submit = node('button', 'Ask tutor', 'button secondary'); submit.type = 'submit';
       form.append(label, submit);
       form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-        const reply = await request(ownOrg(`/attempts/${encodeURIComponent(result.attemptId)}/tutor`),
-          { method: 'POST', body: { question: input.value.trim() } });
-        panel.append(node('p', reply.explanation, 'result-box'));
+        try {
+          const reply = await request(ownOrg(`/attempts/${encodeURIComponent(result.attemptId)}/tutor`),
+            { method: 'POST', body: { question: input.value.trim() } });
+          panel.append(node('p', reply.explanation, 'result-box'));
+        } catch (error) {
+          const explanation = explainAiFailure(error);
+          if (!explanation) throw error;
+          panel.append(node('p', explanation, 'result-box'));
+        }
       }); });
       panel.append(form);
     }
@@ -1766,10 +1794,19 @@ $('#question-form').addEventListener('submit', (event) => { event.preventDefault
   await loadQuestions(); notice('Question saved as a draft.');
 }); });
 $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
-  await request(ownOrg('/ai/question-drafts'), { method: 'POST',
-    body: { topic: form.get('topic'), brief: form.get('brief'), type: form.get('type') } });
-  event.currentTarget.reset(); await loadQuestions(); notice('AI draft saved. Review before approval.');
+  const element = event.currentTarget;
+  const form = new FormData(element);
+  const control = element.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    await request(ownOrg('/ai/question-drafts'), { method: 'POST',
+      body: { topic: form.get('topic'), brief: form.get('brief'), type: form.get('type') } });
+    element.reset(); await loadQuestions(); notice('AI draft saved. Review before approval.');
+  } catch (error) {
+    const explanation = explainAiFailure(error);
+    if (!explanation) throw error;
+    notice(explanation, true);
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#assessment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget); const questionIds = [...state.selectedQuestionIds];
