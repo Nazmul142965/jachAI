@@ -28,6 +28,7 @@ import com.jachai.assessment.service.AssessmentService;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.service.AssignmentService;
 import com.jachai.attempt.service.AttemptService;
+import com.jachai.attempt.repository.AttemptAnswerStore;
 import com.jachai.attempt.service.IntegrityTelemetryService;
 import com.jachai.organization.service.MembershipService;
 import com.jachai.ai.service.QuestionDraftService;
@@ -76,6 +77,7 @@ class JachAiApplicationTests {
     @MockitoBean PublishedVersionStore publishedVersionStore;
     @MockitoBean AssignmentService assignmentService;
     @MockitoBean AttemptService attemptService;
+    @MockitoBean AttemptAnswerStore attemptAnswerStore;
     @MockitoBean IntegrityTelemetryService integrityTelemetryService;
     @MockitoBean MembershipService membershipService;
     @MockitoBean QuestionDraftService questionDraftService;

@@ -16,6 +16,7 @@ import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AssignmentRepository;
 import com.jachai.attempt.repository.AttemptRepository;
+import com.jachai.attempt.repository.AttemptAnswerStore;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.model.QuestionType;
@@ -47,6 +48,7 @@ import org.springframework.stereotype.Service;
 public class AttemptService {
     private final AssignmentRepository assignments;
     private final AttemptRepository attempts;
+    private final AttemptAnswerStore answerStore;
     private final PublishedVersionStore versions;
     private final TenantAccessService access;
     private final UserRepository users;
@@ -55,11 +57,13 @@ public class AttemptService {
     private final String publicBaseUrl;
 
     public AttemptService(AssignmentRepository assignments, AttemptRepository attempts,
+                          AttemptAnswerStore answerStore,
                           PublishedVersionStore versions, TenantAccessService access,
                           UserRepository users, EmailSender emailSender, AuditEventRepository auditEvents,
                           @Value("${app.public-base-url}") String publicBaseUrl) {
         this.assignments = assignments;
         this.attempts = attempts;
+        this.answerStore = answerStore;
         this.versions = versions;
         this.access = access;
         this.users = users;
@@ -138,11 +142,8 @@ public class AttemptService {
                 || (question.type() == QuestionType.SINGLE_CHOICE && selectedOptionIds.size() > 1)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_ANSWER", "Selected option is invalid");
         }
-        try {
-            attempts.save(attempt.withAnswer(questionId, selectedOptionIds));
-        } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "ANSWER_CONFLICT", "Answer changed concurrently; reload and retry");
-        }
+        if (!answerStore.saveOptions(attempt, questionId, selectedOptionIds)) answerWriteConflict(userId,
+                organizationId, attemptId);
     }
 
     public void saveTextAnswer(String userId, String organizationId, String attemptId,
@@ -163,11 +164,17 @@ public class AttemptService {
         if (answer.isEmpty() || answer.length() > 4000) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_ANSWER", "Text answer must contain 1–4000 characters");
         }
-        try {
-            attempts.save(attempt.withTextAnswer(questionId, answer));
-        } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "ANSWER_CONFLICT", "Answer changed concurrently; reload and retry");
+        if (!answerStore.saveText(attempt, questionId, answer)) answerWriteConflict(userId,
+                organizationId, attemptId);
+    }
+
+    private void answerWriteConflict(String userId, String organizationId, String attemptId) {
+        Attempt current = ownAttempt(userId, organizationId, attemptId);
+        if (current.status() != AttemptStatus.IN_PROGRESS || !Instant.now().isBefore(current.deadline())) {
+            throw new ApiException(HttpStatus.CONFLICT, "ATTEMPT_CLOSED", "Attempt is closed");
         }
+        throw new ApiException(HttpStatus.CONFLICT, "ANSWER_CONFLICT",
+                "Answer changed concurrently; reload and retry");
     }
 
     public ResultView submit(String userId, String organizationId, String attemptId) {

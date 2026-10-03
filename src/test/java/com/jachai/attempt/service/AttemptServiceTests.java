@@ -25,6 +25,7 @@ import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AssignmentRepository;
 import com.jachai.attempt.repository.AttemptRepository;
+import com.jachai.attempt.repository.AttemptAnswerStore;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.model.Question;
 import com.jachai.question.model.QuestionType;
@@ -52,6 +53,7 @@ import com.jachai.organization.model.OrganizationRole;
 class AttemptServiceTests {
     @Mock AssignmentRepository assignments;
     @Mock AttemptRepository attempts;
+    @Mock AttemptAnswerStore answerStore;
     @Mock PublishedVersionStore versions;
     @Mock TenantAccessService access;
     @Mock UserRepository users;
@@ -59,7 +61,7 @@ class AttemptServiceTests {
     @Mock AuditEventRepository auditEvents;
 
     private AttemptService service() {
-        return new AttemptService(assignments, attempts, versions, access, users, emailSender, auditEvents,
+        return new AttemptService(assignments, attempts, answerStore, versions, access, users, emailSender, auditEvents,
                 "https://jachai.example/");
     }
 
@@ -109,13 +111,12 @@ class AttemptServiceTests {
         when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
                 .thenReturn(Optional.of(attempt));
         when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.IMMEDIATE));
+        when(answerStore.saveText(attempt, "q-text", "A concise explanation")).thenReturn(true);
 
         service().saveTextAnswer("learner", "org-a", "attempt", "q-text", "  A concise explanation  ");
 
-        ArgumentCaptor<Attempt> saved = ArgumentCaptor.forClass(Attempt.class);
-        verify(attempts).save(saved.capture());
-        assertEquals("A concise explanation", saved.getValue().textAnswers().get("q-text"));
-        assertEquals(Map.of(), saved.getValue().answers());
+        verify(answerStore).saveText(attempt, "q-text", "A concise explanation");
+        verify(attempts, never()).save(any(Attempt.class));
     }
 
     @Test
@@ -359,6 +360,33 @@ class AttemptServiceTests {
         ApiException error = assertThrows(ApiException.class,
                 () -> service().saveAnswer("learner", "org-a", "attempt", "q1", Set.of("a")));
         assertEquals("ATTEMPT_CLOSED", error.code());
+    }
+
+    @Test
+    void answerWriteThatLosesToSubmissionIsClosed() {
+        Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now().minusSeconds(30), Instant.now().plusSeconds(300), AttemptStatus.IN_PROGRESS,
+                Map.of(), null, null, null, null, 0L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(attempt), Optional.of(attempt.submitted(Instant.now(), 0, false, false)));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version());
+
+        assertEquals("ATTEMPT_CLOSED", assertThrows(ApiException.class,
+                () -> service().saveAnswer("learner", "org-a", "attempt", "q1", Set.of("a"))).code());
+        verify(answerStore).saveOptions(attempt, "q1", Set.of("a"));
+    }
+
+    @Test
+    void answerWriteWithStaleRevisionRequiresReload() {
+        Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now().minusSeconds(30), Instant.now().plusSeconds(300), AttemptStatus.IN_PROGRESS,
+                Map.of(), null, null, null, null, 0L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(attempt));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version());
+
+        assertEquals("ANSWER_CONFLICT", assertThrows(ApiException.class,
+                () -> service().saveAnswer("learner", "org-a", "attempt", "q1", Set.of("a"))).code());
     }
 
     @Test
