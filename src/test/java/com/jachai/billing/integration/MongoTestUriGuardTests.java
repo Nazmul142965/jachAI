@@ -45,7 +45,7 @@ class MongoTestUriGuardTests {
                 MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017/jachai_it_billing"));
         assertEquals("jachai_it_assessment",
                 MongoTestUriGuard.requireDedicatedTestDatabase(
-                        "mongodb+srv://user:pass@cluster0.example.net/jachai_it_assessment?retryWrites=true"));
+                        "mongodb://localhost:27017/jachai_it_assessment?retryWrites=true"));
     }
 
     @Test

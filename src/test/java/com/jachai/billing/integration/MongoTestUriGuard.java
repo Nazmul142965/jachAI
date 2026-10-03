@@ -5,8 +5,9 @@ import com.mongodb.ConnectionString;
 /**
  * Validates the opt-in MongoDB test URI before any client, connection or index creation can happen.
  *
- * <p>The guard performs no I/O and never echoes the supplied URI, so a rejected URI can neither
- * connect to a database nor leak credentials into test output. It is called from two places in
+ * <p>The guard never opens a MongoDB client or echoes the supplied URI. Parsing an
+ * {@code mongodb+srv} URI may perform DNS lookups, so offline tests use ordinary
+ * {@code mongodb://} examples. It is called from two places in
  * {@link BaseMongoIntegrationTest}: the Spring {@code @DynamicPropertySource} hook (which runs while
  * the environment is customized, before the context is refreshed) and the JUnit {@code @BeforeAll}
  * hook used by the classes that build their own {@code MongoTemplate}.

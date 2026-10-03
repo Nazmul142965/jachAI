@@ -87,8 +87,9 @@ $env:JAVA_HOME='C:\Users\nazmul\.jdks\ms-21.0.12.1'
 $env:MONGODB_TEST_URI='mongodb://localhost:27017/jachai_it_billing'
 ```
 
-Valid: `mongodb://localhost:27017/jachai_it_billing`,
-`mongodb+srv://user:pass@cluster0.example.net/jachai_it_assessment?retryWrites=true`.
+Valid offline example: `mongodb://localhost:27017/jachai_it_billing`.
+Atlas `mongodb+srv` URIs are supported when the hostname has real SRV records; a fake example
+hostname cannot be used in the offline parser test because parsing may perform DNS lookups.
 Rejected: `mongodb://localhost:27017/jachai`, `.../production`, a URI with no database, a malformed
 string, or anything sourced from `MONGODB_URI`.
 
