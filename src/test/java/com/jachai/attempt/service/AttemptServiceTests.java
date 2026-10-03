@@ -105,6 +105,25 @@ class AttemptServiceTests {
         verify(versionRepository).findByIdInAndOrganizationId(Set.of("assessment:1"), "org-a");
     }
 
+    @Test
+    void participantCanOpenOnlyTheirOwnAssignmentDetail() {
+        var assignment = new Assignment("a1", "org-a", "assessment", "assessment:1", null, null,
+                "learner", 2, Instant.now(), Instant.now().plusSeconds(3600), Instant.now());
+        when(assignments.findByIdAndOrganizationIdAndAssignedUserId("a1", "org-a", "learner"))
+                .thenReturn(Optional.of(assignment));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version());
+
+        var detail = service().myAssignment("learner", "org-a", "a1");
+
+        assertEquals("a1", detail.id());
+        assertEquals("Java", detail.assessmentTitle());
+        assertEquals(20, detail.durationMinutes());
+        assertEquals(1, detail.questionCount());
+        verify(access).requireRole("learner", "org-a", OrganizationRole.LEARNER, OrganizationRole.CANDIDATE);
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().myAssignment("other-user", "org-a", "a1")).code());
+    }
+
     private void recipient() {
         when(users.findById("learner")).thenReturn(Optional.of(new User("learner", "learner@example.com",
                 "Learner", null, true, false, 0, Instant.now())));

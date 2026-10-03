@@ -93,6 +93,12 @@ public class AttemptService {
                 metadata.get(assignment.assessmentVersionId())));
     }
 
+    public AssignmentView myAssignment(String userId, String organizationId, String assignmentId) {
+        requireParticipant(userId, organizationId);
+        Assignment assignment = ownAssignment(userId, organizationId, assignmentId);
+        return AssignmentView.from(assignment, version(organizationId, assignment.assessmentVersionId()));
+    }
+
     public List<AttemptSummary> myAttempts(String userId, String organizationId, String assignmentId) {
         requireParticipant(userId, organizationId);
         ownAssignment(userId, organizationId, assignmentId);

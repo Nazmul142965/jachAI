@@ -46,6 +46,12 @@ public class AttemptController {
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
     }
 
+    @GetMapping("/assignments/{assignmentId}")
+    public AssignmentView myAssignment(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String assignmentId) {
+        return attempts.myAssignment(jwt.getSubject(), organizationId, assignmentId);
+    }
+
     @GetMapping("/assignments/{assignmentId}/attempts/mine")
     public List<AttemptSummary> myAttempts(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String assignmentId) {
