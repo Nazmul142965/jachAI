@@ -382,7 +382,10 @@ async function loadPaymentHistory(pageNumber = 0) {
 }
 async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
-  await Promise.all([loadPlatformOperations(), loadPlatformOrganizations(0)]);
+  await Promise.all([
+    loadList('#platform-operations', () => loadPlatformOperations(), 'Operational counts could not be loaded.'),
+    loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')
+  ]);
   if (state.platformOrganizationId) await inspectPlatformOrganization(state.platformOrganizationId);
   if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
 }
@@ -393,36 +396,49 @@ async function loadPlatformOperations() {
     item('Email jobs overdue over 15 minutes', String(summary.overdueEmailJobs)),
     item('Open sandbox checkouts older than 24 hours', String(summary.oldOpenSandboxOrders)),
     item('Verified orders not applied after 5 minutes', String(summary.verifiedButUnappliedOrders)),
-    item('Quota repairs without completion', String(summary.usageRepairRunsWithoutCompletion))
+    item('Quota repairs without completion', String(summary.usageRepairRunsWithoutCompletion)),
+    item('Counts generated', summary.generatedAt ? new Date(summary.generatedAt).toLocaleString() : 'Not reported')
   ], 'Operational counts are unavailable.');
 }
 async function loadPlatformOrganizations(pageNumber = 0) {
   const page = await request(`/platform/organizations?page=${pageNumber}`);
+  state.platformOrganizationNames = Object.fromEntries((page.content || []).map((organization) => [organization.id, organization.name]));
   setList('#platform-organizations', (page.content || []).map((organization) => item(
-    organization.name, `${organization.type} · ${organization.id}`,
+    organization.name,
+    `${organization.type} · ${organization.id} · Owner ${organization.ownerUserId || 'not recorded'}`
+      + ` · Created ${organization.createdAt ? new Date(organization.createdAt).toLocaleDateString() : 'unknown'}`,
     [button('Inspect', () => inspectPlatformOrganization(organization.id))])),
   'No organizations found.');
   renderPageControls('#platform-organizations-pagination', page, loadPlatformOrganizations);
+  attachFilter('#platform-organizations', 'Filter organizations by name, type, ID or owner');
 }
 async function inspectPlatformOrganization(organizationId) {
   const id = organizationId?.trim();
   if (!id) throw new Error('Choose an organization first.');
-  state.platformOrganizationId = id;
-  $('#platform-organization-id').value = id;
   const token = ++state.platformLoadToken;
+  state.platformOrganizationId = id;
+  state.platformOrganizationName = state.platformOrganizationNames?.[id] || null;
+  $('#platform-organization-id').value = id;
   $('#platform-repair-usage').disabled = true;
-  await Promise.all([
-    loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
-    loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token)
-  ]);
-  if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
+  for (const selector of ['#platform-billing', '#platform-orders', '#platform-usage-report', '#platform-usage-audit']) {
+    beginList(selector);
+  }
+  try {
+    await Promise.all([
+      loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
+      loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token)
+    ]);
+  } finally {
+    if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
+  }
 }
 async function loadPlatformBilling(id, token) {
   const billing = await request(`/platform/organizations/${encodeURIComponent(id)}/billing`);
   if (token !== state.platformLoadToken) return;
   setList('#platform-billing', billing.subscriptionPresent ? [
     item(`${billing.tier} · ${billing.status}`,
-      `Period ends ${billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd).toLocaleString() : 'not set'}`),
+      `Period ends ${billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd).toLocaleString() : 'not set'}`
+        + ` · Subscription updated ${billing.updatedAt ? new Date(billing.updatedAt).toLocaleString() : 'unknown'}`),
     item('Last paid order', billing.lastPaidOrderId || 'None')
   ] : [item('No subscription record', 'Effective plan is FREE until a verified sandbox payment is applied.')],
   'No billing data.');
@@ -460,45 +476,78 @@ async function loadPlatformUsageAudit(id, pageNumber, token) {
 async function inspectPlatformUser(userId) {
   const id = userId?.trim();
   if (!id) throw new Error('Enter an exact user ID first.');
-  state.platformTargetUserId = id;
-  $('#platform-user-id').value = id;
   const token = ++state.platformUserLoadToken;
+  // Clear the target first: a failed lookup must not leave the previous user's data on screen with
+  // the role buttons still pointing at the new ID.
+  state.platformTargetUserId = null;
+  state.platformTargetUser = null;
   $('#platform-grant-role').disabled = true;
   $('#platform-revoke-role').disabled = true;
-  const [user, role] = await Promise.all([
-    request(`/platform/users/${encodeURIComponent(id)}`),
-    request(`/platform/users/${encodeURIComponent(id)}/role`)
-  ]);
-  if (token !== state.platformUserLoadToken) return;
-  setList('#platform-user-summary', [
-    item(user.displayName, `${user.email} · ${user.id}`),
-    item(role.platformAdmin ? 'Platform administrator' : 'No platform role',
-      `${user.emailVerified ? 'Verified' : 'Unverified'} · ${user.disabled ? 'Disabled' : 'Active'}${role.bootstrapAdmin ? ' · Environment bootstrap' : ''}`)
-  ], 'No user selected.');
-  const canChange = id !== state.platformUserId && !role.bootstrapAdmin;
-  $('#platform-grant-role').disabled = !canChange || role.platformAdmin || !user.emailVerified || user.disabled;
-  $('#platform-revoke-role').disabled = !canChange || !role.platformAdmin;
-  await loadPlatformRoleAudit(id, 0, token);
+  beginList('#platform-user-summary');
+  beginList('#platform-role-audit');
+  try {
+    const [user, role] = await Promise.all([
+      request(`/platform/users/${encodeURIComponent(id)}`),
+      request(`/platform/users/${encodeURIComponent(id)}/role`)
+    ]);
+    if (token !== state.platformUserLoadToken) return;
+    state.platformTargetUserId = id;
+    state.platformTargetUser = {
+      id: user.id, displayName: user.displayName, email: user.email,
+      platformAdmin: role.platformAdmin, bootstrapAdmin: role.bootstrapAdmin
+    };
+    $('#platform-user-id').value = id;
+    setList('#platform-user-summary', [
+      item(user.displayName, `${user.email} · ${user.id}`),
+      item(role.platformAdmin ? 'Platform administrator' : 'No platform role',
+        `${user.emailVerified ? 'Verified' : 'Unverified'} · ${user.disabled ? 'Disabled' : 'Active'}${role.bootstrapAdmin ? ' · Environment bootstrap' : ''}`)
+    ], 'No user selected.');
+    const canChange = id !== state.platformUserId && !role.bootstrapAdmin;
+    $('#platform-grant-role').disabled = !canChange || role.platformAdmin || !user.emailVerified || user.disabled;
+    $('#platform-revoke-role').disabled = !canChange || !role.platformAdmin;
+    await loadPlatformRoleAudit(id, 0, token);
+  } catch (error) {
+    if (token === state.platformUserLoadToken) {
+      setList('#platform-user-summary', [], 'No user selected.');
+      setList('#platform-role-audit', [], 'No role changes recorded.');
+      $('#platform-role-audit-pagination').replaceChildren();
+    }
+    throw error;
+  }
 }
 async function loadPlatformRoleAudit(id, pageNumber, token) {
   const page = await request(`/platform/users/${encodeURIComponent(id)}/role/audit?page=${pageNumber}`);
   if (token !== state.platformUserLoadToken) return;
   setList('#platform-role-audit', (page.content || []).map((event) => item(
     `${event.action} · revision ${event.revision}`,
-    `By ${event.actorUserId} · ${new Date(event.occurredAt).toLocaleString()}`)),
+    `Target ${event.targetUserId || id} · By ${event.actorUserId} · ${new Date(event.occurredAt).toLocaleString()}`)),
   'No role changes recorded.');
   renderPageControls('#platform-role-audit-pagination', page,
     (nextPage) => loadPlatformRoleAudit(id, nextPage, token));
 }
 async function changePlatformRole(grant) {
   const id = state.platformTargetUserId;
+  const target = state.platformTargetUser;
   if (!id || $('#platform-user-id').value.trim() !== id)
     throw new Error('Inspect the exact user ID before changing their role.');
-  if (!await confirmDialog(`${grant ? 'Grant' : 'Revoke'} platform administrator access for user ${id}?`)) return;
-  await request(`/platform/users/${encodeURIComponent(id)}/role`,
-    { method: 'PUT', body: { platformAdmin: grant } });
-  await inspectPlatformUser(id);
-  notice(`Platform administrator access ${grant ? 'granted' : 'revoked'}.`);
+  const identity = target
+    ? `${target.displayName} <${target.email}>\nUser ID ${target.id}`
+    : `User ID ${id}`;
+  const currentRole = target?.platformAdmin ? 'platform administrator' : 'no platform role';
+  const nextRole = grant ? 'platform administrator' : 'no platform role';
+  if (!await confirmDialog(`${grant ? 'Grant' : 'Revoke'} platform administrator access?\n\n${identity}\n\nRole changes from ${currentRole} to ${nextRole}. The change is audited and applies immediately.`)) return;
+  $('#platform-grant-role').disabled = true;
+  $('#platform-revoke-role').disabled = true;
+  try {
+    await request(`/platform/users/${encodeURIComponent(id)}/role`,
+      { method: 'PUT', body: { platformAdmin: grant } });
+    await inspectPlatformUser(id);
+    notice(`Platform administrator access ${grant ? 'granted' : 'revoked'}.`);
+  } catch (error) {
+    $('#platform-grant-role').disabled = false;
+    $('#platform-revoke-role').disabled = false;
+    throw error;
+  }
 }
 async function loadOrganizationSettings() {
   const settings = await request(ownOrg('/settings'));
@@ -1930,7 +1979,8 @@ $('#platform-repair-usage').addEventListener('click', () => run(async () => {
   const id = state.platformOrganizationId;
   if (!id || $('#platform-organization-id').value.trim() !== id)
     throw new Error('Inspect the selected organization before repairing its quota.');
-  if (!await confirmDialog(`Repair only provable quota gaps for organization ${id}? Review the preview first.`)) return;
+  const name = state.platformOrganizationName ? `"${state.platformOrganizationName}" (${id})` : id;
+  if (!await confirmDialog(`Repair provable quota gaps for ${name}?\n\nThe repair changes only counts justified by durable records. The preview above is not a promise of what will change, every run is audited, and ambiguous history still needs manual review.`)) return;
   $('#platform-repair-usage').disabled = true;
   try {
     await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation`,
