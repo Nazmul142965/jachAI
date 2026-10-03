@@ -12,7 +12,7 @@ the live classes describes what the code does when it runs; it is not evidence t
 |---|---|---|
 | Command | `.\mvnw.cmd -o test` (JDK 21) | same command **with `MONGODB_TEST_URI` set** |
 | Requires MongoDB | no | yes, a dedicated `jachai_it_*` database |
-| Classes | 50 test classes, **371 tests, 0 failures/errors/skips** | the five `billing.integration.*IntegrationTests` classes |
+| Classes | 51 test classes, **376 tests, 0 failures/errors/skips** | the five `billing.integration.*IntegrationTests` classes |
 | What it proves | unit and mock-based behaviour | real index creation, CAS, concurrency, tenant-scoped reads |
 
 ### A green offline run does not mean the live tests passed
@@ -45,37 +45,32 @@ from the project-wide totals.
 - **Credential-free failure reporting**: failures name the collection, the document ID and the
   exception type only. Connection strings and credentials are never printed.
 
-## How the URI guard is ordered (and what is not guaranteed)
+## How the URI guard is ordered
 
-The guard lives in `MongoTestUriGuard.requireDedicatedTestDatabase` and is called from two places, so
-three layers apply:
+The guard lives in `MongoTestUriGuard.requireDedicatedTestDatabase`. Four layers apply:
 
 1. **Profile binding** — `src/test/resources/application-integration.properties` binds
    `spring.data.mongodb.uri=${MONGODB_TEST_URI}`. There is no fallback, so the integration profile can
    only ever point at the variable this guard validates.
-2. **`@DynamicPropertySource`** (`BaseMongoIntegrationTest.bindDedicatedTestDatabase`) — Spring invokes
+2. **Test-classpath environment post-processor** — `MongoIntegrationEnvironmentGuard` is registered in
+   `src/test/resources/META-INF/spring.factories`. Every Spring Boot context using the `integration`
+   profile validates `MONGODB_TEST_URI` while preparing the environment, even if its test class does
+   not inherit `BaseMongoIntegrationTest`.
+3. **`@DynamicPropertySource`** (`BaseMongoIntegrationTest.bindDedicatedTestDatabase`) — Spring invokes
    dynamic property sources while it *customizes the environment*, which happens before the context is
    refreshed. The `MongoClient` bean is created and automatic index creation happens during refresh, so
    a rejected URI fails here, before any connection or index write.
-3. **`@BeforeAll`** (`BaseMongoIntegrationTest.validateTestUriAndConnect`) — for the classes that build
+4. **`@BeforeAll`** (`BaseMongoIntegrationTest.validateTestUriAndConnect`) — for the classes that build
    their own `MongoTemplate`, the URI is validated before `MongoClients.create` is reached.
 
-`@DynamicPropertySource` alone is *not* treated as the guarantee. Layer 2 only runs if a Spring context
-is prepared at all. What actually keeps the two layers ordered today is JUnit's default `PER_METHOD`
-lifecycle: the class-level `@BeforeAll` runs before the first test instance is prepared, and Spring
-loads the context when it prepares that instance. This is observable: with `MONGODB_TEST_URI` unset,
-`IndexCreationIntegrationTests` (0.635 s) and `TtlIndexBehaviorIntegrationTests` (0.018 s) report
-0 tests with no context-startup or unresolved-placeholder error, while the smoke test that really does
-start a context takes about 10 s.
-
-The residual risk is explicit: adding `@TestInstance(PER_CLASS)`, a `@Nested` class, or a
-`@SpringBootTest` class in this profile that does not extend `BaseMongoIntegrationTest` would prepare a
-context first, and with `spring.data.mongodb.auto-index-creation=true` that means connecting and
-creating indexes on whatever database `MONGODB_TEST_URI` names — for a URI that fails the prefix check,
-that happens before layer 2 rejects it. Any such class must extend the base class.
+The environment post-processor is test-only and executes before Mongo client/index creation during
+Spring context startup. The base-class hooks remain defense in depth and cover classes constructing
+their own clients. A future test that creates a Mongo client directly without either Spring's
+`integration` profile or the base class would bypass these safeguards; do not add such a test.
 
 `MongoTestUriGuardTests` proves the guard itself offline (missing URI, no database, non-test database,
 malformed string, valid database, and that a rejected URI is never echoed). It needs no MongoDB.
+`MongoIntegrationEnvironmentGuardTests` verifies the profile gate and the Spring factory registration.
 
 ## Prerequisites
 
