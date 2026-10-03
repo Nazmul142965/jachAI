@@ -7,9 +7,16 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
   selectedQuestionIds: new Set(),
   timer: null, activeConversationId: null, messageRefresh: null,
-  messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0, view: 'overview' };
-const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
-  'campaigns', 'attempts', 'certificates', 'platform'];
+  messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0,
+  batchWorkspaceCourses: [], batchWorkspaceBatches: [], batchWorkspaceCourseId: null,
+  batchWorkspaceBatchId: null, batchWorkspaceAssessmentId: null, batchWorkspaceAssessmentPage: 0,
+  batchWorkspaceToken: 0, talentCampaigns: [], campaignWorkspaceId: null,
+  campaignWorkspaceCandidateId: null, campaignWorkspaceCandidates: [],
+  campaignWorkspaceToken: 0, campaignWorkspacePage: 0,
+  detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
+  view: 'overview' };
+const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+  'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'platform'];
 const invitationFromLink = new URLSearchParams(location.search).get('invitation');
 const memberInvitationFromLink = new URLSearchParams(location.search).get('memberInvitation');
 const billingReturn = new URLSearchParams(location.search).get('billing');
@@ -80,6 +87,7 @@ function focusPanel(panel) {
 }
 const roleLabel = (role) => String(role).replaceAll('_', ' ').toLowerCase();
 const roleTitle = (role) => roleLabel(role).replace(/\b\w/g, (letter) => letter.toUpperCase());
+const when = (value) => (value ? new Date(value).toLocaleString() : 'not recorded');
 let pendingRequests = 0;
 function updateBusyIndicator() {
   document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
@@ -300,14 +308,16 @@ async function setOrganization() {
     group('Academy', [
       ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
         ? [['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']] : []),
+      ...(['ORG_ADMIN', 'INSTRUCTOR'].includes(role) ? [['academy-batch', 'Batch workspace']] : []),
       ...(['INSTRUCTOR', 'LEARNER'].includes(role) ? [['messages', 'Messages']] : []),
       ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
     ]);
   }
   if (state.organization.type === 'TALENT') {
-    group('Talent', staff ? [['campaigns', 'Hiring campaigns']] : []);
+    group('Talent', staff ? [['campaigns', 'Hiring campaigns'], ['talent-campaign', 'Campaign workspace']] : []);
   }
-  group('My work', ['LEARNER', 'CANDIDATE'].includes(role) ? [['attempts', 'My assessments']] : []);
+  group('My work', ['LEARNER', 'CANDIDATE'].includes(role)
+    ? [['attempts', 'My assessments'], ['assessment-detail', 'Assessment detail']] : []);
   group('Administration', state.platformAdmin ? [['platform', 'Platform']] : []);
   for (const [heading, items] of groups) {
     if (heading) nav.append(node('p', heading, 'nav-heading'));
@@ -360,9 +370,11 @@ async function loadOverviewMetrics() {
   if (state.organization.type === 'ACADEMY') {
     jobs.push(count('/questions?status=DRAFT&page=0', 'Questions awaiting approval', 'questions'));
     jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
+    // The card opens the batch workspace, which picks its first course and batch.
+    if (['ORG_ADMIN', 'INSTRUCTOR'].includes(role)) jobs.push(count('/academy/courses?page=0', 'Courses', 'academy-batch'));
   }
   if (state.organization.type === 'TALENT') {
-    jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'campaigns'));
+    jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'talent-campaign'));
     jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
   }
   if (role === 'ORG_ADMIN') jobs.push(count('/members?page=0', 'Members', 'members'));
@@ -389,8 +401,9 @@ async function showView(key) {
     if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
   }
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
-    assessments: 'Assessments', academy: 'Courses & batches', messages: 'Messages',
-    campaigns: 'Hiring campaigns', attempts: 'My assessments',
+    assessments: 'Assessments', academy: 'Courses & batches', 'academy-batch': 'Batch workspace',
+    messages: 'Messages', campaigns: 'Hiring campaigns', 'talent-campaign': 'Campaign workspace',
+    attempts: 'My assessments', 'assessment-detail': 'Assessment detail',
     certificates: 'Certificates', platform: 'Platform' };
   $('#page-title').textContent = names[key];
   document.title = `${names[key]} · JachAI`;
@@ -425,6 +438,7 @@ async function showView(key) {
     await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
     attachFilter('#courses-list', 'Filter courses by name or description');
   }
+  if (key === 'academy-batch') await loadAcademyBatchWorkspace();
   if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') {
     await loadList('#campaigns-list', async () => {
@@ -433,10 +447,12 @@ async function showView(key) {
     }, 'Campaigns could not be loaded.');
     attachFilter('#campaigns-list', 'Filter campaigns by title or version');
   }
+  if (key === 'talent-campaign') await loadTalentCampaignWorkspace();
   if (key === 'attempts') {
     await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
     attachFilter('#assignments-list', 'Filter assignments by availability or attempt count');
   }
+  if (key === 'assessment-detail') await loadAssessmentDetail();
   if (key === 'certificates') {
     await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
     attachFilter('#certificates-list', 'Filter certificates by code, status or date');
@@ -1067,7 +1083,8 @@ async function loadCampaigns(pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns?page=${pageNumber}`));
   state.campaigns = page.content || [];
   setList('#campaigns-list', state.campaigns.map((campaign) => {
-    const actions = [button('Compare candidates', () => compareCandidates(campaign.id)),
+    const actions = [button('Open workspace', () => openCampaignWorkspace(campaign.id)),
+      button('Compare candidates', () => compareCandidates(campaign.id)),
       button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title))];
     if (campaign.open) {
       const close = button('Close campaign', async () => {
@@ -1260,7 +1277,8 @@ async function loadAssignments(pageNumber = 0) {
     return item(resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
       `${state} · Available ${new Date(from).toLocaleString()} – ${new Date(until).toLocaleString()}`
         + ` · ${assignment.attemptsAllowed} attempt(s)${origin}`,
-      [start, button('Attempt history', () => showHistory(assignment))]);
+      [button('Open assessment', () => openAssessmentDetail(assignment)),
+        start, button('Attempt history', () => showHistory(assignment))]);
   }), 'No assignments yet.');
   renderPageControls('#assignments-pagination', page, loadAssignments);
 }
@@ -1281,8 +1299,8 @@ async function showHistory(assignment) {
   panel.classList.remove('hidden');
   focusPanel(panel);
 }
-function renderAttemptInstructions(assignment) {
-  const panel = $('#attempt-panel'); panel.replaceChildren(node('h2', 'Before you begin'));
+function renderAttemptInstructions(assignment, target = '#attempt-panel', resultTarget = '#result-panel') {
+  const panel = $(target); panel.replaceChildren(node('h2', 'Before you begin'));
   const rules = node('ul', '', 'attempt-rules');
   rules.append(
     node('li', `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()}.`),
@@ -1292,21 +1310,23 @@ function renderAttemptInstructions(assignment) {
     node('li', 'Save each answer before you submit. Only saved answers are counted.'),
     node('li', 'Answers cannot be changed after you submit.'));
   panel.append(node('p', 'Read these notes, then begin.', 'muted'), rules);
-  panel.append(button('Begin attempt', () => beginAttempt(assignment.id), 'button primary'),
+  panel.append(button('Begin attempt', () => beginAttempt(assignment.id, target, resultTarget), 'button primary'),
     button('Cancel', () => panel.classList.add('hidden'), 'button quiet'));
   panel.classList.remove('hidden');
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   focusPanel(panel);
 }
-async function startAttempt(assignment) {
-  if (assignment?.availableFrom && assignment?.availableUntil) { renderAttemptInstructions(assignment); return; }
-  await beginAttempt(assignment?.id || assignment);
+async function startAttempt(assignment, target = '#attempt-panel', resultTarget = '#result-panel') {
+  if (assignment?.availableFrom && assignment?.availableUntil) {
+    renderAttemptInstructions(assignment, target, resultTarget); return;
+  }
+  await beginAttempt(assignment?.id || assignment, target, resultTarget);
 }
-async function beginAttempt(assignmentId) {
+async function beginAttempt(assignmentId, target = '#attempt-panel', resultTarget = '#result-panel') {
   state.activeAttempt = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts`), { method: 'POST' });
   rememberAttempt(assignmentId, state.activeAttempt);
-  $('#result-panel').classList.add('hidden');
-  renderAttempt();
+  $(resultTarget).classList.add('hidden');
+  renderAttempt(target, resultTarget);
 }
 function talentAttemptActive() {
   return state.organization?.type === 'TALENT' && state.organization.myRole === 'CANDIDATE'
@@ -1371,9 +1391,9 @@ async function saveAttemptAnswer(attempt, question, body, statusPill, control, s
     control.disabled = attemptHasExpired(attempt);
   }
 }
-function renderAttempt() {
+function renderAttempt(target = '#attempt-panel', resultTarget = '#result-panel') {
   const attempt = state.activeAttempt;
-  const panel = $('#attempt-panel');
+  const panel = $(target);
   panel.replaceChildren(node('h2', 'Assessment in progress'));
   attemptAnswerState.clear();
   let submitControl = null;
@@ -1484,7 +1504,7 @@ function renderAttempt() {
       state.activeAttempt = null;
       forgetAttempt();
       panel.classList.add('hidden');
-      renderResult(result);
+      renderResult(result, resultTarget);
       notice('Assessment submitted.');
     } catch (error) {
       submitControl.disabled = false;
@@ -1498,11 +1518,11 @@ function renderAttempt() {
   focusPanel(panel);
   if (expired) expireAttempt();
 }
-async function showResult(attemptId) {
-  renderResult(await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/result`)));
+async function showResult(attemptId, target = '#result-panel') {
+  renderResult(await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/result`)), target);
 }
-function renderResult(result) {
-  const panel = $('#result-panel'); panel.replaceChildren(node('h2', 'Your result'));
+function renderResult(result, target = '#result-panel') {
+  const panel = $(target); panel.replaceChildren(node('h2', 'Your result'));
   panel.append(node('p', `Attempt ID: ${result.attemptId}`, 'item-meta'));
   if (!result.released) {
     panel.append(node('p', 'Submitted. Your score stays hidden until staff release the result or finish manual grading.', 'muted'));
@@ -1565,6 +1585,113 @@ function renderResult(result) {
   panel.classList.remove('hidden'); panel.scrollIntoView({ behavior: 'smooth' });
   focusPanel(panel);
 }
+// ---------------------------------------------------------------- Learner assessment detail
+function assessmentDetailStale(token) {
+  return token !== state.assessmentDetailToken || !state.organization;
+}
+function showAssessmentDetailEmpty(message) {
+  state.detailAssignment = null;
+  const empty = $('#assessment-detail-empty');
+  empty.classList.remove('hidden');
+  empty.querySelector('p').textContent = message;
+  $('#assessment-detail-title').textContent = 'Assessment detail';
+  $('#assessment-detail-subtitle').textContent = '';
+  $('#assessment-detail-actions').replaceChildren(
+    button('Open My assessments', () => showView('attempts'), 'button secondary small'));
+  setList('#assessment-detail-summary', [], message);
+  setList('#assessment-detail-attempts', [], message);
+  $('#assessment-detail-live').classList.add('hidden');
+  $('#assessment-detail-result').classList.add('hidden');
+}
+async function loadAssessmentDetail() {
+  const token = ++state.assessmentDetailToken;
+  for (const selector of ['#assessment-detail-live', '#assessment-detail-result']) {
+    $(selector).classList.add('hidden');
+    $(selector).replaceChildren();
+  }
+  await loadList('#assessment-detail-summary', async () => {
+    let assignment = state.detailAssignment;
+    if (!assignment) {
+      const page = await request(ownOrg('/assignments/mine?page=0'));
+      if (assessmentDetailStale(token)) return;
+      assignment = (page.content || [])[0] || null;
+      if (!assignment) {
+        showAssessmentDetailEmpty('No assignment has been given to you in this workspace yet.');
+        return;
+      }
+    }
+    if (assessmentDetailStale(token)) return;
+    state.detailAssignment = assignment;
+    state.detailAssignmentId = assignment.id;
+    await renderAssessmentDetail(assignment, token);
+  }, 'The assignment could not be loaded.');
+}
+async function renderAssessmentDetail(assignment, token) {
+  const from = Date.parse(assignment.availableFrom);
+  const until = Date.parse(assignment.availableUntil);
+  const availability = Date.now() < from ? `Opens ${new Date(from).toLocaleString()}`
+    : Date.now() >= until ? 'Closed' : 'Open now';
+  const origin = assignment.batchAssessmentId ? 'Assigned through a batch'
+    : assignment.campaignId ? 'Assigned through a hiring campaign' : 'Assigned directly';
+  $('#assessment-detail-empty').classList.add('hidden');
+  $('#assessment-detail-title').textContent = 'Assessment detail';
+  $('#assessment-detail-subtitle').textContent = `${availability} · ${origin} · Assignment ${assignment.id}`;
+  const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignment.id)}/attempts/mine`));
+  if (assessmentDetailStale(token)) return;
+  const used = history.length;
+  const allowed = assignment.attemptsAllowed || 0;
+  const remaining = Math.max(0, allowed - used);
+  setList('#assessment-detail-summary', [
+    item('Availability window', `${when(assignment.availableFrom)} – ${when(assignment.availableUntil)}`),
+    item('Right now', availability),
+    item('Attempts', `${used} used of ${allowed} allowed · ${remaining} remaining`),
+    item('Where it came from', origin),
+    item('Assessment name and time limit',
+      'The current assignment API does not return them to a learner, so they are not shown here instead of being guessed.'),
+    item('Assignment identifier', assignment.id)
+  ], 'No assignment detail is available.');
+  const start = button(remaining === 0 ? 'No attempts remaining' : 'Start an attempt',
+    () => startAttempt(assignment, '#assessment-detail-live', '#assessment-detail-result'), 'button secondary');
+  if (availability !== 'Open now' || remaining === 0) {
+    start.disabled = true;
+    start.title = availability === 'Closed' ? 'The availability window for this assignment has ended.'
+      : availability !== 'Open now' ? 'The availability window for this assignment has not opened yet.'
+      : 'Every allowed attempt has already been started or submitted.';
+  }
+  $('#assessment-detail-actions').replaceChildren(start);
+  setList('#assessment-detail-attempts', history.map((attempt) => {
+    const submitted = attempt.status === 'SUBMITTED';
+    const seconds = submitted ? 0 : Math.max(0, Math.ceil((Date.parse(attempt.deadline) - Date.now()) / 1000));
+    const controls = submitted
+      ? [button('View result, feedback and tutor', () => showResult(attempt.id, '#assessment-detail-result'))]
+      : [button('Resume this attempt', () => beginAttempt(assignment.id, '#assessment-detail-live', '#assessment-detail-result'))];
+    return item(`Attempt ${attempt.attemptNumber} · ${attempt.status}`,
+      submitted ? `Submitted ${when(attempt.submittedAt)}`
+        : `Server deadline ${when(attempt.deadline)} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} remaining`,
+      controls);
+  }), 'No attempt has been started for this assignment yet.');
+  const live = state.activeAttempt;
+  if (live?.assignmentId === assignment.id && Date.now() < Date.parse(live.deadline)) {
+    renderAttempt('#assessment-detail-live', '#assessment-detail-result');
+    return;
+  }
+  const marker = pendingAttempt();
+  if (marker?.assignmentId === assignment.id) {
+    const panel = $('#assessment-detail-live');
+    panel.classList.remove('hidden');
+    panel.replaceChildren(node('h3', 'An attempt was in progress'),
+      node('p', `Attempt ${marker.attemptId} was still open when this page was last used. Resuming continues that same attempt while its deadline has not passed. Once the deadline has passed the server finalizes it first, and a new attempt starts only if attempts remain.`, 'muted'),
+      button('Resume now', () => beginAttempt(assignment.id, '#assessment-detail-live', '#assessment-detail-result'), 'button secondary'));
+  }
+}
+function openAssessmentDetail(assignment) {
+  state.detailAssignment = assignment || null;
+  state.detailAssignmentId = assignment?.id || null;
+  return showView('assessment-detail');
+}
+$('#assessment-detail-back').addEventListener('click', () => run(() => showView('attempts')));
+$('#assessment-detail-open-list').addEventListener('click', () => run(() => showView('attempts')));
+
 async function loadCertificates(pageNumber = 0) {
   const page = await request(ownOrg(`/certificates/mine?page=${pageNumber}`));
   setList('#certificates-list', (page.content || []).map((certificate) => item(
@@ -1625,7 +1752,8 @@ async function loadAcademyBatches(pageNumber = 0) {
   const batches = page.content || [];
   state.academyBatches = batches;
   setList('#batches-list', batches.map((batch) => item(batch.name,
-    `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`)),
+    `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`,
+    [button('Open workspace', () => openBatchWorkspace(courseId, batch.id))])),
   'No batches for this course yet.');
   renderPageControls('#batches-pagination', page, loadAcademyBatches);
   const select = $('#academy-batch-select');
@@ -1701,6 +1829,460 @@ async function loadBatchProgressPage(route, pageNumber) {
   renderPageControls('#batch-progress-pagination', page,
     (nextPage) => loadBatchProgressPage(route, nextPage));
 }
+
+// ---------------------------------------------------------------- Academy batch workspace
+function batchWorkspaceRoute() {
+  return `/academy/courses/${encodeURIComponent(state.batchWorkspaceCourseId)}`
+    + `/batches/${encodeURIComponent(state.batchWorkspaceBatchId)}`;
+}
+function batchWorkspaceStale(token) {
+  return token !== state.batchWorkspaceToken || !state.organization;
+}
+function emptyBatchWorkspace(message) {
+  state.batchWorkspaceBatchId = null;
+  state.batchWorkspaceAssessmentId = null;
+  state.batchWorkspaceBatches = [];
+  $('#academy-batch-batch').replaceChildren();
+  $('#academy-batch-subtitle').textContent = message;
+  $('#academy-batch-selected').classList.add('hidden');
+  for (const selector of ['#academy-batch-summary', '#academy-batch-assessments', '#academy-batch-learners']) {
+    setList(selector, [], message);
+  }
+  for (const selector of ['#academy-batch-assessments-pagination', '#academy-batch-learners-pagination',
+    '#academy-batch-progress-pagination']) {
+    $(selector).replaceChildren();
+  }
+}
+async function loadAcademyBatchWorkspace() {
+  const token = ++state.batchWorkspaceToken;
+  state.batchWorkspaceAssessmentId = null;
+  state.batchWorkspaceAssessmentPage = 0;
+  $('#academy-batch-selected').classList.add('hidden');
+  await loadList('#academy-batch-summary', async () => {
+    const courses = await request(ownOrg('/academy/courses?page=0'));
+    if (batchWorkspaceStale(token)) return;
+    state.batchWorkspaceCourses = courses.content || [];
+    const select = $('#academy-batch-course');
+    const selected = state.batchWorkspaceCourses.find((course) => course.id === state.batchWorkspaceCourseId)
+      || state.batchWorkspaceCourses[0] || null;
+    select.replaceChildren(...state.batchWorkspaceCourses.map((course) => {
+      const option = node('option', course.name); option.value = course.id; return option;
+    }));
+    if (!selected) {
+      emptyBatchWorkspace('No course exists yet, so there is no batch to open. Create a course under Courses & batches.');
+      setList('#academy-batch-summary', [], 'No course exists yet.');
+      return;
+    }
+    select.value = selected.id;
+    state.batchWorkspaceCourseId = selected.id;
+    await loadAcademyWorkspaceBatches(token);
+  }, 'The course list could not be loaded.');
+}
+async function loadAcademyWorkspaceBatches(token) {
+  const courseId = state.batchWorkspaceCourseId;
+  if (!courseId) { emptyBatchWorkspace('Choose a course first.'); return; }
+  const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches?page=0`));
+  if (batchWorkspaceStale(token)) return;
+  state.batchWorkspaceBatches = page.content || [];
+  const select = $('#academy-batch-batch');
+  const selected = state.batchWorkspaceBatches.find((batch) => batch.id === state.batchWorkspaceBatchId)
+    || state.batchWorkspaceBatches[0] || null;
+  select.replaceChildren(...state.batchWorkspaceBatches.map((batch) => {
+    const option = node('option', batch.name); option.value = batch.id; return option;
+  }));
+  if (!selected) {
+    emptyBatchWorkspace('This course has no batches yet. Create one under Courses & batches.');
+    setList('#academy-batch-summary', [], 'This course has no batches yet.');
+    return;
+  }
+  select.value = selected.id;
+  state.batchWorkspaceBatchId = selected.id;
+  await loadAcademyWorkspaceDetail(token);
+}
+async function loadAcademyWorkspaceDetail(token) {
+  const course = state.batchWorkspaceCourses.find((entry) => entry.id === state.batchWorkspaceCourseId);
+  const batch = state.batchWorkspaceBatches.find((entry) => entry.id === state.batchWorkspaceBatchId);
+  const courseName = course?.name || 'Course';
+  const batchName = batch?.name || 'Batch';
+  $('#academy-batch-title').textContent = batchName;
+  $('#academy-batch-subtitle').textContent = batch
+    ? `${courseName} · ${batchName} · ${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`
+    : `${courseName} · ${batchName}`;
+  state.batchWorkspaceAssessmentId = null;
+  state.batchWorkspaceAssessmentPage = 0;
+  $('#academy-batch-selected').classList.add('hidden');
+  await Promise.all([
+    loadList('#academy-batch-summary', () => loadAcademyWorkspaceSummary(courseName, batch, token),
+      'The batch summary could not be loaded.'),
+    loadList('#academy-batch-assessments', () => loadAcademyWorkspaceAssessments(token, 0),
+      'The batch assessments could not be loaded.'),
+    loadList('#academy-batch-learners', () => loadAcademyWorkspaceLearners(token, 0),
+      'The batch roster could not be loaded.')
+  ]);
+}
+async function loadAcademyWorkspaceSummary(courseName, batch, token) {
+  const roster = await request(ownOrg(`${batchWorkspaceRoute()}/learners?page=0`));
+  if (batchWorkspaceStale(token)) return;
+  const enrolled = roster.totalElements ?? (roster.content || []).length;
+  setList('#academy-batch-summary', [
+    item('Course', courseName),
+    item('Batch', batch?.name || 'Not reported'),
+    item('Batch dates', batch
+      ? `${new Date(batch.startsAt).toLocaleString()} – ${new Date(batch.endsAt).toLocaleString()}` : 'Not reported'),
+    item('Enrolled learners', `${enrolled} learner(s) on the server roster`),
+    item('Batch identifier', state.batchWorkspaceBatchId)
+  ], 'No batch summary is available.');
+}
+async function loadAcademyWorkspaceAssessments(token, pageNumber = 0) {
+  state.batchWorkspaceAssessmentPage = pageNumber;
+  const route = batchWorkspaceRoute();
+  const page = await request(ownOrg(`${route}/assessments?page=${pageNumber}`));
+  if (batchWorkspaceStale(token)) return;
+  setList('#academy-batch-assessments', (page.content || []).map((assessment) => item(
+    assessment.assessmentTitle,
+    `Version ${assessment.assessmentVersionId} · ${assessment.attemptsAllowed} attempt(s) allowed`
+      + ` · Available until ${new Date(assessment.availableUntil).toLocaleString()}`,
+    [button('Progress & analytics', () => loadAcademyWorkspaceAssessment(token, assessment)),
+      button('Reconcile assignments', async () => {
+        if (!await confirmDialog(`Reconcile assignments for "${assessment.assessmentTitle}"?\n\nReconciliation adds an assignment for each enrolled learner who does not already have one. Existing assignments are never changed or removed.`)) return;
+        const result = await request(ownOrg(`${route}/assessments/${encodeURIComponent(assessment.id)}/reconcile`),
+          { method: 'POST' });
+        notice(`${result.createdAssignments} assignment(s) added; ${result.alreadyAssigned} already present.`);
+        await loadAcademyWorkspaceAssessments(token, pageNumber);
+      })])), 'No assessment has been distributed to this batch yet.');
+  renderPageControls('#academy-batch-assessments-pagination', page,
+    (nextPage) => run(() => loadAcademyWorkspaceAssessments(token, nextPage)));
+}
+async function loadAcademyWorkspaceAssessment(token, assessment) {
+  state.batchWorkspaceAssessmentId = assessment.id;
+  $('#academy-batch-selected').classList.remove('hidden');
+  $('#academy-batch-selected-title').textContent = assessment.assessmentTitle;
+  await Promise.all([
+    loadList('#academy-batch-analytics', () => loadAcademyWorkspaceAnalytics(assessment, token),
+      'Cohort analytics could not be loaded.'),
+    loadList('#academy-batch-progress', () => loadAcademyWorkspaceProgress(assessment, token, 0),
+      'Learner progress could not be loaded.')
+  ]);
+  $('#academy-batch-selected').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+async function loadAcademyWorkspaceAnalytics(assessment, token) {
+  const analytics = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/${encodeURIComponent(assessment.id)}/analytics`));
+  if (batchWorkspaceStale(token)) return;
+  const awaitingGrades = analytics.submittedLearners - analytics.gradedLearners;
+  setList('#academy-batch-analytics', [
+    item('Cohort coverage', `${analytics.assignedLearners} assigned / ${analytics.activeLearners} active learners`),
+    item('Completion', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners)`),
+    item('Grading & pass rate', `${analytics.gradedLearners} graded · ${awaitingGrades} awaiting grading · ${analytics.passedLearners} passed (${analytics.gradedLearners ? `${analytics.passRatePercent}% of graded` : 'no graded results yet'})`),
+    item('Average latest score', analytics.averageLatestPercentage === null
+      ? 'No graded results yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
+  ], 'Analytics are unavailable.');
+}
+async function loadAcademyWorkspaceProgress(assessment, token, pageNumber = 0) {
+  const page = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/${encodeURIComponent(assessment.id)}/progress?page=${pageNumber}`));
+  if (batchWorkspaceStale(token)) return;
+  setList('#academy-batch-progress', (page.content || []).map((row) => item(
+    `Learner ${row.learnerUserId}`,
+    row.attemptId
+      ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
+      : 'No submitted attempt yet.')), 'No learner has been assigned this assessment yet.');
+  renderPageControls('#academy-batch-progress-pagination', page,
+    (nextPage) => run(() => loadAcademyWorkspaceProgress(assessment, token, nextPage)));
+}
+async function loadAcademyWorkspaceLearners(token, pageNumber = 0) {
+  const page = await request(ownOrg(`${batchWorkspaceRoute()}/learners?page=${pageNumber}`));
+  if (batchWorkspaceStale(token)) return;
+  setList('#academy-batch-learners', (page.content || []).map((enrollment) => item(
+    `Learner ${enrollment.learnerUserId}`,
+    `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
+  'No learner is enrolled in this batch yet.');
+  renderPageControls('#academy-batch-learners-pagination', page,
+    (nextPage) => run(() => loadAcademyWorkspaceLearners(token, nextPage)));
+}
+function openBatchWorkspace(courseId, batchId) {
+  state.batchWorkspaceCourseId = courseId || null;
+  state.batchWorkspaceBatchId = batchId || null;
+  state.batchWorkspaceAssessmentId = null;
+  return showView('academy-batch');
+}
+$('#academy-batch-back').addEventListener('click', () => run(() => showView('academy')));
+$('#academy-batch-reload').addEventListener('click', () => run(loadAcademyBatchWorkspace));
+$('#academy-batch-course').addEventListener('change', (event) => run(async () => {
+  state.batchWorkspaceCourseId = event.target.value;
+  state.batchWorkspaceBatchId = null;
+  state.batchWorkspaceAssessmentId = null;
+  await loadAcademyWorkspaceBatches(++state.batchWorkspaceToken);
+}));
+$('#academy-batch-batch').addEventListener('change', (event) => run(async () => {
+  state.batchWorkspaceBatchId = event.target.value;
+  await loadAcademyWorkspaceDetail(++state.batchWorkspaceToken);
+}));
+$('#academy-batch-selected-clear').addEventListener('click', () => {
+  state.batchWorkspaceAssessmentId = null;
+  $('#academy-batch-selected').classList.add('hidden');
+});
+
+// ---------------------------------------------------------------- Talent campaign workspace
+function campaignWorkspaceStale(token) {
+  return token !== state.campaignWorkspaceToken || !state.organization;
+}
+function clearCampaignCandidatePanels(message) {
+  state.campaignWorkspaceCandidateId = null;
+  $('#talent-campaign-candidate').replaceChildren();
+  for (const selector of ['#talent-campaign-candidate-summary', '#talent-campaign-integrity',
+    '#talent-campaign-events', '#talent-campaign-review', '#talent-campaign-history']) {
+    setList(selector, [], message);
+  }
+  for (const selector of ['#talent-campaign-events-pagination', '#talent-campaign-history-pagination']) {
+    $(selector).replaceChildren();
+  }
+}
+function emptyCampaignWorkspace(message) {
+  state.campaignWorkspaceId = null;
+  state.talentCampaigns = [];
+  $('#talent-campaign-select').replaceChildren();
+  $('#talent-campaign-title').textContent = 'Campaign workspace';
+  $('#talent-campaign-subtitle').textContent = message;
+  $('#talent-campaign-close').disabled = true;
+  setList('#talent-campaign-summary', [], message);
+  setList('#talent-campaign-comparison', [], message);
+  $('#talent-campaign-comparison-pagination').replaceChildren();
+  clearCampaignCandidatePanels(message);
+}
+async function loadTalentCampaignWorkspace() {
+  const token = ++state.campaignWorkspaceToken;
+  await loadList('#talent-campaign-summary', async () => {
+    const page = await request(ownOrg('/talent/campaigns?page=0'));
+    if (campaignWorkspaceStale(token)) return;
+    state.talentCampaigns = page.content || [];
+    const select = $('#talent-campaign-select');
+    const selected = state.talentCampaigns.find((campaign) => campaign.id === state.campaignWorkspaceId)
+      || state.talentCampaigns[0] || null;
+    select.replaceChildren(...state.talentCampaigns.map((campaign) => {
+      const option = node('option', campaign.title); option.value = campaign.id; return option;
+    }));
+    if (!selected) {
+      emptyCampaignWorkspace('No hiring campaign exists yet. Create one under Hiring campaigns.');
+      return;
+    }
+    select.value = selected.id;
+    state.campaignWorkspaceId = selected.id;
+    await loadCampaignWorkspaceDetail(token);
+  }, 'The campaign list could not be loaded.');
+}
+async function loadCampaignWorkspaceDetail(token) {
+  const campaign = (state.talentCampaigns || []).find((entry) => entry.id === state.campaignWorkspaceId);
+  const campaignId = state.campaignWorkspaceId;
+  if (!campaignId) { emptyCampaignWorkspace('Choose a campaign first.'); return; }
+  $('#talent-campaign-title').textContent = campaign?.title || 'Campaign workspace';
+  $('#talent-campaign-subtitle').textContent = campaign
+    ? `${campaign.open ? 'Open to new invitations' : 'Closed to new invitations'}`
+      + ` · Frozen version ${campaign.assessmentVersionId}`
+      + (campaign.createdAt ? ` · Created ${new Date(campaign.createdAt).toLocaleDateString()}` : '')
+    : 'Campaign details are unavailable.';
+  $('#talent-campaign-close').disabled = !campaign?.open;
+  clearCampaignCandidatePanels('Choose a candidate above to see their integrity signals, review decision and review history.');
+  await Promise.all([
+    loadList('#talent-campaign-summary', () => loadCampaignWorkspaceSummary(campaign, campaignId),
+      'The campaign summary could not be loaded.'),
+    loadList('#talent-campaign-comparison', () => loadCampaignWorkspaceCandidates(token, 0),
+      'The candidate comparison could not be loaded.')
+  ]);
+}
+async function loadCampaignWorkspaceSummary(campaign, campaignId) {
+  setList('#talent-campaign-summary', [
+    item('Status', campaign?.open ? 'Open to new invitations' : 'Closed to new invitations'),
+    item('Frozen assessment version', campaign?.assessmentVersionId || 'Not reported'),
+    item('Created', campaign?.createdAt ? new Date(campaign.createdAt).toLocaleString() : 'Not recorded'),
+    item('Campaign identifier', campaignId),
+    item('Integrity signals', 'Per attempt, under the selected candidate below. The server reports no campaign-level signal summary.')
+  ], 'The campaign summary is unavailable.');
+}
+async function loadCampaignWorkspaceCandidates(token, pageNumber = 0) {
+  state.campaignWorkspacePage = pageNumber;
+  const campaignId = state.campaignWorkspaceId;
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
+  if (campaignWorkspaceStale(token)) return;
+  const rows = page.content || [];
+  state.campaignWorkspaceCandidates = rows;
+  const summary = node('div', '', 'stack');
+  summary.append(node('h4', `${page.totalElements ?? rows.length} invited candidate(s)`),
+    node('p', 'Latest submitted attempt per candidate, exactly as the campaign API reports it.', 'muted'));
+  const head = node('div', '', 'compare-row compare-head');
+  head.append(node('span', 'Candidate'), node('span', 'Latest attempt'), node('span', 'Decision'));
+  summary.append(head);
+  for (const candidate of rows) {
+    const row = node('div', '', 'compare-row');
+    const attempt = candidate.attemptId
+      ? (candidate.percentage == null ? 'Awaiting grading'
+        : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`)
+      : 'No submitted attempt';
+    row.append(node('span', candidate.candidateUserId), node('span', attempt),
+      node('span', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'));
+    summary.append(row);
+  }
+  setList('#talent-campaign-comparison', rows.length ? [summary] : [], 'No candidate has been invited to this campaign yet.');
+  const select = $('#talent-campaign-candidate');
+  const previous = state.campaignWorkspaceCandidateId || select.value;
+  select.replaceChildren(...rows.map((candidate) => {
+    const option = node('option', candidate.candidateUserId); option.value = candidate.candidateUserId; return option;
+  }));
+  if (rows.some((candidate) => candidate.candidateUserId === previous)) select.value = previous;
+  renderPageControls('#talent-campaign-comparison-pagination', page,
+    (nextPage) => run(() => loadCampaignWorkspaceCandidates(token, nextPage)));
+  if (!rows.length) {
+    clearCampaignCandidatePanels('This page has no candidates, so there is nothing to inspect.');
+    return;
+  }
+  const chosen = rows.find((candidate) => candidate.candidateUserId === select.value) || rows[0];
+  select.value = chosen.candidateUserId;
+  await loadCampaignWorkspaceCandidate(chosen, token);
+}
+async function loadCampaignWorkspaceCandidate(candidate, token) {
+  const campaignId = state.campaignWorkspaceId;
+  state.campaignWorkspaceCandidateId = candidate.candidateUserId;
+  const route = `/talent/campaigns/${encodeURIComponent(campaignId)}`
+    + `/candidates/${encodeURIComponent(candidate.candidateUserId)}`;
+  setList('#talent-campaign-candidate-summary', [
+    item(`Candidate ${candidate.candidateUserId}`,
+      `Assignment ${candidate.assignmentId || 'not reported'}`),
+    item('Latest submitted attempt', candidate.attemptId
+      ? `${candidate.attemptId} · ${candidate.percentage == null ? 'Awaiting manual grading' : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`}`
+        + ` · Submitted ${candidate.submittedAt ? new Date(candidate.submittedAt).toLocaleString() : 'not reported'}`
+      : 'No submitted attempt yet.'),
+    item('Current decision', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'),
+    item('Reviewer note', candidate.reviewerNote || 'No note recorded')
+  ], 'No candidate detail is available.');
+  await Promise.all([
+    loadList('#talent-campaign-integrity', () => loadCampaignCandidateIntegrity(candidate, token),
+      'The integrity summary could not be loaded.'),
+    loadList('#talent-campaign-events', () => loadCampaignCandidateEvents(candidate, token, 0),
+      'The raw event log could not be loaded.'),
+    loadList('#talent-campaign-history', () => loadCampaignCandidateHistory(candidate, token, 0),
+      'The review history could not be loaded.'),
+    loadList('#talent-campaign-review', () => loadCampaignCandidateReviewForm(candidate, route, token),
+      'The review decision form could not be prepared.')
+  ]);
+}
+async function loadCampaignCandidateIntegrity(candidate, token) {
+  if (!candidate.attemptId) {
+    setList('#talent-campaign-integrity', [], 'No submitted attempt yet, so the server has no integrity signals for this candidate.');
+    return;
+  }
+  const report = await request(ownOrg(`/talent/attempts/${encodeURIComponent(candidate.attemptId)}/integrity`));
+  if (campaignWorkspaceStale(token)) return;
+  const counts = Object.entries(report.eventCounts || {})
+    .map(([type, count]) => `${type.replaceAll('_', ' ').toLowerCase()}: ${count}`).join(' · ');
+  setList('#talent-campaign-integrity', [
+    item('Recorded events', String(report.totalEvents)),
+    item('Rapid answer intervals reported by the client', String(report.clientReportedRapidAnswerIntervals)),
+    item('Event counts', counts || 'No signals recorded.'),
+    item('How to read this', report.interpretation)
+  ], 'No integrity signals are available.');
+}
+async function loadCampaignCandidateEvents(candidate, token, pageNumber = 0) {
+  if (!candidate.attemptId) {
+    setList('#talent-campaign-events', [], 'No submitted attempt yet, so there is no event log to read.');
+    $('#talent-campaign-events-pagination').replaceChildren();
+    return;
+  }
+  const page = await request(ownOrg(`/talent/attempts/${encodeURIComponent(candidate.attemptId)}/integrity/events?page=${pageNumber}`));
+  if (campaignWorkspaceStale(token)) return;
+  const rows = (page.content || []).map((event) => node('p',
+    `${event.type.replaceAll('_', ' ').toLowerCase()}${event.questionId ? ` · question ${event.questionId}` : ''}`
+      + ` · ${new Date(event.receivedAt).toLocaleString()}`, 'item-meta'));
+  const target = $('#talent-campaign-events');
+  target.setAttribute('aria-busy', 'false');
+  target.replaceChildren(node('p',
+    `${page.totalElements ?? rows.length} recorded event(s) — these signals are client-reported, cannot be verified, and are not proof of misconduct.`,
+    'muted'), ...rows);
+  if (!rows.length) target.append(node('p', 'No raw events retained.', 'item-meta'));
+  renderPageControls('#talent-campaign-events-pagination', page,
+    (nextPage) => run(() => loadCampaignCandidateEvents(candidate, token, nextPage)));
+}
+async function loadCampaignCandidateHistory(candidate, token, pageNumber = 0) {
+  const campaignId = state.campaignWorkspaceId;
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}`
+    + `/candidates/${encodeURIComponent(candidate.candidateUserId)}/review/audit?page=${pageNumber}`));
+  if (campaignWorkspaceStale(token)) return;
+  setList('#talent-campaign-history', (page.content || []).map((entry) => item(
+    `${entry.decision.replaceAll('_', ' ')} · ${new Date(entry.occurredAt).toLocaleString()}`,
+    `Reviewer ${entry.actorUserId} · Attempt ${entry.attemptId || 'not recorded'} · ${entry.note || 'No note'}`)),
+  'No review has been recorded for this candidate yet.');
+  renderPageControls('#talent-campaign-history-pagination', page,
+    (nextPage) => run(() => loadCampaignCandidateHistory(candidate, token, nextPage)));
+}
+async function loadCampaignCandidateReviewForm(candidate, route, token) {
+  if (candidate.percentage == null) {
+    setList('#talent-campaign-review', [], candidate.attemptId
+      ? 'The attempt is still awaiting manual grading, so a review decision cannot be saved yet.'
+      : 'A review decision needs a graded, submitted attempt.');
+    return;
+  }
+  const form = node('form', '', 'form-row');
+  const decisionLabel = node('label', 'Decision');
+  const select = node('select');
+  for (const decision of ['HOLD', 'SHORTLISTED', 'REJECTED']) {
+    const option = node('option', decision.replaceAll('_', ' ')); option.value = decision; select.append(option);
+  }
+  select.value = candidate.decision || 'HOLD';
+  decisionLabel.append(select);
+  const noteLabel = node('label', 'Reviewer note');
+  const noteInput = node('input');
+  noteInput.maxLength = 1000; noteInput.value = candidate.reviewerNote || '';
+  noteLabel.append(noteInput);
+  const save = node('button', 'Save review', 'button secondary small'); save.type = 'submit';
+  form.append(decisionLabel, noteLabel, save);
+  form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+    save.disabled = true;
+    try {
+      await request(ownOrg(`${route}/review`), { method: 'PUT', body: {
+        attemptId: candidate.attemptId, decision: select.value, note: noteInput.value
+      } });
+      notice('Review saved. One review is stored per candidate; saving again replaces it.');
+      if (campaignWorkspaceStale(token)) return;
+      await Promise.all([
+        loadCampaignWorkspaceCandidates(token, state.campaignWorkspacePage),
+        loadCampaignCandidateHistory(candidate, token, 0)
+      ]);
+    } catch (error) {
+      fieldErrors(form, error);
+      throw error;
+    } finally { save.disabled = false; }
+  }); });
+  const target = $('#talent-campaign-review');
+  target.setAttribute('aria-busy', 'false');
+  target.replaceChildren(form, node('p',
+    'A review is offered only for a graded, submitted attempt; the server refuses one otherwise.', 'muted'));
+}
+function openCampaignWorkspace(campaignId) {
+  state.campaignWorkspaceId = campaignId || null;
+  state.campaignWorkspaceCandidateId = null;
+  return showView('talent-campaign');
+}
+$('#talent-campaign-back').addEventListener('click', () => run(() => showView('campaigns')));
+$('#talent-campaign-reload').addEventListener('click', () => run(loadTalentCampaignWorkspace));
+$('#talent-campaign-select').addEventListener('change', (event) => run(async () => {
+  state.campaignWorkspaceId = event.target.value;
+  state.campaignWorkspaceCandidateId = null;
+  await loadCampaignWorkspaceDetail(++state.campaignWorkspaceToken);
+}));
+$('#talent-campaign-candidate').addEventListener('change', (event) => run(async () => {
+  const candidate = (state.campaignWorkspaceCandidates || [])
+    .find((entry) => entry.candidateUserId === event.target.value);
+  if (candidate) await loadCampaignWorkspaceCandidate(candidate, ++state.campaignWorkspaceToken);
+}));
+$('#talent-campaign-close').addEventListener('click', () => run(async () => {
+  const campaignId = state.campaignWorkspaceId;
+  const campaign = (state.talentCampaigns || []).find((entry) => entry.id === campaignId);
+  if (!campaignId || !campaign?.open) throw new Error('Choose an open campaign before closing it.');
+  if (!await confirmDialog(`Close "${campaign.title}" to new invitations?\n\nExisting assignments stay usable until their own windows end. Closing is audited and cannot be undone from this screen.`)) return;
+  $('#talent-campaign-close').disabled = true;
+  try {
+    await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/close`), { method: 'POST' });
+    notice('Campaign closed to new invitations.');
+    await loadTalentCampaignWorkspace();
+  } finally { $('#talent-campaign-close').disabled = false; }
+}));
 
 function stopMessageRefresh() {
   window.clearInterval(state.messageRefresh);

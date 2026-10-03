@@ -25,7 +25,15 @@ const SOURCE = String.raw`(() => {
 
   const assignment = { id: 'asg-1',
     availableFrom: new Date(Date.now() - 3600000).toISOString(),
-    availableUntil: new Date(Date.now() + 3600000).toISOString(), attemptsAllowed: 1 };
+    availableUntil: new Date(Date.now() + 3600000).toISOString(), attemptsAllowed: 2 };
+  const submittedAttempt = { id: 'att-9', attemptNumber: 1, status: 'SUBMITTED',
+    deadline: new Date(Date.now() - 600000).toISOString(), submittedAt: new Date(Date.now() - 660000).toISOString() };
+  const releasedResult = { attemptId: 'att-9', released: true, percentage: 80, passed: true,
+    submittedAt: new Date(Date.now() - 660000).toISOString(), releasedAt: new Date(Date.now() - 600000).toISOString(),
+    topics: [{ topic: 'Java', correct: 4, total: 5 }] };
+  const learnerFeedback = { attemptId: 'att-9', learnerUserId: 'u-learner', authorUserId: 'u-admin',
+    summary: 'Solid grasp of the core language.', nextSteps: 'Practise streams and collectors.',
+    status: 'PUBLISHED', updatedAt: new Date().toISOString(), publishedAt: new Date().toISOString() };
   const attempt = { id: 'att-1', assignmentId: 'asg-1',
     deadline: new Date(Date.now() + 6000).toISOString(),
     questions: [
@@ -42,9 +50,23 @@ const SOURCE = String.raw`(() => {
         options: [{ id: 'A', text: 'Java' }, { id: 'B', text: 'COBOL' }], selectedOptionIds: ['A'], correctOptionIds: ['A'], correct: true },
       { questionId: 'q2', type: 'SHORT_ANSWER', topic: 'Java', prompt: 'Explain polymorphism.',
         options: [], textAnswer: 'Same interface, many forms.', correct: null } ] };
-  const candidate = { candidateUserId: 'u-cand', attemptId: 'att-c1', percentage: 70, passed: true, decision: 'HOLD', reviewerNote: '' };
+  const candidate = { candidateUserId: 'u-cand', assignmentId: 'asg-c1', attemptId: 'att-c1', percentage: 70,
+    passed: true, submittedAt: new Date().toISOString(), decision: 'HOLD', reviewerNote: '' };
   const member = { userId: 'u-learner', role: 'LEARNER', displayName: 'Learner One', email: 'learner@example.com', active: true, owner: false };
   const caller = { userId: ROLE.userId, role: ROLE.org.myRole, displayName: 'Admin User', email: 'admin@example.com', active: true, owner: ROLE.org.owner };
+  const course = { id: 'course-1', name: 'Java Fundamentals', description: 'Core Java for beginners', createdAt: new Date().toISOString() };
+  const batch = { id: 'batch-1', courseId: 'course-1', name: 'Batch A',
+    startsAt: new Date(Date.now() - 86400000).toISOString(), endsAt: new Date(Date.now() + 2592000000).toISOString(),
+    createdAt: new Date().toISOString() };
+  const enrollment = { courseId: 'course-1', courseName: 'Java Fundamentals', batchId: 'batch-1', batchName: 'Batch A',
+    learnerUserId: 'u-learner', enrolledAt: new Date().toISOString() };
+  const batchAssessment = { id: 'ba-1', courseId: 'course-1', batchId: 'batch-1', assessmentId: 'assess-1',
+    assessmentVersionId: 'assess-1:1', assessmentTitle: 'Java Basics', attemptsAllowed: 2,
+    availableFrom: new Date(Date.now() - 86400000).toISOString(), availableUntil: new Date(Date.now() + 604800000).toISOString() };
+  const batchAnalytics = { batchAssessmentId: 'ba-1', activeLearners: 6, assignedLearners: 5, submittedLearners: 4,
+    gradedLearners: 3, passedLearners: 2, averageLatestPercentage: 71.5, completionRatePercent: 66.7, passRatePercent: 66.7 };
+  const batchProgress = { learnerUserId: 'u-learner', assignmentId: 'asg-1', attemptId: 'att-9', percentage: 80,
+    passed: true, submittedAt: new Date().toISOString() };
 
   window.__calls = [];
   window.fetch = async (input, init = {}) => {
@@ -106,7 +128,20 @@ const SOURCE = String.raw`(() => {
     if (path.endsWith('/attempts/att-9/certificate')) return json({ id: 'cert-1', verificationCode: 'VC-123', status: 'ISSUED' });
     if (path.includes('/certificates/cert-1/revoke')) return json({ id: 'cert-1', verificationCode: 'VC-123', status: 'REVOKED' });
     if (path.includes('/certificates/cert-1/audit')) return json(page([]));
+    // Academy batch/cohort workspace
+    if (path === org + '/academy/courses') return json(page([course]));
+    if (path === org + '/academy/courses/course-1/batches') return json(page([batch]));
+    if (path === org + '/academy/courses/course-1/batches/batch-1/learners') return json(page([enrollment]));
+    if (path === org + '/academy/courses/course-1/batches/batch-1/assessments') return json(page([batchAssessment]));
+    if (path.endsWith('/assessments/ba-1/reconcile')) return json({ batchAssessmentId: 'ba-1', createdAssignments: 2, alreadyAssigned: 3 });
+    if (path.includes('/assessments/ba-1/analytics')) return json(batchAnalytics);
+    if (path.includes('/assessments/ba-1/progress')) return json(page([batchProgress]));
+
     if (path === org + '/assignments/mine') return json(page(ROLE.org.myRole === 'LEARNER' ? [assignment] : []));
+    if (path === org + '/assignments/asg-1/attempts/mine') return json(ROLE.org.myRole === 'LEARNER' ? [submittedAttempt] : []);
+    if (path.endsWith('/attempts/att-9/result')) return json(releasedResult);
+    if (path.includes('/academy/attempts/att-9/feedback/mine')) return json(learnerFeedback);
+    if (path.endsWith('/attempts/att-9/tutor')) return json({ explanation: 'Records are a compact immutable carrier for data.' });
     if (path.endsWith('/assignments/asg-1/attempts') && method === 'POST') return json(attempt, 201);
     if (path.includes('/answers/')) return new Response(null, { status: 204 });
     if (path.endsWith('/submit')) return json({ attemptId: 'att-1', released: false, percentage: null, passed: null, topics: [] });
@@ -119,9 +154,13 @@ const SOURCE = String.raw`(() => {
     // Talent workspace
     if (path === org + '/members/candidates') return json(page([{ userId: 'u-cand', displayName: 'Cand One',
       email: 'cand@example.com', role: 'CANDIDATE' }]));
+    if (path.includes('/talent/campaigns/camp-1/candidates/u-cand/review/audit')) return json(page([]));
+    if (path.includes('/talent/campaigns/camp-1/candidates/u-cand/review')) return json(candidate);
     if (path.includes('/talent/campaigns/camp-1/candidates')) return json(page([candidate]));
+    if (path.endsWith('/talent/campaigns/camp-1/close')) return json({ id: 'camp-1', title: 'Backend Engineer',
+      assessmentId: 'assess-1', assessmentVersionId: 'ver-1', open: false, createdAt: new Date().toISOString() });
     if (path === org + '/talent/campaigns') return json(page([{ id: 'camp-1', title: 'Backend Engineer',
-      open: true, assessmentVersionId: 'ver-1' }]));
+      assessmentId: 'assess-1', assessmentVersionId: 'ver-1', open: true, createdAt: new Date().toISOString() }]));
 
     return json(page([]));
   };

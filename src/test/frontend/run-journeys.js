@@ -182,6 +182,27 @@ async function main() {
   check(journey, 'pending-release result hides the score', result.includes('Your score stays hidden') && !/%/.test(result));
   check(journey, 'pending result offers Check again', await ev(`[...document.querySelectorAll('#result-panel button')].some((b) => b.textContent === 'Check again')`));
 
+  // Learner assessment detail: window, attempts, result, feedback and tutor on one screen.
+  await view('Assessment detail'); await wait(1600);
+  check(journey, 'assessment detail opens from the nav for the learner assignment',
+    /Assignment asg-1/.test(await ev(`document.querySelector('#assessment-detail-view').textContent`)));
+  check(journey, 'attempt usage is counted from the server attempt list',
+    /1 used of 2 allowed/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
+  check(journey, 'an assessment name the API does not return is reported, not invented',
+    /does not return them to a learner/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
+  await clickText('#assessment-detail-attempts', 'View result, feedback and tutor'); await wait(1400);
+  check(journey, 'released result and topic feedback render in the detail screen',
+    /4 of 5 correct/.test(await ev(`document.querySelector('#assessment-detail-result').textContent`)));
+  check(journey, 'the AI tutor entry point is offered with a released result',
+    await ev(`!!document.querySelector('#assessment-detail-result form textarea')`));
+  await clickText('#assessment-detail-result', 'View instructor feedback'); await wait(1000);
+  check(journey, 'instructor feedback is reachable from the released result',
+    /Practise streams/.test(await ev(`document.querySelector('#assessment-detail-result').textContent`)));
+  await shot('learner-assessment-detail');
+  await ev(`document.querySelector('#assessment-detail-back').click()`); await wait(1300);
+  check(journey, 'assessment detail back navigation returns to My assessments',
+    await ev(`!document.querySelector('#attempts-view').classList.contains('hidden')`));
+
   // ---------------------------------------------------------------- academy staff journey
   await load('academy-staff');
   const staff = 'academy-staff';
@@ -220,6 +241,33 @@ async function main() {
   await clickDialog('primary'); await wait(900);
   check(staff, 'revoke reports the code is now invalid', /verifies as invalid/.test(await ev(`document.querySelector('#review-output').textContent`)));
 
+  // Academy batch workspace: a distinct screen reached from the nav and from the batch list.
+  await view('Batch workspace'); await wait(1500);
+  const workspace = await ev(`document.querySelector('#academy-batch-view').textContent`);
+  check(staff, 'batch workspace is reachable from the nav and selects a course and batch',
+    /Java Fundamentals/.test(workspace) && /Batch A/.test(workspace));
+  check(staff, 'batch summary counts the server roster',
+    /Enrolled learners/.test(await ev(`document.querySelector('#academy-batch-summary').textContent`)));
+  check(staff, 'batch assessments offer progress and reconciliation',
+    await ev(`[...document.querySelectorAll('#academy-batch-assessments button')].some((b) => b.textContent === 'Reconcile assignments')`));
+  await clickText('#academy-batch-assessments', 'Progress & analytics'); await wait(1400);
+  const analyticsText = await ev(`document.querySelector('#academy-batch-analytics').textContent`);
+  check(staff, 'cohort analytics render for the selected assessment',
+    /Cohort coverage/.test(analyticsText) && /66.7%/.test(analyticsText));
+  check(staff, 'per-learner progress rows render',
+    /u-learner/.test(await ev(`document.querySelector('#academy-batch-progress').textContent`)));
+  await clickText('#academy-batch-assessments', 'Reconcile assignments'); await wait(500);
+  check(staff, 'reconcile confirms it only adds missing assignments', /never changed or removed/.test(await dialogText()));
+  await clickDialog('primary'); await wait(1000);
+  check(staff, 'reconcile reports created and already-present counts',
+    /2 assignment\(s\) added; 3 already present/.test(await ev(`document.querySelector('#notice').textContent`)));
+  await shot('academy-batch-workspace');
+  await ev(`document.querySelector('#academy-batch-back').click()`); await wait(1200);
+  check(staff, 'back navigation returns to Courses & batches',
+    await ev(`!document.querySelector('#academy-view').classList.contains('hidden')`));
+  check(staff, 'opening a view moves focus to the page heading',
+    (await ev(`document.activeElement.id`)) === 'page-title', await ev(`document.activeElement.id`));
+
   // ---------------------------------------------------------------- talent journey
   await load('talent-recruiter');
   const talent = 'talent-recruiter';
@@ -235,6 +283,28 @@ async function main() {
   check(talent, 'review decision control is offered', await ev(`(() => { const f = document.querySelector('#campaign-candidates form');
     return !!f && !!f.querySelector('select'); })()`));
   await shot('talent-integrity');
+
+  // Talent campaign workspace: a distinct screen reached from the nav and from the campaign row.
+  await view('Campaign workspace'); await wait(1600);
+  const campaignWorkspace = await ev(`document.querySelector('#talent-campaign-view').textContent`);
+  check(talent, 'campaign workspace opens with the campaign and its frozen version',
+    /Backend Engineer/.test(campaignWorkspace) && /Frozen version ver-1/.test(campaignWorkspace));
+  check(talent, 'candidate comparison renders inside the workspace',
+    /u-cand/.test(await ev(`document.querySelector('#talent-campaign-comparison').textContent`)));
+  await ev(`(() => { const select = document.querySelector('#talent-campaign-candidate');
+    select.value = 'u-cand'; select.dispatchEvent(new Event('change')); return true; })()`); await wait(1500);
+  check(talent, 'workspace integrity summary carries the server caveat',
+    /unverified and need human judgement/.test(await ev(`document.querySelector('#talent-campaign-integrity').textContent`)));
+  const workspaceEvents = await ev(`document.querySelector('#talent-campaign-events').textContent`);
+  check(talent, 'paged event log renders and warns the signals are not proof',
+    /recorded event/.test(workspaceEvents) && /not proof of misconduct/.test(workspaceEvents));
+  check(talent, 'review decision form is offered for a graded candidate',
+    await ev(`!!document.querySelector('#talent-campaign-review form select')`));
+  check(talent, 'review history area renders', await ev(`!!document.querySelector('#talent-campaign-history')`));
+  await shot('talent-campaign-workspace');
+  await ev(`document.querySelector('#talent-campaign-back').click()`); await wait(1300);
+  check(talent, 'campaign workspace back navigation returns to the list',
+    await ev(`!document.querySelector('#campaigns-view').classList.contains('hidden')`));
 
   // ---------------------------------------------------------------- platform journey + storage states
   await load('platform-admin', 'ok');

@@ -24,4 +24,14 @@ public class PageController {
     public String certificate() {
         return "certificate";
     }
+
+    @GetMapping("/academy.html")
+    public String academy() {
+        return "academy";
+    }
+
+    @GetMapping("/talent.html")
+    public String talent() {
+        return "talent";
+    }
 }
