@@ -153,6 +153,10 @@ async function setOrganization() {
   $('#attempt-panel').classList.add('hidden');
   $('#result-panel').classList.add('hidden');
   $('#attempt-review-detail').classList.add('hidden');
+  $('#review-output').classList.add('hidden');
+  $('#review-output').textContent = '';
+  $('#review-certificate-id').value = '';
+  $('#certificate-audit-pagination').replaceChildren();
   $('#campaign-candidates-panel').classList.add('hidden');
   $('#email-invitations-panel').classList.add('hidden');
   $('#conversation-panel').classList.add('hidden');
@@ -1166,15 +1170,25 @@ $('#revoke-certificate').addEventListener('click', () => run(async () => {
   $('#review-output').textContent = `Certificate ${certificate.id} revoked. Its public code now verifies as invalid.`;
   $('#review-output').classList.remove('hidden'); notice('Certificate revoked.');
 }));
-$('#certificate-audit').addEventListener('click', () => run(async () => {
-  if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
-  const id = $('#review-certificate-id').value.trim(); if (!id) throw new Error('Enter a certificate ID.');
-  const events = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/audit?page=0`));
+async function loadCertificateAudit(id, pageNumber = 0) {
+  const organizationId = state.organization?.id;
+  const events = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/audit?page=${pageNumber}`));
+  if (state.organization?.id !== organizationId || $('#review-certificate-id').value.trim() !== id) return;
   $('#review-output').textContent = (events.content || []).length
     ? events.content.map((entry) => `${entry.action.replaceAll('_', ' ')} · ${entry.actorUserId} · ${new Date(entry.occurredAt).toLocaleString()}`).join('\n')
     : 'No audit events recorded for this certificate.';
   $('#review-output').classList.remove('hidden');
+  renderPageControls('#certificate-audit-pagination', events,
+    (nextPage) => loadCertificateAudit(id, nextPage));
+}
+$('#certificate-audit').addEventListener('click', () => run(async () => {
+  if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
+  const id = $('#review-certificate-id').value.trim(); if (!id) throw new Error('Enter a certificate ID.');
+  await loadCertificateAudit(id);
 }));
+$('#review-certificate-id').addEventListener('input', () => {
+  $('#certificate-audit-pagination').replaceChildren();
+});
 $('#feedback-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   const attemptId = form.get('attemptId').trim();
