@@ -37,6 +37,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -55,6 +57,15 @@ public class CampaignEmailInvitationService {
     private final EmailSender emailSender;
     private final EntitlementService entitlements;
     @Value("${app.public-base-url}") private String publicBaseUrl;
+
+    public Page<EmailInvitationView> list(String actorId, String organizationId, String campaignId,
+                                          Pageable pageable) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN, OrganizationRole.RECRUITER);
+        campaigns.findByIdAndOrganizationId(campaignId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Campaign not found"));
+        return invitations.findByOrganizationIdAndCampaignId(organizationId, campaignId, pageable)
+                .map(EmailInvitationView::from);
+    }
 
     public EmailInvitationView invite(String actorId, String organizationId, String campaignId,
                                       CreateEmailInvitationRequest request) {

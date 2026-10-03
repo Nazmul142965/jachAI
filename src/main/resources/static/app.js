@@ -1,6 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
   questions: [], campaigns: [], academyCourses: [], academyBatches: [],
+  emailInvitationCampaignId: null, emailInvitationLoadToken: 0,
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
   selectedQuestionIds: new Set(),
   timer: null, activeConversationId: null, messageRefresh: null,
@@ -76,6 +77,8 @@ function showSignedOut() {
   state.accessToken = null; state.refreshToken = null; state.organization = null;
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
   state.activeReviewAttemptId = null;
+  state.emailInvitationCampaignId = null;
+  state.emailInvitationLoadToken++;
   state.selectedQuestionIds.clear();
   state.reviewLoadToken++;
   state.messageLoadToken++;
@@ -122,6 +125,8 @@ async function setOrganization() {
   state.activeAttempt = null;
   state.activeReviewAttemptId = null;
   state.reviewLoadToken++;
+  state.emailInvitationCampaignId = null;
+  state.emailInvitationLoadToken++;
   window.clearInterval(state.timer);
   stopMessageRefresh();
   state.activeConversationId = null;
@@ -132,6 +137,7 @@ async function setOrganization() {
   $('#result-panel').classList.add('hidden');
   $('#attempt-review-detail').classList.add('hidden');
   $('#campaign-candidates-panel').classList.add('hidden');
+  $('#email-invitations-panel').classList.add('hidden');
   $('#conversation-panel').classList.add('hidden');
   $('#empty-org').classList.toggle('hidden', !!state.organization);
   $('#organization-select').classList.toggle('hidden', !state.organization);
@@ -460,6 +466,7 @@ async function loadCampaigns(pageNumber = 0) {
   setList('#campaigns-list', state.campaigns.map((campaign) => item(campaign.title,
     `${campaign.open ? 'Open' : 'Closed'} · Assessment version ${campaign.assessmentVersionId}`,
     [button('Compare candidates', () => compareCandidates(campaign.id)),
+      button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title)),
       ...(campaign.open ? [button('Close campaign', async () => {
         if (!window.confirm('Close this campaign to new invitations?')) return;
         await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaign.id)}/close`), { method: 'POST' });
@@ -470,6 +477,23 @@ async function loadCampaigns(pageNumber = 0) {
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
   $('#email-invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
+}
+async function loadEmailInvitations(campaignId, pageNumber = 0, campaignTitle = null) {
+  const organizationId = state.organization?.id;
+  const loadToken = ++state.emailInvitationLoadToken;
+  state.emailInvitationCampaignId = campaignId;
+  const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/email-invitations?page=${pageNumber}`));
+  if (loadToken !== state.emailInvitationLoadToken || organizationId !== state.organization?.id) return;
+  if (campaignTitle) $('#email-invitations-title').textContent = `Email invitations · ${campaignTitle}`;
+  setList('#email-invitations-list', (page.content || []).map((invitation) => {
+    const status = invitation.accepted ? 'Accepted'
+      : new Date(invitation.expiresAt) <= new Date() ? 'Expired' : 'Pending';
+    return item(invitation.email,
+      `${status} · Link expires ${new Date(invitation.expiresAt).toLocaleString()}`);
+  }), 'No retained email invitations for this campaign.');
+  renderPageControls('#email-invitations-pagination', page,
+    (nextPage) => loadEmailInvitations(campaignId, nextPage));
+  $('#email-invitations-panel').classList.remove('hidden');
 }
 async function loadTalentCandidates(pageNumber = 0) {
   const page = await request(ownOrg(`/members/candidates?page=${pageNumber}`));
@@ -1197,5 +1221,7 @@ $('#campaign-email-invite-form').addEventListener('submit', (event) => { event.p
   await request(ownOrg(`/talent/campaigns/${encodeURIComponent(form.get('campaignId'))}/email-invitations`),
     { method: 'POST', body: { email: form.get('email').trim(),
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
+  if (state.emailInvitationCampaignId === form.get('campaignId'))
+    await loadEmailInvitations(state.emailInvitationCampaignId);
   event.currentTarget.reset(); notice('Invitation created; email delivery requested.');
 }); });

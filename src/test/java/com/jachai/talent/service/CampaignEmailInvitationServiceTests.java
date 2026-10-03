@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,12 +32,16 @@ import com.jachai.talent.repository.HiringCampaignRepository;
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,6 +79,49 @@ class CampaignEmailInvitationServiceTests {
                 "org", "assessment", "assessment:2",
                 "campaign", null, "candidate", 2, Instant.parse("2026-10-01T00:00:00Z"),
                 Instant.parse("2026-11-01T00:00:00Z"), Instant.now());
+    }
+
+    @Test
+    void recruiterListsOnlyInvitationsForTheirCampaignWithoutTokenDetails() {
+        var pageable = PageRequest.of(1, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
+        when(campaigns.findByIdAndOrganizationId("campaign", "org"))
+                .thenReturn(Optional.of(campaign(false)));
+        when(invitations.findByOrganizationIdAndCampaignId("org", "campaign", pageable))
+                .thenReturn(new PageImpl<>(List.of(invitation(Instant.now().plusSeconds(3600), null)),
+                        pageable, 21));
+
+        var page = service().list("recruiter", "org", "campaign", pageable);
+
+        assertEquals(1, page.getNumber());
+        assertEquals(21, page.getTotalElements());
+        assertEquals("candidate@example.com", page.getContent().getFirst().email());
+        assertFalse(page.getContent().getFirst().accepted());
+        verify(access).requireRole("recruiter", "org", OrganizationRole.ORG_ADMIN, OrganizationRole.RECRUITER);
+        verify(invitations).findByOrganizationIdAndCampaignId("org", "campaign", pageable);
+    }
+
+    @Test
+    void foreignCampaignCannotBeUsedToListInvitations() {
+        when(campaigns.findByIdAndOrganizationId("foreign", "org"))
+                .thenReturn(Optional.empty());
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service().list("recruiter", "org", "foreign", PageRequest.of(0, 20)));
+
+        assertEquals("NOT_FOUND", error.code());
+        verify(invitations, never()).findByOrganizationIdAndCampaignId(any(), any(), any());
+    }
+
+    @Test
+    void nonStaffCannotListEmailInvitations() {
+        doThrow(new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "FORBIDDEN", "Not staff"))
+                .when(access).requireRole("candidate", "org", OrganizationRole.ORG_ADMIN, OrganizationRole.RECRUITER);
+
+        assertThrows(ApiException.class, () ->
+                service().list("candidate", "org", "campaign", PageRequest.of(0, 20)));
+
+        verify(campaigns, never()).findByIdAndOrganizationId(any(), any());
+        verify(invitations, never()).findByOrganizationIdAndCampaignId(any(), any(), any());
     }
 
     @Test

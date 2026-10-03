@@ -156,6 +156,7 @@
         <div class="card panel"><h2>Invite by email</h2><p class="muted">The recipient can register first, then accept using the same verified email address.</p>
           <form id="campaign-email-invite-form" class="stack"><div class="form-row"><label>Open campaign<select id="email-invite-campaign" name="campaignId" required></select></label><label>Candidate email<input name="email" type="email" maxlength="254" required></label><label>Attempts allowed<input name="attemptsAllowed" type="number" min="1" max="5" value="1" required></label></div><div class="form-row"><label>Available from<input name="availableFrom" type="datetime-local" required></label><label>Available until<input name="availableUntil" type="datetime-local" required></label></div><button class="button secondary" type="submit">Send invitation</button></form>
         </div>
+        <div id="email-invitations-panel" class="card panel hidden"><h2 id="email-invitations-title">Email invitations</h2><p class="muted">Only retained invitation records appear here; expired links are removed automatically.</p><div id="email-invitations-list" class="item-list"></div><div id="email-invitations-pagination"></div></div>
         <div id="campaign-candidates-panel" class="card panel hidden"><h2>Candidate comparison</h2><p class="muted">Latest submitted attempt is shown. Review notes are visible to Talent staff only.</p><div id="campaign-candidates" class="item-list"></div><div id="campaign-candidates-pagination"></div></div>
       </section>
 

@@ -11,6 +11,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @CompoundIndex(name = "email_invitation_campaign_email",
         def = "{'organizationId': 1, 'campaignId': 1, 'email': 1}", unique = true)
 @CompoundIndex(name = "email_invitation_org_created", def = "{'organizationId': 1, 'createdAt': 1}")
+@CompoundIndex(name = "email_invitation_campaign_created",
+        def = "{'organizationId': 1, 'campaignId': 1, 'createdAt': -1, '_id': -1}")
 public record CampaignEmailInvitation(
         @Id String id, String organizationId, String campaignId, String email,
         String assessmentId, String assessmentVersionId, int attemptsAllowed,
