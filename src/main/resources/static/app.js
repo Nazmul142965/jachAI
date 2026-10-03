@@ -8,6 +8,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   tutorHistory: new Map(),
   selectedQuestionIds: new Set(),
   editingAssessment: null,
+  editingQuestion: null,
   timer: null, activeConversationId: null, messageRefresh: null,
   messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0,
   batchWorkspaceCourses: [], batchWorkspaceBatches: [], batchWorkspaceCourseId: null,
@@ -195,6 +196,7 @@ function showSignedOut() {
   state.emailInvitationLoadToken++;
   state.selectedQuestionIds.clear();
   state.editingAssessment = null;
+  state.editingQuestion = null;
   state.reviewLoadToken++;
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
@@ -256,6 +258,9 @@ async function loadOrganizations() {
 async function setOrganization() {
   state.selectedQuestionIds.clear();
   state.editingAssessment = null;
+  state.editingQuestion = null;
+  $('#question-form').reset();
+  updateQuestionEditor();
   $('#assessment-form').reset();
   updateAssessmentEditor();
   state.tutorHistory.clear();
@@ -1033,8 +1038,9 @@ async function loadQuestions(pageNumber = 0) {
   state.questions = page.content || [];
   setList('#questions-list', state.questions.map((question) => item(question.prompt,
     `${question.topic} · ${question.type.replaceAll('_', ' ')} · ${question.difficulty || 'Unrated'} · ${question.status}`,
-    question.status === 'DRAFT' ? [button('Approve', async () => {
+    question.status === 'DRAFT' ? [button('Edit draft', () => editQuestion(question)), button('Approve', async () => {
       await request(ownOrg(`/questions/${encodeURIComponent(question.id)}/approve`), { method: 'POST' });
+      if (state.editingQuestion?.id === question.id) resetQuestionEditor();
       notice('Question approved.'); await loadQuestions(page.number);
       if (state.view === 'assessments') await loadApprovedQuestions();
     })] : [])), 'No questions yet.');
@@ -2721,20 +2727,68 @@ function updateQuestionTypeFields() {
   }
   for (const input of $('#question-correct-options').querySelectorAll('input')) input.disabled = shortAnswer;
 }
+function updateQuestionEditor() {
+  const form = $('#question-form');
+  const editing = state.editingQuestion;
+  const heading = form.closest('.panel')?.querySelector('h2');
+  if (heading) heading.textContent = editing ? `Edit question draft · ${editing.topic}` : 'Create a question';
+  form.querySelector('button[type="submit"]').textContent = editing ? 'Save draft changes' : 'Save draft';
+  let cancel = form.querySelector('[data-cancel-question-edit]');
+  if (!cancel) {
+    cancel = button('Cancel editing', () => resetQuestionEditor(), 'button quiet');
+    cancel.dataset.cancelQuestionEdit = 'true'; form.append(cancel);
+  }
+  cancel.classList.toggle('hidden', !editing);
+  updateQuestionTypeFields();
+}
+function resetQuestionEditor() {
+  state.editingQuestion = null;
+  $('#question-form').reset();
+  updateQuestionEditor();
+}
+function editQuestion(question) {
+  const optionIds = (question.options || []).map((option) => option.id);
+  if (question.type !== 'SHORT_ANSWER' &&
+      (optionIds.length !== 4 || optionIds.join(',') !== 'A,B,C,D')) {
+    throw new Error('This draft uses custom option IDs. Edit it through the questions API; this form supports A–D.');
+  }
+  state.editingQuestion = question;
+  const form = $('#question-form');
+  form.elements.topic.value = question.topic;
+  form.elements.prompt.value = question.prompt;
+  form.elements.type.value = question.type;
+  form.elements.difficulty.value = question.difficulty || 'MEDIUM';
+  for (const id of ['A', 'B', 'C', 'D']) {
+    form.elements[id].value = question.options?.find((option) => option.id === id)?.text || '';
+  }
+  for (const input of form.querySelectorAll('input[name="correct"]')) {
+    input.checked = (question.correctOptionIds || []).includes(input.value);
+  }
+  updateQuestionEditor();
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  form.elements.prompt.focus({ preventScroll: true });
+}
 $('#question-form select[name="type"]').addEventListener('change', updateQuestionTypeFields);
 updateQuestionTypeFields();
 $('#question-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget); const correctOptionIds = form.getAll('correct');
+  const element = event.currentTarget;
+  const form = new FormData(element); const correctOptionIds = form.getAll('correct');
   const shortAnswer = form.get('type') === 'SHORT_ANSWER';
   if (!shortAnswer && !correctOptionIds.length) throw new Error('Choose at least one correct option.');
   if (form.get('type') === 'SINGLE_CHOICE' && correctOptionIds.length !== 1) throw new Error('Single choice needs exactly one correct option.');
-  await request(ownOrg('/questions'), { method: 'POST', body: {
+  const editing = state.editingQuestion;
+  const submit = element.querySelector('button[type="submit"]'); submit.disabled = true;
+  try {
+    await request(ownOrg(editing ? `/questions/${encodeURIComponent(editing.id)}/draft` : '/questions'),
+      { method: editing ? 'PUT' : 'POST', body: {
     topic: form.get('topic'), prompt: form.get('prompt'), type: form.get('type'),
     difficulty: form.get('difficulty'),
     options: shortAnswer ? [] : ['A', 'B', 'C', 'D'].map((id) => ({ id, text: form.get(id) })), correctOptionIds
-  } });
-  event.currentTarget.reset(); updateQuestionTypeFields();
-  await loadQuestions(); notice('Question saved as a draft.');
+    } });
+    resetQuestionEditor(); await loadQuestions();
+    notice(editing ? 'Question draft updated. Review and approve when ready.' : 'Question saved as a draft.');
+  } catch (error) { fieldErrors(element, error); throw error; }
+  finally { submit.disabled = false; }
 }); });
 $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const element = event.currentTarget;

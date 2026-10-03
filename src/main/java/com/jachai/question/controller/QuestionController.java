@@ -18,6 +18,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,5 +49,11 @@ public class QuestionController {
     public Question approve(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
                             @PathVariable String questionId) {
         return questions.approve(jwt.getSubject(), organizationId, questionId);
+    }
+
+    @PutMapping("/{questionId}/draft")
+    public Question updateDraft(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
+                                @PathVariable String questionId, @Valid @RequestBody CreateQuestionRequest request) {
+        return questions.updateDraft(jwt.getSubject(), organizationId, questionId, request);
     }
 }

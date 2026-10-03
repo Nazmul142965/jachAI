@@ -78,7 +78,7 @@ All routes below start with `/api/v1`. Except registration, verification, login,
 | --- | --- |
 | Auth | `POST /auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/request-password-reset`, `/auth/reset-password` |
 | Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members`, `GET /organizations/{orgId}/members/candidates` (Talent staff) |
-| Questions | `GET/POST /organizations/{orgId}/questions`, `POST .../questions/{id}/approve` |
+| Questions | `GET/POST /organizations/{orgId}/questions`, `PUT .../questions/{id}/draft`, `POST .../questions/{id}/approve` |
 | Assessments | `GET/POST /organizations/{orgId}/assessments`, `POST .../assessments/{id}/publish` |
 | Organization settings | `GET/PUT /organizations/{orgId}/settings` (staff read, organization admin update) |
 | Attempts | `GET .../assignments/mine`, `GET .../assignments/{id}` (own learner/candidate detail with title, duration and question count but no answer key), `GET .../assignments/{id}/attempts/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result`, `GET .../attempts/review/pending?page=0` and `POST .../attempts/{id}/release` (staff only) |
