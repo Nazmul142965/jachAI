@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.billing.model.PaymentOrder;
 import com.jachai.billing.model.PaymentOrderStatus;
 import com.jachai.billing.model.PaymentProvider;
@@ -38,10 +39,12 @@ class PaymentBillingServiceTests {
     @Mock SubscriptionRepository subscriptions;
     @Mock SslCommerzSandboxGateway ssl;
     @Mock BkashSandboxGateway bkash;
+    @Mock EmailSender emailSender;
 
     private PaymentBillingService service() {
         return new PaymentBillingService(access, users, orders,
-                subscriptions, ssl, bkash, new BigDecimal("100.00"));
+                subscriptions, ssl, bkash, emailSender, new BigDecimal("100.00"),
+                "https://example.test/");
     }
 
     @Test
@@ -92,10 +95,30 @@ class PaymentBillingServiceTests {
         when(bkash.verify(ready, "payment12345"))
                 .thenReturn(new BkashSandboxGateway.VerifiedPayment("payment12345", "trx123"));
         when(orders.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.findById("admin")).thenReturn(Optional.of(admin()));
 
         assertEquals(PaymentOrderStatus.APPLIED,
                 service().verifyBkashCallback(ORDER_ID, "payment12345").status());
         verify(subscriptions).save(any(Subscription.class));
+        verify(emailSender).sendBillingNotice(org.mockito.ArgumentMatchers.eq(ORDER_ID),
+                org.mockito.ArgumentMatchers.eq(admin().email()),
+                org.mockito.ArgumentMatchers.eq(admin().displayName()), any(),
+                org.mockito.ArgumentMatchers.eq("https://example.test/"));
+    }
+
+    @Test
+    void appliedOrderReconciliationCanRepairMissingNoticeWithoutChangingPlan() {
+        PaymentOrder applied = new PaymentOrder(ORDER_ID, "org", "admin", PaymentProvider.BKASH,
+                PaymentOrderStatus.APPLIED, new BigDecimal("100.00"), "payment12345",
+                "payment12345", "trx123", Instant.now(), Instant.now(), Instant.now(), 3L);
+        when(orders.findByIdAndOrganizationId(ORDER_ID, "org")).thenReturn(Optional.of(applied));
+        when(users.findById("admin")).thenReturn(Optional.of(admin()));
+
+        assertEquals(PaymentOrderStatus.APPLIED, service().reconcile("admin", "org", ORDER_ID).status());
+
+        verify(emailSender).sendBillingNotice(org.mockito.ArgumentMatchers.eq(ORDER_ID),
+                org.mockito.ArgumentMatchers.eq(admin().email()), any(), any(), any());
+        verify(subscriptions, never()).save(any(Subscription.class));
     }
 
     @Test

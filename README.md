@@ -70,6 +70,8 @@ For SSLCOMMERZ demo checkout, obtain sandbox store credentials and set `SSLCOMME
 
 An admin can select “Check payment” for a pending direct bKash or SSLCOMMERZ order if the browser callback was lost. bKash is executed/queried server-side. For SSLCOMMERZ, the backend queries the sandbox transaction ID for a validation reference, then independently calls the order-validation API; a query result or browser status alone never grants TEAM. Multiple successful references for one order stop with `PAYMENT_AMBIGUOUS` for manual review. The same action can finish an already-verified order after a partial database update. Early manual renewal is allowed and adds 30 days after the current period end. The SSLCOMMERZ query and lost-callback flow have unit tests but still need a live sandbox merchant test.
 
+After a sandbox order is independently verified and applied, an encrypted, deduplicated buyer notice is queued. It identifies the order as a sandbox demonstration, not a real-money charge. The outbox checks the applied order and buyer's current verified email before delivery; “Check payment” can repair a failed notice enqueue without granting TEAM twice. SMTP delivery is not verified until a provider is configured.
+
 ## Main API routes
 
 All routes below start with `/api/v1`. Except registration, verification, login, refresh, and health, they require a Bearer access token. Organization routes additionally check membership and role.

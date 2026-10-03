@@ -2,6 +2,7 @@ package com.jachai.billing.service;
 
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.billing.dto.CheckoutView;
 import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.billing.dto.PaymentOptionsView;
@@ -21,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -31,6 +33,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class PaymentBillingService {
     private static final Duration DEMO_TERM = Duration.ofDays(30);
     private static final int WRITE_RETRIES = 5;
@@ -40,20 +43,25 @@ public class PaymentBillingService {
     private final SubscriptionRepository subscriptions;
     private final SslCommerzSandboxGateway ssl;
     private final BkashSandboxGateway bkash;
+    private final EmailSender emailSender;
+    private final String publicBaseUrl;
     private final BigDecimal demoPrice;
 
     public PaymentBillingService(TenantAccessService access, UserRepository users,
                                  PaymentOrderRepository orders,
                                  SubscriptionRepository subscriptions, SslCommerzSandboxGateway ssl,
-                                 BkashSandboxGateway bkash,
-                                 @Value("${app.billing.demo-team-price-bdt}") BigDecimal demoPrice) {
+                                 BkashSandboxGateway bkash, EmailSender emailSender,
+                                 @Value("${app.billing.demo-team-price-bdt}") BigDecimal demoPrice,
+                                 @Value("${app.public-base-url}") String publicBaseUrl) {
         this.access = access;
         this.users = users;
         this.orders = orders;
         this.subscriptions = subscriptions;
         this.ssl = ssl;
         this.bkash = bkash;
+        this.emailSender = emailSender;
         this.demoPrice = demoPrice;
+        this.publicBaseUrl = publicBaseUrl;
     }
 
     public CheckoutView start(String actorId, String organizationId, PaymentProvider provider) {
@@ -111,7 +119,10 @@ public class PaymentBillingService {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
         PaymentOrder order = orders.findByIdAndOrganizationId(orderId, organizationId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Payment order not found"));
-        if (order.status() == PaymentOrderStatus.APPLIED) return PaymentOrderView.from(order);
+        if (order.status() == PaymentOrderStatus.APPLIED) {
+            queueBillingNotice(order);
+            return PaymentOrderView.from(order);
+        }
         if (order.status() == PaymentOrderStatus.CREATED) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_READY", "Checkout has not started");
         }
@@ -148,6 +159,7 @@ public class PaymentBillingService {
             if (order.provider() != provider) throw invalidCallback();
             if (order.status() == PaymentOrderStatus.APPLIED) {
                 if (!validationId.equals(order.gatewayValidationId())) throw invalidCallback();
+                queueBillingNotice(order);
                 return PaymentOrderView.from(order);
             }
             if (order.status() == PaymentOrderStatus.CREATED) {
@@ -173,12 +185,29 @@ public class PaymentBillingService {
             }
             applyVerifiedOrder(order);
             try {
-                return PaymentOrderView.from(orders.save(order.applied(Instant.now())));
+                PaymentOrder applied = orders.save(order.applied(Instant.now()));
+                queueBillingNotice(applied);
+                return PaymentOrderView.from(applied);
             } catch (OptimisticLockingFailureException exception) {
                 // A simultaneous IPN/browser callback may already have finished this order.
             }
         }
         throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_RETRY", "Payment is being processed; retry shortly");
+    }
+
+    private void queueBillingNotice(PaymentOrder order) {
+        try {
+            users.findById(order.actorUserId())
+                    .filter(user -> user.emailVerified() && !user.disabled())
+                    .ifPresent(user -> emailSender.sendBillingNotice(order.id(), user.email(),
+                            user.displayName(), "Order " + order.id() + " · BDT " + order.amountBdt()
+                                    + " · " + order.provider() + " sandbox",
+                            publicBaseUrl.replaceAll("/+$", "") + "/"));
+        } catch (RuntimeException exception) {
+            // Payment state remains authoritative. An APPLIED-order reconciliation repairs the notice.
+            log.warn("Billing notice enqueue failed for order {}: {}",
+                    order.id(), exception.getClass().getSimpleName());
+        }
     }
 
     private void applyVerifiedOrder(PaymentOrder order) {

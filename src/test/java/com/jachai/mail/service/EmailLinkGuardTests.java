@@ -18,6 +18,10 @@ import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
 import com.jachai.attempt.repository.AssignmentRepository;
 import com.jachai.attempt.model.Assignment;
+import com.jachai.billing.model.PaymentOrder;
+import com.jachai.billing.model.PaymentOrderStatus;
+import com.jachai.billing.model.PaymentProvider;
+import com.jachai.billing.repository.PaymentOrderRepository;
 import com.jachai.mail.model.EmailJobType;
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.organization.model.OrganizationInvitation;
@@ -45,11 +49,13 @@ class EmailLinkGuardTests {
     @Mock AttemptRepository attempts;
     @Mock AssignmentRepository assignments;
     @Mock MembershipRepository memberships;
+    @Mock PaymentOrderRepository paymentOrders;
     @Mock UserRepository users;
 
     private EmailLinkGuard guard() {
         return new EmailLinkGuard(verificationTokens, resetTokens, invitations,
-                organizationInvitations, certificates, attempts, assignments, memberships, users);
+                organizationInvitations, certificates, attempts, assignments, memberships,
+                paymentOrders, users);
     }
 
     @Test
@@ -177,5 +183,23 @@ class EmailLinkGuardTests {
         when(attempts.existsByOrganizationIdAndAssignmentIdAndStatus(
                 "org", "assignment", AttemptStatus.SUBMITTED)).thenReturn(true);
         assertFalse(guard().isCurrent(payload));
+    }
+
+    @Test
+    void billingNoticeRequiresAppliedOrderAndCurrentBuyerEmail() {
+        Instant now = Instant.now();
+        PaymentOrder applied = new PaymentOrder("order", "org", "buyer", PaymentProvider.BKASH,
+                PaymentOrderStatus.APPLIED, new java.math.BigDecimal("100.00"), null, null,
+                null, now, now, now, 2L);
+        when(paymentOrders.findById("order")).thenReturn(Optional.of(applied));
+        when(users.findById("buyer")).thenReturn(Optional.of(new User("buyer",
+                "buyer@example.com", "Buyer", null, true, false, 0, now)));
+
+        assertTrue(guard().isCurrent(new EmailPayload(EmailJobType.BILLING_NOTICE,
+                "buyer@example.com", "Buyer", "Sandbox order", "https://example.test/",
+                now.plusSeconds(3600), "order")));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.BILLING_NOTICE,
+                "other@example.com", "Buyer", "Sandbox order", "https://example.test/",
+                now.plusSeconds(3600), "order")));
     }
 }

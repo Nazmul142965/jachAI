@@ -91,6 +91,19 @@ public class QueuedEmailSender implements EmailSender {
         }
     }
 
+    @Override
+    public void sendBillingNotice(String orderId, String recipient, String displayName,
+                                  String orderSummary, String signInUrl) {
+        EmailPayload payload = new EmailPayload(EmailJobType.BILLING_NOTICE,
+                recipient, displayName, orderSummary, signInUrl,
+                Instant.now().plus(Duration.ofDays(30)), orderId);
+        try {
+            enqueue("billing-notice:" + orderId, payload, null);
+        } catch (DuplicateKeyException ignored) {
+            // One notice per verified-and-applied sandbox order, even after reconciliation.
+        }
+    }
+
     private void enqueue(EmailPayload payload) {
         enqueue(UUID.randomUUID().toString(), payload, Instant.now().plus(RECORD_RETENTION));
     }

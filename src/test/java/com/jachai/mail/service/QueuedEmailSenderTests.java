@@ -130,4 +130,19 @@ class QueuedEmailSenderTests {
         assertEquals(EmailJobType.ASSIGNMENT_REMINDER, payload.getValue().type());
         assertEquals("assignment-1", payload.getValue().resourceId());
     }
+
+    @Test
+    void billingNoticeKeepsPermanentDeduplicationMetadata() {
+        when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
+        new QueuedEmailSender(jobs, cipher).sendBillingNotice("order-1", "buyer@example.com",
+                "Buyer", "Sandbox order", "https://example.test/");
+
+        ArgumentCaptor<EmailJob> job = ArgumentCaptor.forClass(EmailJob.class);
+        verify(jobs).insert(job.capture());
+        assertEquals("billing-notice:order-1", job.getValue().id());
+        assertEquals(null, job.getValue().expiresAt());
+        ArgumentCaptor<EmailPayload> payload = ArgumentCaptor.forClass(EmailPayload.class);
+        verify(cipher).seal(org.mockito.ArgumentMatchers.eq("billing-notice:order-1"), payload.capture());
+        assertEquals(EmailJobType.BILLING_NOTICE, payload.getValue().type());
+    }
 }

@@ -14,4 +14,6 @@ public interface EmailSender {
     void sendResultReleased(String attemptId, String recipient, String displayName, String signInUrl);
     boolean sendAssignmentReminder(String assignmentId, String recipient, String displayName,
                                    String assessmentTitle, String signInUrl, Instant availableUntil);
+    void sendBillingNotice(String orderId, String recipient, String displayName,
+                           String orderSummary, String signInUrl);
 }

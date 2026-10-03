@@ -13,6 +13,8 @@ import com.jachai.mail.model.EmailPayload;
 import com.jachai.organization.repository.OrganizationInvitationRepository;
 import com.jachai.organization.repository.MembershipRepository;
 import com.jachai.organization.model.OrganizationRole;
+import com.jachai.billing.model.PaymentOrderStatus;
+import com.jachai.billing.repository.PaymentOrderRepository;
 import com.jachai.talent.repository.CampaignEmailInvitationRepository;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -37,6 +39,7 @@ public class EmailLinkGuard {
     private final AttemptRepository attempts;
     private final AssignmentRepository assignments;
     private final MembershipRepository memberships;
+    private final PaymentOrderRepository paymentOrders;
     private final UserRepository users;
 
     public boolean isCurrent(EmailPayload payload) {
@@ -48,6 +51,9 @@ public class EmailLinkGuard {
         }
         if (payload.type() == EmailJobType.ASSIGNMENT_REMINDER) {
             return currentAssignmentReminder(payload);
+        }
+        if (payload.type() == EmailJobType.BILLING_NOTICE) {
+            return currentBillingNotice(payload);
         }
         String token = tokenFrom(payload.url(),
                 payload.type() == EmailJobType.ASSESSMENT_INVITATION ? "invitation"
@@ -69,7 +75,24 @@ public class EmailLinkGuard {
             case CERTIFICATE_ISSUED -> false;
             case RESULT_RELEASED -> false;
             case ASSIGNMENT_REMINDER -> false;
+            case BILLING_NOTICE -> false;
         };
+    }
+
+    private boolean currentBillingNotice(EmailPayload payload) {
+        if (payload.resourceId() == null) return false;
+        try {
+            URI url = URI.create(payload.url());
+            if (!"/".equals(url.getPath()) || url.getQuery() != null) return false;
+            return paymentOrders.findById(payload.resourceId())
+                    .filter(order -> order.status() == PaymentOrderStatus.APPLIED)
+                    .flatMap(order -> users.findById(order.actorUserId()))
+                    .filter(user -> user.emailVerified() && !user.disabled()
+                            && user.email().equalsIgnoreCase(payload.recipient()))
+                    .isPresent();
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private boolean currentAssignmentReminder(EmailPayload payload) {
