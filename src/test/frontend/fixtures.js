@@ -25,7 +25,15 @@ const SOURCE = String.raw`(() => {
 
   const assignment = { id: 'asg-1',
     availableFrom: new Date(Date.now() - 3600000).toISOString(),
-    availableUntil: new Date(Date.now() + 3600000).toISOString(), attemptsAllowed: 1 };
+    availableUntil: new Date(Date.now() + 3600000).toISOString(), attemptsAllowed: 2 };
+  const submittedAttempt = { id: 'att-9', attemptNumber: 1, status: 'SUBMITTED',
+    deadline: new Date(Date.now() - 600000).toISOString(), submittedAt: new Date(Date.now() - 660000).toISOString() };
+  const releasedResult = { attemptId: 'att-9', released: true, percentage: 80, passed: true,
+    submittedAt: new Date(Date.now() - 660000).toISOString(), releasedAt: new Date(Date.now() - 600000).toISOString(),
+    topics: [{ topic: 'Java', correct: 4, total: 5 }] };
+  const learnerFeedback = { attemptId: 'att-9', learnerUserId: 'u-learner', authorUserId: 'u-admin',
+    summary: 'Solid grasp of the core language.', nextSteps: 'Practise streams and collectors.',
+    status: 'PUBLISHED', updatedAt: new Date().toISOString(), publishedAt: new Date().toISOString() };
   const attempt = { id: 'att-1', assignmentId: 'asg-1',
     deadline: new Date(Date.now() + 6000).toISOString(),
     questions: [
@@ -130,6 +138,10 @@ const SOURCE = String.raw`(() => {
     if (path.includes('/assessments/ba-1/progress')) return json(page([batchProgress]));
 
     if (path === org + '/assignments/mine') return json(page(ROLE.org.myRole === 'LEARNER' ? [assignment] : []));
+    if (path === org + '/assignments/asg-1/attempts/mine') return json(ROLE.org.myRole === 'LEARNER' ? [submittedAttempt] : []);
+    if (path.endsWith('/attempts/att-9/result')) return json(releasedResult);
+    if (path.includes('/academy/attempts/att-9/feedback/mine')) return json(learnerFeedback);
+    if (path.endsWith('/attempts/att-9/tutor')) return json({ explanation: 'Records are a compact immutable carrier for data.' });
     if (path.endsWith('/assignments/asg-1/attempts') && method === 'POST') return json(attempt, 201);
     if (path.includes('/answers/')) return new Response(null, { status: 204 });
     if (path.endsWith('/submit')) return json({ attemptId: 'att-1', released: false, percentage: null, passed: null, topics: [] });

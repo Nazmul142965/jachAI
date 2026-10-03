@@ -182,6 +182,27 @@ async function main() {
   check(journey, 'pending-release result hides the score', result.includes('Your score stays hidden') && !/%/.test(result));
   check(journey, 'pending result offers Check again', await ev(`[...document.querySelectorAll('#result-panel button')].some((b) => b.textContent === 'Check again')`));
 
+  // Learner assessment detail: window, attempts, result, feedback and tutor on one screen.
+  await view('Assessment detail'); await wait(1600);
+  check(journey, 'assessment detail opens from the nav for the learner assignment',
+    /Assignment asg-1/.test(await ev(`document.querySelector('#assessment-detail-view').textContent`)));
+  check(journey, 'attempt usage is counted from the server attempt list',
+    /1 used of 2 allowed/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
+  check(journey, 'an assessment name the API does not return is reported, not invented',
+    /does not return them to a learner/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
+  await clickText('#assessment-detail-attempts', 'View result, feedback and tutor'); await wait(1400);
+  check(journey, 'released result and topic feedback render in the detail screen',
+    /4 of 5 correct/.test(await ev(`document.querySelector('#assessment-detail-result').textContent`)));
+  check(journey, 'the AI tutor entry point is offered with a released result',
+    await ev(`!!document.querySelector('#assessment-detail-result form textarea')`));
+  await clickText('#assessment-detail-result', 'View instructor feedback'); await wait(1000);
+  check(journey, 'instructor feedback is reachable from the released result',
+    /Practise streams/.test(await ev(`document.querySelector('#assessment-detail-result').textContent`)));
+  await shot('learner-assessment-detail');
+  await ev(`document.querySelector('#assessment-detail-back').click()`); await wait(1300);
+  check(journey, 'assessment detail back navigation returns to My assessments',
+    await ev(`!document.querySelector('#attempts-view').classList.contains('hidden')`));
+
   // ---------------------------------------------------------------- academy staff journey
   await load('academy-staff');
   const staff = 'academy-staff';

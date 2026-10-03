@@ -87,6 +87,7 @@ function focusPanel(panel) {
 }
 const roleLabel = (role) => String(role).replaceAll('_', ' ').toLowerCase();
 const roleTitle = (role) => roleLabel(role).replace(/\b\w/g, (letter) => letter.toUpperCase());
+const when = (value) => (value ? new Date(value).toLocaleString() : 'not recorded');
 let pendingRequests = 0;
 function updateBusyIndicator() {
   document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
@@ -315,7 +316,8 @@ async function setOrganization() {
   if (state.organization.type === 'TALENT') {
     group('Talent', staff ? [['campaigns', 'Hiring campaigns'], ['talent-campaign', 'Campaign workspace']] : []);
   }
-  group('My work', ['LEARNER', 'CANDIDATE'].includes(role) ? [['attempts', 'My assessments']] : []);
+  group('My work', ['LEARNER', 'CANDIDATE'].includes(role)
+    ? [['attempts', 'My assessments'], ['assessment-detail', 'Assessment detail']] : []);
   group('Administration', state.platformAdmin ? [['platform', 'Platform']] : []);
   for (const [heading, items] of groups) {
     if (heading) nav.append(node('p', heading, 'nav-heading'));
@@ -450,7 +452,7 @@ async function showView(key) {
     await loadList('#assignments-list', () => loadAssignments(), 'Assignments could not be loaded.');
     attachFilter('#assignments-list', 'Filter assignments by availability or attempt count');
   }
-  if (key === 'assessment-detail') return; // screen lands in its own commit; no nav entry yet
+  if (key === 'assessment-detail') await loadAssessmentDetail();
   if (key === 'certificates') {
     await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
     attachFilter('#certificates-list', 'Filter certificates by code, status or date');
@@ -1275,7 +1277,8 @@ async function loadAssignments(pageNumber = 0) {
     return item(resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
       `${state} · Available ${new Date(from).toLocaleString()} – ${new Date(until).toLocaleString()}`
         + ` · ${assignment.attemptsAllowed} attempt(s)${origin}`,
-      [start, button('Attempt history', () => showHistory(assignment))]);
+      [button('Open assessment', () => openAssessmentDetail(assignment)),
+        start, button('Attempt history', () => showHistory(assignment))]);
   }), 'No assignments yet.');
   renderPageControls('#assignments-pagination', page, loadAssignments);
 }
@@ -1296,8 +1299,8 @@ async function showHistory(assignment) {
   panel.classList.remove('hidden');
   focusPanel(panel);
 }
-function renderAttemptInstructions(assignment) {
-  const panel = $('#attempt-panel'); panel.replaceChildren(node('h2', 'Before you begin'));
+function renderAttemptInstructions(assignment, target = '#attempt-panel', resultTarget = '#result-panel') {
+  const panel = $(target); panel.replaceChildren(node('h2', 'Before you begin'));
   const rules = node('ul', '', 'attempt-rules');
   rules.append(
     node('li', `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()}.`),
@@ -1307,21 +1310,23 @@ function renderAttemptInstructions(assignment) {
     node('li', 'Save each answer before you submit. Only saved answers are counted.'),
     node('li', 'Answers cannot be changed after you submit.'));
   panel.append(node('p', 'Read these notes, then begin.', 'muted'), rules);
-  panel.append(button('Begin attempt', () => beginAttempt(assignment.id), 'button primary'),
+  panel.append(button('Begin attempt', () => beginAttempt(assignment.id, target, resultTarget), 'button primary'),
     button('Cancel', () => panel.classList.add('hidden'), 'button quiet'));
   panel.classList.remove('hidden');
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   focusPanel(panel);
 }
-async function startAttempt(assignment) {
-  if (assignment?.availableFrom && assignment?.availableUntil) { renderAttemptInstructions(assignment); return; }
-  await beginAttempt(assignment?.id || assignment);
+async function startAttempt(assignment, target = '#attempt-panel', resultTarget = '#result-panel') {
+  if (assignment?.availableFrom && assignment?.availableUntil) {
+    renderAttemptInstructions(assignment, target, resultTarget); return;
+  }
+  await beginAttempt(assignment?.id || assignment, target, resultTarget);
 }
-async function beginAttempt(assignmentId) {
+async function beginAttempt(assignmentId, target = '#attempt-panel', resultTarget = '#result-panel') {
   state.activeAttempt = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts`), { method: 'POST' });
   rememberAttempt(assignmentId, state.activeAttempt);
-  $('#result-panel').classList.add('hidden');
-  renderAttempt();
+  $(resultTarget).classList.add('hidden');
+  renderAttempt(target, resultTarget);
 }
 function talentAttemptActive() {
   return state.organization?.type === 'TALENT' && state.organization.myRole === 'CANDIDATE'
@@ -1386,9 +1391,9 @@ async function saveAttemptAnswer(attempt, question, body, statusPill, control, s
     control.disabled = attemptHasExpired(attempt);
   }
 }
-function renderAttempt() {
+function renderAttempt(target = '#attempt-panel', resultTarget = '#result-panel') {
   const attempt = state.activeAttempt;
-  const panel = $('#attempt-panel');
+  const panel = $(target);
   panel.replaceChildren(node('h2', 'Assessment in progress'));
   attemptAnswerState.clear();
   let submitControl = null;
@@ -1499,7 +1504,7 @@ function renderAttempt() {
       state.activeAttempt = null;
       forgetAttempt();
       panel.classList.add('hidden');
-      renderResult(result);
+      renderResult(result, resultTarget);
       notice('Assessment submitted.');
     } catch (error) {
       submitControl.disabled = false;
@@ -1513,11 +1518,11 @@ function renderAttempt() {
   focusPanel(panel);
   if (expired) expireAttempt();
 }
-async function showResult(attemptId) {
-  renderResult(await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/result`)));
+async function showResult(attemptId, target = '#result-panel') {
+  renderResult(await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/result`)), target);
 }
-function renderResult(result) {
-  const panel = $('#result-panel'); panel.replaceChildren(node('h2', 'Your result'));
+function renderResult(result, target = '#result-panel') {
+  const panel = $(target); panel.replaceChildren(node('h2', 'Your result'));
   panel.append(node('p', `Attempt ID: ${result.attemptId}`, 'item-meta'));
   if (!result.released) {
     panel.append(node('p', 'Submitted. Your score stays hidden until staff release the result or finish manual grading.', 'muted'));
@@ -1580,6 +1585,113 @@ function renderResult(result) {
   panel.classList.remove('hidden'); panel.scrollIntoView({ behavior: 'smooth' });
   focusPanel(panel);
 }
+// ---------------------------------------------------------------- Learner assessment detail
+function assessmentDetailStale(token) {
+  return token !== state.assessmentDetailToken || !state.organization;
+}
+function showAssessmentDetailEmpty(message) {
+  state.detailAssignment = null;
+  const empty = $('#assessment-detail-empty');
+  empty.classList.remove('hidden');
+  empty.querySelector('p').textContent = message;
+  $('#assessment-detail-title').textContent = 'Assessment detail';
+  $('#assessment-detail-subtitle').textContent = '';
+  $('#assessment-detail-actions').replaceChildren(
+    button('Open My assessments', () => showView('attempts'), 'button secondary small'));
+  setList('#assessment-detail-summary', [], message);
+  setList('#assessment-detail-attempts', [], message);
+  $('#assessment-detail-live').classList.add('hidden');
+  $('#assessment-detail-result').classList.add('hidden');
+}
+async function loadAssessmentDetail() {
+  const token = ++state.assessmentDetailToken;
+  for (const selector of ['#assessment-detail-live', '#assessment-detail-result']) {
+    $(selector).classList.add('hidden');
+    $(selector).replaceChildren();
+  }
+  await loadList('#assessment-detail-summary', async () => {
+    let assignment = state.detailAssignment;
+    if (!assignment) {
+      const page = await request(ownOrg('/assignments/mine?page=0'));
+      if (assessmentDetailStale(token)) return;
+      assignment = (page.content || [])[0] || null;
+      if (!assignment) {
+        showAssessmentDetailEmpty('No assignment has been given to you in this workspace yet.');
+        return;
+      }
+    }
+    if (assessmentDetailStale(token)) return;
+    state.detailAssignment = assignment;
+    state.detailAssignmentId = assignment.id;
+    await renderAssessmentDetail(assignment, token);
+  }, 'The assignment could not be loaded.');
+}
+async function renderAssessmentDetail(assignment, token) {
+  const from = Date.parse(assignment.availableFrom);
+  const until = Date.parse(assignment.availableUntil);
+  const availability = Date.now() < from ? `Opens ${new Date(from).toLocaleString()}`
+    : Date.now() >= until ? 'Closed' : 'Open now';
+  const origin = assignment.batchAssessmentId ? 'Assigned through a batch'
+    : assignment.campaignId ? 'Assigned through a hiring campaign' : 'Assigned directly';
+  $('#assessment-detail-empty').classList.add('hidden');
+  $('#assessment-detail-title').textContent = 'Assessment detail';
+  $('#assessment-detail-subtitle').textContent = `${availability} · ${origin} · Assignment ${assignment.id}`;
+  const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignment.id)}/attempts/mine`));
+  if (assessmentDetailStale(token)) return;
+  const used = history.length;
+  const allowed = assignment.attemptsAllowed || 0;
+  const remaining = Math.max(0, allowed - used);
+  setList('#assessment-detail-summary', [
+    item('Availability window', `${when(assignment.availableFrom)} – ${when(assignment.availableUntil)}`),
+    item('Right now', availability),
+    item('Attempts', `${used} used of ${allowed} allowed · ${remaining} remaining`),
+    item('Where it came from', origin),
+    item('Assessment name and time limit',
+      'The current assignment API does not return them to a learner, so they are not shown here instead of being guessed.'),
+    item('Assignment identifier', assignment.id)
+  ], 'No assignment detail is available.');
+  const start = button(remaining === 0 ? 'No attempts remaining' : 'Start an attempt',
+    () => startAttempt(assignment, '#assessment-detail-live', '#assessment-detail-result'), 'button secondary');
+  if (availability !== 'Open now' || remaining === 0) {
+    start.disabled = true;
+    start.title = availability === 'Closed' ? 'The availability window for this assignment has ended.'
+      : availability !== 'Open now' ? 'The availability window for this assignment has not opened yet.'
+      : 'Every allowed attempt has already been started or submitted.';
+  }
+  $('#assessment-detail-actions').replaceChildren(start);
+  setList('#assessment-detail-attempts', history.map((attempt) => {
+    const submitted = attempt.status === 'SUBMITTED';
+    const seconds = submitted ? 0 : Math.max(0, Math.ceil((Date.parse(attempt.deadline) - Date.now()) / 1000));
+    const controls = submitted
+      ? [button('View result, feedback and tutor', () => showResult(attempt.id, '#assessment-detail-result'))]
+      : [button('Resume this attempt', () => beginAttempt(assignment.id, '#assessment-detail-live', '#assessment-detail-result'))];
+    return item(`Attempt ${attempt.attemptNumber} · ${attempt.status}`,
+      submitted ? `Submitted ${when(attempt.submittedAt)}`
+        : `Server deadline ${when(attempt.deadline)} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} remaining`,
+      controls);
+  }), 'No attempt has been started for this assignment yet.');
+  const live = state.activeAttempt;
+  if (live?.assignmentId === assignment.id && Date.now() < Date.parse(live.deadline)) {
+    renderAttempt('#assessment-detail-live', '#assessment-detail-result');
+    return;
+  }
+  const marker = pendingAttempt();
+  if (marker?.assignmentId === assignment.id) {
+    const panel = $('#assessment-detail-live');
+    panel.classList.remove('hidden');
+    panel.replaceChildren(node('h3', 'An attempt was in progress'),
+      node('p', `Attempt ${marker.attemptId} was still open when this page was last used. Resuming continues that same attempt while its deadline has not passed. Once the deadline has passed the server finalizes it first, and a new attempt starts only if attempts remain.`, 'muted'),
+      button('Resume now', () => beginAttempt(assignment.id, '#assessment-detail-live', '#assessment-detail-result'), 'button secondary'));
+  }
+}
+function openAssessmentDetail(assignment) {
+  state.detailAssignment = assignment || null;
+  state.detailAssignmentId = assignment?.id || null;
+  return showView('assessment-detail');
+}
+$('#assessment-detail-back').addEventListener('click', () => run(() => showView('attempts')));
+$('#assessment-detail-open-list').addEventListener('click', () => run(() => showView('attempts')));
+
 async function loadCertificates(pageNumber = 0) {
   const page = await request(ownOrg(`/certificates/mine?page=${pageNumber}`));
   setList('#certificates-list', (page.content || []).map((certificate) => item(
