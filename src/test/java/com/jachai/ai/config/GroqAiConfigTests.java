@@ -1,6 +1,6 @@
 package com.jachai.ai.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
@@ -10,25 +10,27 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class GroqAiConfigTests {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(GroqAiConfig.class)
-            .withPropertyValues("app.ai.tutor-provider=groq",
-                    "app.ai.groq.base-url=https://api.groq.com/openai",
+            .withPropertyValues("app.ai.groq.base-url=https://api.groq.com/openai",
                     "app.ai.groq.model=test-model");
 
     @Test
-    void missingKeyLeavesTheApplicationContextUsableWithoutGroq() {
-        runner.withPropertyValues("app.ai.groq.api-key=")
-                .run(context -> {
-                    assertNull(context.getStartupFailure());
-                    assertEquals(0, context.getBeansOfType(OpenAiChatModel.class).size());
-                });
+    void enabledGroqWithoutKeyFailsStartup() {
+        runner.withPropertyValues("app.ai.tutor-provider=groq").run(context ->
+                assertNotNull(context.getStartupFailure()));
     }
 
     @Test
-    void configuredKeyCreatesTheGroqModelWithoutCallingTheProvider() {
-        runner.withPropertyValues("app.ai.groq.api-key=test-only-key")
-                .run(context -> {
-                    assertNull(context.getStartupFailure());
-                    assertEquals(1, context.getBeansOfType(OpenAiChatModel.class).size());
-                });
+    void disabledGroqDoesNotRequireKey() {
+        runner.withPropertyValues("app.ai.tutor-provider=none").run(context ->
+                assertNull(context.getStartupFailure()));
+    }
+
+    @Test
+    void configuredGroqCreatesItsTutorModelWithoutCallingProvider() {
+        runner.withPropertyValues("app.ai.tutor-provider=groq",
+                "app.ai.groq.api-key=test-only-placeholder").run(context -> {
+            assertNull(context.getStartupFailure());
+            assertNotNull(context.getBean(OpenAiChatModel.class));
+        });
     }
 }

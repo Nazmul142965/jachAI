@@ -3,6 +3,7 @@ package com.jachai.ai.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -77,13 +78,19 @@ class TutorServiceTests {
                         Set.of("SECRET_KEY"))), Instant.now()));
         when(ai.generate(eq(AiUseCase.TUTOR), any(), any())).thenReturn("Records are data carriers.");
 
+        TutorRequest request = new TutorRequest("How is that different from a class?", List.of(
+                new TutorRequest.Turn(TutorRequest.Role.LEARNER, "Explain records"),
+                new TutorRequest.Turn(TutorRequest.Role.TUTOR, "Records are data carriers.")));
         assertEquals("Records are data carriers.", service().explain("learner", "org-a", "attempt",
-                new TutorRequest("Explain records")).explanation());
+                request).explanation());
 
         ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
         verify(ai).generate(eq(AiUseCase.TUTOR), any(), prompt.capture());
         assertFalse(prompt.getValue().contains("SECRET_KEY"));
         assertFalse(prompt.getValue().contains("Secret question"));
+        assertTrue(prompt.getValue().contains("LEARNER: Explain records"));
+        assertTrue(prompt.getValue().contains("TUTOR: Records are data carriers."));
+        assertTrue(prompt.getValue().contains("Current learner question: How is that different"));
     }
 
     @Test

@@ -38,7 +38,8 @@ public class SpringAiService implements AiService {
         try {
             String response = ChatClient.builder(model).build().prompt()
                     .system(systemInstruction).user(userInput).call().content();
-            if (response == null || response.isBlank() || response.length() > 12000) {
+            int maxLength = useCase == AiUseCase.TUTOR ? 3000 : 12000;
+            if (response == null || response.isBlank() || response.length() > maxLength) {
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID_OUTPUT", "AI returned unusable content");
             }
             return response;
