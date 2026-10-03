@@ -7,12 +7,22 @@ This document describes the opt-in real MongoDB integration tests for the assess
 These integration tests verify real MongoDB behavior that unit tests cannot prove:
 
 - Tenant-scoped reads across collections
-- Required unique, compound, and TTL index creation
+- Required unique and TTL index creation (application-created via UsageBucket mapping)
 - Entitlement reservation with compare-and-swap (CAS) under concurrent writes
 - Revision-based reconciliation CAS under concurrent writes
 - TTL index configuration (not immediate deletion timing)
 
 These tests use a separate test database and never touch the application database or existing user records.
+
+## Safety Features
+
+- **ID-based cleanup**: Tests track all created document IDs and clean up only those IDs
+- **No unfiltered deletes**: Never use `deleteMany(new Document())` - only delete by tracked IDs
+- **No collection drops**: Tests never drop collections; they use unique document IDs instead
+- **URI validation**: Uses MongoDB URI parser to validate `MONGODB_TEST_URI` format
+- **Database prefix enforcement**: Tests refuse to run unless database name begins with `jachai_it_`
+- **Unique test IDs**: All test documents use unique IDs with timestamps and thread IDs
+- **Connection safety**: Connection strings and credentials are never printed
 
 ## Prerequisites
 
@@ -30,6 +40,7 @@ Invalid URIs (tests will refuse to run):
 - `mongodb://localhost:27017/jachai` (does not begin with `jachai_it_`)
 - `mongodb://localhost:27017/production` (production database)
 - Using `MONGODB_URI` instead of `MONGODB_TEST_URI`
+- Malformed URIs (will fail URI parser validation)
 
 ### Never Use Application Database
 
@@ -106,11 +117,13 @@ Verifies that MongoDB queries properly enforce tenant isolation:
 
 ### IndexCreationIntegrationTests
 
-Verifies index configuration:
+Verifies application-created index configuration:
 - Unique index on `_id` prevents duplicate inserts
-- Compound index support for tenant queries
-- TTL index is configured on `expiresAt` field
+- Application-created TTL index is configured on `expiresAt` field
 - TTL index configuration (expireAfterSeconds = 0)
+- Application-created `_id` index exists
+
+**Note**: These tests verify indexes created by the application's UsageBucket mapping, not manually created indexes.
 
 ### EntitlementReservationCasIntegrationTests
 
@@ -120,7 +133,8 @@ Verifies compare-and-swap behavior for entitlement reservations:
 - Replace usage fails when usage does not match
 - Replace usage fails when organizationId does not match
 - Legacy bucket without revision initializes revision on first replace
-- Concurrent reservations are serialized by CAS
+- Real reservation path (EntitlementService.reserve) increments usage atomically
+- Concurrent reservations are serialized by CAS with exact success/failure counts
 - Concurrent reconcile operations are serialized by revision
 
 ### TtlIndexBehaviorIntegrationTests
@@ -128,34 +142,33 @@ Verifies compare-and-swap behavior for entitlement reservations:
 Verifies TTL index behavior:
 - TTL index is present on entitlement_usage collection
 - TTL index configuration expires at 0 seconds
-- Document with past expiresAt is eligible for deletion (not immediate)
 - Document with future expiresAt persists
 - Document with null expiresAt is not subject to TTL
-- Manually created TTL index on test collection
-- TTL index does not delete immediately (MongoDB runs cleanup periodically)
 - Multiple documents with different expiry times
 
-**Note**: These tests verify TTL index configuration and presence. They do not wait for MongoDB's TTL monitor to actually delete documents, as that runs periodically (typically every 60 seconds). The tests confirm that documents with expired timestamps exist in the collection immediately after expiry, which is expected MongoDB behavior.
+**Note**: These tests verify TTL index configuration and presence. They do not assume MongoDB deletes documents immediately at expiry (TTL monitor runs periodically). Tests only verify configuration and that documents with future expiry persist.
 
 ### ReconciliationCasIntegrationTests
 
 Verifies reconciliation with CAS under concurrent writes:
 - Reconciliation backfill with revision CAS
-- Concurrent reconcile operations prevent lost updates
+- Concurrent reconcile operations prevent lost updates (exact success count)
 - Reconciliation with concurrent reservation
 - Same-millisecond ABA prevented by monotonic revision
 - Reconciliation idempotency with revision
 - Reconciliation with legacy document without revision
 
+**Note**: Concurrency tests use CompletableFuture for deterministic synchronization and surface worker exceptions.
+
 ## Test Data Cleanup
 
-Integration tests create only uniquely identified test data using timestamps in IDs:
+Integration tests create only uniquely identified test data using timestamps and thread IDs:
 
-- Organization IDs: `org-it-{timestamp}` or `org-a-it-{timestamp}`
+- Organization IDs: `{prefix}-{timestamp}-{threadId}`
 - Bucket IDs: `{orgId}:{metric}:{window}` with unique orgId
-- Document IDs include unique suffixes
+- Document IDs: `{prefix}-{timestamp}-{threadId}`
 
-Each test class cleans up its own data in `@AfterEach` methods. The base class provides cleanup utilities.
+Each test tracks all created document IDs via `trackDocumentId()`. The base class's `@AfterEach` method cleans up only tracked IDs using `deleteOne(new Document("_id", id))`. No unfiltered `deleteMany()` is used, and no collections are dropped.
 
 ## Security Notes
 

@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.bson.Document;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -19,14 +18,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
 
     private MongoTemplate mongoTemplate;
-
-    @Override
-    @AfterEach
-    void cleanup() {
-        if (mongoTemplate != null) {
-            mongoTemplate.getCollection("entitlement_usage").deleteMany(new Document());
-        }
-    }
 
     private void setupStore() {
         SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(mongoClient, databaseName);
@@ -49,7 +40,7 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
             return key != null && key.containsKey("expiresAt");
         });
 
-        assertTrue(hasTtlIndex, "entitlement_usage collection should have TTL index on expiresAt");
+        assertTrue(hasTtlIndex, "Application should create TTL index on expiresAt in UsageBucket mapping");
     }
 
     @Test
@@ -58,52 +49,26 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
 
         MongoCollection<Document> collection = testDatabase.getCollection("entitlement_usage");
 
+        boolean foundTtlIndex = false;
         for (Document index : collection.listIndexes()) {
             Document key = index.get("key", Document.class);
             if (key != null && key.containsKey("expiresAt")) {
+                foundTtlIndex = true;
                 Integer expireAfterSeconds = index.getInteger("expireAfterSeconds");
                 assertNotNull(expireAfterSeconds, "TTL index should have expireAfterSeconds configured");
                 assertEquals(0, expireAfterSeconds,
                         "TTL index should expire at the exact expiresAt timestamp (0 seconds after)");
             }
         }
-    }
 
-    @Test
-    void documentWithPastExpiresAtIsEligibleForDeletion() {
-        setupStore();
-
-        String orgId = "org-it-" + System.currentTimeMillis();
-        String bucketId = orgId + ":INVITATION:2026-10";
-
-        Instant pastExpiry = Instant.now().minusSeconds(3600);
-
-        UsageBucket bucket = new UsageBucket(
-                bucketId,
-                orgId,
-                UsageMetric.INVITATION,
-                "2026-10",
-                1,
-                Instant.now().minusSeconds(7200),
-                pastExpiry,
-                Instant.now().minusSeconds(7200)
-        );
-
-        mongoTemplate.insert(bucket);
-
-        UsageBucket found = mongoTemplate.findById(bucketId, UsageBucket.class);
-        assertNotNull(found, "Document should be inserted before TTL cleanup runs");
-
-        Document doc = mongoTemplate.getCollection("entitlement_usage")
-                .find(new Document("_id", bucketId)).first();
-        assertNotNull(doc, "Document exists in collection (TTL deletion is not immediate)");
+        assertTrue(foundTtlIndex, "TTL index on expiresAt must exist for this test to pass");
     }
 
     @Test
     void documentWithFutureExpiresAtPersists() {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":CERTIFICATE:2026-10";
 
         Instant futureExpiry = Instant.now().plusSeconds(86400);
@@ -120,6 +85,7 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(bucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         UsageBucket found = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(found, "Document with future expiry should persist");
@@ -130,7 +96,7 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
     void documentWithNullExpiresAtIsNotSubjectToTtl() {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":PUBLISHED_ASSESSMENT:all";
 
         UsageBucket bucket = new UsageBucket(
@@ -145,87 +111,36 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(bucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         UsageBucket found = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(found, "Document with null expiresAt should persist");
     }
 
     @Test
-    void manuallyCreatedTtlIndexOnTestCollection() {
-        setupStore();
-
-        MongoCollection<Document> testCollection = testDatabase.getCollection("test_ttl_collection");
-        testCollection.drop();
-
-        Document ttlIndex = new Document("deleteAt", 1);
-        com.mongodb.client.model.IndexOptions options = new com.mongodb.client.model.IndexOptions()
-                .expireAfter(0L, java.util.concurrent.TimeUnit.SECONDS);
-        testCollection.createIndex(ttlIndex, options);
-
-        List<Document> indexes = new ArrayList<>();
-        for (Document index : testCollection.listIndexes()) {
-            indexes.add(index);
-        }
-
-        boolean hasTtlIndex = indexes.stream().anyMatch(index -> {
-            Document key = index.get("key", Document.class);
-            return key != null && key.containsKey("deleteAt");
-        });
-
-        assertTrue(hasTtlIndex, "Test collection should have TTL index on deleteAt");
-
-        testCollection.drop();
-    }
-
-    @Test
-    void ttlIndexDoesNotDeleteImmediately() {
-        setupStore();
-
-        String orgId = "org-it-" + System.currentTimeMillis();
-        String bucketId = orgId + ":INVITATION:2026-10";
-
-        Instant justExpired = Instant.now().minusSeconds(1);
-
-        UsageBucket bucket = new UsageBucket(
-                bucketId,
-                orgId,
-                UsageMetric.INVITATION,
-                "2026-10",
-                1,
-                Instant.now().minusSeconds(10),
-                justExpired,
-                Instant.now().minusSeconds(10)
-        );
-
-        mongoTemplate.insert(bucket);
-
-        UsageBucket foundImmediately = mongoTemplate.findById(bucketId, UsageBucket.class);
-        assertNotNull(foundImmediately,
-                "Document should still exist immediately after expiry (TTL cleanup runs periodically)");
-    }
-
-    @Test
     void multipleDocumentsWithDifferentExpiryTimes() {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
 
-        Instant pastExpiry = Instant.now().minusSeconds(3600);
         Instant futureExpiry = Instant.now().plusSeconds(3600);
 
-        UsageBucket pastBucket = new UsageBucket(
-                orgId + ":INVITATION:past",
+        String bucketId1 = orgId + ":INVITATION:future1";
+        String bucketId2 = orgId + ":INVITATION:future2";
+
+        UsageBucket futureBucket1 = new UsageBucket(
+                bucketId1,
                 orgId,
                 UsageMetric.INVITATION,
                 "2026-10",
                 1,
-                Instant.now().minusSeconds(7200),
-                pastExpiry,
-                Instant.now().minusSeconds(7200)
+                Instant.now(),
+                futureExpiry,
+                Instant.now()
         );
 
-        UsageBucket futureBucket = new UsageBucket(
-                orgId + ":INVITATION:future",
+        UsageBucket futureBucket2 = new UsageBucket(
+                bucketId2,
                 orgId,
                 UsageMetric.INVITATION,
                 "2026-10",
@@ -235,12 +150,14 @@ class TtlIndexBehaviorIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.now()
         );
 
-        mongoTemplate.insert(pastBucket);
-        mongoTemplate.insert(futureBucket);
+        mongoTemplate.insert(futureBucket1);
+        mongoTemplate.insert(futureBucket2);
+        trackDocumentId("entitlement_usage", bucketId1);
+        trackDocumentId("entitlement_usage", bucketId2);
 
         long count = mongoTemplate.getCollection("entitlement_usage").countDocuments(
                 new Document("organizationId", orgId));
 
-        assertEquals(2, count, "Both documents should exist before TTL cleanup runs");
+        assertEquals(2, count, "Both documents should exist");
     }
 }

@@ -11,13 +11,12 @@ import com.jachai.billing.repository.MongoEntitlementUsageStore;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
@@ -27,14 +26,6 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
 
     private MongoTemplate mongoTemplate;
     private MongoEntitlementUsageStore store;
-
-    @Override
-    @AfterEach
-    void cleanup() {
-        if (mongoTemplate != null) {
-            mongoTemplate.getCollection("entitlement_usage").deleteMany(new Document());
-        }
-    }
 
     private void setupStore() {
         SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(mongoClient, databaseName);
@@ -62,17 +53,22 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
     void reconciliationBackfillWithRevisionCas() {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":CERTIFICATE:2026-10";
 
+        String certId1 = generateTestId("cert");
+        String certId2 = generateTestId("cert");
+
         mongoTemplate.getCollection("certificates").insertMany(List.of(
-                new Document("_id", "cert-1")
+                new Document("_id", certId1)
                         .append("organizationId", orgId)
                         .append("issuedAt", Instant.now()),
-                new Document("_id", "cert-2")
+                new Document("_id", certId2)
                         .append("organizationId", orgId)
                         .append("issuedAt", Instant.now())
         ));
+        trackDocumentId("certificates", certId1);
+        trackDocumentId("certificates", certId2);
 
         UsageBucket bucket = new UsageBucket(
                 bucketId,
@@ -86,6 +82,7 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(bucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         long actualCount = store.total("certificates", orgId);
         assertEquals(2, actualCount);
@@ -101,31 +98,36 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         assertEquals(2L, updated.revision());
         assertNotNull(updated.lastReconciledAt());
         assertEquals("reconciler-it", updated.reconciledByUserId());
-
-        mongoTemplate.getCollection("certificates").deleteMany(new Document());
     }
 
     @Test
-    void concurrentReconcileOperationsPreventLostUpdates() throws InterruptedException {
+    void concurrentReconcileOperationsPreventLostUpdates() throws ExecutionException, InterruptedException {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":INVITATION:2026-10";
 
+        String assignId1 = generateTestId("assign");
+        String assignId2 = generateTestId("assign");
+        String assignId3 = generateTestId("assign");
+
         mongoTemplate.getCollection("assignments").insertMany(List.of(
-                new Document("_id", "assign-1")
+                new Document("_id", assignId1)
                         .append("organizationId", orgId)
                         .append("createdAt", Instant.now())
                         .append("campaignId", null),
-                new Document("_id", "assign-2")
+                new Document("_id", assignId2)
                         .append("organizationId", orgId)
                         .append("createdAt", Instant.now())
                         .append("campaignId", null),
-                new Document("_id", "assign-3")
+                new Document("_id", assignId3)
                         .append("organizationId", orgId)
                         .append("createdAt", Instant.now())
                         .append("campaignId", null)
         ));
+        trackDocumentId("assignments", assignId1);
+        trackDocumentId("assignments", assignId2);
+        trackDocumentId("assignments", assignId3);
 
         UsageBucket initialBucket = new UsageBucket(
                 bucketId,
@@ -139,19 +141,18 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(initialBucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         int threadCount = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch doneLatch = new CountDownLatch(threadCount);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
         AtomicInteger successCount = new AtomicInteger(0);
         List<Long> finalRevisions = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
             final int threadIndex = i;
-            executor.submit(() -> {
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                 try {
-                    startLatch.await();
                     for (int attempt = 0; attempt < 10; attempt++) {
                         UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                         if (current != null) {
@@ -173,45 +174,46 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                     }
                 } catch (Exception e) {
                     // Thread failed
-                } finally {
-                    doneLatch.countDown();
                 }
-            });
+            }, executor);
+            futures.add(future);
         }
 
-        startLatch.countDown();
-        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "All threads should complete");
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
         assertEquals(3, finalBucket.used(), "Final usage should match actual count");
-        assertTrue(successCount.get() > 0, "At least one reconcile should succeed");
+        assertEquals(1, successCount.get(), "Exactly one reconcile should succeed");
         assertTrue(finalBucket.revision() > 1L, "Revision should have incremented");
 
         synchronized (finalRevisions) {
-            assertTrue(finalRevisions.stream().distinct().count() == 1,
+            assertEquals(1, finalRevisions.stream().distinct().count(),
                     "All successful writes should have converged to the same final revision");
         }
-
-        mongoTemplate.getCollection("assignments").deleteMany(new Document());
     }
 
     @Test
-    void reconciliationWithConcurrentReservation() throws InterruptedException {
+    void reconciliationWithConcurrentReservation() throws ExecutionException, InterruptedException {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":CERTIFICATE:2026-10";
 
+        String certId1 = generateTestId("cert");
+        String certId2 = generateTestId("cert");
+
         mongoTemplate.getCollection("certificates").insertMany(List.of(
-                new Document("_id", "cert-1")
+                new Document("_id", certId1)
                         .append("organizationId", orgId)
                         .append("issuedAt", Instant.now()),
-                new Document("_id", "cert-2")
+                new Document("_id", certId2)
                         .append("organizationId", orgId)
                         .append("issuedAt", Instant.now())
         ));
+        trackDocumentId("certificates", certId1);
+        trackDocumentId("certificates", certId2);
 
         UsageBucket initialBucket = new UsageBucket(
                 bucketId,
@@ -225,16 +227,15 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(initialBucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch doneLatch = new CountDownLatch(2);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
         AtomicInteger reconcileSuccess = new AtomicInteger(0);
         AtomicInteger reserveSuccess = new AtomicInteger(0);
 
-        executor.submit(() -> {
+        CompletableFuture<Void> reconcileFuture = CompletableFuture.runAsync(() -> {
             try {
-                startLatch.await();
                 for (int attempt = 0; attempt < 10; attempt++) {
                     UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                     if (current != null) {
@@ -249,14 +250,12 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                 }
             } catch (Exception e) {
                 // Thread failed
-            } finally {
-                doneLatch.countDown();
             }
-        });
+        }, executor);
+        futures.add(reconcileFuture);
 
-        executor.submit(() -> {
+        CompletableFuture<Void> reserveFuture = CompletableFuture.runAsync(() -> {
             try {
-                startLatch.await();
                 for (int attempt = 0; attempt < 10; attempt++) {
                     UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                     if (current != null && current.used() < 10) {
@@ -278,27 +277,23 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                 }
             } catch (Exception e) {
                 // Thread failed
-            } finally {
-                doneLatch.countDown();
             }
-        });
+        }, executor);
+        futures.add(reserveFuture);
 
-        startLatch.countDown();
-        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both threads should complete");
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(finalBucket);
         assertTrue(finalBucket.used() >= 2, "Usage should not decrease below actual count");
-
-        mongoTemplate.getCollection("certificates").deleteMany(new Document());
     }
 
     @Test
-    void sameMillisecondAbaPreventedByMonotonicRevision() throws InterruptedException {
+    void sameMillisecondAbaPreventedByMonotonicRevision() throws ExecutionException, InterruptedException {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":PUBLISHED_ASSESSMENT:all";
 
         UsageBucket initialBucket = new UsageBucket(
@@ -313,17 +308,16 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(initialBucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch doneLatch = new CountDownLatch(2);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
         AtomicInteger successCount = new AtomicInteger(0);
 
         for (int i = 0; i < 2; i++) {
             final int threadIndex = i;
-            executor.submit(() -> {
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                 try {
-                    startLatch.await();
                     for (int attempt = 0; attempt < 10; attempt++) {
                         UsageBucket current = mongoTemplate.findById(bucketId, UsageBucket.class);
                         if (current != null) {
@@ -338,14 +332,12 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                     }
                 } catch (Exception e) {
                     // Thread failed
-                } finally {
-                    doneLatch.countDown();
                 }
-            });
+            }, executor);
+            futures.add(future);
         }
 
-        startLatch.countDown();
-        assertTrue(doneLatch.await(30, TimeUnit.SECONDS), "Both threads should complete");
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
         executor.shutdown();
 
         UsageBucket finalBucket = mongoTemplate.findById(bucketId, UsageBucket.class);
@@ -358,15 +350,18 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
     void reconciliationIdempotencyWithRevision() {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":INVITATION:2026-10";
 
+        String assignId1 = generateTestId("assign");
+
         mongoTemplate.getCollection("assignments").insertMany(List.of(
-                new Document("_id", "assign-1")
+                new Document("_id", assignId1)
                         .append("organizationId", orgId)
                         .append("createdAt", Instant.now())
                         .append("campaignId", null)
         ));
+        trackDocumentId("assignments", assignId1);
 
         UsageBucket initialBucket = new UsageBucket(
                 bucketId,
@@ -380,6 +375,7 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         mongoTemplate.insert(initialBucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         boolean firstReplace = store.replaceUsage(orgId, bucketId, 1, 1, 1L,
                 Instant.now(), "reconciler");
@@ -396,15 +392,13 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
         UsageBucket afterSecond = mongoTemplate.findById(bucketId, UsageBucket.class);
         assertNotNull(afterSecond);
         assertEquals(2L, afterSecond.revision(), "Revision should not change on failed CAS");
-
-        mongoTemplate.getCollection("assignments").deleteMany(new Document());
     }
 
     @Test
     void reconciliationWithLegacyDocumentWithoutRevision() {
         setupStore();
 
-        String orgId = "org-it-" + System.currentTimeMillis();
+        String orgId = generateTestId("org");
         String bucketId = orgId + ":CERTIFICATE:2026-10";
 
         Document legacyBucket = new Document("_id", bucketId)
@@ -417,6 +411,7 @@ class ReconciliationCasIntegrationTests extends BaseMongoIntegrationTest {
                 .append("lastChangedAt", Instant.now());
 
         mongoTemplate.getCollection("entitlement_usage").insertOne(legacyBucket);
+        trackDocumentId("entitlement_usage", bucketId);
 
         boolean replaced = store.replaceUsage(orgId, bucketId, 1, 2, null,
                 Instant.now(), "reconciler-it");

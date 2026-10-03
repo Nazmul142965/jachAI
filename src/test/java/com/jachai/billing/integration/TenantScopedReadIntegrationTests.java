@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.bson.Document;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -22,14 +21,6 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
 
     private MongoTemplate mongoTemplate;
     private MongoEntitlementUsageStore store;
-
-    @Override
-    @AfterEach
-    void cleanup() {
-        if (mongoTemplate != null) {
-            mongoTemplate.getCollection("entitlement_usage").deleteMany(new Document());
-        }
-    }
 
     private void setupStore() {
         SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(mongoClient, databaseName);
@@ -57,11 +48,14 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
     void usageBucketReadIsScopedToTenant() {
         setupStore();
 
-        String orgA = "org-a-it-" + System.currentTimeMillis();
-        String orgB = "org-b-it-" + System.currentTimeMillis();
+        String orgA = generateTestId("org-a");
+        String orgB = generateTestId("org-b");
+
+        String bucketIdA = orgA + ":INVITATION:2026-10";
+        String bucketIdB = orgB + ":INVITATION:2026-10";
 
         UsageBucket bucketA = new UsageBucket(
-                orgA + ":INVITATION:2026-10",
+                bucketIdA,
                 orgA,
                 UsageMetric.INVITATION,
                 "2026-10",
@@ -72,7 +66,7 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         UsageBucket bucketB = new UsageBucket(
-                orgB + ":INVITATION:2026-10",
+                bucketIdB,
                 orgB,
                 UsageMetric.INVITATION,
                 "2026-10",
@@ -84,31 +78,36 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
 
         mongoTemplate.insert(bucketA);
         mongoTemplate.insert(bucketB);
+        trackDocumentId("entitlement_usage", bucketIdA);
+        trackDocumentId("entitlement_usage", bucketIdB);
 
         Map<String, UsageBucket> foundForA = store.buckets(orgA,
-                List.of(orgA + ":INVITATION:2026-10", orgB + ":INVITATION:2026-10"));
+                List.of(bucketIdA, bucketIdB));
 
         assertEquals(1, foundForA.size());
-        assertTrue(foundForA.containsKey(orgA + ":INVITATION:2026-10"));
-        assertEquals(5, foundForA.get(orgA + ":INVITATION:2026-10").used());
+        assertTrue(foundForA.containsKey(bucketIdA));
+        assertEquals(5, foundForA.get(bucketIdA).used());
 
         Map<String, UsageBucket> foundForB = store.buckets(orgB,
-                List.of(orgA + ":INVITATION:2026-10", orgB + ":INVITATION:2026-10"));
+                List.of(bucketIdA, bucketIdB));
 
         assertEquals(1, foundForB.size());
-        assertTrue(foundForB.containsKey(orgB + ":INVITATION:2026-10"));
-        assertEquals(10, foundForB.get(orgB + ":INVITATION:2026-10").used());
+        assertTrue(foundForB.containsKey(bucketIdB));
+        assertEquals(10, foundForB.get(bucketIdB).used());
     }
 
     @Test
     void mongoTemplateQueryEnforcesTenantIsolation() {
         setupStore();
 
-        String orgA = "org-a-it-" + System.currentTimeMillis();
-        String orgB = "org-b-it-" + System.currentTimeMillis();
+        String orgA = generateTestId("org-a");
+        String orgB = generateTestId("org-b");
+
+        String bucketIdA = orgA + ":CERTIFICATE:2026-10";
+        String bucketIdB = orgB + ":CERTIFICATE:2026-10";
 
         UsageBucket bucketA = new UsageBucket(
-                orgA + ":CERTIFICATE:2026-10",
+                bucketIdA,
                 orgA,
                 UsageMetric.CERTIFICATE,
                 "2026-10",
@@ -119,7 +118,7 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
         );
 
         UsageBucket bucketB = new UsageBucket(
-                orgB + ":CERTIFICATE:2026-10",
+                bucketIdB,
                 orgB,
                 UsageMetric.CERTIFICATE,
                 "2026-10",
@@ -131,6 +130,8 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
 
         mongoTemplate.insert(bucketA);
         mongoTemplate.insert(bucketB);
+        trackDocumentId("entitlement_usage", bucketIdA);
+        trackDocumentId("entitlement_usage", bucketIdB);
 
         Query queryForA = Query.query(Criteria.where("organizationId").is(orgA));
         List<UsageBucket> resultsForA = mongoTemplate.find(queryForA, UsageBucket.class);
@@ -156,23 +157,30 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
     void aggregateQueriesAreTenantScoped() {
         setupStore();
 
-        String orgA = "org-a-it-" + System.currentTimeMillis();
-        String orgB = "org-b-it-" + System.currentTimeMillis();
+        String orgA = generateTestId("org-a");
+        String orgB = generateTestId("org-b");
+
+        String assignId1 = generateTestId("assign");
+        String assignId2 = generateTestId("assign");
+        String assignId3 = generateTestId("assign");
 
         mongoTemplate.getCollection("assignments").insertMany(List.of(
-                new Document("_id", "assign-1")
+                new Document("_id", assignId1)
                         .append("organizationId", orgA)
                         .append("createdAt", java.util.Date.from(Instant.parse("2026-10-01T00:00:00Z")))
                         .append("campaignId", null),
-                new Document("_id", "assign-2")
+                new Document("_id", assignId2)
                         .append("organizationId", orgA)
                         .append("createdAt", java.util.Date.from(Instant.parse("2026-10-02T00:00:00Z")))
                         .append("campaignId", null),
-                new Document("_id", "assign-3")
+                new Document("_id", assignId3)
                         .append("organizationId", orgB)
                         .append("createdAt", java.util.Date.from(Instant.parse("2026-10-01T00:00:00Z")))
                         .append("campaignId", null)
         ));
+        trackDocumentId("assignments", assignId1);
+        trackDocumentId("assignments", assignId2);
+        trackDocumentId("assignments", assignId3);
 
         long totalForA = store.total("assignments", orgA);
         assertEquals(2, totalForA);
@@ -189,7 +197,5 @@ class TenantScopedReadIntegrationTests extends BaseMongoIntegrationTest {
                 Instant.parse("2026-08-01T00:00:00Z"), new Document("campaignId", null));
         assertEquals(1, monthlyForB.size());
         assertEquals(1L, monthlyForB.get("2026-10"));
-
-        mongoTemplate.getCollection("assignments").deleteMany(new Document());
     }
 }
