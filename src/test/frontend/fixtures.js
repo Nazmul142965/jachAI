@@ -98,6 +98,9 @@ const SOURCE = String.raw`(() => {
     }
     if (path === '/api/v1/platform/organizations') return json(page([{ id: 'org-a', name: 'Demo Academy',
       type: 'ACADEMY', ownerUserId: 'u-admin', createdAt: new Date().toISOString() }]));
+    if (path.includes('/platform/organizations/org-a/billing/manual-plan/audit')) return json(page([]));
+    if (path.includes('/platform/organizations/org-a/billing/manual-plan/revoke')) return json({ organizationId: 'org-a', active: false, latestAction: 'REVOKED', expiresAt: null, revision: 2, changedAt: new Date().toISOString() });
+    if (path.includes('/platform/organizations/org-a/billing/manual-plan')) return json({ organizationId: 'org-a', active: false, latestAction: null, expiresAt: null, revision: 0, changedAt: null });
     if (path.includes('/platform/organizations/org-a/billing/usage-reconciliation/audit')) return json(page([]));
     if (path.includes('/platform/organizations/org-a/billing/usage-reconciliation')) return json({ tier: 'FREE', lookbackMonths: 3, entries: [], manualSteps: [] });
     if (path.includes('/platform/organizations/org-a/billing/orders')) return json(page([]));

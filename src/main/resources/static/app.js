@@ -499,7 +499,14 @@ async function loadPlatformView() {
     loadList('#platform-storage', () => loadPlatformStorage(), 'Storage metrics could not be loaded.'),
     loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')
   ]);
-  if (state.platformOrganizationId) await inspectPlatformOrganization(state.platformOrganizationId);
+  if (state.platformOrganizationId) {
+    await inspectPlatformOrganization(state.platformOrganizationId);
+  } else {
+    setList('#platform-manual-plan', [], 'Inspect an organization above to see and change its manual TEAM grant.');
+    setList('#platform-manual-audit', [], 'No organization selected.');
+    $('#platform-manual-audit-pagination').replaceChildren();
+    $('#platform-manual-revoke-submit').disabled = true;
+  }
   if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
 }
 function formatBytes(bytes) {
@@ -555,13 +562,16 @@ async function inspectPlatformOrganization(organizationId) {
   state.platformOrganizationName = state.platformOrganizationNames?.[id] || null;
   $('#platform-organization-id').value = id;
   $('#platform-repair-usage').disabled = true;
-  for (const selector of ['#platform-billing', '#platform-orders', '#platform-usage-report', '#platform-usage-audit']) {
+  $('#platform-manual-revoke-submit').disabled = true;
+  for (const selector of ['#platform-billing', '#platform-orders', '#platform-usage-report', '#platform-usage-audit',
+    '#platform-manual-plan', '#platform-manual-audit']) {
     beginList(selector);
   }
   try {
     await Promise.all([
       loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
-      loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token)
+      loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token),
+      loadPlatformManualPlan(id, token), loadPlatformManualPlanAudit(id, 0, token)
     ]);
   } finally {
     if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
@@ -683,6 +693,97 @@ async function changePlatformRole(grant) {
     $('#platform-revoke-role').disabled = false;
     throw error;
   }
+}
+async function loadPlatformManualPlan(id, token) {
+  const plan = await request(`/platform/organizations/${encodeURIComponent(id)}/billing/manual-plan`);
+  if (token !== state.platformLoadToken) return;
+  const active = !!plan.active;
+  setList('#platform-manual-plan', [
+    item(active ? 'Manual TEAM is active' : 'No active manual TEAM grant',
+      `Latest action: ${plan.latestAction ? roleLabel(plan.latestAction) : 'none recorded'}`
+        + ` · revision ${plan.revision}` + (plan.changedAt ? ` · changed ${when(plan.changedAt)}` : '')),
+    item('Expires', active ? when(plan.expiresAt)
+      : plan.expiresAt ? `${when(plan.expiresAt)} (recorded, not currently active)` : 'No grant recorded'),
+    item('Manual grant — not a payment',
+      'No money changes hands, no payment order is marked paid, and an active paid TEAM subscription always takes precedence.'),
+    item('Organization', id)
+  ], 'No manual plan state is available.');
+  $('#platform-manual-revoke-submit').disabled = !active;
+}
+async function loadPlatformManualPlanAudit(id, pageNumber, token) {
+  const page = await request(`/platform/organizations/${encodeURIComponent(id)}/billing/manual-plan/audit?page=${pageNumber}`);
+  if (token !== state.platformLoadToken) return;
+  setList('#platform-manual-audit', (page.content || []).map((event) => item(
+    `${event.action} · revision ${event.revision} · ${when(event.occurredAt)}`,
+    `By ${event.actorUserId} · Expires ${when(event.expiresAt)} · Reason: ${event.reason}`)),
+  'No manual plan changes recorded.');
+  renderPageControls('#platform-manual-audit-pagination', page,
+    (nextPage) => loadPlatformManualPlanAudit(id, nextPage, token));
+}
+function manualPlanTarget() {
+  const id = state.platformOrganizationId;
+  if (!id || $('#platform-organization-id').value.trim() !== id)
+    throw new Error('Inspect the organization before changing its manual plan.');
+  return id;
+}
+function manualPlanReason(form) {
+  const reason = String(new FormData(form).get('reason') || '').trim();
+  if (reason.length < 10 || reason.length > 500) throw new Error('Write a reason between 10 and 500 characters.');
+  return reason;
+}
+function manualPlanLabel(id) {
+  return state.platformOrganizationName ? `"${state.platformOrganizationName}" (${id})` : id;
+}
+async function submitManualPlanGrant() {
+  const id = manualPlanTarget();
+  const form = $('#platform-manual-grant-form');
+  const rawExpiry = String(new FormData(form).get('expiresAt') || '');
+  if (!rawExpiry) throw new Error('Choose an expiry inside the next 30 days.');
+  const expiresAt = new Date(rawExpiry);
+  if (Number.isNaN(expiresAt.getTime())) throw new Error('Enter a valid expiry date and time.');
+  if (expiresAt.getTime() <= Date.now()) throw new Error('The expiry must be in the future.');
+  if (expiresAt.getTime() > Date.now() + 30 * 86400000) throw new Error('A manual TEAM grant must end within 30 days.');
+  const reason = manualPlanReason(form);
+  if (!await confirmDialog(`Grant a manual TEAM plan to ${manualPlanLabel(id)}?\n\nManual grant — not a payment. No money is charged, no order is marked paid, and an active paid subscription still takes precedence.\nExpires ${expiresAt.toLocaleString()}\nReason: ${reason}`)) return;
+  const control = $('#platform-manual-grant-submit');
+  control.disabled = true;
+  try {
+    await request(`/platform/organizations/${encodeURIComponent(id)}/billing/manual-plan`,
+      { method: 'POST', body: { expiresAt: expiresAt.toISOString(), reason } });
+    form.reset();
+    notice('Manual TEAM grant recorded and audited. This is not a payment and no order was marked paid.');
+    await Promise.all([
+      loadPlatformManualPlan(id, state.platformLoadToken),
+      loadPlatformManualPlanAudit(id, 0, state.platformLoadToken),
+      loadPlatformBilling(id, state.platformLoadToken),
+      loadPlatformOperations()
+    ]);
+  } catch (error) {
+    fieldErrors(form, error);
+    throw error;
+  } finally { control.disabled = false; }
+}
+async function submitManualPlanRevoke() {
+  const id = manualPlanTarget();
+  const form = $('#platform-manual-revoke-form');
+  const reason = manualPlanReason(form);
+  if (!await confirmDialog(`Revoke the active manual TEAM grant for ${manualPlanLabel(id)}?\n\nRevoking is audited. It cannot revoke a paid subscription. This is a manual grant, not a payment.\nReason: ${reason}`)) return;
+  const control = $('#platform-manual-revoke-submit');
+  control.disabled = true;
+  try {
+    await request(`/platform/organizations/${encodeURIComponent(id)}/billing/manual-plan/revoke`,
+      { method: 'POST', body: { reason } });
+    form.reset();
+    notice('Manual TEAM grant revoked and audited. Paid subscriptions were not touched.');
+    await Promise.all([
+      loadPlatformManualPlan(id, state.platformLoadToken),
+      loadPlatformManualPlanAudit(id, 0, state.platformLoadToken),
+      loadPlatformOperations()
+    ]);
+  } catch (error) {
+    fieldErrors(form, error);
+    throw error;
+  } finally { control.disabled = false; }
 }
 async function loadOrganizationSettings() {
   const settings = await request(ownOrg('/settings'));
@@ -2792,3 +2893,20 @@ $('#platform-inspect-user').addEventListener('click', () => run(() =>
   inspectPlatformUser($('#platform-user-id').value)));
 $('#platform-grant-role').addEventListener('click', () => run(() => changePlatformRole(true)));
 $('#platform-revoke-role').addEventListener('click', () => run(() => changePlatformRole(false)));
+$('#platform-manual-refresh').addEventListener('click', () => run(() => {
+  const id = state.platformOrganizationId;
+  if (!id) return;
+  return Promise.all([
+    loadPlatformManualPlan(id, state.platformLoadToken),
+    loadPlatformManualPlanAudit(id, 0, state.platformLoadToken)
+  ]);
+}));
+$('#platform-manual-grant-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(submitManualPlanGrant);
+});
+$('#platform-manual-revoke-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(submitManualPlanRevoke);
+});
+

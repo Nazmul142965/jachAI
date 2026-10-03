@@ -320,6 +320,13 @@ async function main() {
   check(platform, 'storage explains it is not the official quota', /not Atlas's official quota/.test(await ev(`document.querySelector('#platform-view').textContent`)));
   await shot('platform');
   check(platform, 'organizations carry owner and creation date', /Owner u-admin/.test(platformText));
+  await ev(`(() => { document.querySelector('#platform-organization-id').value = 'org-a';
+    document.querySelector('#platform-inspect').click(); return true; })()`);
+  await wait(1200);
+  const manualPlanText = await ev(`document.querySelector('#platform-manual-plan').textContent`);
+  check(platform, 'manual TEAM plan panel states it is not a payment', /Manual grant — not a payment/.test(manualPlanText));
+  check(platform, 'manual TEAM plan shows no active grant initially', /No active manual TEAM grant/.test(manualPlanText));
+  check(platform, 'revoke button is disabled when no active grant', await ev(`document.querySelector('#platform-manual-revoke-submit').disabled`));
   await ev(`(() => { document.querySelector('#platform-user-id').value = 'u-target';
     document.querySelector('#platform-inspect-user').click(); return true; })()`);
   await wait(1200);
