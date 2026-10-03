@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @CompoundIndexes({
         @CompoundIndex(name = "assignment_org_user", def = "{'organizationId': 1, 'assignedUserId': 1}"),
         @CompoundIndex(name = "assignment_org_user_created", def = "{'organizationId': 1, 'assignedUserId': 1, 'createdAt': -1, '_id': -1}"),
+        @CompoundIndex(name = "assignment_org_created", def = "{'organizationId': 1, 'createdAt': 1}"),
         @CompoundIndex(name = "assignment_org_campaign_created", def = "{'organizationId': 1, 'campaignId': 1, 'createdAt': -1}"),
         @CompoundIndex(name = "assignment_org_batch_assessment_created", def = "{'organizationId': 1, 'batchAssessmentId': 1, 'createdAt': -1}")
 })

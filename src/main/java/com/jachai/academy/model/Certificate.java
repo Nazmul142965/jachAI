@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @CompoundIndexes({
         @CompoundIndex(name = "certificate_org_attempt_unique", def = "{'organizationId': 1, 'attemptId': 1}", unique = true),
         @CompoundIndex(name = "certificate_org_learner", def = "{'organizationId': 1, 'learnerUserId': 1}"),
+        @CompoundIndex(name = "certificate_org_issued", def = "{'organizationId': 1, 'issuedAt': 1}"),
         @CompoundIndex(name = "certificate_org_learner_issued", def = "{'organizationId': 1, 'learnerUserId': 1, 'issuedAt': -1, '_id': -1}")
 })
 public record Certificate(
