@@ -589,13 +589,25 @@ function updateSelectedQuestionCount() {
 }
 async function loadAssessments(pageNumber = 0) {
   const page = await request(ownOrg(`/assessments?page=${pageNumber}`));
-  setList('#assessments-list', (page.content || []).map((assessment) => item(assessment.title,
-    `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
-    assessment.status === 'DRAFT' ? [button('Publish', async () => {
-      await request(ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/publish`), { method: 'POST' });
-      notice('Assessment published.'); await loadAssessments(page.number);
-      await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
-    })] : [])), 'No assessments yet.');
+  setList('#assessments-list', (page.content || []).map((assessment) => {
+    const actions = [];
+    if (assessment.status === 'DRAFT') {
+      const publish = button('Publish', async () => {
+        if (!window.confirm(`Publish "${assessment.title}"?\n\nPublishing freezes this version with ${assessment.questionIds.length} question(s) and a ${assessment.durationMinutes} minute limit, and adds it to the published list. A published version cannot be edited.`)) return;
+        publish.disabled = true;
+        try {
+          await request(ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/publish`), { method: 'POST' });
+          notice('Assessment published. It can now be assigned.');
+          await loadAssessments(page.number);
+          await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
+        } catch (error) { publish.disabled = false; throw error; }
+      });
+      actions.push(publish);
+    }
+    return item(assessment.title,
+      `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
+      actions);
+  }), 'No assessments yet.');
   renderPageControls('#assessments-pagination', page, loadAssessments);
 }
 async function loadPublishedAssessments(selectSelector, paginationSelector, pageNumber = 0) {
@@ -611,15 +623,26 @@ async function loadPublishedAssessments(selectSelector, paginationSelector, page
 }
 async function loadReviewQueue(pageNumber) {
   const page = await request(ownOrg(`/attempts/review/pending?page=${pageNumber}`));
-  const rows = (page.content || []).map((attempt) => item(
-    attempt.assessmentTitle,
-    `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
-    [button('Inspect answers', () => showStaffReview(attempt.attemptId)),
-      ...(attempt.percentage == null ? [] : [button('Release result', async () => {
-        await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
-        if (state.activeReviewAttemptId === attempt.attemptId) await showStaffReview(attempt.attemptId);
-        notice('Result released.'); await loadReviewQueue(page.number);
-      })])]));
+  const rows = (page.content || []).map((attempt) => {
+    const actions = [button('Inspect answers', () => showStaffReview(attempt.attemptId))];
+    if (attempt.percentage != null) {
+      const release = button('Release result', async () => {
+        const score = `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`;
+        if (!window.confirm(`Release this result to the participant?\n\n${attempt.assessmentTitle}\n${score}\nAttempt ${attempt.attemptId}\n\nReleasing queues a result email to the participant.`)) return;
+        release.disabled = true;
+        try {
+          await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
+          if (state.activeReviewAttemptId === attempt.attemptId) await showStaffReview(attempt.attemptId);
+          notice('Result released. A result email is queued for the participant.');
+          await loadReviewQueue(page.number);
+        } catch (error) { release.disabled = false; throw error; }
+      });
+      actions.push(release);
+    }
+    return item(attempt.assessmentTitle,
+      `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
+      actions);
+  });
   setList('#review-queue', rows, 'No results are waiting for release.');
   $('#review-page-label').textContent = `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`;
   $('#review-prev').disabled = page.first;
@@ -645,8 +668,8 @@ async function showStaffReview(attemptId) {
     if (question.type === 'SHORT_ANSWER') {
       const grade = question.correct == null ? 'Awaiting grade' : question.correct ? 'Correct' : 'Incorrect';
       const actions = question.textAnswer && question.correct == null && !review.resultReleasedAt
-        ? [button('Mark correct', () => gradeShortAnswer(review.attemptId, question.questionId, true)),
-          button('Mark incorrect', () => gradeShortAnswer(review.attemptId, question.questionId, false))] : [];
+        ? [gradeControl(review.attemptId, question.questionId, true),
+          gradeControl(review.attemptId, question.questionId, false)] : [];
       return item(question.prompt,
         `${question.topic} · ${grade} · Answer: ${question.textAnswer || 'No answer'}${question.gradedByUserId ? ` · Graded by ${question.gradedByUserId}` : ''}`, actions);
     }
@@ -669,6 +692,19 @@ async function loadManualGradeAudit(attemptId, pageNumber = 0) {
   'No answers graded yet.');
   renderPageControls('#manual-grade-audit-pagination', page,
     (nextPage) => loadManualGradeAudit(attemptId, nextPage));
+}
+function gradeControl(attemptId, questionId, correct) {
+  const control = button(correct ? 'Mark correct' : 'Mark incorrect', async () => {
+    if (!window.confirm(`Mark this answer ${correct ? 'correct' : 'incorrect'}?\n\nGrading is final and audited, and it changes the official score.`)) return;
+    control.disabled = true;
+    try {
+      await gradeShortAnswer(attemptId, questionId, correct);
+    } catch (error) {
+      control.disabled = false;
+      throw error;
+    }
+  });
+  return control;
 }
 async function gradeShortAnswer(attemptId, questionId, correct) {
   await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/review/questions/${encodeURIComponent(questionId)}/grade`),
@@ -742,6 +778,22 @@ $('#candidate-lookup-clear').addEventListener('click', () => run(async () => {
   $('#candidate-lookup-form').reset();
   await loadTalentCandidates();
 }));
+async function loadIntegrityEvents(attemptId, pageNumber, target) {
+  const page = await request(ownOrg(`/talent/attempts/${encodeURIComponent(attemptId)}/integrity/events?page=${pageNumber}`));
+  const rows = (page.content || []).map((event) => node('p',
+    `${event.type.replaceAll('_', ' ').toLowerCase()}${event.questionId ? ` · question ${event.questionId}` : ''} · ${new Date(event.receivedAt).toLocaleString()}`,
+    'item-meta'));
+  target.replaceChildren(node('p',
+    `${page.totalElements} recorded event(s) — these signals are client-reported, cannot be verified, and are not proof of misconduct.`,
+    'muted'), ...rows);
+  if (!rows.length) target.append(node('p', 'No raw events retained.', 'item-meta'));
+  const pager = node('div', '', 'item-actions');
+  const previous = button('Previous', () => loadIntegrityEvents(attemptId, page.number - 1, target));
+  const next = button('Next', () => loadIntegrityEvents(attemptId, page.number + 1, target));
+  previous.disabled = page.first; next.disabled = page.last;
+  pager.append(previous, next);
+  target.append(pager);
+}
 async function compareCandidates(campaignId, pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
   const rows = (page.content || []).map((candidate) => {
@@ -780,13 +832,15 @@ async function compareCandidates(campaignId, pageNumber = 0) {
         node('p', counts || 'No signals recorded.'),
         node('p', report.interpretation, 'muted'));
     });
+    const eventsPanel = node('div', '', 'item-list');
+    const eventsButton = button('Event log', () => loadIntegrityEvents(candidate.attemptId, 0, eventsPanel));
     const auditPanel = node('div', '', 'item-list');
     const auditButton = button('Review history', () => run(() => loadReviewAudit(
       campaignId, candidate.candidateUserId, 0, auditPanel)));
     const wrapper = node('div', '', 'card panel');
     wrapper.append(info);
     if (reviewForm) wrapper.append(reviewForm);
-    wrapper.append(integrityButton, integrityPanel, auditButton, auditPanel); return wrapper;
+    wrapper.append(integrityButton, integrityPanel, eventsButton, eventsPanel, auditButton, auditPanel); return wrapper;
   });
   setList('#campaign-candidates', rows, 'No candidates invited yet.');
   renderPageControls('#campaign-candidates-pagination', page,
@@ -1460,26 +1514,45 @@ $('#inspect-attempt').addEventListener('click', () => run(async () => {
 }));
 $('#release-result').addEventListener('click', () => run(async () => {
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
-  const result = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/release`), { method: 'POST' });
-  $('#review-output').textContent = `Released: ${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`;
-  $('#review-output').classList.remove('hidden'); notice('Result released.');
-  if (state.activeReviewAttemptId === id) await showStaffReview(id);
-  await loadReviewQueue(0);
+  const control = $('#release-result');
+  if (!window.confirm(`Release the result for attempt ${id}?\n\nReleasing queues a result email to the participant.`)) return;
+  control.disabled = true;
+  try {
+    const result = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/release`), { method: 'POST' });
+    $('#review-output').textContent = `Released: ${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'} · the participant can now see this result`;
+    $('#review-output').classList.remove('hidden');
+    notice('Result released. A result email is queued for the participant.');
+    if (state.activeReviewAttemptId === id) await showStaffReview(id);
+    await loadReviewQueue(0);
+  } finally { control.disabled = false; }
 }));
 $('#issue-certificate').addEventListener('click', () => run(async () => {
   if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
   const id = $('#review-attempt-id').value.trim(); if (!id) throw new Error('Enter an attempt ID.');
-  const certificate = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/certificate`), { method: 'POST' });
-  $('#review-certificate-id').value = certificate.id;
-  $('#review-output').textContent = `Certificate ID: ${certificate.id} · Verification code: ${certificate.verificationCode}`;
-  $('#review-output').classList.remove('hidden'); notice('Certificate issued.');
+  const control = $('#issue-certificate');
+  control.disabled = true;
+  try {
+    const certificate = await request(ownOrg(`/attempts/${encodeURIComponent(id)}/certificate`), { method: 'POST' });
+    $('#review-certificate-id').value = certificate.id;
+    $('#review-output').textContent = `Certificate ID: ${certificate.id} · Verification code: ${certificate.verificationCode}`
+      + `\nPublic verification page: /certificates/${certificate.verificationCode}`
+      + '\nA learner email is queued; this screen cannot confirm delivery.';
+    $('#review-output').classList.remove('hidden');
+    notice('Certificate issued. A learner email is queued.');
+  } finally { control.disabled = false; }
 }));
 $('#revoke-certificate').addEventListener('click', () => run(async () => {
   if (state.organization.type !== 'ACADEMY') throw new Error('Certificates are available in Academy workspaces.');
   const id = $('#review-certificate-id').value.trim(); if (!id) throw new Error('Enter a certificate ID.');
-  const certificate = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/revoke`), { method: 'POST' });
-  $('#review-output').textContent = `Certificate ${certificate.id} revoked. Its public code now verifies as invalid.`;
-  $('#review-output').classList.remove('hidden'); notice('Certificate revoked.');
+  if (!window.confirm(`Revoke certificate ${id}?\n\nRevocation is terminal: its public code will verify as invalid and this attempt cannot be issued a new certificate.`)) return;
+  const control = $('#revoke-certificate');
+  control.disabled = true;
+  try {
+    const certificate = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/revoke`), { method: 'POST' });
+    $('#review-output').textContent = `Certificate ${certificate.id} revoked. Its public code now verifies as invalid.`;
+    $('#review-output').classList.remove('hidden');
+    notice('Certificate revoked.');
+  } finally { control.disabled = false; }
 }));
 async function loadCertificateAudit(id, pageNumber = 0) {
   const organizationId = state.organization?.id;
@@ -1503,18 +1576,27 @@ $('#review-certificate-id').addEventListener('input', () => {
 $('#feedback-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   const attemptId = form.get('attemptId').trim();
-  const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback`),
-    { method: 'PUT', body: { summary: form.get('summary').trim(), nextSteps: form.get('nextSteps').trim() } });
-  $('#feedback-output').textContent = `Draft saved for attempt ${feedback.attemptId}.`;
-  $('#feedback-output').classList.remove('hidden'); notice('Feedback draft saved.');
+  const control = event.currentTarget.querySelector('button[type="submit"]');
+  if (control) control.disabled = true;
+  try {
+    const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback`),
+      { method: 'PUT', body: { summary: form.get('summary').trim(), nextSteps: form.get('nextSteps').trim() } });
+    $('#feedback-output').textContent = `Draft saved for attempt ${feedback.attemptId}.`;
+    $('#feedback-output').classList.remove('hidden'); notice('Feedback draft saved.');
+  } finally { if (control) control.disabled = false; }
 }); });
 $('#publish-feedback').addEventListener('click', () => run(async () => {
   const attemptId = new FormData($('#feedback-form')).get('attemptId').trim();
   if (!attemptId) throw new Error('Enter an attempt ID first.');
-  const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback/publish`),
-    { method: 'POST' });
-  $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}.`;
-  $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
+  if (!window.confirm(`Publish this feedback for attempt ${attemptId}?\n\nPublished feedback is immutable and the learner can read it immediately. The result must already be released.`)) return;
+  const control = $('#publish-feedback');
+  control.disabled = true;
+  try {
+    const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback/publish`),
+      { method: 'POST' });
+    $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}. The learner can now read it.`;
+    $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
+  } finally { control.disabled = false; }
 }));
 $('#academy-course-select').addEventListener('change', () => run(loadAcademyBatches));
 $('#academy-batch-select').addEventListener('change', () => run(async () => {
