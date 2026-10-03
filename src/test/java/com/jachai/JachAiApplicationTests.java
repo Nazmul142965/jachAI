@@ -21,6 +21,7 @@ import com.jachai.auth.service.GoogleAuthService;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.organization.service.OrganizationService;
 import com.jachai.organization.service.OrganizationSettingsService;
+import com.jachai.organization.service.OrganizationInvitationService;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.service.QuestionService;
 import com.jachai.assessment.service.AssessmentService;
@@ -64,6 +65,7 @@ class JachAiApplicationTests {
     @MockitoBean AccessRevocationService accessRevocationService;
     @MockitoBean OrganizationService organizationService;
     @MockitoBean OrganizationSettingsService organizationSettingsService;
+    @MockitoBean OrganizationInvitationService organizationInvitationService;
     @MockitoBean TenantAccessService tenantAccessService;
     @MockitoBean QuestionService questionService;
     @MockitoBean AssessmentService assessmentService;
@@ -195,6 +197,22 @@ class JachAiApplicationTests {
     @Test
     void emailInvitationAcceptanceRequiresAuthentication() throws Exception {
         mvc.perform(post("/api/v1/talent/email-invitations/accept")
+                        .contentType("application/json").content("{\"token\":\"opaque\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void workspaceInvitationRoutesRequireAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/organizations/org-a/invitations"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/organizations/org-a/invitations")
+                        .contentType("application/json")
+                        .content("{\"email\":\"person@example.com\",\"role\":\"LEARNER\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/organizations/org-a/invitations/invite-a"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/organization-invitations/accept")
                         .contentType("application/json").content("{\"token\":\"opaque\"}"))
                 .andExpect(status().isUnauthorized());
     }
