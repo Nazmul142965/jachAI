@@ -312,6 +312,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Frontend pagination implementation decision
 
+- The dashboard has a separate platform-admin section for cross-tenant operations. It is shown only after the authenticated `/platform/me` check; server-side authorization remains mandatory. It exposes counts, paged organization and order lists, quota preview/repair, and repair audit without tenant assessment content. A live browser walkthrough still needs to verify the no-workspace case, pagination, stale selections, and repair confirmation.
 - Campaign lists, candidate comparison, Academy catalog/batch/enrollment/assignment lists, Academy batch-progress rows, messaging partners/conversations/messages, and sandbox payment history follow the server's 20-row pages. Source review also found page controls on the other paged dashboard lists; this still needs browser verification with more than 20 records and empty/error pages. Message polling runs only on the newest page. Cohort analytics are fetched once when staff open progress, not on every progress-page change. Page controls do not replace tenant authorization on the server.
 
 ## Deployment and health-probe implementation decision

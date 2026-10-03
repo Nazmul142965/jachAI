@@ -4,6 +4,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 
 ## Current workflows
 
+- Verified platform administrators see a separate Platform section in the dashboard, even without owning a workspace. It shows operations counts, paged organizations, billing/order summaries, a quota preview, a deliberate repair control, and the repair audit. The frontend only helps navigate; all permissions are enforced again by the API.
 - Platform admins can inspect `GET /api/v1/platform/operations/summary` for counts of failed/overdue email jobs, old open sandbox checkouts, verified but unapplied orders, and quota-repair runs without completion. Counts do not expose tenant content or payment credentials. This is an operator signal, not a substitute for MongoDB/Redis readiness or external provider monitoring.
 - Platform quota repair has a tenant-scoped, append-only audit at `GET /api/v1/platform/organizations/{organizationId}/billing/usage-reconciliation/audit?page=0`. It records `REQUESTED` before any bucket mutation and `COMPLETED` afterward; missing completion or `OUTCOME_UNCONFIRMED` requires a fresh report and operator review because the two collections are not updated in one transaction.
 - Email registration, verification, login, refresh rotation, access-token/refresh-session logout, and single-use password reset by email. Password reset invalidates earlier access and refresh tokens through a per-user security version.

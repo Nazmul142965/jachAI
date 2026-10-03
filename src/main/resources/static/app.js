@@ -1,5 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
+  platformAdmin: false, platformOrganizationId: null, platformLoadToken: 0,
   questions: [], campaigns: [], academyCourses: [], academyBatches: [],
   emailInvitationCampaignId: null, emailInvitationLoadToken: 0,
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
@@ -7,7 +8,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   timer: null, activeConversationId: null, messageRefresh: null,
   messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0, view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'messages',
-  'campaigns', 'attempts', 'certificates'];
+  'campaigns', 'attempts', 'certificates', 'platform'];
 const invitationFromLink = new URLSearchParams(location.search).get('invitation');
 const memberInvitationFromLink = new URLSearchParams(location.search).get('memberInvitation');
 const billingReturn = new URLSearchParams(location.search).get('billing');
@@ -80,6 +81,7 @@ function showSignedOut() {
   window.clearInterval(state.timer);
   stopMessageRefresh();
   state.accessToken = null; state.refreshToken = null; state.organization = null;
+  state.platformAdmin = false; state.platformOrganizationId = null; state.platformLoadToken++;
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
   state.activeReviewAttemptId = null;
   state.emailInvitationCampaignId = null;
@@ -125,6 +127,7 @@ async function signedIn(tokens) {
 }
 async function loadOrganizations() {
   const previous = state.organization?.id;
+  state.platformAdmin = (await request('/platform/me')).platformAdmin;
   state.organizations = await request('/organizations');
   const select = $('#organization-select');
   select.replaceChildren();
@@ -167,6 +170,12 @@ async function setOrganization() {
   if (!state.organization) {
     $('#page-title').textContent = 'Start here';
     $('#page-subtitle').textContent = 'Create an Academy or Talent workspace.';
+    if (state.platformAdmin) {
+      const tab = node('button', 'Platform'); tab.type = 'button'; tab.dataset.view = 'platform';
+      tab.addEventListener('click', () => run(() => showView('platform')));
+      nav.append(tab);
+      await showView('platform');
+    }
     return;
   }
   const role = state.organization.myRole;
@@ -187,6 +196,7 @@ async function setOrganization() {
   if (staff && state.organization.type === 'TALENT') pages.push(['campaigns', 'Hiring campaigns']);
   if (['LEARNER', 'CANDIDATE'].includes(role)) pages.push(['attempts', 'My assessments']);
   if (role === 'LEARNER' && state.organization.type === 'ACADEMY') pages.push(['certificates', 'Certificates']);
+  if (state.platformAdmin) pages.push(['platform', 'Platform']);
   for (const [key, title] of pages) {
     const tab = node('button', title); tab.type = 'button'; tab.dataset.view = key;
     tab.addEventListener('click', () => run(() => showView(key)));
@@ -205,9 +215,11 @@ async function showView(key) {
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
     assessments: 'Assessments', academy: 'Courses & batches', messages: 'Messages',
     campaigns: 'Hiring campaigns', attempts: 'My assessments',
-    certificates: 'Certificates' };
+    certificates: 'Certificates', platform: 'Platform' };
   $('#page-title').textContent = names[key];
-  $('#page-subtitle').textContent = state.organization.name;
+  $('#page-subtitle').textContent = key === 'platform' ? 'Administration and support'
+    : state.organization?.name || '';
+  if (key === 'platform') { await loadPlatformView(); return; }
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
   }
@@ -256,6 +268,82 @@ async function loadPaymentHistory(pageNumber = 0) {
         })] : [])),
   'No demo transactions yet.');
   renderPageControls('#payment-history-pagination', payments, loadPaymentHistory);
+}
+async function loadPlatformView() {
+  if (!state.platformAdmin) throw new Error('Platform administrator access required.');
+  await Promise.all([loadPlatformOperations(), loadPlatformOrganizations(0)]);
+  if (state.platformOrganizationId) await inspectPlatformOrganization(state.platformOrganizationId);
+}
+async function loadPlatformOperations() {
+  const summary = await request('/platform/operations/summary');
+  setList('#platform-operations', [
+    item('Failed email jobs', String(summary.failedEmailJobs)),
+    item('Email jobs overdue over 15 minutes', String(summary.overdueEmailJobs)),
+    item('Open sandbox checkouts older than 24 hours', String(summary.oldOpenSandboxOrders)),
+    item('Verified orders not applied after 5 minutes', String(summary.verifiedButUnappliedOrders)),
+    item('Quota repairs without completion', String(summary.usageRepairRunsWithoutCompletion))
+  ], 'Operational counts are unavailable.');
+}
+async function loadPlatformOrganizations(pageNumber = 0) {
+  const page = await request(`/platform/organizations?page=${pageNumber}`);
+  setList('#platform-organizations', (page.content || []).map((organization) => item(
+    organization.name, `${organization.type} · ${organization.id}`,
+    [button('Inspect', () => inspectPlatformOrganization(organization.id))])),
+  'No organizations found.');
+  renderPageControls('#platform-organizations-pagination', page, loadPlatformOrganizations);
+}
+async function inspectPlatformOrganization(organizationId) {
+  const id = organizationId?.trim();
+  if (!id) throw new Error('Choose an organization first.');
+  state.platformOrganizationId = id;
+  $('#platform-organization-id').value = id;
+  const token = ++state.platformLoadToken;
+  $('#platform-repair-usage').disabled = true;
+  await Promise.all([
+    loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
+    loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token)
+  ]);
+  if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
+}
+async function loadPlatformBilling(id, token) {
+  const billing = await request(`/platform/organizations/${encodeURIComponent(id)}/billing`);
+  if (token !== state.platformLoadToken) return;
+  setList('#platform-billing', billing.subscriptionPresent ? [
+    item(`${billing.tier} · ${billing.status}`,
+      `Period ends ${billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd).toLocaleString() : 'not set'}`),
+    item('Last paid order', billing.lastPaidOrderId || 'None')
+  ] : [item('No subscription record', 'Effective plan is FREE until a verified sandbox payment is applied.')],
+  'No billing data.');
+}
+async function loadPlatformOrders(id, pageNumber, token) {
+  const page = await request(`/platform/organizations/${encodeURIComponent(id)}/billing/orders?page=${pageNumber}`);
+  if (token !== state.platformLoadToken) return;
+  setList('#platform-orders', (page.content || []).map((order) => item(
+    `${order.provider} · ${order.status} · ৳${order.amountBdt}`,
+    `${order.id} · ${new Date(order.createdAt).toLocaleString()}`)), 'No demo orders found.');
+  renderPageControls('#platform-orders-pagination', page,
+    (nextPage) => loadPlatformOrders(id, nextPage, token));
+}
+async function loadPlatformUsageReport(id, token) {
+  const report = await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation`);
+  if (token !== state.platformLoadToken) return;
+  setList('#platform-usage-report', (report.entries || []).map((entry) => item(
+    `${entry.metric.replaceAll('_', ' ')} · ${entry.window} · ${entry.status.replaceAll('_', ' ')}`,
+    `Recorded ${entry.recordedUsage}; proven ${entry.provenMinimumUsage}–${entry.provenMaximumUsage}; plan limit ${entry.planLimit}. ${entry.detail}`)),
+  'No quota discrepancies in the scanned windows.');
+  const manual = $('#platform-usage-manual');
+  manual.textContent = (report.manualSteps || []).join('\n');
+  manual.classList.toggle('hidden', !(report.manualSteps || []).length);
+}
+async function loadPlatformUsageAudit(id, pageNumber, token) {
+  const page = await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation/audit?page=${pageNumber}`);
+  if (token !== state.platformLoadToken) return;
+  setList('#platform-usage-audit', (page.content || []).map((event) => item(
+    `${event.stage.replaceAll('_', ' ')} · ${new Date(event.occurredAt).toLocaleString()}`,
+    `Run ${event.runId} · Actor ${event.actorUserId}${event.changedBuckets == null ? '' : ` · ${event.changedBuckets} bucket(s) changed`}`)),
+  'No platform repair runs recorded.');
+  renderPageControls('#platform-usage-audit-pagination', page,
+    (nextPage) => loadPlatformUsageAudit(id, nextPage, token));
 }
 async function loadOrganizationSettings() {
   const settings = await request(ownOrg('/settings'));
@@ -1295,3 +1383,20 @@ $('#campaign-email-invite-form').addEventListener('submit', (event) => { event.p
     await loadEmailInvitations(state.emailInvitationCampaignId);
   event.currentTarget.reset(); notice('Invitation created; email delivery requested.');
 }); });
+$('#platform-refresh').addEventListener('click', () => run(loadPlatformView));
+$('#platform-inspect').addEventListener('click', () => run(() =>
+  inspectPlatformOrganization($('#platform-organization-id').value)));
+$('#platform-repair-usage').addEventListener('click', () => run(async () => {
+  const id = state.platformOrganizationId;
+  if (!id || $('#platform-organization-id').value.trim() !== id)
+    throw new Error('Inspect the selected organization before repairing its quota.');
+  if (!window.confirm(`Repair only provable quota gaps for organization ${id}? Review the preview first.`)) return;
+  $('#platform-repair-usage').disabled = true;
+  try {
+    await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation`,
+      { method: 'POST' });
+    await Promise.all([loadPlatformUsageReport(id, state.platformLoadToken),
+      loadPlatformUsageAudit(id, 0, state.platformLoadToken), loadPlatformOperations()]);
+    notice('Quota repair finished. Check the report and audit for manual follow-up.');
+  } finally { $('#platform-repair-usage').disabled = false; }
+}));
