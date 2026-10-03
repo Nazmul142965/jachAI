@@ -23,12 +23,20 @@ public record Question(
         List<Option> options,
         Set<String> correctOptionIds,
         QuestionStatus status,
-        Instant createdAt) {
+        Instant createdAt,
+        QuestionDifficulty difficulty) {
+
+    public Question(String id, String organizationId, String authorUserId, String topic,
+                    String prompt, QuestionType type, List<Option> options,
+                    Set<String> correctOptionIds, QuestionStatus status, Instant createdAt) {
+        this(id, organizationId, authorUserId, topic, prompt, type, options,
+                correctOptionIds, status, createdAt, QuestionDifficulty.MEDIUM);
+    }
 
     public record Option(String id, String text) { }
 
     public Question approved() {
         return new Question(id, organizationId, authorUserId, topic, prompt, type,
-                options, correctOptionIds, QuestionStatus.APPROVED, createdAt);
+                options, correctOptionIds, QuestionStatus.APPROVED, createdAt, difficulty);
     }
 }

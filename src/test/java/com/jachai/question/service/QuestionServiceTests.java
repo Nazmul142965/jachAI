@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.model.Question;
+import com.jachai.question.model.QuestionDifficulty;
 import com.jachai.question.model.QuestionStatus;
 import com.jachai.question.model.QuestionType;
 import com.jachai.question.dto.CreateQuestionRequest;
@@ -38,6 +39,7 @@ class QuestionServiceTests {
         Question saved = new QuestionService(questions, access).create("teacher", "org-a", input);
 
         assertEquals(QuestionType.SHORT_ANSWER, saved.type());
+        assertEquals(QuestionDifficulty.MEDIUM, saved.difficulty());
         assertEquals(List.of(), saved.options());
         assertEquals(Set.of(), saved.correctOptionIds());
     }
@@ -49,6 +51,20 @@ class QuestionServiceTests {
 
         assertEquals("INVALID_QUESTION", assertThrows(ApiException.class,
                 () -> new QuestionService(questions, access).create("teacher", "org-a", input)).code());
+    }
+
+    @Test
+    void instructorCanChooseDifficultyForAnObjectiveDraft() {
+        var input = new CreateQuestionRequest("Java", "What is a record?", QuestionType.SINGLE_CHOICE,
+                List.of(new CreateQuestionRequest.OptionInput("A", "Data carrier"),
+                        new CreateQuestionRequest.OptionInput("B", "Thread")), Set.of("A"),
+                QuestionDifficulty.HARD);
+        when(questions.save(any(Question.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Question saved = new QuestionService(questions, access).create("teacher", "org-a", input);
+
+        assertEquals(QuestionDifficulty.HARD, saved.difficulty());
+        assertEquals(QuestionDifficulty.HARD, saved.approved().difficulty());
     }
 
     @Test

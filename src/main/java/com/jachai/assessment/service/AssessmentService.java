@@ -79,7 +79,7 @@ public class AssessmentService {
             }
             snapshots.add(new AssessmentVersion.QuestionSnapshot(question.id(), question.topic(),
                     question.prompt(), question.type(), List.copyOf(question.options()),
-                    java.util.Set.copyOf(question.correctOptionIds())));
+                    java.util.Set.copyOf(question.correctOptionIds()), question.difficulty()));
         }
         int nextVersion = assessment.latestVersion() + 1;
         AssessmentVersion version = new AssessmentVersion(assessment.id() + ":" + nextVersion,

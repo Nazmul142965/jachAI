@@ -90,7 +90,7 @@ Use compound indexes for frequent tenant queries and uniqueness rules (for examp
 | `User` | Global identity, email, password hash, email verification state, account status. |
 | `Organization` | Tenant name, type (`ACADEMY` or `TALENT`), settings, status. A tenant may later enable both modules. |
 | `Membership` | User, organization, role, status, invitation metadata. |
-| `Question` | Tenant, topic, type, difficulty, content, answer/rubric, draft/review status. Keep answers out of candidate APIs. |
+| `Question` | Tenant, topic, type, difficulty (`EASY`/`MEDIUM`/`HARD`), content, answer/rubric, draft/review status. New drafts default to `MEDIUM`; older records without a difficulty remain unrated. Difficulty is chosen by staff (or passed as a target for AI drafting), frozen in published snapshots, and does not change official scoring. Keep answers out of candidate APIs. |
 | `Assessment` | Tenant, owner, title, configuration, draft/published state, current version. |
 | `AssessmentVersion` | Immutable published instructions, duration, passing rules, selected question snapshots, grading rules. |
 | `Assignment` / `Invitation` | Recipient or invite token, assessment version, availability window, attempt limit, status. |

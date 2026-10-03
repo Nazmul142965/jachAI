@@ -1026,7 +1026,7 @@ async function loadQuestions(pageNumber = 0) {
   const page = await request(ownOrg(`/questions?page=${pageNumber}`));
   state.questions = page.content || [];
   setList('#questions-list', state.questions.map((question) => item(question.prompt,
-    `${question.topic} · ${question.type.replaceAll('_', ' ')} · ${question.status}`,
+    `${question.topic} · ${question.type.replaceAll('_', ' ')} · ${question.difficulty || 'Unrated'} · ${question.status}`,
     question.status === 'DRAFT' ? [button('Approve', async () => {
       await request(ownOrg(`/questions/${encodeURIComponent(question.id)}/approve`), { method: 'POST' });
       notice('Question approved.'); await loadQuestions(page.number);
@@ -1048,7 +1048,7 @@ async function loadApprovedQuestions(pageNumber = 0) {
       else state.selectedQuestionIds.delete(question.id);
       updateSelectedQuestionCount();
     });
-    label.append(input, node('span', `${question.topic} — ${question.prompt}`)); return label;
+    label.append(input, node('span', `${question.topic} · ${question.difficulty || 'Unrated'} — ${question.prompt}`)); return label;
   });
   setList('#assessment-questions', choices, 'Approve a question before creating an assessment.');
   renderPageControls('#assessment-questions-pagination', page, loadApprovedQuestions);
@@ -2681,6 +2681,7 @@ $('#question-form').addEventListener('submit', (event) => { event.preventDefault
   if (form.get('type') === 'SINGLE_CHOICE' && correctOptionIds.length !== 1) throw new Error('Single choice needs exactly one correct option.');
   await request(ownOrg('/questions'), { method: 'POST', body: {
     topic: form.get('topic'), prompt: form.get('prompt'), type: form.get('type'),
+    difficulty: form.get('difficulty'),
     options: shortAnswer ? [] : ['A', 'B', 'C', 'D'].map((id) => ({ id, text: form.get(id) })), correctOptionIds
   } });
   event.currentTarget.reset(); updateQuestionTypeFields();
@@ -2693,7 +2694,8 @@ $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault
   if (control) control.disabled = true;
   try {
     await request(ownOrg('/ai/question-drafts'), { method: 'POST',
-      body: { topic: form.get('topic'), brief: form.get('brief'), type: form.get('type') } });
+      body: { topic: form.get('topic'), brief: form.get('brief'), type: form.get('type'),
+        difficulty: form.get('difficulty') } });
     element.reset(); await loadQuestions(); notice('AI draft saved. Review before approval.');
   } catch (error) {
     const explanation = explainAiFailure(error);

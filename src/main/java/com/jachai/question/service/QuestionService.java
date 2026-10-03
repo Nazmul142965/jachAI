@@ -4,6 +4,7 @@ import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.dto.CreateQuestionRequest;
 import com.jachai.question.model.Question;
+import com.jachai.question.model.QuestionDifficulty;
 import com.jachai.question.model.QuestionStatus;
 import com.jachai.question.model.QuestionType;
 import com.jachai.question.repository.QuestionRepository;
@@ -49,7 +50,8 @@ public class QuestionService {
                 .map(option -> new Question.Option(option.id(), option.text().trim())).toList();
         return questions.save(new Question(UUID.randomUUID().toString(), organizationId, userId,
                 request.topic().trim(), request.prompt().trim(), request.type(), options,
-                Set.copyOf(request.correctOptionIds()), QuestionStatus.DRAFT, Instant.now()));
+                Set.copyOf(request.correctOptionIds()), QuestionStatus.DRAFT, Instant.now(),
+                request.difficulty() == null ? QuestionDifficulty.MEDIUM : request.difficulty()));
     }
 
     public Page<Question> list(String userId, String organizationId, QuestionStatus status, Pageable pageable) {

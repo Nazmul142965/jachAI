@@ -19,6 +19,7 @@ import com.jachai.billing.service.EntitlementService;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.organization.service.OrganizationSettingsService;
 import com.jachai.question.model.Question;
+import com.jachai.question.model.QuestionDifficulty;
 import com.jachai.question.model.QuestionStatus;
 import com.jachai.question.model.QuestionType;
 import com.jachai.question.repository.QuestionRepository;
@@ -85,7 +86,7 @@ class AssessmentServiceTests {
         var question = new Question("q1", "org-a", "teacher", "Java", "Which is a record?",
                 QuestionType.SINGLE_CHOICE,
                 List.of(new Question.Option("a", "Immutable carrier"), new Question.Option("b", "Thread")),
-                Set.of("a"), QuestionStatus.APPROVED, Instant.now());
+                Set.of("a"), QuestionStatus.APPROVED, Instant.now(), QuestionDifficulty.HARD);
         when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(assessment));
         when(questions.findByIdAndOrganizationId("q1", "org-a")).thenReturn(Optional.of(question));
 
@@ -95,6 +96,7 @@ class AssessmentServiceTests {
         assertEquals(ResultReleasePolicy.MANUAL, result.resultReleasePolicy());
         assertEquals("No external references. Answer every question.", result.instructions());
         assertEquals(Set.of("a"), result.questions().getFirst().correctOptionIds());
+        assertEquals(QuestionDifficulty.HARD, result.questions().getFirst().difficulty());
         ArgumentCaptor<AssessmentVersion> saved = ArgumentCaptor.forClass(AssessmentVersion.class);
         verify(versions).insert(saved.capture());
         assertEquals("org-a", saved.getValue().organizationId());

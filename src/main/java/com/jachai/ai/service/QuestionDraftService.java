@@ -47,6 +47,7 @@ public class QuestionDraftService {
         quota.consume(organizationId, userId);
         String generated = ai.generate(AiUseCase.QUESTION_DRAFT, INSTRUCTION,
                 "Topic: " + request.topic() + "\nQuestion type: " + request.type()
+                        + "\nTarget difficulty: " + (request.difficulty() == null ? "MEDIUM" : request.difficulty())
                         + "\nInstructor brief: " + request.brief());
         try {
             GeneratedQuestion candidate = json.readValue(generated, GeneratedQuestion.class);
@@ -54,7 +55,7 @@ public class QuestionDraftService {
                 throw invalidOutput();
             }
             CreateQuestionRequest input = new CreateQuestionRequest(request.topic(), candidate.prompt(),
-                    request.type(), candidate.options(), candidate.correctOptionIds());
+                    request.type(), candidate.options(), candidate.correctOptionIds(), request.difficulty());
             Set<ConstraintViolation<CreateQuestionRequest>> violations = validator.validate(input);
             if (!violations.isEmpty()) {
                 throw invalidOutput();

@@ -1,6 +1,7 @@
 package com.jachai.question.dto;
 
 import com.jachai.question.model.QuestionType;
+import com.jachai.question.model.QuestionDifficulty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,7 +14,13 @@ public record CreateQuestionRequest(
         @NotBlank @Size(max = 4000) String prompt,
         @NotNull QuestionType type,
         @NotNull @Size(max = 8) List<@NotNull @Valid OptionInput> options,
-        @NotNull Set<@NotBlank String> correctOptionIds) {
+        @NotNull Set<@NotBlank String> correctOptionIds,
+        QuestionDifficulty difficulty) {
+    public CreateQuestionRequest(String topic, String prompt, QuestionType type,
+                                 List<OptionInput> options, Set<String> correctOptionIds) {
+        this(topic, prompt, type, options, correctOptionIds, null);
+    }
+
     public record OptionInput(@NotBlank @Size(max = 20) String id,
                               @NotBlank @Size(max = 1000) String text) { }
 }

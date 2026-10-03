@@ -1,6 +1,7 @@
 package com.jachai.assessment.model;
 
 import com.jachai.question.model.Question;
+import com.jachai.question.model.QuestionDifficulty;
 import com.jachai.question.model.QuestionType;
 import java.time.Instant;
 import java.util.List;
@@ -33,5 +34,11 @@ public record AssessmentVersion(
     }
 
     public record QuestionSnapshot(String questionId, String topic, String prompt, QuestionType type,
-                                   List<Question.Option> options, Set<String> correctOptionIds) { }
+                                   List<Question.Option> options, Set<String> correctOptionIds,
+                                   QuestionDifficulty difficulty) {
+        public QuestionSnapshot(String questionId, String topic, String prompt, QuestionType type,
+                                List<Question.Option> options, Set<String> correctOptionIds) {
+            this(questionId, topic, prompt, type, options, correctOptionIds, null);
+        }
+    }
 }

@@ -13,6 +13,7 @@ import com.jachai.ai.dto.DraftQuestionRequest;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.dto.CreateQuestionRequest;
 import com.jachai.question.model.QuestionType;
+import com.jachai.question.model.QuestionDifficulty;
 import com.jachai.question.service.QuestionService;
 import com.jachai.shared.error.ApiException;
 import jakarta.validation.Validation;
@@ -43,12 +44,14 @@ class QuestionDraftServiceTests {
                 """);
 
         service().draft("instructor", "org-a",
-                new DraftQuestionRequest("Java", "records", QuestionType.SINGLE_CHOICE));
+                new DraftQuestionRequest("Java", "records", QuestionType.SINGLE_CHOICE,
+                        QuestionDifficulty.HARD));
 
         ArgumentCaptor<CreateQuestionRequest> captured = ArgumentCaptor.forClass(CreateQuestionRequest.class);
         verify(questions).create(eq("instructor"), eq("org-a"), captured.capture());
         assertEquals("Java", captured.getValue().topic());
         assertEquals("What is a record?", captured.getValue().prompt());
+        assertEquals(QuestionDifficulty.HARD, captured.getValue().difficulty());
     }
 
     @Test
