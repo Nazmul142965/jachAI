@@ -7,6 +7,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   activeAttempt: null, activeReviewAttemptId: null, reviewLoadToken: 0,
   tutorHistory: new Map(),
   selectedQuestionIds: new Set(),
+  editingAssessment: null,
   timer: null, activeConversationId: null, messageRefresh: null,
   messageRefreshBusy: false, messagePage: 0, messageLoadToken: 0,
   batchWorkspaceCourses: [], batchWorkspaceBatches: [], batchWorkspaceCourseId: null,
@@ -192,6 +193,7 @@ function showSignedOut() {
   state.emailInvitationCampaignId = null;
   state.emailInvitationLoadToken++;
   state.selectedQuestionIds.clear();
+  state.editingAssessment = null;
   state.reviewLoadToken++;
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
@@ -252,6 +254,9 @@ async function loadOrganizations() {
 }
 async function setOrganization() {
   state.selectedQuestionIds.clear();
+  state.editingAssessment = null;
+  $('#assessment-form').reset();
+  updateAssessmentEditor();
   state.tutorHistory.clear();
   state.activeAttempt = null;
   state.activeReviewAttemptId = null;
@@ -1057,22 +1062,65 @@ async function loadApprovedQuestions(pageNumber = 0) {
 function updateSelectedQuestionCount() {
   $('#selected-question-count').textContent = `${state.selectedQuestionIds.size} selected (maximum 100)`;
 }
+function updateAssessmentEditor() {
+  const form = $('#assessment-form');
+  const editing = state.editingAssessment;
+  form.closest('.panel').querySelector('h2').textContent = editing
+    ? `${editing.status === 'DRAFT' ? 'Edit draft' : 'Publish new version'} · ${editing.title}`
+    : 'Create an assessment';
+  form.querySelector('button[type="submit"]').textContent = editing
+    ? (editing.status === 'DRAFT' ? 'Save draft changes' : 'Publish new version')
+    : 'Create draft assessment';
+  let cancel = form.querySelector('[data-cancel-assessment-edit]');
+  if (!cancel) {
+    cancel = button('Cancel editing', () => {
+      state.editingAssessment = null; state.selectedQuestionIds.clear(); form.reset();
+      updateAssessmentEditor(); return loadApprovedQuestions();
+    }, 'button quiet');
+    cancel.dataset.cancelAssessmentEdit = 'true';
+    form.append(cancel);
+  }
+  cancel.classList.toggle('hidden', !editing);
+  const defaultOption = form.elements.resultReleasePolicy.options[0];
+  defaultOption.disabled = !!editing;
+}
+async function editAssessment(assessment) {
+  const form = $('#assessment-form');
+  state.editingAssessment = assessment;
+  state.selectedQuestionIds = new Set(assessment.questionIds || []);
+  form.elements.title.value = assessment.title;
+  form.elements.instructions.value = assessment.instructions || '';
+  form.elements.durationMinutes.value = assessment.durationMinutes;
+  form.elements.passingPercentage.value = assessment.passingPercentage;
+  form.elements.resultReleasePolicy.value = assessment.resultReleasePolicy || '';
+  updateAssessmentEditor();
+  await loadApprovedQuestions();
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  form.elements.title.focus({ preventScroll: true });
+}
 async function loadAssessments(pageNumber = 0) {
   const page = await request(ownOrg(`/assessments?page=${pageNumber}`));
   setList('#assessments-list', (page.content || []).map((assessment) => {
     const actions = [];
     if (assessment.status === 'DRAFT') {
+      actions.push(button('Edit draft', () => editAssessment(assessment)));
       const publish = button('Publish', async () => {
         if (!await confirmDialog(`Publish "${assessment.title}"?\n\nPublishing freezes this version with ${assessment.questionIds.length} question(s) and a ${assessment.durationMinutes} minute limit, and adds it to the published list. A published version cannot be edited.`)) return;
         publish.disabled = true;
         try {
           await request(ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/publish`), { method: 'POST' });
+          if (state.editingAssessment?.id === assessment.id) {
+            state.editingAssessment = null; state.selectedQuestionIds.clear();
+            $('#assessment-form').reset(); updateAssessmentEditor(); await loadApprovedQuestions();
+          }
           notice('Assessment published. It can now be assigned.');
           await loadAssessments(page.number);
           await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
         } catch (error) { publish.disabled = false; throw error; }
       });
       actions.push(publish);
+    } else if (assessment.status === 'PUBLISHED') {
+      actions.push(button('New version', () => editAssessment(assessment)));
     }
     return item(assessment.title,
       `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
@@ -2704,15 +2752,29 @@ $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault
   } finally { if (control) control.disabled = false; }
 }); });
 $('#assessment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget); const questionIds = [...state.selectedQuestionIds];
+  const element = event.currentTarget;
+  const form = new FormData(element); const questionIds = [...state.selectedQuestionIds];
   if (!questionIds.length) throw new Error('Select at least one approved question.');
-  await request(ownOrg('/assessments'), { method: 'POST', body: {
+  const editing = state.editingAssessment;
+  if (editing?.status === 'PUBLISHED' && !await confirmDialog(
+    `Publish a new version of "${editing.title}"?\n\nExisting assignments keep their original version. New assignments use the new version. This does not consume another assessment plan slot.`)) return;
+  const submit = element.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    await request(ownOrg(editing ? `/assessments/${encodeURIComponent(editing.id)}/${editing.status === 'DRAFT' ? 'draft' : 'versions'}` : '/assessments'), {
+      method: editing?.status === 'DRAFT' ? 'PUT' : 'POST', body: {
     title: form.get('title'), instructions: form.get('instructions'),
     durationMinutes: Number(form.get('durationMinutes')),
     passingPercentage: Number(form.get('passingPercentage')), resultReleasePolicy: form.get('resultReleasePolicy') || null, questionIds
-  } });
-  event.currentTarget.reset(); state.selectedQuestionIds.clear();
-  await loadApprovedQuestions(); await loadAssessments(); notice('Assessment draft created.');
+    } });
+    const message = !editing ? 'Assessment draft created.' : editing.status === 'DRAFT'
+      ? 'Draft changes saved.' : 'New assessment version published. Existing assignments are unchanged.';
+    state.editingAssessment = null; element.reset(); state.selectedQuestionIds.clear(); updateAssessmentEditor();
+    await loadApprovedQuestions(); await loadAssessments();
+    if (editing?.status === 'PUBLISHED') await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
+    notice(message);
+  } catch (error) { fieldErrors(element, error); throw error; }
+  finally { submit.disabled = false; }
 }); });
 $('#assignment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
