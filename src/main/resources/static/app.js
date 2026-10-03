@@ -54,6 +54,28 @@ function ownOrg(path) {
   if (!state.organization) throw new Error('Choose an organization first.');
   return `/organizations/${encodeURIComponent(state.organization.id)}${path}`;
 }
+const ATTEMPT_MARKER = 'jachaiActiveAttempt';
+function rememberAttempt(assignmentId, attempt) {
+  try {
+    sessionStorage.setItem(ATTEMPT_MARKER, JSON.stringify({
+      organizationId: state.organization?.id || null,
+      assignmentId, attemptId: attempt.id, deadline: attempt.deadline
+    }));
+  } catch (_) { /* private-mode storage is optional */ }
+}
+function forgetAttempt() {
+  try { sessionStorage.removeItem(ATTEMPT_MARKER); } catch (_) { /* ignore */ }
+}
+function pendingAttempt() {
+  try {
+    const raw = sessionStorage.getItem(ATTEMPT_MARKER);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+function focusPanel(panel) {
+  panel.setAttribute('tabindex', '-1');
+  panel.focus({ preventScroll: true });
+}
 async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -125,7 +147,10 @@ async function signedIn(tokens) {
     }
   }
   await loadOrganizations();
-  notice(invitationMessage);
+  const inProgress = pendingAttempt();
+  notice(inProgress
+    ? `${invitationMessage} An assessment attempt is still in progress — open My assessments and choose Resume.`
+    : invitationMessage);
 }
 async function loadOrganizations() {
   const previous = state.organization?.id;
@@ -215,7 +240,11 @@ async function showView(key) {
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
-  for (const tab of $('#workspace-nav').children) tab.classList.toggle('active', tab.dataset.view === key);
+  for (const tab of $('#workspace-nav').children) {
+    const active = tab.dataset.view === key;
+    tab.classList.toggle('active', active);
+    if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
+  }
   const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
     assessments: 'Assessments', academy: 'Courses & batches', messages: 'Messages',
     campaigns: 'Hiring campaigns', attempts: 'My assessments',
@@ -773,26 +802,58 @@ async function loadReviewAudit(campaignId, candidateId, pageNumber, target) {
 }
 async function loadAssignments(pageNumber = 0) {
   const page = await request(ownOrg(`/assignments/mine?page=${pageNumber}`));
-  setList('#assignments-list', (page.content || []).map((assignment) => item(
-    `Assessment assignment`, `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()} · ${assignment.attemptsAllowed} attempt(s)`,
-    [button('Start / resume', () => startAttempt(assignment.id)),
-      button('Attempt history', () => showHistory(assignment.id))])), 'No assignments yet.');
+  const inProgress = pendingAttempt();
+  setList('#assignments-list', (page.content || []).map((assignment) => {
+    const resumable = inProgress?.assignmentId === assignment.id;
+    return item(
+      resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
+      `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()} · ${assignment.attemptsAllowed} attempt(s)`,
+      [button(resumable ? 'Resume assessment' : 'Start / resume', () => startAttempt(assignment)),
+        button('Attempt history', () => showHistory(assignment))]);
+  }), 'No assignments yet.');
   renderPageControls('#assignments-pagination', page, loadAssignments);
 }
-async function showHistory(assignmentId) {
-  const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts/mine`));
+async function showHistory(assignment) {
+  const history = await request(ownOrg(`/assignments/${encodeURIComponent(assignment.id)}/attempts/mine`));
   const panel = $('#result-panel'); panel.replaceChildren(node('h2', 'Attempt history'));
   if (!history.length) panel.append(node('p', 'No attempts yet.', 'muted'));
   for (const attempt of history) {
-    const controls = attempt.status === 'SUBMITTED'
+    const submitted = attempt.status === 'SUBMITTED';
+    const remaining = submitted ? 0 : Math.max(0, Math.ceil((Date.parse(attempt.deadline) - Date.now()) / 1000));
+    const meta = `${attempt.status} · ID: ${attempt.id}`
+      + (submitted ? '' : ` · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')} remaining`);
+    const controls = submitted
       ? [button('View result', () => showResult(attempt.id))]
-      : [button('Resume', () => startAttempt(assignmentId))];
-    panel.append(item(`Attempt ${attempt.attemptNumber}`, `${attempt.status} · ID: ${attempt.id}`, controls));
+      : [button('Resume', () => startAttempt(assignment))];
+    panel.append(item(`Attempt ${attempt.attemptNumber}`, meta, controls));
   }
   panel.classList.remove('hidden');
+  focusPanel(panel);
 }
-async function startAttempt(assignmentId) {
+function renderAttemptInstructions(assignment) {
+  const panel = $('#attempt-panel'); panel.replaceChildren(node('h2', 'Before you begin'));
+  const rules = node('ul', '', 'attempt-rules');
+  rules.append(
+    node('li', `Available ${new Date(assignment.availableFrom).toLocaleString()} – ${new Date(assignment.availableUntil).toLocaleString()}.`),
+    node('li', `${assignment.attemptsAllowed} attempt(s) allowed for this assignment.`),
+    node('li', 'The timer is controlled by the server and starts when the attempt begins. It cannot be paused.'),
+    node('li', 'If an attempt is already in progress, this continues that attempt instead of starting a new one.'),
+    node('li', 'Save each answer before you submit. Only saved answers are counted.'),
+    node('li', 'Answers cannot be changed after you submit.'));
+  panel.append(node('p', 'Read these notes, then begin.', 'muted'), rules);
+  panel.append(button('Begin attempt', () => beginAttempt(assignment.id), 'button primary'),
+    button('Cancel', () => panel.classList.add('hidden'), 'button quiet'));
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  focusPanel(panel);
+}
+async function startAttempt(assignment) {
+  if (assignment?.availableFrom && assignment?.availableUntil) { renderAttemptInstructions(assignment); return; }
+  await beginAttempt(assignment?.id || assignment);
+}
+async function beginAttempt(assignmentId) {
   state.activeAttempt = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts`), { method: 'POST' });
+  rememberAttempt(assignmentId, state.activeAttempt);
   $('#result-panel').classList.add('hidden');
   renderAttempt();
 }
@@ -819,63 +880,159 @@ document.addEventListener('fullscreenchange', () => {
 });
 $('#attempt-panel').addEventListener('copy', () => { void sendTelemetry('COPY_ATTEMPT'); });
 $('#attempt-panel').addEventListener('paste', () => { void sendTelemetry('PASTE_ATTEMPT'); });
+const attemptAnswerState = new Map();
+function attemptHasExpired(attempt) {
+  return Date.now() >= Date.parse(attempt.deadline);
+}
+async function saveAttemptAnswer(attempt, question, body, statusPill, control, savedText) {
+  const path = savedText === undefined
+    ? `/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}`
+    : `/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}/text`;
+  control.disabled = true;
+  statusPill.textContent = 'Saving…';
+  statusPill.className = 'pill';
+  try {
+    await request(ownOrg(path), { method: 'PUT', body });
+    if (savedText === undefined) {
+      attempt.savedAnswers = { ...(attempt.savedAnswers || {}), [question.id]: body.selectedOptionIds };
+    } else {
+      attempt.savedTextAnswers = { ...(attempt.savedTextAnswers || {}), [question.id]: savedText };
+    }
+    attemptAnswerState.set(question.id, 'saved');
+    statusPill.textContent = 'Saved';
+    statusPill.className = 'pill ok';
+    void sendTelemetry('ANSWER_SAVED', question.id);
+    notice('Answer saved.');
+  } catch (error) {
+    attemptAnswerState.set(question.id, 'error');
+    statusPill.textContent = 'Save failed';
+    statusPill.className = 'pill danger';
+    throw error;
+  } finally {
+    control.disabled = attemptHasExpired(attempt);
+  }
+}
 function renderAttempt() {
   const attempt = state.activeAttempt;
-  const panel = $('#attempt-panel'); panel.replaceChildren(node('h2', 'Assessment in progress'));
-  if (talentAttemptActive() && document.fullscreenEnabled) {
-    panel.append(button('Use fullscreen (optional)', async () => {
-      await panel.requestFullscreen(); state.attemptFullscreen = true;
-    }));
-  }
-  const timer = node('p', '', 'pill warn'); panel.append(timer);
+  const panel = $('#attempt-panel');
+  panel.replaceChildren(node('h2', 'Assessment in progress'));
+  attemptAnswerState.clear();
+  let submitControl = null;
+  const announce = node('p', '', 'muted');
+  announce.setAttribute('aria-live', 'polite');
+  const timer = node('p', '', 'pill warn');
+  timer.setAttribute('role', 'timer');
+  let announced = null;
+  const expireAttempt = () => {
+    if (timer.dataset.expired === 'true') return;
+    timer.dataset.expired = 'true';
+    timer.className = 'pill danger';
+    announce.textContent = 'Time is up. Answers can no longer be saved; submit to send the answers that are already saved.';
+    for (const control of panel.querySelectorAll('[data-attempt-save]')) control.disabled = true;
+    if (submitControl) submitControl.textContent = 'Submit assessment (time is up)';
+    notice('Time is up. Submit to send the answers you already saved.', true);
+  };
   const updateTimer = () => {
     const seconds = Math.max(0, Math.ceil((Date.parse(attempt.deadline) - Date.now()) / 1000));
     timer.textContent = `Time remaining: ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-    if (seconds === 0) window.clearInterval(state.timer);
+    if (seconds <= 0) { window.clearInterval(state.timer); expireAttempt(); return; }
+    if (seconds <= 60 && announced !== 60) { announced = 60; announce.textContent = 'One minute remaining.'; }
+    else if (seconds <= 300 && announced !== 300) { announced = 300; announce.textContent = 'Five minutes remaining.'; }
   };
   window.clearInterval(state.timer); updateTimer(); state.timer = window.setInterval(updateTimer, 1000);
+  panel.append(node('p', 'Save each answer before submitting. The timer is set by the server.', 'muted'), timer, announce);
+  if (talentAttemptActive() && document.fullscreenEnabled) {
+    panel.append(button('Use fullscreen (optional)', async () => {
+      await panel.requestFullscreen(); state.attemptFullscreen = true; focusPanel(panel);
+    }));
+  }
+  const expired = attemptHasExpired(attempt);
   for (const [index, question] of attempt.questions.entries()) {
     const block = node('div', '', 'question-block');
     block.append(node('p', `${question.topic} · Question ${index + 1}`, 'eyebrow'), node('h3', question.prompt));
-    const choices = node('div', '', 'question-options');
+    const statusPill = node('span', 'Not saved', 'pill warn');
+    const actions = node('div', '', 'question-actions');
     if (question.type === 'SHORT_ANSWER') {
       const answer = node('textarea'); answer.rows = 5; answer.maxLength = 4000;
+      answer.setAttribute('aria-label', `Answer for question ${index + 1}`);
       answer.value = attempt.savedTextAnswers?.[question.id] || '';
-      block.append(answer, button('Save answer', async () => {
+      const stored = typeof attempt.savedTextAnswers?.[question.id] === 'string';
+      if (stored) { statusPill.textContent = 'Saved'; statusPill.className = 'pill ok'; }
+      attemptAnswerState.set(question.id, stored ? 'saved' : 'unsaved');
+      const save = button('Save answer', async () => {
         const text = answer.value.trim();
         if (!text) throw new Error('Write an answer before saving.');
-        await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}/text`),
-          { method: 'PUT', body: { text } });
-        attempt.savedTextAnswers = { ...(attempt.savedTextAnswers || {}), [question.id]: text };
-        void sendTelemetry('ANSWER_SAVED', question.id);
-        notice('Answer saved.');
-      }));
+        await saveAttemptAnswer(attempt, question, { text }, statusPill, save, text);
+      });
+      save.dataset.attemptSave = 'true';
+      save.disabled = expired;
+      answer.addEventListener('input', () => {
+        attemptAnswerState.set(question.id, 'unsaved');
+        statusPill.textContent = 'Not saved'; statusPill.className = 'pill warn';
+      });
+      actions.append(save, statusPill);
+      block.append(answer, actions);
       panel.append(block); continue;
     }
+    const stored = Array.isArray(attempt.savedAnswers?.[question.id]);
+    if (stored) { statusPill.textContent = 'Saved'; statusPill.className = 'pill ok'; }
+    attemptAnswerState.set(question.id, stored ? 'saved' : 'unsaved');
     const saved = new Set(attempt.savedAnswers?.[question.id] || []);
+    const choices = node('div', '', 'question-options');
     for (const option of question.options) {
       const label = node('label'); const input = node('input');
       input.type = question.type === 'SINGLE_CHOICE' ? 'radio' : 'checkbox';
       input.name = `answer-${question.id}`; input.value = option.id; input.checked = saved.has(option.id);
       label.append(input, node('span', option.text)); choices.append(label);
     }
-    block.append(choices, button('Save answer', async () => {
+    const save = button('Save answer', async () => {
       const selected = [...choices.querySelectorAll('input:checked')].map((input) => input.value);
-      await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}`),
-        { method: 'PUT', body: { selectedOptionIds: selected } });
-      attempt.savedAnswers = { ...(attempt.savedAnswers || {}), [question.id]: selected };
-      void sendTelemetry('ANSWER_SAVED', question.id);
-      notice('Answer saved.');
-    }));
+      await saveAttemptAnswer(attempt, question, { selectedOptionIds: selected }, statusPill, save);
+    });
+    save.dataset.attemptSave = 'true';
+    save.disabled = expired;
+    for (const input of choices.querySelectorAll('input')) {
+      input.addEventListener('change', () => {
+        attemptAnswerState.set(question.id, 'unsaved');
+        statusPill.textContent = 'Not saved'; statusPill.className = 'pill warn';
+      });
+    }
+    actions.append(save, statusPill);
+    block.append(choices, actions);
     panel.append(block);
   }
-  panel.append(button('Submit assessment', async () => {
-    if (!window.confirm('Submit now? Answers cannot be changed afterward.')) return;
-    const result = await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/submit`), { method: 'POST' });
-    window.clearInterval(state.timer); state.activeAttempt = null; panel.classList.add('hidden');
-    renderResult(result); notice('Assessment submitted.');
-  }, 'button primary'));
-  panel.classList.remove('hidden'); panel.scrollIntoView({ behavior: 'smooth' });
+  submitControl = node('button', expired ? 'Submit assessment (time is up)' : 'Submit assessment', 'button primary');
+  submitControl.type = 'button';
+  submitControl.addEventListener('click', () => run(async () => {
+    const unsaved = [...attemptAnswerState.values()].filter((value) => value !== 'saved').length;
+    const warning = unsaved === 1
+      ? '1 answer is not saved and will not be counted.'
+      : `${unsaved} answers are not saved and will not be counted.`;
+    const message = unsaved
+      ? `Submit now? ${warning} Answers cannot be changed after submission.`
+      : 'Submit now? Answers cannot be changed after submission.';
+    if (!window.confirm(message)) return;
+    submitControl.disabled = true;
+    submitControl.textContent = 'Submitting…';
+    try {
+      const result = await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/submit`), { method: 'POST' });
+      window.clearInterval(state.timer);
+      state.activeAttempt = null;
+      forgetAttempt();
+      panel.classList.add('hidden');
+      renderResult(result);
+      notice('Assessment submitted.');
+    } catch (error) {
+      submitControl.disabled = false;
+      submitControl.textContent = attemptHasExpired(attempt) ? 'Submit assessment (time is up)' : 'Submit assessment';
+      throw error;
+    }
+  }));
+  panel.append(submitControl);
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth' });
+  focusPanel(panel);
+  if (expired) expireAttempt();
 }
 async function showResult(attemptId) {
   renderResult(await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/result`)));
@@ -884,11 +1041,12 @@ function renderResult(result) {
   const panel = $('#result-panel'); panel.replaceChildren(node('h2', 'Your result'));
   panel.append(node('p', `Attempt ID: ${result.attemptId}`, 'item-meta'));
   if (!result.released) {
-    panel.append(node('p', 'Submitted. Manual grading or organization release may still be pending.', 'muted'));
+    panel.append(node('p', 'Submitted. Your score stays hidden until staff release the result or finish manual grading.', 'muted'));
+    panel.append(button('Check again', () => showResult(result.attemptId), 'button secondary'));
   } else {
     panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`));
     for (const topic of result.topics || []) panel.append(item(topic.topic, `${topic.correct} of ${topic.total} correct`));
-    if (state.organization.type === 'ACADEMY' && state.organization.myRole === 'LEARNER') {
+    if (state.organization?.type === 'ACADEMY' && state.organization?.myRole === 'LEARNER') {
       panel.append(button('View instructor feedback', async () => {
         const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(result.attemptId)}/feedback/mine`),
           { optional404: true });
@@ -915,6 +1073,7 @@ function renderResult(result) {
     }
   }
   panel.classList.remove('hidden'); panel.scrollIntoView({ behavior: 'smooth' });
+  focusPanel(panel);
 }
 async function loadCertificates(pageNumber = 0) {
   const page = await request(ownOrg(`/certificates/mine?page=${pageNumber}`));
