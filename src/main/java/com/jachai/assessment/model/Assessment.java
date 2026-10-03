@@ -42,6 +42,14 @@ public record Assessment(
                 version, createdAt, revision, instructions);
     }
 
+    public Assessment updatedDraft(String newTitle, int newDurationMinutes, int newPassingPercentage,
+                                   List<String> newQuestionIds, ResultReleasePolicy newReleasePolicy,
+                                   String newInstructions) {
+        return new Assessment(id, organizationId, authorUserId, newTitle, newDurationMinutes,
+                newPassingPercentage, List.copyOf(newQuestionIds), newReleasePolicy,
+                AssessmentStatus.DRAFT, latestVersion, createdAt, revision, newInstructions);
+    }
+
     public Assessment revisedPublished(String newTitle, int newDurationMinutes, int newPassingPercentage,
                                        List<String> newQuestionIds, ResultReleasePolicy newReleasePolicy,
                                        String newInstructions, int version) {

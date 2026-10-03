@@ -8,10 +8,14 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("assessment_versions")
-@CompoundIndex(name = "version_org_assessment", def = "{'organizationId': 1, 'assessmentId': 1}")
+@CompoundIndexes({
+        @CompoundIndex(name = "version_org_assessment", def = "{'organizationId': 1, 'assessmentId': 1}"),
+        @CompoundIndex(name = "version_org_assessment_number", def = "{'organizationId': 1, 'assessmentId': 1, 'version': -1}")
+})
 public record AssessmentVersion(
         @Id String id,
         String organizationId,

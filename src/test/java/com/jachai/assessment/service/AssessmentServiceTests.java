@@ -241,4 +241,55 @@ class AssessmentServiceTests {
         verify(versions).deleteById("a1:2");
         verify(entitlements, never()).reserve(any(), any());
     }
+
+    @Test
+    void draftCanBeEditedWithoutPublishingOrConsumingQuota() {
+        var current = new Assessment("a1", "org-a", "teacher", "Original", 30, 60,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.DRAFT, 0,
+                Instant.now(), 2L, "Old rules");
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
+        when(assessments.save(any(Assessment.class))).thenAnswer(call -> call.getArgument(0));
+
+        var updated = service().updateDraft("teacher", "org-a", "a1",
+                new CreateAssessmentRequest(" New title ", 40, 75, List.of(), null, " New rules "));
+
+        assertEquals("New title", updated.title());
+        assertEquals("New rules", updated.instructions());
+        assertEquals(0, updated.latestVersion());
+        assertEquals(2L, updated.revision());
+        assertEquals(ResultReleasePolicy.IMMEDIATE, updated.resultReleasePolicy());
+        verify(versions, never()).insert(any(AssessmentVersion.class));
+        verify(entitlements, never()).reserve(any(), any());
+    }
+
+    @Test
+    void publishedAssessmentCannotBeChangedThroughDraftEndpoint() {
+        var current = new Assessment("a1", "org-a", "teacher", "Original", 30, 60,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.PUBLISHED, 1,
+                Instant.now(), 2L, "Rules");
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service().updateDraft("teacher", "org-a", "a1",
+                        new CreateAssessmentRequest("Change", 30, 60, List.of(), null, "Rules")));
+
+        assertEquals("NOT_DRAFT", error.code());
+        verify(assessments, never()).save(any(Assessment.class));
+    }
+
+    @Test
+    void versionHistoryIsTenantScopedAndPaged() {
+        var current = new Assessment("a1", "org-a", "teacher", "Original", 30, 60,
+                List.of(), ResultReleasePolicy.IMMEDIATE, AssessmentStatus.PUBLISHED, 2,
+                Instant.now(), 2L, "Rules");
+        var pageable = PageRequest.of(1, 20, Sort.by(Sort.Direction.DESC, "version"));
+        when(assessments.findByIdAndOrganizationId("a1", "org-a")).thenReturn(Optional.of(current));
+        when(versions.findByOrganizationIdAndAssessmentId("org-a", "a1", pageable))
+                .thenReturn(new PageImpl<AssessmentVersion>(List.of(), pageable, 21));
+
+        var result = service().listVersions("teacher", "org-a", "a1", pageable);
+
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getTotalPages());
+    }
 }

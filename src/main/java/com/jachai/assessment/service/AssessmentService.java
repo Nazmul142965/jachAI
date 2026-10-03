@@ -57,6 +57,32 @@ public class AssessmentService {
                 : assessments.findByOrganizationIdAndStatus(organizationId, status, pageable);
     }
 
+    public Assessment updateDraft(String userId, String organizationId, String assessmentId,
+                                  CreateAssessmentRequest request) {
+        requireAuthor(userId, organizationId);
+        Assessment current = findAssessment(organizationId, assessmentId);
+        if (current.status() != AssessmentStatus.DRAFT) {
+            throw new ApiException(HttpStatus.CONFLICT, "NOT_DRAFT", "Published assessments require a new version");
+        }
+        validateQuestionIds(organizationId, request.questionIds());
+        Assessment updated = current.updatedDraft(request.title().trim(), request.durationMinutes(),
+                request.passingPercentage(), request.questionIds(),
+                request.resultReleasePolicy() == null ? current.resultReleasePolicy() : request.resultReleasePolicy(),
+                request.instructions() == null ? "" : request.instructions().trim());
+        try {
+            return assessments.save(updated);
+        } catch (OptimisticLockingFailureException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "DRAFT_CONFLICT", "Assessment was changed concurrently");
+        }
+    }
+
+    public Page<AssessmentVersion> listVersions(String userId, String organizationId,
+                                                String assessmentId, Pageable pageable) {
+        requireAuthor(userId, organizationId);
+        findAssessment(organizationId, assessmentId);
+        return versions.findByOrganizationIdAndAssessmentId(organizationId, assessmentId, pageable);
+    }
+
     public AssessmentVersion publish(String userId, String organizationId, String assessmentId) {
         requireAuthor(userId, organizationId);
         Assessment assessment = findAssessment(organizationId, assessmentId);
