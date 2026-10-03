@@ -21,6 +21,7 @@ import com.jachai.shared.error.ApiException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,6 +80,21 @@ class PlatformPlanServiceTests {
         assertEquals("admin", captured.getValue().actorUserId());
         assertEquals("Support trial grant", captured.getValue().reason());
         assertEquals(NOW.plusSeconds(86400), captured.getValue().expiresAt());
+    }
+
+    @Test
+    void exactRetryAfterMongoMillisecondRoundTripDoesNotAddAnotherGrant() {
+        adminCanAccess();
+        Instant requestedExpiry = NOW.plusSeconds(3600).plusNanos(987_654_321);
+        PlatformPlanEvent stored = new PlatformPlanEvent("first", "org", "admin",
+                PlatformPlanAction.GRANTED, requestedExpiry.truncatedTo(ChronoUnit.MILLIS),
+                "Support trial grant", 1, NOW);
+        when(events.findFirstByOrganizationIdOrderByRevisionDesc("org")).thenReturn(Optional.of(stored));
+
+        var view = service().grant("admin", "org", requestedExpiry, "Support trial grant");
+
+        assertEquals(1, view.revision());
+        verify(events, never()).insert(any(PlatformPlanEvent.class));
     }
 
     @Test

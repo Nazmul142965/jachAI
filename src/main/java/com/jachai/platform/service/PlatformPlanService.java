@@ -14,6 +14,7 @@ import com.jachai.shared.error.ApiException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +62,13 @@ public class PlatformPlanService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_GRANT_PERIOD",
                     "A manual TEAM grant must end within 30 days");
         }
+        // MongoDB stores dates to millisecond precision. Compare and persist the same value so an
+        // identical retry cannot create a second audited grant solely because nanos were discarded.
+        Instant storedExpiry = expiresAt.truncatedTo(ChronoUnit.MILLIS);
+        if (!storedExpiry.isAfter(now)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_GRANT_PERIOD",
+                    "A manual TEAM grant must end within 30 days");
+        }
         Subscription paid = subscriptions.findById(organizationId).orElse(null);
         if (paid != null && paid.tier() == PlanTier.TEAM && paid.status() == SubscriptionStatus.ACTIVE
                 && paid.currentPeriodEnd() != null && paid.currentPeriodEnd().isAfter(now)) {
@@ -69,11 +77,11 @@ public class PlatformPlanService {
         }
         PlatformPlanEvent previous = latest(organizationId).orElse(null);
         if (previous != null && previous.action() == PlatformPlanAction.GRANTED
-                && now.isBefore(previous.expiresAt()) && previous.expiresAt().equals(expiresAt)
+                && now.isBefore(previous.expiresAt()) && previous.expiresAt().equals(storedExpiry)
                 && previous.reason().equals(explanation)) {
             return ManualPlanView.from(organizationId, previous, now);
         }
-        return append(actorUserId, organizationId, PlatformPlanAction.GRANTED, expiresAt,
+        return append(actorUserId, organizationId, PlatformPlanAction.GRANTED, storedExpiry,
                 explanation, previous, now);
     }
 

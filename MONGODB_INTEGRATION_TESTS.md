@@ -11,13 +11,21 @@ The first live run exposed stale test fixtures: certificate documents omitted un
 and the `mail_due` assertion omitted `leaseUntil`. Those fixtures were corrected before the passing run.
 This does not verify Atlas, replica-set behavior, actual asynchronous TTL expiry, or other services.
 
+**Manual TEAM checkpoint (2026-10-04):** `PlatformManualPlanIntegrationTests` passed **1/1**
+against a separate loopback-only `jachai_it_platform` database, alongside **8/8** focused service
+tests. It exercises real MongoDB event persistence, idempotent repeat grant, revocation, entitlement
+changes, revision history, and the unique revision index. The first run exposed an expiry-precision
+bug: MongoDB discards sub-millisecond `Instant` precision, so an identical retry created a second
+grant. The service now normalizes expiry to milliseconds before comparing and persisting it. This
+does not prove Atlas or concurrent writes through a replica set.
+
 ## Two suites, and how to tell them apart
 
 | | Offline suite | Live MongoDB suite |
 |---|---|---|
 | Command | `.\mvnw.cmd -o test` (JDK 21) | same command **with `MONGODB_TEST_URI` set** |
 | Requires MongoDB | no | yes, a dedicated `jachai_it_*` database |
-| Classes | Unit and mock-based classes; check the current run for its count | five `billing.integration.*IntegrationTests` classes (**27 passed locally**) plus `AssessmentMetadataIntegrationTests` (**1 passed locally**) |
+| Classes | Unit and mock-based classes; check the current run for its count | five `billing.integration.*IntegrationTests` classes (**27 passed locally**), `AssessmentMetadataIntegrationTests` (**1 passed locally**), and `PlatformManualPlanIntegrationTests` (**1 passed locally**) |
 | What it proves | unit and mock-based behaviour | real index creation, CAS, concurrency, tenant-scoped reads |
 
 ### A green offline run does not mean the live tests passed
@@ -41,12 +49,14 @@ from the project-wide totals.
   `${MONGODB_TEST_URI}`. The application's own URIs come from `MONGODB_URI`
   (`application-local.properties`, `application-prod.properties`), so the integration profile cannot
   silently inherit a production database.
-- **No unfiltered deletes**: cleanup deletes only by tracked `_id`. `deleteMany(new Document())` is
-  never used and collections are never dropped.
+- **No unfiltered deletes**: billing tests clean by tracked `_id`; the manual-plan test cleans by
+  its own randomly generated organization ID. `deleteMany(new Document())` is never used and
+  collections are never dropped.
 - **Thread-safe tracking**: `createdDocumentIds` is a concurrent set, because reservation and
   reconciliation tests register IDs from worker threads.
-- **Register before write**: an ID is tracked before the write it describes, so an interruption cannot
-  leave an untracked document behind.
+- **Register before write**: billing tests track IDs before their writes. The manual-plan service
+  generates event IDs itself, so its test scopes cleanup by a unique organization ID chosen before
+  the first write.
 - **Credential-free failure reporting**: failures name the collection, the document ID and the
   exception type only. Connection strings and credentials are never printed.
 
@@ -114,6 +124,7 @@ $env:MONGODB_TEST_URI='mongodb://localhost:27017/jachai_it_billing'
 .\mvnw.cmd -o test -Dtest=IndexCreationIntegrationTests
 .\mvnw.cmd -o test -Dtest=TtlIndexBehaviorIntegrationTests
 .\mvnw.cmd -o test -Dtest=AssessmentMetadataIntegrationTests
+.\mvnw.cmd -o test -Dtest=PlatformManualPlanIntegrationTests
 ```
 
 Tests remove only their own tracked documents. Do not drop a database as routine test cleanup; an
