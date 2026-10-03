@@ -1403,10 +1403,7 @@ async function showView(key) {
     }
   }
   if (key === 'academy-batch') await loadAcademyBatchWorkspace();
-  if (key === 'messages') {
-    await loadList('#conversations-list', () => loadMessaging(), 'Messages could not be loaded.');
-    attachFilter('#conversations-list', 'Filter conversations by name');
-  }
+  if (key === 'messages') await loadMessaging();
   if (key === 'campaigns') {
     await loadList('#campaigns-list', async () => {
       await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
