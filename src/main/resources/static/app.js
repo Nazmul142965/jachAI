@@ -1653,9 +1653,10 @@ function switchAuth(which) {
     tab.setAttribute('aria-selected', String(name === which));
     tab.setAttribute('tabindex', name === which ? '0' : '-1');
   }
-  const target = $(which === 'login' ? '#login-form' : '#register-form');
-  const firstField = target?.querySelector('input');
-  if (firstField && document.activeElement?.getAttribute('role') === 'tab') firstField.focus();
+  // A programmatic click does not move focus, so place it on the selected tab (the ARIA tab pattern)
+  // rather than leaving it on the old tab or on nothing.
+  const selected = $(`#${which}-tab`);
+  if (document.activeElement !== selected) selected.focus();
 }
 for (const tab of [$('#login-tab'), $('#register-tab')]) {
   tab.addEventListener('keydown', (event) => {
