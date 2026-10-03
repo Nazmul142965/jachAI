@@ -29,11 +29,15 @@ import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.model.Question;
 import com.jachai.question.model.QuestionType;
 import com.jachai.shared.error.ApiException;
+import com.jachai.shared.audit.AuditAction;
+import com.jachai.shared.audit.AuditEvent;
+import com.jachai.shared.audit.AuditEventRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -52,9 +56,10 @@ class AttemptServiceTests {
     @Mock TenantAccessService access;
     @Mock UserRepository users;
     @Mock EmailSender emailSender;
+    @Mock AuditEventRepository auditEvents;
 
     private AttemptService service() {
-        return new AttemptService(assignments, attempts, versions, access, users, emailSender,
+        return new AttemptService(assignments, attempts, versions, access, users, emailSender, auditEvents,
                 "https://jachai.example/");
     }
 
@@ -87,6 +92,221 @@ class AttemptServiceTests {
                         QuestionType.SINGLE_CHOICE,
                         List.of(new Question.Option("a", "One"), new Question.Option("b", "Two")),
                         Set.of("a"))), Instant.now());
+    }
+
+    private AssessmentVersion shortVersion(ResultReleasePolicy policy) {
+        return new AssessmentVersion("assessment:1", "org-a", "assessment", 1, "Java", 20, 60, policy,
+                List.of(new AssessmentVersion.QuestionSnapshot("q-text", "Java", "Explain records",
+                        QuestionType.SHORT_ANSWER, List.of(), Set.of())), Instant.now());
+    }
+
+    @Test
+    void shortAnswerIsSavedSeparatelyFromOptionAnswers() {
+        Instant now = Instant.now();
+        Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(30), now.plusSeconds(300), AttemptStatus.IN_PROGRESS,
+                Map.of(), null, null, null, null, 0L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(attempt));
+        when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.IMMEDIATE));
+
+        service().saveTextAnswer("learner", "org-a", "attempt", "q-text", "  A concise explanation  ");
+
+        ArgumentCaptor<Attempt> saved = ArgumentCaptor.forClass(Attempt.class);
+        verify(attempts).save(saved.capture());
+        assertEquals("A concise explanation", saved.getValue().textAnswers().get("q-text"));
+        assertEquals(Map.of(), saved.getValue().answers());
+    }
+
+    @Test
+    void shortAnswerSubmissionWaitsForGradingAndCannotBeReleasedEarly() {
+        Instant now = Instant.now();
+        Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(30), now.plusSeconds(300), AttemptStatus.IN_PROGRESS,
+                Map.of(), null, null, null, null, 0L, Map.of("q-text", "Records are carriers"), Map.of());
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(attempt));
+        when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.IMMEDIATE));
+        when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ResultView pending = service().submit("learner", "org-a", "attempt");
+
+        assertFalse(pending.released());
+        assertNull(pending.percentage());
+        ArgumentCaptor<Attempt> submitted = ArgumentCaptor.forClass(Attempt.class);
+        verify(attempts).save(submitted.capture());
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenReturn(Optional.of(submitted.getValue()));
+        assertEquals("MANUAL_GRADING_PENDING", assertThrows(ApiException.class,
+                () -> service().releaseResult("teacher", "org-a", "attempt")).code());
+        verify(emailSender, never()).sendResultReleased(any(), any(), any(), any());
+    }
+
+    @Test
+    void finalManualGradeCalculatesScoreReleasesImmediatePolicyAndAudits() {
+        Instant now = Instant.now();
+        Attempt submitted = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(90), now.minusSeconds(30), AttemptStatus.SUBMITTED,
+                Map.of(), now.minusSeconds(30), null, null, null, 1L,
+                Map.of("q-text", "Records are carriers"), Map.of());
+        AtomicReference<Attempt> stored = new AtomicReference<>(submitted);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenAnswer(invocation -> Optional.of(stored.get()));
+        when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.IMMEDIATE));
+        when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> {
+            Attempt next = invocation.getArgument(0);
+            stored.set(next);
+            return next;
+        });
+        recipient();
+
+        StaffAttemptReviewView review = service().gradeTextAnswer("teacher", "org-a", "attempt", "q-text", true);
+
+        assertEquals(100, review.percentage());
+        assertEquals(true, review.passed());
+        assertEquals(true, review.questions().getFirst().correct());
+        assertEquals("teacher", review.questions().getFirst().gradedByUserId());
+        assertEquals(true, review.resultReleasedAt() != null);
+        ArgumentCaptor<AuditEvent> event = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditEvents, org.mockito.Mockito.atLeastOnce()).insert(event.capture());
+        assertEquals(AuditAction.MANUAL_ANSWER_GRADED, event.getAllValues().getFirst().action());
+        verify(emailSender).sendResultReleased("attempt", "learner@example.com", "Learner",
+                "https://jachai.example/");
+    }
+
+    @Test
+    void manualPolicyKeepsGradedShortAnswerPrivateUntilStaffRelease() {
+        Instant now = Instant.now();
+        Attempt submitted = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(90), now.minusSeconds(30), AttemptStatus.SUBMITTED,
+                Map.of(), now.minusSeconds(30), null, null, null, 1L,
+                Map.of("q-text", "Records are carriers"), Map.of());
+        AtomicReference<Attempt> stored = new AtomicReference<>(submitted);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenAnswer(invocation -> Optional.of(stored.get()));
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenAnswer(invocation -> Optional.of(stored.get()));
+        when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.MANUAL));
+        when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> {
+            Attempt next = invocation.getArgument(0);
+            stored.set(next);
+            return next;
+        });
+
+        var review = service().gradeTextAnswer("teacher", "org-a", "attempt", "q-text", false);
+
+        assertEquals(0, review.percentage());
+        assertEquals(false, review.passed());
+        assertNull(review.resultReleasedAt());
+        assertFalse(service().result("learner", "org-a", "attempt").released());
+        verify(emailSender, never()).sendResultReleased(any(), any(), any(), any());
+    }
+
+    @Test
+    void multipleAnsweredShortQuestionsStayPendingUntilEveryAnswerIsGraded() {
+        Instant now = Instant.now();
+        var twoQuestions = new AssessmentVersion("assessment:1", "org-a", "assessment", 1,
+                "Java", 20, 50, ResultReleasePolicy.IMMEDIATE, List.of(
+                new AssessmentVersion.QuestionSnapshot("q-one", "Java", "Explain records",
+                        QuestionType.SHORT_ANSWER, List.of(), Set.of()),
+                new AssessmentVersion.QuestionSnapshot("q-two", "Java", "Explain sealed types",
+                        QuestionType.SHORT_ANSWER, List.of(), Set.of())), now);
+        Attempt submitted = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(90), now.minusSeconds(30), AttemptStatus.SUBMITTED,
+                Map.of(), now.minusSeconds(30), null, null, null, 1L,
+                Map.of("q-one", "Answer one", "q-two", "Answer two"), Map.of());
+        AtomicReference<Attempt> stored = new AtomicReference<>(submitted);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenAnswer(invocation -> Optional.of(stored.get()));
+        when(versions.get("org-a", "assessment:1")).thenReturn(twoQuestions);
+        when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> {
+            Attempt next = invocation.getArgument(0);
+            stored.set(next);
+            return next;
+        });
+        recipient();
+
+        var first = service().gradeTextAnswer("teacher", "org-a", "attempt", "q-one", true);
+        assertNull(first.percentage());
+        assertNull(first.resultReleasedAt());
+        assertEquals("MANUAL_GRADING_PENDING", assertThrows(ApiException.class,
+                () -> service().releaseResult("teacher", "org-a", "attempt")).code());
+
+        var second = service().gradeTextAnswer("teacher", "org-a", "attempt", "q-two", true);
+        assertEquals(100, second.percentage());
+        assertEquals(true, second.passed());
+        assertEquals(true, second.resultReleasedAt() != null);
+    }
+
+    @Test
+    void unansweredShortQuestionIsScoredIncorrectWithoutManualWork() {
+        Instant now = Instant.now();
+        Attempt attempt = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(30), now.plusSeconds(300), AttemptStatus.IN_PROGRESS,
+                Map.of(), null, null, null, null, 0L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(attempt));
+        when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.MANUAL));
+        when(attempts.save(any(Attempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ResultView result = service().submit("learner", "org-a", "attempt");
+
+        assertFalse(result.released());
+        ArgumentCaptor<Attempt> saved = ArgumentCaptor.forClass(Attempt.class);
+        verify(attempts).save(saved.capture());
+        assertEquals(0, saved.getValue().percentage());
+        assertEquals(false, saved.getValue().passed());
+    }
+
+    @Test
+    void gradeRequiresSubmittedTextAnswer() {
+        Instant now = Instant.now();
+        Attempt noText = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(90), now.minusSeconds(30), AttemptStatus.SUBMITTED,
+                Map.of(), now.minusSeconds(30), 0, false, null, 1L);
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a")).thenReturn(Optional.of(noText));
+        when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.MANUAL));
+
+        assertEquals("ANSWER_MISSING", assertThrows(ApiException.class,
+                () -> service().gradeTextAnswer("teacher", "org-a", "attempt", "q-text", true)).code());
+        verify(attempts, never()).save(any(Attempt.class));
+    }
+
+    @Test
+    void manualGradeCannotReadAnotherTenantAttempt() {
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().gradeTextAnswer("teacher", "org-b", "attempt", "q-text", true)).code());
+        verify(attempts).findByIdAndOrganizationId("attempt", "org-b");
+    }
+
+    @Test
+    void repeatedGradeAfterImmediateReleaseRepairsAuditWithoutChangingScore() {
+        Instant now = Instant.now();
+        Attempt.ManualGrade grade = new Attempt.ManualGrade(true, "teacher", now, "grade-1");
+        Attempt released = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(90), now.minusSeconds(30), AttemptStatus.SUBMITTED,
+                Map.of(), now.minusSeconds(30), 100, true, now, 2L,
+                Map.of("q-text", "Records are carriers"), Map.of("q-text", grade));
+        when(attempts.findByIdAndOrganizationId("attempt", "org-a"))
+                .thenReturn(Optional.of(released));
+        when(versions.get("org-a", "assessment:1")).thenReturn(shortVersion(ResultReleasePolicy.IMMEDIATE));
+
+        var review = service().gradeTextAnswer("teacher", "org-a", "attempt", "q-text", true);
+
+        assertEquals(100, review.percentage());
+        verify(attempts, never()).save(any(Attempt.class));
+        ArgumentCaptor<AuditEvent> event = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditEvents, org.mockito.Mockito.atLeastOnce()).insert(event.capture());
+        assertEquals("manual-grade:grade-1", event.getAllValues().getFirst().id());
+    }
+
+    @Test
+    void manualGradeAuditRequiresTenantScopedAttempt() {
+        assertEquals("NOT_FOUND", assertThrows(ApiException.class,
+                () -> service().manualGradeAudit("teacher", "org-b", "attempt", 0)).code());
+        verify(attempts).findByIdAndOrganizationId("attempt", "org-b");
+        verify(auditEvents, never()).findByOrganizationIdAndTargetTypeAndTargetIdAndAction(
+                any(), any(), any(), any(), any());
     }
 
     @Test

@@ -9,12 +9,13 @@ import java.util.Map;
 import java.util.Set;
 
 public record AttemptView(String id, String assignmentId, Instant deadline,
-                          List<QuestionView> questions, Map<String, Set<String>> savedAnswers) {
+                          List<QuestionView> questions, Map<String, Set<String>> savedAnswers,
+                          Map<String, String> savedTextAnswers) {
     public record QuestionView(String id, String topic, String prompt,
                                QuestionType type, List<Question.Option> options) { }
 
     public static AttemptView from(Attempt attempt, List<QuestionView> questions) {
         return new AttemptView(attempt.id(), attempt.assignmentId(), attempt.deadline(), questions,
-                attempt.answers());
+                attempt.answers(), attempt.textAnswers());
     }
 }

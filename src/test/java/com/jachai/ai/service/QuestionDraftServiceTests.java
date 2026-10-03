@@ -62,4 +62,14 @@ class QuestionDraftServiceTests {
         assertEquals("AI_INVALID_OUTPUT", error.code());
         verify(questions, never()).create(any(), any(), any());
     }
+
+    @Test
+    void shortAnswerCannotUseObjectiveQuestionAiDraftPrompt() {
+        ApiException error = assertThrows(ApiException.class, () -> service().draft("instructor", "org-a",
+                new DraftQuestionRequest("Java", "Explain records", QuestionType.SHORT_ANSWER)));
+
+        assertEquals("AI_QUESTION_TYPE_UNSUPPORTED", error.code());
+        verify(quota, never()).consume(any(), any());
+        verify(ai, never()).generate(any(), any(), any());
+    }
 }

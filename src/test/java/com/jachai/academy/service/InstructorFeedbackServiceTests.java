@@ -119,6 +119,23 @@ class InstructorFeedbackServiceTests {
     }
 
     @Test
+    void ungradedImmediatePolicyResultCannotPublishFeedback() {
+        academy();
+        Attempt pending = new Attempt("a1", "academy-a", "assignment", "v1", "learner", 1,
+                Instant.now().minusSeconds(600), Instant.now().minusSeconds(300),
+                AttemptStatus.SUBMITTED, Map.of(), Instant.now().minusSeconds(300),
+                null, null, null, 0L);
+        when(attempts.findByIdAndOrganizationId("a1", "academy-a"))
+                .thenReturn(Optional.of(pending));
+        when(feedback.findByOrganizationIdAndAttemptId("academy-a", "a1"))
+                .thenReturn(Optional.of(draft()));
+
+        assertEquals("RESULT_NOT_RELEASED", assertThrows(ApiException.class,
+                () -> service.publish("teacher", "academy-a", "a1")).code());
+        verify(feedback, never()).save(any());
+    }
+
+    @Test
     void publishedFeedbackIsVisibleToItsLearnerAndImmutable() {
         academy();
         when(attempts.findByIdAndOrganizationId("a1", "academy-a"))

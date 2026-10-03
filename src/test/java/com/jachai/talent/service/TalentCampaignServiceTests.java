@@ -215,6 +215,25 @@ class TalentCampaignServiceTests {
     }
 
     @Test
+    void recruiterCannotDecideBeforeShortAnswerGradingFinishes() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(talent()));
+        when(campaigns.findByIdAndOrganizationId("campaign", "org-a"))
+                .thenReturn(Optional.of(campaign(true)));
+        Attempt pending = new Attempt("attempt-1", "org-a", "assignment", "assessment:2", "candidate", 1,
+                Instant.now().minusSeconds(90), Instant.now().minusSeconds(30), AttemptStatus.SUBMITTED,
+                Map.of(), Instant.now(), null, null, null, 1L);
+        when(attempts.findByIdAndOrganizationId("attempt-1", "org-a"))
+                .thenReturn(Optional.of(pending));
+        when(assignments.findByIdAndOrganizationIdAndAssignedUserId("assignment", "org-a", "candidate"))
+                .thenReturn(Optional.of(assignment()));
+
+        assertEquals("REVIEW_NOT_READY", assertThrows(ApiException.class,
+                () -> service().review("recruiter", "org-a", "campaign", "candidate",
+                        new ReviewRequest("attempt-1", ReviewDecisionType.SHORTLISTED, "note"))).code());
+        verify(decisions, never()).insert(any(ReviewDecision.class));
+    }
+
+    @Test
     void reviewerCanShortlistSubmittedCandidate() {
         when(organizations.findById("org-a")).thenReturn(Optional.of(talent()));
         when(campaigns.findByIdAndOrganizationId("campaign", "org-a")).thenReturn(Optional.of(campaign(true)));

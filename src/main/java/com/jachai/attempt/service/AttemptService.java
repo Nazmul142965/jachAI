@@ -10,6 +10,7 @@ import com.jachai.attempt.dto.AttemptSummary;
 import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.dto.ReviewAttemptView;
 import com.jachai.attempt.dto.StaffAttemptReviewView;
+import com.jachai.attempt.dto.ManualGradeAuditView;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
@@ -19,6 +20,9 @@ import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.model.QuestionType;
 import com.jachai.shared.error.ApiException;
+import com.jachai.shared.audit.AuditAction;
+import com.jachai.shared.audit.AuditEvent;
+import com.jachai.shared.audit.AuditEventRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -47,11 +51,12 @@ public class AttemptService {
     private final TenantAccessService access;
     private final UserRepository users;
     private final EmailSender emailSender;
+    private final AuditEventRepository auditEvents;
     private final String publicBaseUrl;
 
     public AttemptService(AssignmentRepository assignments, AttemptRepository attempts,
                           PublishedVersionStore versions, TenantAccessService access,
-                          UserRepository users, EmailSender emailSender,
+                          UserRepository users, EmailSender emailSender, AuditEventRepository auditEvents,
                           @Value("${app.public-base-url}") String publicBaseUrl) {
         this.assignments = assignments;
         this.attempts = attempts;
@@ -59,6 +64,7 @@ public class AttemptService {
         this.access = access;
         this.users = users;
         this.emailSender = emailSender;
+        this.auditEvents = auditEvents;
         this.publicBaseUrl = publicBaseUrl;
     }
 
@@ -123,6 +129,9 @@ public class AttemptService {
         AssessmentVersion.QuestionSnapshot question = version.questions().stream()
                 .filter(item -> item.questionId().equals(questionId)).findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Question not found"));
+        if (question.type() == QuestionType.SHORT_ANSWER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "TEXT_ANSWER_REQUIRED", "Use the text-answer endpoint");
+        }
         Set<String> validOptions = question.options().stream().map(option -> option.id())
                 .collect(java.util.stream.Collectors.toSet());
         if (!validOptions.containsAll(selectedOptionIds)
@@ -131,6 +140,31 @@ public class AttemptService {
         }
         try {
             attempts.save(attempt.withAnswer(questionId, selectedOptionIds));
+        } catch (OptimisticLockingFailureException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "ANSWER_CONFLICT", "Answer changed concurrently; reload and retry");
+        }
+    }
+
+    public void saveTextAnswer(String userId, String organizationId, String attemptId,
+                               String questionId, String text) {
+        requireParticipant(userId, organizationId);
+        Attempt attempt = ownAttempt(userId, organizationId, attemptId);
+        if (attempt.status() != AttemptStatus.IN_PROGRESS || !Instant.now().isBefore(attempt.deadline())) {
+            throw new ApiException(HttpStatus.CONFLICT, "ATTEMPT_CLOSED", "Attempt is closed");
+        }
+        AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
+        AssessmentVersion.QuestionSnapshot question = version.questions().stream()
+                .filter(item -> item.questionId().equals(questionId)).findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Question not found"));
+        if (question.type() != QuestionType.SHORT_ANSWER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "OPTIONS_REQUIRED", "Use the option-answer endpoint");
+        }
+        String answer = text.trim();
+        if (answer.isEmpty() || answer.length() > 4000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_ANSWER", "Text answer must contain 1–4000 characters");
+        }
+        try {
+            attempts.save(attempt.withTextAnswer(questionId, answer));
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "ANSWER_CONFLICT", "Answer changed concurrently; reload and retry");
         }
@@ -165,6 +199,10 @@ public class AttemptService {
             throw new ApiException(HttpStatus.CONFLICT, "RESULT_PENDING", "Attempt is not submitted");
         }
         AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
+        if (attempt.percentage() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "MANUAL_GRADING_PENDING", "Grade every answered short question before release");
+        }
+        ensureGradeAudits(attempt);
         if (attempt.resultReleasedAt() != null) {
             queueReleasedEmail(attempt);
             return result(attempt, version);
@@ -189,7 +227,7 @@ public class AttemptService {
                         PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "submittedAt")))
                 .map(attempt -> new ReviewAttemptView(attempt.id(), attempt.assignmentId(),
                         attempt.userId(), version(organizationId, attempt.assessmentVersionId()).title(),
-                        attempt.attemptNumber(), attempt.percentage(), Boolean.TRUE.equals(attempt.passed()),
+                        attempt.attemptNumber(), attempt.percentage(), attempt.passed(),
                         attempt.submittedAt()));
     }
 
@@ -202,26 +240,113 @@ public class AttemptService {
             throw new ApiException(HttpStatus.CONFLICT, "RESULT_PENDING", "Attempt is not submitted");
         }
         AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
+        ensureGradeAudits(attempt);
         List<StaffAttemptReviewView.QuestionReview> questions = version.questions().stream()
                 .map(question -> {
                     Set<String> selected = attempt.answers().getOrDefault(question.questionId(), Set.of());
+                    Attempt.ManualGrade grade = attempt.manualGrades().get(question.questionId());
+                    boolean shortAnswer = question.type() == QuestionType.SHORT_ANSWER;
+                    Boolean correct;
+                    if (!shortAnswer) {
+                        correct = question.correctOptionIds().equals(selected);
+                    } else if (grade != null) {
+                        correct = grade.correct();
+                    } else {
+                        correct = attempt.textAnswers().containsKey(question.questionId()) ? null : Boolean.FALSE;
+                    }
                     return new StaffAttemptReviewView.QuestionReview(question.questionId(),
                             question.topic(), question.prompt(), question.type(), question.options(),
-                            selected, question.correctOptionIds(), question.correctOptionIds().equals(selected));
+                            selected, question.correctOptionIds(),
+                            shortAnswer ? attempt.textAnswers().get(question.questionId()) : null,
+                            correct,
+                            grade == null ? null : grade.actorUserId(),
+                            grade == null ? null : grade.gradedAt());
                 }).toList();
         return new StaffAttemptReviewView(attempt.id(), attempt.assignmentId(), attempt.userId(),
                 version.title(), attempt.attemptNumber(), attempt.submittedAt(),
                 attempt.percentage(), attempt.passed(), attempt.resultReleasedAt(), questions);
     }
 
+    public StaffAttemptReviewView gradeTextAnswer(String actorId, String organizationId,
+                                                   String attemptId, String questionId, boolean correct) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN,
+                OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+        Attempt attempt = attempts.findByIdAndOrganizationId(attemptId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attempt not found"));
+        if (attempt.status() != AttemptStatus.SUBMITTED) {
+            throw new ApiException(HttpStatus.CONFLICT, "GRADE_CLOSED", "Only submitted attempts can be graded");
+        }
+        AssessmentVersion version = version(organizationId, attempt.assessmentVersionId());
+        AssessmentVersion.QuestionSnapshot question = version.questions().stream()
+                .filter(item -> item.questionId().equals(questionId) && item.type() == QuestionType.SHORT_ANSWER)
+                .findFirst().orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Short-answer question not found"));
+        if (!attempt.textAnswers().containsKey(question.questionId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "ANSWER_MISSING", "No submitted text answer to grade");
+        }
+        Attempt.ManualGrade existing = attempt.manualGrades().get(questionId);
+        if (existing != null) {
+            ensureGradeAudits(attempt);
+            if (existing.correct() != correct) {
+                throw new ApiException(HttpStatus.CONFLICT, "GRADE_FINAL", "This answer has already been graded");
+            }
+            queueReleasedEmail(attempt);
+            return staffReview(actorId, organizationId, attemptId);
+        }
+        if (attempt.resultReleasedAt() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "GRADE_CLOSED", "Released attempts cannot be graded");
+        }
+        Instant now = Instant.now();
+        Attempt.ManualGrade grade = new Attempt.ManualGrade(correct, actorId, now, UUID.randomUUID().toString());
+        Attempt staged = attempt.graded(questionId, grade, null, null, null);
+        Integer percentage = score(staged, version);
+        Boolean passed = percentage == null ? null : percentage >= version.passingPercentage();
+        Instant releasedAt = percentage != null && version.resultReleasePolicy() != ResultReleasePolicy.MANUAL
+                ? now : null;
+        try {
+            Attempt saved = attempts.save(attempt.graded(questionId, grade, percentage, passed, releasedAt));
+            ensureGradeAudits(saved);
+            queueReleasedEmail(saved);
+            return staffReview(actorId, organizationId, attemptId);
+        } catch (OptimisticLockingFailureException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "GRADE_CONFLICT", "Grade changed concurrently; reload it");
+        }
+    }
+
+    public Page<ManualGradeAuditView> manualGradeAudit(String actorId, String organizationId,
+                                                        String attemptId, int page) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN,
+                OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+        if (page < 0 || page > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Page must be between 0 and 500");
+        }
+        Attempt attempt = attempts.findByIdAndOrganizationId(attemptId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attempt not found"));
+        ensureGradeAudits(attempt);
+        return auditEvents.findByOrganizationIdAndTargetTypeAndTargetIdAndAction(
+                organizationId, "ATTEMPT", attemptId, AuditAction.MANUAL_ANSWER_GRADED,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")))
+                .map(ManualGradeAuditView::from);
+    }
+
+    private void ensureGradeAudits(Attempt attempt) {
+        for (var entry : attempt.manualGrades().entrySet()) {
+            Attempt.ManualGrade grade = entry.getValue();
+            try {
+                auditEvents.insert(new AuditEvent("manual-grade:" + grade.changeId(),
+                        attempt.organizationId(), grade.actorUserId(), AuditAction.MANUAL_ANSWER_GRADED,
+                        "ATTEMPT", attempt.id(), grade.gradedAt(),
+                        Map.of("questionId", entry.getKey(), "correct", Boolean.toString(grade.correct()))));
+            } catch (DuplicateKeyException ignored) {
+                // A previous attempt already persisted this immutable grade event.
+            }
+        }
+    }
+
     private Attempt finalizeAttempt(Attempt attempt, AssessmentVersion version, Instant now) {
-        long correct = version.questions().stream()
-                .filter(question -> question.correctOptionIds().equals(
-                        attempt.answers().getOrDefault(question.questionId(), Set.of())))
-                .count();
-        int percentage = (int) Math.round(correct * 100.0 / version.questions().size());
-        Attempt submitted = attempt.submitted(now, percentage, percentage >= version.passingPercentage(),
-                version.resultReleasePolicy() != ResultReleasePolicy.MANUAL);
+        Integer percentage = score(attempt, version);
+        Boolean passed = percentage == null ? null : percentage >= version.passingPercentage();
+        Attempt submitted = attempt.submitted(now, percentage, passed,
+                percentage != null && version.resultReleasePolicy() != ResultReleasePolicy.MANUAL);
         try {
             Attempt saved = attempts.save(submitted);
             queueReleasedEmail(saved);
@@ -229,6 +354,23 @@ public class AttemptService {
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "SUBMIT_CONFLICT", "Attempt changed concurrently; reload result");
         }
+    }
+
+    private Integer score(Attempt attempt, AssessmentVersion version) {
+        long correct = 0;
+        for (AssessmentVersion.QuestionSnapshot question : version.questions()) {
+            if (question.type() == QuestionType.SHORT_ANSWER) {
+                if (attempt.textAnswers().containsKey(question.questionId())) {
+                    Attempt.ManualGrade grade = attempt.manualGrades().get(question.questionId());
+                    if (grade == null) return null;
+                    if (grade.correct()) correct++;
+                }
+            } else if (question.correctOptionIds().equals(
+                    attempt.answers().getOrDefault(question.questionId(), Set.of()))) {
+                correct++;
+            }
+        }
+        return (int) Math.round(correct * 100.0 / version.questions().size());
     }
 
     private void queueReleasedEmail(Attempt attempt) {
@@ -266,8 +408,8 @@ public class AttemptService {
     }
 
     private ResultView result(Attempt attempt, AssessmentVersion version) {
-        boolean released = attempt.resultReleasedAt() != null
-                || version.resultReleasePolicy() != ResultReleasePolicy.MANUAL;
+        boolean released = attempt.percentage() != null && (attempt.resultReleasedAt() != null
+                || version.resultReleasePolicy() != ResultReleasePolicy.MANUAL);
         if (!released) {
             return new ResultView(attempt.id(), false, null, null, attempt.submittedAt(), null, List.of());
         }
@@ -275,7 +417,10 @@ public class AttemptService {
         for (AssessmentVersion.QuestionSnapshot question : version.questions()) {
             int[] counts = topicCounts.computeIfAbsent(question.topic(), ignored -> new int[2]);
             counts[1]++;
-            if (question.correctOptionIds().equals(attempt.answers().getOrDefault(question.questionId(), Set.of()))) {
+            if (question.type() == QuestionType.SHORT_ANSWER
+                    ? attempt.manualGrades().get(question.questionId()) != null
+                            && attempt.manualGrades().get(question.questionId()).correct()
+                    : question.correctOptionIds().equals(attempt.answers().getOrDefault(question.questionId(), Set.of()))) {
                 counts[0]++;
             }
         }

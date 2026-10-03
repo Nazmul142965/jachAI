@@ -50,7 +50,8 @@ public class TutorService {
                     "AI tutor is unavailable during an active attempt");
         }
         var version = versions.get(organizationId, attempt.assessmentVersionId());
-        if (version.resultReleasePolicy() == ResultReleasePolicy.MANUAL && attempt.resultReleasedAt() == null) {
+        if (attempt.percentage() == null || (version.resultReleasePolicy() == ResultReleasePolicy.MANUAL
+                && attempt.resultReleasedAt() == null)) {
             throw new ApiException(HttpStatus.CONFLICT, "TUTOR_NOT_READY",
                     "AI tutor is available after the result is released");
         }

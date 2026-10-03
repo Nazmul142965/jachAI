@@ -12,5 +12,6 @@ public record StaffAttemptReviewView(String attemptId, String assignmentId, Stri
                                      List<QuestionReview> questions) {
     public record QuestionReview(String questionId, String topic, String prompt, QuestionType type,
                                  List<Question.Option> options, Set<String> selectedOptionIds,
-                                 Set<String> correctOptionIds, boolean correct) { }
+                                 Set<String> correctOptionIds, String textAnswer, Boolean correct,
+                                 String gradedByUserId, Instant gradedAt) { }
 }

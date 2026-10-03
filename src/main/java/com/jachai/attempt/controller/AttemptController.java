@@ -6,6 +6,9 @@ import com.jachai.attempt.dto.ResultView;
 import com.jachai.attempt.dto.ReviewAttemptView;
 import com.jachai.attempt.dto.StaffAttemptReviewView;
 import com.jachai.attempt.dto.SaveAnswerRequest;
+import com.jachai.attempt.dto.SaveTextAnswerRequest;
+import com.jachai.attempt.dto.GradeTextAnswerRequest;
+import com.jachai.attempt.dto.ManualGradeAuditView;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.service.AttemptService;
 import jakarta.validation.Valid;
@@ -64,6 +67,14 @@ public class AttemptController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/attempts/{attemptId}/answers/{questionId}/text")
+    public ResponseEntity<Void> saveTextAnswer(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String attemptId,
+            @PathVariable String questionId, @Valid @RequestBody SaveTextAnswerRequest request) {
+        attempts.saveTextAnswer(jwt.getSubject(), organizationId, attemptId, questionId, request.text());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/attempts/{attemptId}/submit")
     public ResultView submit(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String attemptId) {
@@ -92,5 +103,20 @@ public class AttemptController {
     public StaffAttemptReviewView staffReview(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String attemptId) {
         return attempts.staffReview(jwt.getSubject(), organizationId, attemptId);
+    }
+
+    @PutMapping("/attempts/{attemptId}/review/questions/{questionId}/grade")
+    public StaffAttemptReviewView gradeTextAnswer(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String attemptId,
+            @PathVariable String questionId, @Valid @RequestBody GradeTextAnswerRequest request) {
+        return attempts.gradeTextAnswer(jwt.getSubject(), organizationId, attemptId,
+                questionId, request.correct());
+    }
+
+    @GetMapping("/attempts/{attemptId}/review/grades/audit")
+    public Page<ManualGradeAuditView> manualGradeAudit(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String attemptId,
+            @RequestParam(defaultValue = "0") @Min(0) int page) {
+        return attempts.manualGradeAudit(jwt.getSubject(), organizationId, attemptId, page);
     }
 }

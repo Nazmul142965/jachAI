@@ -30,11 +30,19 @@ public class QuestionService {
 
     public Question create(String userId, String organizationId, CreateQuestionRequest request) {
         requireAuthor(userId, organizationId);
+        if (request.type() == null || request.options() == null || request.correctOptionIds() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_QUESTION", "Invalid question configuration");
+        }
         Set<String> optionIds = new HashSet<>();
         request.options().forEach(option -> optionIds.add(option.id()));
-        if (optionIds.size() != request.options().size()
-                || !optionIds.containsAll(request.correctOptionIds())
-                || (request.type() == QuestionType.SINGLE_CHOICE && request.correctOptionIds().size() != 1)) {
+        boolean shortAnswer = request.type() == QuestionType.SHORT_ANSWER;
+        boolean invalid = shortAnswer
+                ? !request.options().isEmpty() || !request.correctOptionIds().isEmpty()
+                : request.options().size() < 2 || optionIds.size() != request.options().size()
+                    || !optionIds.containsAll(request.correctOptionIds())
+                    || request.correctOptionIds().isEmpty()
+                    || (request.type() == QuestionType.SINGLE_CHOICE && request.correctOptionIds().size() != 1);
+        if (invalid) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_QUESTION", "Invalid option or answer configuration");
         }
         List<Question.Option> options = request.options().stream()

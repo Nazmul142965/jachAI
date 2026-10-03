@@ -7,6 +7,7 @@ import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.question.dto.CreateQuestionRequest;
 import com.jachai.question.model.Question;
+import com.jachai.question.model.QuestionType;
 import com.jachai.question.service.QuestionService;
 import com.jachai.shared.error.ApiException;
 import jakarta.validation.ConstraintViolation;
@@ -39,6 +40,10 @@ public class QuestionDraftService {
     public Question draft(String userId, String organizationId, DraftQuestionRequest request) {
         access.requireRole(userId, organizationId, OrganizationRole.ORG_ADMIN,
                 OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
+        if (request.type() == QuestionType.SHORT_ANSWER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AI_QUESTION_TYPE_UNSUPPORTED",
+                    "AI drafting currently supports objective questions only");
+        }
         quota.consume(organizationId, userId);
         String generated = ai.generate(AiUseCase.QUESTION_DRAFT, INSTRUCTION,
                 "Topic: " + request.topic() + "\nQuestion type: " + request.type()

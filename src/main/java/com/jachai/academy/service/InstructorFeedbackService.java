@@ -63,9 +63,9 @@ public class InstructorFeedbackService {
         InstructorFeedback current = feedback.findByOrganizationIdAndAttemptId(organizationId, attemptId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Feedback not found"));
         if (current.status() == FeedbackStatus.PUBLISHED) return FeedbackView.from(current);
-        boolean released = attempt.resultReleasedAt() != null
+        boolean released = attempt.percentage() != null && (attempt.resultReleasedAt() != null
                 || versions.get(organizationId, attempt.assessmentVersionId()).resultReleasePolicy()
-                        != ResultReleasePolicy.MANUAL;
+                        != ResultReleasePolicy.MANUAL);
         if (!released) {
             throw new ApiException(HttpStatus.CONFLICT, "RESULT_NOT_RELEASED",
                     "Release the result before publishing feedback");

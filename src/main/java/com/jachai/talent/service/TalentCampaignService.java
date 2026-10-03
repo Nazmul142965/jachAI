@@ -159,8 +159,9 @@ public class TalentCampaignService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Campaign candidate not found"));
         if (!campaignId.equals(assignment.campaignId()) || !candidateId.equals(attempt.userId())
                 || !assignment.assessmentVersionId().equals(attempt.assessmentVersionId())
-                || attempt.status() != AttemptStatus.SUBMITTED) {
-            throw new ApiException(HttpStatus.CONFLICT, "REVIEW_NOT_READY", "A submitted campaign attempt is required");
+                || attempt.status() != AttemptStatus.SUBMITTED || attempt.percentage() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "REVIEW_NOT_READY",
+                    "A fully graded campaign attempt is required");
         }
         String note = request.note() == null ? "" : request.note().trim();
         String id = campaignId + ":" + candidateId;

@@ -390,13 +390,13 @@ async function loadReviewQueue(pageNumber) {
   const page = await request(ownOrg(`/attempts/review/pending?page=${pageNumber}`));
   const rows = (page.content || []).map((attempt) => item(
     attempt.assessmentTitle,
-    `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
+    `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
     [button('Inspect answers', () => showStaffReview(attempt.attemptId)),
-      button('Release result', async () => {
+      ...(attempt.percentage == null ? [] : [button('Release result', async () => {
         await request(ownOrg(`/attempts/${encodeURIComponent(attempt.attemptId)}/release`), { method: 'POST' });
         if (state.activeReviewAttemptId === attempt.attemptId) await showStaffReview(attempt.attemptId);
         notice('Result released.'); await loadReviewQueue(page.number);
-      })]));
+      })])]));
   setList('#review-queue', rows, 'No results are waiting for release.');
   $('#review-page-label').textContent = `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`;
   $('#review-prev').disabled = page.first;
@@ -418,11 +418,41 @@ async function showStaffReview(attemptId) {
       .map((option) => `${option.id}: ${option.text}`);
     return selected.length ? selected.join('; ') : 'No answer';
   };
-  setList('#attempt-review-questions', review.questions.map((question) => item(question.prompt,
-    `${question.topic} · ${question.correct ? 'Correct' : 'Incorrect'} · Chosen: ${answerText(question, question.selectedOptionIds)} · Answer key: ${answerText(question, question.correctOptionIds)}`)),
+  setList('#attempt-review-questions', review.questions.map((question) => {
+    if (question.type === 'SHORT_ANSWER') {
+      const grade = question.correct == null ? 'Awaiting grade' : question.correct ? 'Correct' : 'Incorrect';
+      const actions = question.textAnswer && question.correct == null && !review.resultReleasedAt
+        ? [button('Mark correct', () => gradeShortAnswer(review.attemptId, question.questionId, true)),
+          button('Mark incorrect', () => gradeShortAnswer(review.attemptId, question.questionId, false))] : [];
+      return item(question.prompt,
+        `${question.topic} · ${grade} · Answer: ${question.textAnswer || 'No answer'}${question.gradedByUserId ? ` · Graded by ${question.gradedByUserId}` : ''}`, actions);
+    }
+    return item(question.prompt,
+      `${question.topic} · ${question.correct ? 'Correct' : 'Incorrect'} · Chosen: ${answerText(question, question.selectedOptionIds)} · Answer key: ${answerText(question, question.correctOptionIds)}`);
+  }),
   'No questions found in this published version.');
+  const hasShortAnswers = review.questions.some((question) => question.type === 'SHORT_ANSWER');
+  $('#manual-grade-audit-panel').classList.toggle('hidden', !hasShortAnswers);
+  if (hasShortAnswers) await loadManualGradeAudit(review.attemptId);
   $('#attempt-review-detail').classList.remove('hidden');
   $('#attempt-review-detail').scrollIntoView({ behavior: 'smooth' });
+}
+async function loadManualGradeAudit(attemptId, pageNumber = 0) {
+  const page = await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/review/grades/audit?page=${pageNumber}`));
+  if (state.activeReviewAttemptId !== attemptId) return;
+  setList('#manual-grade-audit', (page.content || []).map((entry) => item(
+    `Question ${entry.questionId} · ${entry.correct ? 'Correct' : 'Incorrect'}`,
+    `Graded by ${entry.actorUserId} · ${new Date(entry.gradedAt).toLocaleString()}`)),
+  'No answers graded yet.');
+  renderPageControls('#manual-grade-audit-pagination', page,
+    (nextPage) => loadManualGradeAudit(attemptId, nextPage));
+}
+async function gradeShortAnswer(attemptId, questionId, correct) {
+  await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/review/questions/${encodeURIComponent(questionId)}/grade`),
+    { method: 'PUT', body: { correct } });
+  await showStaffReview(attemptId);
+  await loadReviewQueue(0);
+  notice('Short answer graded.');
 }
 async function loadCampaigns(pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns?page=${pageNumber}`));
@@ -598,6 +628,20 @@ function renderAttempt() {
     const block = node('div', '', 'question-block');
     block.append(node('p', `${question.topic} · Question ${index + 1}`, 'eyebrow'), node('h3', question.prompt));
     const choices = node('div', '', 'question-options');
+    if (question.type === 'SHORT_ANSWER') {
+      const answer = node('textarea'); answer.rows = 5; answer.maxLength = 4000;
+      answer.value = attempt.savedTextAnswers?.[question.id] || '';
+      block.append(answer, button('Save answer', async () => {
+        const text = answer.value.trim();
+        if (!text) throw new Error('Write an answer before saving.');
+        await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/answers/${encodeURIComponent(question.id)}/text`),
+          { method: 'PUT', body: { text } });
+        attempt.savedTextAnswers = { ...(attempt.savedTextAnswers || {}), [question.id]: text };
+        void sendTelemetry('ANSWER_SAVED', question.id);
+        notice('Answer saved.');
+      }));
+      panel.append(block); continue;
+    }
     const saved = new Set(attempt.savedAnswers?.[question.id] || []);
     for (const option of question.options) {
       const label = node('label'); const input = node('input');
@@ -630,7 +674,7 @@ function renderResult(result) {
   const panel = $('#result-panel'); panel.replaceChildren(node('h2', 'Your result'));
   panel.append(node('p', `Attempt ID: ${result.attemptId}`, 'item-meta'));
   if (!result.released) {
-    panel.append(node('p', 'Submitted. Your organization has not released this result yet.', 'muted'));
+    panel.append(node('p', 'Submitted. Manual grading or organization release may still be pending.', 'muted'));
   } else {
     panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`));
     for (const topic of result.topics || []) panel.append(item(topic.topic, `${topic.correct} of ${topic.total} correct`));
@@ -964,15 +1008,29 @@ $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventD
   await loadOrganizations();
   notice('Workspace ownership transferred.');
 }); });
+function updateQuestionTypeFields() {
+  const shortAnswer = $('#question-form select[name="type"]').value === 'SHORT_ANSWER';
+  $('#question-option-grid').classList.toggle('hidden', shortAnswer);
+  $('#question-correct-options').classList.toggle('hidden', shortAnswer);
+  for (const input of $('#question-option-grid').querySelectorAll('input')) {
+    input.required = !shortAnswer;
+    input.disabled = shortAnswer;
+  }
+  for (const input of $('#question-correct-options').querySelectorAll('input')) input.disabled = shortAnswer;
+}
+$('#question-form select[name="type"]').addEventListener('change', updateQuestionTypeFields);
+updateQuestionTypeFields();
 $('#question-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget); const correctOptionIds = form.getAll('correct');
-  if (!correctOptionIds.length) throw new Error('Choose at least one correct option.');
+  const shortAnswer = form.get('type') === 'SHORT_ANSWER';
+  if (!shortAnswer && !correctOptionIds.length) throw new Error('Choose at least one correct option.');
   if (form.get('type') === 'SINGLE_CHOICE' && correctOptionIds.length !== 1) throw new Error('Single choice needs exactly one correct option.');
   await request(ownOrg('/questions'), { method: 'POST', body: {
     topic: form.get('topic'), prompt: form.get('prompt'), type: form.get('type'),
-    options: ['A', 'B', 'C', 'D'].map((id) => ({ id, text: form.get(id) })), correctOptionIds
+    options: shortAnswer ? [] : ['A', 'B', 'C', 'D'].map((id) => ({ id, text: form.get(id) })), correctOptionIds
   } });
-  event.currentTarget.reset(); await loadQuestions(); notice('Question saved as a draft.');
+  event.currentTarget.reset(); updateQuestionTypeFields();
+  await loadQuestions(); notice('Question saved as a draft.');
 }); });
 $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);

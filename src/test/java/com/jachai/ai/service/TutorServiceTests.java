@@ -104,4 +104,22 @@ class TutorServiceTests {
         verify(quota, never()).consume(any(), any());
         verify(ai, never()).generate(any(), any(), any());
     }
+
+    @Test
+    void ungradedImmediatePolicyShortAnswerBlocksTutorBeforeAiUsage() {
+        Attempt pending = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                Instant.now().minusSeconds(120), Instant.now().minusSeconds(60), AttemptStatus.SUBMITTED,
+                Map.of(), Instant.now(), null, null, null, 1L);
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
+                .thenReturn(Optional.of(pending));
+        when(versions.get("org-a", "assessment:1")).thenReturn(new AssessmentVersion(
+                "assessment:1", "org-a", "assessment", 1, "Java", 20, 60,
+                ResultReleasePolicy.IMMEDIATE, List.of(), Instant.now()));
+
+        assertEquals("TUTOR_NOT_READY", assertThrows(ApiException.class,
+                () -> service().explain("learner", "org-a", "attempt",
+                        new TutorRequest("Explain records"))).code());
+        verify(quota, never()).consume(any(), any());
+        verify(ai, never()).generate(any(), any(), any());
+    }
 }
