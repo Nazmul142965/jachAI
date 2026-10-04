@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,6 +109,20 @@ class OrganizationServiceTests {
         assertEquals("OWNER_CHANGED", assertThrows(ApiException.class,
                 () -> service().transferOwner("owner", "org", "admin")).code());
         verify(auditEvents, never()).insert(any(AuditEvent.class));
+    }
+
+    @Test
+    void unresolvedPreviousTransferAuditBlocksAnotherOwnershipChange() {
+        Instant now = Instant.now();
+        when(organizations.findById("org")).thenReturn(Optional.of(new Organization("org", "Academy",
+                OrganizationType.ACADEMY, "owner", now, "prior-transfer", "former-owner", "former-owner", now)));
+        eligibleTarget();
+        doThrow(new IllegalStateException("audit store unavailable"))
+                .when(auditEvents).insert(any(AuditEvent.class));
+
+        assertThrows(IllegalStateException.class, () -> service().transferOwner("owner", "org", "admin"));
+
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(Organization.class));
     }
 
     @Test
