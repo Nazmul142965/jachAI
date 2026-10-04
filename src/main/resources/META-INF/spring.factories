@@ -1,0 +1,5 @@
+# Checks the settings the application cannot start without, while the environment is
+# being prepared, so a missing one is reported in plain words instead of surfacing as
+# an unrelated bean-creation failure much later.
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.jachai.shared.config.RequiredSettingsGuard
