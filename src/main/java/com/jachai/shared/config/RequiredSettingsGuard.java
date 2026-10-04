@@ -52,9 +52,30 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
         if (environment.acceptsProfiles(Profiles.of("test", "integration"))) return;
 
         List<Required> missing = new ArrayList<>();
+        List<Required> unedited = new ArrayList<>();
         for (Required setting : REQUIRED) {
             String value = resolve(environment, setting);
             if (value == null || value.isBlank()) missing.add(setting);
+            else if (looksLikeATemplate(value)) unedited.add(setting);
+        }
+        if (!unedited.isEmpty()) {
+            // A template left as it came is not a missing setting, and reporting it as one sends
+            // the reader looking for something that is plainly there. Left unchecked it reaches
+            // the driver instead, which rejects it as a wrong password and blames whichever bean
+            // happened to need the database first.
+            StringBuilder note = new StringBuilder(System.lineSeparator())
+                    .append("JachAI cannot start: a setting still holds its placeholder text.")
+                    .append(System.lineSeparator());
+            for (Required setting : unedited) {
+                note.append(System.lineSeparator())
+                        .append("  ").append(setting.variable()).append(" has not been filled in")
+                        .append(System.lineSeparator())
+                        .append("    ").append(setting.purpose()).append(System.lineSeparator());
+            }
+            note.append(System.lineSeparator())
+                    .append("Replace the capitalised placeholder with the real value and run again.")
+                    .append(System.lineSeparator());
+            throw new IllegalStateException(note.toString());
         }
         if (missing.isEmpty()) return;
 
@@ -97,6 +118,26 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
                 .append("     starts the application. This is how deployment supplies them.")
                 .append(System.lineSeparator());
         throw new IllegalStateException(message.toString());
+    }
+
+    /** The exact placeholders the example files ship with. */
+    private static final List<String> PLACEHOLDERS = List.of(
+            "PUT_YOUR_ATLAS_PASSWORD_HERE",
+            "replace-with-your-own-random-string",
+            "replace-with-a-random-secret",
+            "change-this-to-a-long-random-string",
+            "USER:PASSWORD");
+
+    /**
+     * True when the value still carries text the example file shipped with.
+     *
+     * <p>Matches literal strings rather than a pattern. A pattern that tries to describe what a
+     * placeholder looks like will eventually reject somebody's real password, and a startup guard
+     * refusing a correct setting is worse than the failure it was added to prevent. Only the
+     * exact text this project ships is treated as unedited.
+     */
+    private boolean looksLikeATemplate(String value) {
+        return PLACEHOLDERS.stream().anyMatch(value::contains);
     }
 
     /**
