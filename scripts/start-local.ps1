@@ -1,7 +1,8 @@
 param(
     [ValidateRange(1024, 65535)] [int]$Port = 8080,
-    [ValidatePattern('^jachai_(local|demo_[A-Za-z0-9_-]+)$')]
-    [string]$DatabaseName = 'jachai_local'
+    [ValidatePattern('^jachai_(local|demo_[A-Za-z0-9_-]+|smtp_[A-Za-z0-9_-]+)$')]
+    [string]$DatabaseName = 'jachai_local',
+    [switch]$Smtp
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +11,20 @@ $logDir = Join-Path $projectRoot 'target\local-dev'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $appLog = if ($Port -eq 8080) { 'app.out.log' } else { "app.$Port.out.log" }
 $appErrorLog = if ($Port -eq 8080) { 'app.err.log' } else { "app.$Port.err.log" }
+
+if ($Smtp) {
+    if ($DatabaseName -notmatch '^jachai_smtp_[A-Za-z0-9_-]+$') {
+        throw 'SMTP testing requires a separate jachai_smtp_* local database; never point it at demo data.'
+    }
+    foreach ($name in @('MAIL_HOST', 'MAIL_USERNAME', 'MAIL_PASSWORD', 'MAIL_FROM', 'JWT_SECRET')) {
+        if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+            throw "SMTP testing requires $name in the private shell environment."
+        }
+    }
+    if ([Text.Encoding]::UTF8.GetByteCount($env:JWT_SECRET) -lt 32) {
+        throw 'SMTP testing requires JWT_SECRET to contain at least 32 UTF-8 bytes.'
+    }
+}
 
 function Test-LocalPort([int]$Number) {
     return [bool](Get-NetTCPConnection -LocalPort $Number -State Listen -ErrorAction SilentlyContinue)
@@ -45,6 +60,9 @@ if (-not (Test-LocalPort 27017)) {
 
 $healthUrl = "http://127.0.0.1:$Port/api/v1/health"
 if (Test-LocalPort $Port) {
+    if ($Smtp) {
+        throw "Port $Port is occupied; choose a free port for the isolated SMTP test instance."
+    }
     try {
         Invoke-RestMethod -Uri $healthUrl -TimeoutSec 3 | Out-Null
         Write-Host "JachAI is already running at http://127.0.0.1:$Port/"
@@ -68,7 +86,7 @@ if (-not (Test-Java21Home $env:JAVA_HOME)) {
     throw 'JAVA_HOME must point to JDK 21.'
 }
 $env:Path = (Join-Path $env:JAVA_HOME 'bin') + [IO.Path]::PathSeparator + $env:Path
-$env:SPRING_PROFILES_ACTIVE = 'local'
+$env:SPRING_PROFILES_ACTIVE = if ($Smtp) { 'local,smtp' } else { 'local' }
 $env:SERVER_PORT = "$Port"
 $env:SERVER_ADDRESS = '127.0.0.1'
 $env:MONGODB_URI = "mongodb://127.0.0.1:27017/$DatabaseName"
@@ -93,7 +111,11 @@ for ($i = 0; $i -lt 60; $i++) {
     try {
         Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2 | Out-Null
         Write-Host "JachAI is ready at http://127.0.0.1:$Port/"
-        Write-Host "Development email links appear in $(Join-Path $logDir $appLog)"
+        if ($Smtp) {
+            Write-Host 'SMTP test mode is active; verification links are sent to the registered inbox.'
+        } else {
+            Write-Host "Development email links appear in $(Join-Path $logDir $appLog)"
+        }
         exit 0
     } catch {
         Start-Sleep -Seconds 2

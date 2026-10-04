@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!prod")
+@Profile("!prod & !smtp")
 final class LocalEmailSender implements EmailTransport {
     private static final Logger log = LoggerFactory.getLogger(LocalEmailSender.class);
 
