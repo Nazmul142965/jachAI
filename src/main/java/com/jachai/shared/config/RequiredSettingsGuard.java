@@ -71,11 +71,18 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
                     .append(System.lineSeparator());
         }
         message.append(System.lineSeparator())
-                .append("Set these as environment variables in the shell or run configuration that ")
-                .append("starts the application.").append(System.lineSeparator())
-                .append("scripts/start-local.ps1 sets them for you; IntelliJ run configurations do not.")
+                .append("Two ways to supply them:").append(System.lineSeparator())
                 .append(System.lineSeparator())
-                .append("See .env.example for the full list and what each one does.")
+                .append("  1. Easiest for development. Copy ")
+                .append("application-local-secret.properties.example to").append(System.lineSeparator())
+                .append("     application-local-secret.properties beside pom.xml and fill it in.")
+                .append(System.lineSeparator())
+                .append("     It is read on every run and is already in .gitignore.")
+                .append(System.lineSeparator())
+                .append(System.lineSeparator())
+                .append("  2. As environment variables, in the shell or run configuration that")
+                .append(System.lineSeparator())
+                .append("     starts the application. This is how deployment supplies them.")
                 .append(System.lineSeparator());
         throw new IllegalStateException(message.toString());
     }
