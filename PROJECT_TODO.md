@@ -8,10 +8,12 @@ Updated: 2026-10-04. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Academy and Talent core journeys passed isolated local HTTP/MongoDB smoke runs; see `HANDOFF.md`. This is not browser, Atlas, SMTP, or provider verification.
 - [x] Six-character registration/reset validation and local email-verification flow passed focused tests and a real local HTTP run (`61bde89`). Local verification-link opener committed (`a7aac3a`).
 - [x] Ownership audit recovery passed local MongoDB integration (`b4c5971`). AI quota Redis keys now hide tenant/user IDs; unit tests passed (`0e85bd6`).
+- [x] The committed `frontend/ui-refresh` branch was merged into `main` (`5a7fc5f`). Public theme assets were fixed and checked through a focused Spring test and local HTTP responses (`2b27096`). The UI still needs live-browser assessment and design iteration.
+- [x] A concurrent owner-transfer test passed against disposable local MongoDB: one winner, one rejected transfer, one durable audit event. This is not an Atlas concurrency result.
 
 ## Next implementation and integration
 
-- [ ] Resolve the in-progress merge conflicts in the separate `frontend/ui-refresh` worktree, finish its dedicated product screens, and integrate reviewed frontend commits into `main` without losing the auth changes. That worktree belongs to the frontend agent; do not edit it from `main`.
+- [ ] Continue the separate frontend redesign worktree and merge only reviewed, committed slices into `main`. The first UI-refresh branch was already integrated; do not redo its three API panels or overwrite the frontend agent's worktree.
 - [ ] Complete real-browser Academy learner/instructor, Talent recruiter/candidate, billing, and platform-admin walkthroughs against a current local API. Fixture journeys alone are not live API proof.
 - [ ] Decide and implement pending-account retention. User requested automatic removal after a few unverified days; the exact duration and whether the rule applies to existing accounts require explicit approval before enabling deletion.
 - [ ] Verify remaining MongoDB-sensitive workflows on a dedicated `jachai_it_*` database: membership/owner concurrency, outbox lease/retry, telemetry TTL, batch analytics, billing reconciliation, and audit recovery. Local ownership transfer is the only newly closed item here; Atlas behavior remains separate.
