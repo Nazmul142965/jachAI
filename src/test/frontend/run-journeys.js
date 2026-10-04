@@ -181,11 +181,6 @@ async function main() {
   check(journey, 'signed-in header links do not navigate away from the session',
     await ev(`[...document.querySelectorAll('.topbar .topnav a, .workspace-foot a')]
       .every((a) => a.target === '_blank')`));
-  check(journey, 'the brand mark returns to Overview instead of reloading',
-    await ev(`(() => { document.querySelector('.topbar .brand').click();
-      return location.hash === '#/overview' && !document.querySelector('#app').classList.contains('hidden'); })()`));
-  check(journey, 'no link points at the unrouted certificate page',
-    await ev(`!document.querySelector('a[href="/certificate.html"]')`));
   await view('My Assessments'); await tab('Assignments'); await wait(1200);
   check(journey, 'assignment list renders', (await ev(`document.querySelector('#assignments-list').textContent`)).includes('Start / resume'));
   await clickText('#assignments-list', 'Start / resume'); await wait(600);
@@ -252,6 +247,27 @@ async function main() {
   // Captured here rather than before the attempt: the fixture attempt deadline
   // is six seconds from page load, so a theme switch earlier would expire it.
   await view('Overview'); await wait(1200);
+  // The brand is the reported bug: a plain href="/" reloaded the document and
+  // the in-memory token went with it. The href must be a same-document target
+  // while signed in, so even an activation our handler never sees is safe.
+  check(journey, 'signed-in brand href cannot trigger a document load',
+    await ev(`document.querySelector('.topbar .brand').getAttribute('href') === '#/overview'`),
+    await ev(`document.querySelector('.topbar .brand').getAttribute('href')`));
+  check(journey, 'clicking the brand opens Overview and keeps the session',
+    await ev(`(() => { document.querySelector('.topbar .brand').click();
+      return location.hash === '#/overview'
+        && !document.querySelector('#app').classList.contains('hidden')
+        && document.querySelector('#auth').classList.contains('hidden'); })()`));
+  // Keyboard activation is the browser following the href, not our listener.
+  await ev(`(() => { const b = document.querySelector('.topbar .brand'); b.focus();
+    b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); b.click(); return true; })()`);
+  await wait(500);
+  check(journey, 'keyboard activation of the brand also keeps the session',
+    await ev(`!document.querySelector('#app').classList.contains('hidden')`));
+  check(journey, 'the brand names where it goes while signed in',
+    await ev(`/Overview/.test(document.querySelector('.topbar .brand').getAttribute('aria-label'))`));
+  check(journey, 'no link points at the unrouted certificate page',
+    await ev(`!document.querySelector('a[href="/certificate.html"]')`));
   await shotBoth('overview-learner');
 
   // ---------------------------------------------------------------- academy staff journey

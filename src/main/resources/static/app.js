@@ -276,13 +276,26 @@ function showSignedOut() {
 // ---------------------------------------------------------------------------
 function setInAppLinks(signedInNow) {
   const brand = document.querySelector('.topbar .brand');
-  if (brand && !brand.dataset.bound) {
-    brand.dataset.bound = 'true';
-    brand.addEventListener('click', (event) => {
-      if (!state.accessToken) return;
-      event.preventDefault();
-      run(() => showScreen('overview'));
-    });
+  if (brand) {
+    // The href itself changes, not just the click handler. A handler alone
+    // leaves href="/" armed: if it has not bound yet, or throws, the browser
+    // still performs a full document load and the in-memory token is gone.
+    // Pointing the anchor at a hash means even an unhandled activation is a
+    // same-document navigation, which the router picks up and which cannot
+    // end the session. Keyboard Enter and middle-click get the same guarantee,
+    // because they are the browser following the href rather than our handler.
+    brand.setAttribute('href', signedInNow ? '#/overview' : '/');
+    brand.setAttribute('aria-label', signedInNow ? 'JachAI — go to Overview' : 'JachAI home');
+    if (!brand.dataset.bound) {
+      brand.dataset.bound = 'true';
+      brand.addEventListener('click', (event) => {
+        if (!state.accessToken) return;
+        // Let a modifier-click open a tab as the browser normally would.
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button > 0) return;
+        event.preventDefault();
+        run(() => showScreen('overview'));
+      });
+    }
   }
   for (const link of document.querySelectorAll('.topbar .topnav a, .workspace-foot a')) {
     const external = (link.getAttribute('href') || '').startsWith('/');
@@ -296,9 +309,6 @@ function setInAppLinks(signedInNow) {
       link.removeAttribute('rel');
       link.removeAttribute('title');
     }
-  }
-  if (brand) {
-    brand.setAttribute('aria-label', signedInNow ? 'JachAI — go to Overview' : 'JachAI home');
   }
 }
 async function signedIn(tokens) {
