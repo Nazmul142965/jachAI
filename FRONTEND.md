@@ -276,14 +276,18 @@ Every action states what it does and what it cannot do before it runs.
 
 ### 4.6 Not built yet
 
-Four features whose API exists with no UI. §10 lists the endpoints.
+Three endpoints have no UI. Everything else the API exposes is reachable.
 
-| Feature | Belongs in | Shape |
+| Endpoint | Belongs in | Shape |
 | --- | --- | --- |
-| Assessment version history | `assessments`, under the list | Pattern A. Rows of version, question count, published date. Opening a published assessment's history shows what each version froze |
-| Batch analytics and progress | `academy-batch` | Pattern B. A `.metrics` row of cohort figures, then per-learner progress rows with `.bar` |
-| Tenant quota reconciliation | a billing panel in `overview` | Pattern D. Request, then show the audit. Must not claim a repair the server did not confirm |
-| Order detail | `overview` billing, from an order row | Pattern C in a modal or subpanel |
+| `GET …/assessments/{id}/versions` | `assessments`, opened from a published row | Pattern A. What each published version froze: version number, question count, duration, pass mark, published date |
+| `GET`/`POST` `…/billing/entitlements/usage-reconciliation` | a billing panel in `overview`, for `ORG_ADMIN` | Pattern D. The tenant-scoped counterpart of the platform repair. Must not claim a repair the server did not confirm |
+| `GET …/billing/orders/{id}` | `overview` billing, from an order row | Pattern C, in a subpanel under the row |
+
+Before adding to this list, check the call is really absent. `app.js` builds
+some paths from a ternary — `/assessments/{id}/${draft ? 'draft' : 'versions'}`
+is one — so a plain text search for the endpoint finds nothing even though
+the call exists.
 
 ---
 
@@ -456,14 +460,19 @@ Deliberately not called from the workspace:
 - The four `AuthController` reset/verify endpoints — called by
   `reset-password.html` and `verify-email.html`, not `app.js`.
 
-Known uncovered, with no UI yet:
+Known uncovered, with no UI yet — three endpoints:
 
 | Endpoint | Would belong in |
 | --- | --- |
-| `GET`/`POST` `…/assessments/{id}/versions`, `PUT` `…/assessments/{id}/draft` | the Assessments view |
-| `GET` `…/batches/{b}/assessments/{a}/analytics` and `/progress` | the Batch workspace |
+| `GET …/assessments/{id}/versions` | the Assessments view |
 | `GET`/`POST` `…/billing/entitlements/usage-reconciliation` | an org-admin billing panel |
-| `GET` `…/billing/orders/{id}` | order detail from the billing list |
+| `GET …/billing/orders/{id}` | order detail from the billing list |
+
+A sweep will over-report. `POST …/assessments/{id}/versions`, `PUT
+…/assessments/{id}/draft` and the batch `/analytics` and `/progress`
+endpoints all look uncovered to a text search and are not: they are built
+from template literals with an expression in the middle. Confirm against the
+`request(` call before believing a gap.
 
 ---
 
