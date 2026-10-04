@@ -21,7 +21,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   orderDetailId: null, orderDetailToken: 0,
   view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
-  'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
+  'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
 // as tabs within the screen, so that the sidebar lists six or seven places
@@ -33,7 +33,10 @@ const SCREENS = {
   'assessment-studio': {
     title: 'Assessment Studio',
     subtitle: 'Author questions, publish assessments, review results',
-    views: [['questions', 'Question bank'], ['assessments', 'Assessments & review']]
+    // One tab per stage of the lifecycle: author a question, publish an
+    // assessment, assign it, review what came back.
+    views: [['questions', 'Question bank'], ['assessments', 'Assessments'],
+      ['assign', 'Assign'], ['review', 'Review & release']]
   },
   academy: {
     title: 'Academy Workspace',
@@ -545,7 +548,7 @@ async function loadFocus(role, academy, staff, participant) {
         entries.push(focusRow(
           `${review.assessmentTitle || 'Attempt'} — attempt ${review.attemptNumber}`,
           `${review.participantUserId} · scored ${review.percentage}% · submitted ${relative(review.submittedAt)}`,
-          'Review & release', () => showView('assessments'),
+          'Review & release', () => showView('review'),
           [review.passed ? 'Passed' : 'Did not pass', review.passed ? 'ok' : 'danger']));
       }
       const drafts = academy ? await maybe('/questions?status=DRAFT&page=0') : null;
@@ -584,7 +587,7 @@ async function loadGlance(role, academy, staff, participant) {
       maybe(path).then((page) => ({ label, value: totalOf(page), view })));
 
     if (staff) {
-      count('/attempts/review/pending?page=0', 'Waiting for release', 'assessments');
+      count('/attempts/review/pending?page=0', 'Waiting for release', 'review');
       count('/assessments?status=PUBLISHED&page=0', 'Published assessments', 'assessments');
       if (academy) {
         count('/questions?status=DRAFT&page=0', 'Questions to approve', 'questions');
@@ -831,9 +834,13 @@ async function showView(key) {
   if (key === 'assessments') {
     await loadList('#assessments-list', async () => {
       await loadApprovedQuestions(); await loadAssessments();
-      await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
     }, 'Assessments could not be loaded.');
     attachFilter('#assessments-list', 'Filter assessments by title, status or release policy');
+  }
+  if (key === 'assign') {
+    await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
+  }
+  if (key === 'review') {
     await loadList('#review-queue', () => loadReviewQueue(0), 'The review queue could not be loaded.');
     await loadOrganizationSettings();
   }

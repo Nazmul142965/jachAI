@@ -307,8 +307,7 @@ async function main() {
   check(staff, 'role change names the transition in plain words', /from learner to instructor/.test(await dialogText()), await dialogText());
   await clickDialog('quiet'); await wait(300);
   await view('Assessment Studio'); await wait(900); await shot('screen-assessment-studio-questions');
-  await tab('Assessments & review'); await wait(1600); await shotBoth('screen-assessment-studio');
-  check(staff, 'review queue lists a releasable result', (await ev(`document.querySelector('#review-queue').textContent`)).includes('Java Basics'));
+  await tab('Assessments'); await wait(1400);
 
   // Assessment version history: opened from a published row, never from a draft.
   check(staff, 'version history is offered on a published assessment',
@@ -327,6 +326,13 @@ async function main() {
   await clickText('#assessment-versions', 'Close'); await wait(300);
   check(staff, 'version history closes again',
     await ev(`document.querySelector('#assessment-versions').classList.contains('hidden')`));
+  await shotBoth('screen-assessment-studio');
+  await tab('Review & release'); await wait(1500);
+  check(staff, 'review queue lists a releasable result',
+    (await ev(`document.querySelector('#review-queue').textContent`)).includes('Java Basics'));
+  check(staff, 'studio separates authoring from reviewing',
+    await ev(`document.querySelector('#assessments-view').classList.contains('hidden')`));
+  await shotBoth('screen-studio-review');
   await clickText('#review-queue', 'Release result'); await wait(500);
   const releaseText = await dialogText();
   check(staff, 'release dialog names attempt and score', /att-9/.test(releaseText) && /80%/.test(releaseText));
@@ -342,11 +348,11 @@ async function main() {
   await clickText('#attempt-review-questions', 'Mark correct'); await wait(500);
   check(staff, 'grading confirms it is final and audited', /final and audited/.test(await dialogText()));
   await clickDialog('primary'); await wait(1000);
-  await clickText('#assessments-view', 'Issue certificate'); await wait(900);
+  await clickText('#review-view', 'Issue certificate'); await wait(900);
   const issued = await ev(`document.querySelector('#review-output').textContent`);
   check(staff, 'issue shows code and public path', /VC-123/.test(issued) && /\/certificates\/VC-123/.test(issued));
   check(staff, 'issue does not claim delivery', /cannot confirm delivery/.test(issued));
-  await clickText('#assessments-view', 'Revoke certificate'); await wait(500);
+  await clickText('#review-view', 'Revoke certificate'); await wait(500);
   check(staff, 'revoke confirms it is terminal', /terminal/.test(await dialogText()));
   await clickDialog('primary'); await wait(900);
   check(staff, 'revoke reports the code is now invalid', /verifies as invalid/.test(await ev(`document.querySelector('#review-output').textContent`)));
