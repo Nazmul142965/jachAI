@@ -133,8 +133,13 @@ public class EmailLinkGuard {
             return attempts.findById(payload.resourceId())
                     .filter(attempt -> attempt.status() == AttemptStatus.SUBMITTED
                             && attempt.resultReleasedAt() != null)
+                    .filter(attempt -> memberships.findByUserIdAndOrganizationIdAndActiveTrue(
+                            attempt.userId(), attempt.organizationId())
+                            .filter(member -> member.role() == OrganizationRole.LEARNER
+                                    || member.role() == OrganizationRole.CANDIDATE).isPresent())
                     .flatMap(attempt -> users.findById(attempt.userId()))
-                    .filter(user -> user.email().equalsIgnoreCase(payload.recipient()))
+                    .filter(user -> user.emailVerified() && !user.disabled()
+                            && user.email().equalsIgnoreCase(payload.recipient()))
                     .isPresent();
         } catch (IllegalArgumentException exception) {
             return false;
@@ -168,7 +173,8 @@ public class EmailLinkGuard {
                     .filter(certificate -> certificate.status() == CertificateStatus.ISSUED
                             && path.equals("/certificates/" + certificate.verificationCode()))
                     .flatMap(certificate -> users.findById(certificate.learnerUserId()))
-                    .filter(user -> user.email().equalsIgnoreCase(payload.recipient()))
+                    .filter(user -> user.emailVerified() && !user.disabled()
+                            && user.email().equalsIgnoreCase(payload.recipient()))
                     .isPresent();
         } catch (IllegalArgumentException exception) {
             return false;

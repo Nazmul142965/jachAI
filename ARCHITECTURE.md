@@ -257,6 +257,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Email outbox implementation decision
 
 - Registration verification, password reset, and Talent invitation links enqueue an `email_jobs` document. The payload is AES-256-GCM encrypted with a random nonce and job ID as associated data. A separate stable `MAIL_JOB_ENCRYPTION_KEY` is preferred; absent that, a domain-separated key is derived from `JWT_SECRET`. A scheduled MongoDB worker atomically leases due jobs, verifies that link tokens are still current, sends through the local or SMTP transport, and retries with bounded backoff. It never sends a link past its validity deadline. After success, expiry, or five failed attempts, ciphertext and nonce are removed; job metadata expires after 30 days. Delivery is at-least-once, not exactly once, because a worker may crash after SMTP accepts a message. Live MongoDB/SMTP, lease recovery, and free-tier storage behavior remain to be verified.
+- At delivery time, result notices require the released attempt, a still-active learner/candidate membership, and a verified, enabled account with the same recipient email. Certificate and published-feedback notices also recheck current account state; feedback additionally requires active Academy learner membership. A queued notice is not proof of delivery.
 
 ## Request rate-limit implementation decision
 

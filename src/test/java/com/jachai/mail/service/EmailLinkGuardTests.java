@@ -132,6 +132,11 @@ class EmailLinkGuardTests {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
                 "other@example.com", "Learner", null, "https://example.test/certificates/code",
                 Instant.now().plusSeconds(3600), "cert")));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
+                "learner@example.com", "Learner", null, true, true, 0, Instant.now())));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.CERTIFICATE_ISSUED,
+                "learner@example.com", "Learner", null, "https://example.test/certificates/code",
+                Instant.now().plusSeconds(3600), "cert")));
     }
 
     @Test
@@ -140,6 +145,9 @@ class EmailLinkGuardTests {
         Attempt released = new Attempt("attempt", "org", "assignment", "version", "learner", 1,
                 now.minusSeconds(60), now, AttemptStatus.SUBMITTED, Map.of(), now, 80, true, now, 1L);
         when(attempts.findById("attempt")).thenReturn(Optional.of(released));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("learner", "org"))
+                .thenReturn(Optional.of(new Membership("member", "learner", "org",
+                        OrganizationRole.LEARNER, true, now)));
         when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
                 "learner@example.com", "Learner", null, true, false, 0, now)));
 
@@ -151,6 +159,11 @@ class EmailLinkGuardTests {
                 now.plusSeconds(3600), "attempt")));
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
                 "learner@example.com", "Learner", null, "https://example.test/other",
+                now.plusSeconds(3600), "attempt")));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("learner", "org"))
+                .thenReturn(Optional.empty());
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
+                "learner@example.com", "Learner", null, "https://example.test/",
                 now.plusSeconds(3600), "attempt")));
     }
 
