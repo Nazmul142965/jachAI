@@ -1,0 +1,358 @@
+/* ==========================================================================
+   JachAI — design tokens
+   --------------------------------------------------------------------------
+   The single source of truth for colour, type, space, radius, elevation and
+   motion. Loaded before app.css (the authenticated workspace) and public.css
+   (the marketing and verification pages) so both describe the brand in one
+   vocabulary.
+
+   Theme resolution, in order:
+     1. :root                              the light palette, always defined
+     2. prefers-color-scheme: dark         the OS preference, unless the
+                                           visitor has explicitly chosen light
+     3. [data-theme="dark"]                an explicit choice, which wins over
+                                           the OS either way
+
+   Rule 2 exists so a visitor who prefers dark gets it on first paint, before
+   any script runs. Rule 3 exists so the choice in the header can override the
+   OS in both directions. They carry the same values; theme.js sets the
+   attribute, and nothing else should.
+   ========================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  /* ------------------------------------------------------------------------
+     Palette ramps — fixed. These never change between themes; the semantic
+     roles below are what gets reassigned.
+     --------------------------------------------------------------------- */
+
+  --brand-50:  #eef6f3;
+  --brand-100: #d6eee5;
+  --brand-200: #abdbcb;
+  --brand-300: #74c0a9;
+  --brand-400: #3f9d81;
+  --brand-500: #1a7a62;
+  --brand-600: #075b4d;
+  --brand-700: #064b40;
+  --brand-800: #053b33;
+  --brand-900: #042a25;
+
+  --accent-300: #e6f79a;
+  --accent-400: #d5f15a;
+  --accent-500: #bcd93c;
+
+  --neutral-0:   #ffffff;
+  --neutral-25:  #fafcfb;
+  --neutral-50:  #f4f8f5;
+  --neutral-200: #d9e5e1;
+  --neutral-300: #c2d3cc;
+  --neutral-500: #657879;
+  --neutral-600: #4b5e5f;
+  --neutral-700: #33474a;
+  --neutral-800: #22383c;
+  --neutral-900: #182d32;
+
+  /* ------------------------------------------------------------------------
+     Light theme — semantic roles
+     --------------------------------------------------------------------- */
+
+  /* Neutral steps used directly as a surface or a hairline, so they need a
+     counterpart in the dark theme. */
+  --neutral-100: #eaf1ed;
+  --neutral-400: #9aaea8;
+
+  --success-surface: #e3f5eb;
+  --success-border:  #b7dcc8;
+  --success-ink:     #1a5c41;
+  --warn-surface:    #fff4de;
+  --warn-border:     #f0dcb0;
+  --warn-ink:        #7d5713;
+  --danger-surface:  #fff0ef;
+  --danger-border:   #e9c2bf;
+  --danger-ink:      #a73535;
+  --info-surface:    #eef2f8;
+  --info-ink:        #253c60;
+
+  --canvas:        var(--neutral-50);
+  --surface:       var(--neutral-0);
+  --surface-sunk:  var(--neutral-50);
+  --surface-brand: var(--brand-50);
+  --line:          var(--neutral-200);
+  --line-soft:     #e6efea;
+  --line-strong:   var(--neutral-300);
+  --ink:           var(--neutral-900);
+  --ink-soft:      var(--neutral-700);
+  --muted:         var(--neutral-500);
+  --brand:         var(--brand-600);
+  --brand-hover:   var(--brand-700);
+  --brand-ink:     var(--brand-600);
+  --on-brand:      var(--neutral-0);
+  --mint:          var(--brand-100);
+  --mint-ink:      var(--brand-700);
+  --accent:        var(--accent-400);
+  --accent-on:     var(--brand-700);
+  --accent-soft:   #f3fbd8;
+  --accent-ink:    #4a5a1a;
+  --danger:        var(--danger-ink);
+  --warn:          var(--warn-ink);
+  --focus-ring:    var(--brand-500);
+  --scrim:         rgba(13, 26, 28, .5);
+
+  --e-1: 0 1px 2px rgba(6, 59, 51, .05), 0 1px 3px rgba(6, 59, 51, .04);
+  --e-2: 0 2px 4px rgba(6, 59, 51, .04), 0 8px 20px rgba(6, 59, 51, .06);
+  --e-3: 0 4px 10px rgba(6, 59, 51, .06), 0 18px 44px rgba(6, 59, 51, .09);
+  --e-4: 0 24px 60px rgba(6, 59, 51, .22);
+  --shadow-brand: 0 18px 44px rgba(7, 91, 77, .14);
+
+  /* Legacy names, kept so any rule not yet migrated still resolves. */
+  --forest:      var(--brand);
+  --forest-deep: var(--brand-hover);
+  --forest-soft: var(--success-surface);
+  --danger-soft: var(--danger-surface);
+  --warn-soft:   var(--warn-surface);
+
+  /* ------------------------------------------------------------------------
+     Typography
+     --------------------------------------------------------------------- */
+
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
+  --font: var(--font-sans);
+
+  --text-2xs:  10.5px;
+  --text-xs:   11.5px;
+  --text-sm:   12.5px;
+  --text-md:   13.5px;
+  --text-base: 15px;
+  --text-lg:   17px;
+  --text-xl:   21px;
+  --text-2xl:  clamp(24px, 2.4vw, 30px);
+  --text-3xl:  clamp(30px, 3.4vw, 46px);
+  --text-display: clamp(40px, 5.4vw, 68px);
+
+  --leading-tight:   1.15;
+  --leading-snug:    1.35;
+  --leading-normal:  1.55;
+  --leading-relaxed: 1.65;
+
+  --tracking-display: -.035em;
+  --tracking-tight:   -.02em;
+  --tracking-wide:    .1em;
+  --tracking-caps:    .14em;
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 650;
+  --weight-bold:     800;
+
+  /* ------------------------------------------------------------------------
+     Space, radius, motion, layout
+     --------------------------------------------------------------------- */
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 64px;
+  --sp-11: 80px;
+
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-2xl: 26px;
+  --r-pill: 999px;
+
+  /* Aliases used by the public component layer. */
+  --radius-sm: var(--r-sm);
+  --radius:    var(--r-lg);
+  --radius-lg: var(--r-xl);
+
+  --shadow-soft: var(--e-2);
+  --shadow:      var(--e-3);
+
+  --ease: cubic-bezier(.2, .7, .3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur: var(--dur-base);
+
+  --gutter: clamp(18px, 4vw, 64px);
+  --topbar-h: 76px;
+  --sidebar-w: 248px;
+  --content-max: 1320px;
+  --max: 1080px;
+
+  font-family: var(--font-sans);
+}
+
+/* ==========================================================================
+   Dark theme
+   --------------------------------------------------------------------------
+   The two selectors below carry identical declarations and must stay in step.
+   They cannot be merged: one lives inside a media query and the other does
+   not, and CSS has no way to share a declaration block across that boundary.
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --neutral-100: #1c3338;
+    --neutral-400: #70878a;
+
+    --success-surface: #13362a;
+    --success-border:  #235842;
+    --success-ink:     #8fdcb6;
+    --warn-surface:    #3a2f16;
+    --warn-border:     #5c4a1f;
+    --warn-ink:        #f0cd84;
+    --danger-surface:  #3a1d1d;
+    --danger-border:   #5e2f2e;
+    --danger-ink:      #f3a9a4;
+    --info-surface:    #1b2740;
+    --info-ink:        #bdcdf0;
+
+    --canvas:        #0d1a1c;
+    --surface:       #13262a;
+    --surface-sunk:  #0f2024;
+    --surface-brand: #102b28;
+    --line:          #27454a;
+    --line-soft:     #1e3a3f;
+    --line-strong:   #35585e;
+    --ink:           #e8f1ee;
+    --ink-soft:      #c3d6d1;
+    --muted:         #90a8a5;
+    --brand:         var(--brand-300);
+    --brand-hover:   var(--brand-200);
+    --brand-ink:     var(--brand-300);
+    --on-brand:      #042a25;
+    --mint:          #16423a;
+    --mint-ink:      var(--brand-200);
+    --accent-on:     #042a25;
+    --accent-soft:   #2c3a15;
+    --accent-ink:    #dcefa6;
+    --focus-ring:    var(--brand-300);
+    --scrim:         rgba(0, 0, 0, .66);
+
+    --e-1: 0 1px 2px rgba(0, 0, 0, .3);
+    --e-2: 0 2px 4px rgba(0, 0, 0, .25), 0 8px 20px rgba(0, 0, 0, .3);
+    --e-3: 0 4px 10px rgba(0, 0, 0, .3), 0 18px 44px rgba(0, 0, 0, .38);
+    --e-4: 0 24px 60px rgba(0, 0, 0, .55);
+    --shadow-brand: 0 18px 44px rgba(0, 0, 0, .45);
+  }
+}
+
+:root[data-theme="dark"] {
+  --neutral-100: #1c3338;
+  --neutral-400: #70878a;
+
+  --success-surface: #13362a;
+  --success-border:  #235842;
+  --success-ink:     #8fdcb6;
+  --warn-surface:    #3a2f16;
+  --warn-border:     #5c4a1f;
+  --warn-ink:        #f0cd84;
+  --danger-surface:  #3a1d1d;
+  --danger-border:   #5e2f2e;
+  --danger-ink:      #f3a9a4;
+  --info-surface:    #1b2740;
+  --info-ink:        #bdcdf0;
+
+  --canvas:        #0d1a1c;
+  --surface:       #13262a;
+  --surface-sunk:  #0f2024;
+  --surface-brand: #102b28;
+  --line:          #27454a;
+  --line-soft:     #1e3a3f;
+  --line-strong:   #35585e;
+  --ink:           #e8f1ee;
+  --ink-soft:      #c3d6d1;
+  --muted:         #90a8a5;
+  --brand:         var(--brand-300);
+  --brand-hover:   var(--brand-200);
+  --brand-ink:     var(--brand-300);
+  --on-brand:      #042a25;
+  --mint:          #16423a;
+  --mint-ink:      var(--brand-200);
+  --accent-on:     #042a25;
+  --accent-soft:   #2c3a15;
+  --accent-ink:    #dcefa6;
+  --focus-ring:    var(--brand-300);
+  --scrim:         rgba(0, 0, 0, .66);
+
+  --e-1: 0 1px 2px rgba(0, 0, 0, .3);
+  --e-2: 0 2px 4px rgba(0, 0, 0, .25), 0 8px 20px rgba(0, 0, 0, .3);
+  --e-3: 0 4px 10px rgba(0, 0, 0, .3), 0 18px 44px rgba(0, 0, 0, .38);
+  --e-4: 0 24px 60px rgba(0, 0, 0, .55);
+  --shadow-brand: 0 18px 44px rgba(0, 0, 0, .45);
+}
+
+/* Keep the browser's own widgets (scrollbars, form controls, the canvas
+   behind the page) in step with an explicit choice. */
+:root[data-theme="dark"]  { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+
+/* ==========================================================================
+   Theme control
+   --------------------------------------------------------------------------
+   Injected into the page header by theme.js. Styled here rather than in
+   app.css or public.css because it appears on every page, authenticated or
+   not, and must look identical on both.
+   ========================================================================== */
+
+.theme-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+}
+
+.theme-toggle button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.theme-toggle button:hover { color: var(--ink); }
+.theme-toggle button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--brand-ink);
+  box-shadow: var(--e-1);
+}
+.theme-toggle button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.theme-toggle svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The control is a row of icons, so it needs a reachable touch target on a
+   phone without growing the header on a desktop. */
+@media (max-width: 560px) {
+  .theme-toggle button { width: 36px; height: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle button { transition: none; }
+}
