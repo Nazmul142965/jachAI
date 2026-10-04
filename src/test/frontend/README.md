@@ -84,9 +84,12 @@ candidate with an assignment), `DEMO_OWNER_EMAIL` (the Academy/Talent owner), an
 `node src/test/frontend/run-live-local.js`. It refuses non-loopback URLs,
 does not mutate server data, signs in through the real page, and saves
 light/dark screenshots under ignored `target/frontend-live-evidence/`.
-It checks the Academy learner result/cohort and Talent recruiter comparison /
-candidate assignment. It does **not** prove every action in those roles,
-billing, Redis, external providers, or deployment.
+It checks the Academy learner result/cohort, Talent recruiter comparison /
+candidate assignment, and the owner's read-only Billing view (plan, quota
+reconciliation, order history, sandbox disclosure, and checkout button state).
+It never starts checkout or repairs counters. It does **not** prove every action
+in those roles, payment-provider callbacks, Redis, external providers, or
+deployment.
 
 Remaining live-only unknowns: real authentication against MongoDB, Redis-backed rate limits and
 revocation, SMTP/outbox delivery, AI providers, and both sandbox payment gateways.

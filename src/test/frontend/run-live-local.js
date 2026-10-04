@@ -177,6 +177,37 @@ async function main() {
     await wait(200);
     await screenshot('talent-comparison-dark');
 
+    await evaluate("document.querySelector('#workspace-nav button[data-screen=\"billing\"]').click(); true");
+    await until("document.querySelector('#plan-details')?.textContent.includes('plan')", 'live workspace plan');
+    await until("!!document.querySelector('#usage-generated')?.textContent.trim()", 'quota reconciliation timestamp');
+    const billing = await evaluate(`(() => ({
+      plan: document.querySelector('#plan-details').textContent,
+      hint: document.querySelector('#billing-hint').textContent,
+      history: document.querySelector('#payment-history').textContent,
+      sslDisabled: document.querySelector('#start-ssl-demo').disabled,
+      bkashDisabled: document.querySelector('#start-bkash-demo').disabled,
+      usage: document.querySelector('#usage-report').textContent
+    }))()`);
+    if (!billing.plan.includes('Assessments & invitations') || !billing.plan.includes('AI & certificates')) {
+      throw new Error('The live billing plan omitted quota details.');
+    }
+    if (!billing.hint.includes('No real money is charged.')) {
+      throw new Error('The billing screen omitted the sandbox-only payment disclosure.');
+    }
+    if (billing.hint.includes('both demo checkout buttons stay disabled') &&
+        (!billing.sslDisabled || !billing.bkashDisabled)) {
+      throw new Error('A demo checkout button is enabled without sandbox merchant credentials.');
+    }
+    if (!billing.history.trim() || !billing.usage.trim()) {
+      throw new Error('Live billing history or quota reconciliation did not render.');
+    }
+    await evaluate("document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('#billing-view').scrollIntoView(); true");
+    await wait(200);
+    await screenshot('billing-owner-light');
+    await evaluate("document.documentElement.setAttribute('data-theme', 'dark'); true");
+    await wait(200);
+    await screenshot('billing-owner-dark');
+
     await login(process.env.DEMO_CANDIDATE_EMAIL);
     await evaluate("document.querySelector('#workspace-nav button[data-screen=\"my-assessments\"]').click(); true");
     await until("document.querySelector('#assignments-list')?.textContent.includes('hiring campaign')", 'real candidate assignment');
@@ -190,7 +221,7 @@ async function main() {
     await wait(200);
     await screenshot('talent-candidate-light');
     if (errors.length) throw new Error(`Browser JavaScript errors: ${errors.slice(0, 2).join(' | ')}`);
-    console.log(`LIVE local browser PASS: Academy learner/result/cohort and Talent recruiter/candidate; 7 screenshots in ${evidence}`);
+    console.log(`LIVE local browser PASS: Academy learner/result/cohort, Talent recruiter/candidate, and read-only billing; 9 screenshots in ${evidence}`);
   } finally {
     if (socket) socket.close();
     child.kill();
