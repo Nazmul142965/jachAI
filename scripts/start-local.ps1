@@ -1,11 +1,15 @@
 param(
-    [int]$Port = 8080
+    [ValidateRange(1024, 65535)] [int]$Port = 8080,
+    [ValidatePattern('^jachai_(local|demo_[A-Za-z0-9_-]+)$')]
+    [string]$DatabaseName = 'jachai_local'
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $logDir = Join-Path $projectRoot 'target\local-dev'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+$appLog = if ($Port -eq 8080) { 'app.out.log' } else { "app.$Port.out.log" }
+$appErrorLog = if ($Port -eq 8080) { 'app.err.log' } else { "app.$Port.err.log" }
 
 function Test-LocalPort([int]$Number) {
     return [bool](Get-NetTCPConnection -LocalPort $Number -State Listen -ErrorAction SilentlyContinue)
@@ -66,7 +70,8 @@ if (-not (Test-Java21Home $env:JAVA_HOME)) {
 $env:Path = (Join-Path $env:JAVA_HOME 'bin') + [IO.Path]::PathSeparator + $env:Path
 $env:SPRING_PROFILES_ACTIVE = 'local'
 $env:SERVER_PORT = "$Port"
-$env:MONGODB_URI = 'mongodb://127.0.0.1:27017/jachai_local'
+$env:MONGODB_URI = "mongodb://127.0.0.1:27017/$DatabaseName"
+$env:APP_PUBLIC_BASE_URL = "http://127.0.0.1:$Port"
 $env:CACHE_ENABLED = 'false'
 $env:REDIS_REVOCATION_ENABLED = 'false'
 $env:AI_PROVIDER = 'none'
@@ -81,13 +86,13 @@ if (-not $env:JWT_SECRET) {
 
 Start-Process -FilePath $env:ComSpec -WindowStyle Hidden -WorkingDirectory $projectRoot `
     -ArgumentList '/d', '/c', '.\mvnw.cmd spring-boot:run' `
-    -RedirectStandardOutput (Join-Path $logDir 'app.out.log') `
-    -RedirectStandardError (Join-Path $logDir 'app.err.log') | Out-Null
+    -RedirectStandardOutput (Join-Path $logDir $appLog) `
+    -RedirectStandardError (Join-Path $logDir $appErrorLog) | Out-Null
 for ($i = 0; $i -lt 60; $i++) {
     try {
         Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2 | Out-Null
         Write-Host "JachAI is ready at http://127.0.0.1:$Port/"
-        Write-Host "Development email links appear in $logDir\app.out.log"
+        Write-Host "Development email links appear in $(Join-Path $logDir $appLog)"
         exit 0
     } catch {
         Start-Sleep -Seconds 2
