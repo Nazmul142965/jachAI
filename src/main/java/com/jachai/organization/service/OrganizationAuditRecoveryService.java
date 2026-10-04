@@ -9,14 +9,18 @@ import com.jachai.organization.repository.MembershipRepository;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.shared.audit.AuditAction;
+import com.jachai.shared.audit.AuditEvent;
 import com.jachai.shared.audit.AuditEventRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -65,10 +69,27 @@ public class OrganizationAuditRecoveryService {
      * touching any collection.
      */
     public AuditRecoveryReport report(String actorUserId, String organizationId, int page) {
-        return scan(actorUserId, organizationId, page);
+        return scan(actorUserId, organizationId, page, false);
     }
 
-    private AuditRecoveryReport scan(String actorUserId, String organizationId, int page) {
+    /**
+     * Writes the events the dry run called recoverable, and nothing else.
+     *
+     * <p>Idempotent: every event carries the deterministic id its markers imply, so a second run
+     * inserts nothing. Safe under concurrent change: each record is re-read immediately before
+     * its event is written, so a transition that moved on since the report is recomputed from
+     * the record's current markers rather than the stale ones. Partial failure is safe to retry,
+     * because each insert stands alone and an already-written event is a duplicate key rather
+     * than an error.
+     *
+     * <p>Nothing is updated and nothing is deleted. The only write is the insert of an absent
+     * event.
+     */
+    public AuditRecoveryReport repair(String actorUserId, String organizationId, int page) {
+        return scan(actorUserId, organizationId, page, true);
+    }
+
+    private AuditRecoveryReport scan(String actorUserId, String organizationId, int page, boolean write) {
         requirePlatformAdmin(actorUserId);
         if (page < 0 || page > MAX_PAGE) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE",
@@ -88,18 +109,34 @@ public class OrganizationAuditRecoveryService {
             // Defence in depth: the query is already tenant-scoped, but an audit tool must not
             // be the thing that leaks one tenant's history into another's report.
             if (!organizationId.equals(member.organizationId())) continue;
-            membershipGap(member).ifPresent(entries::add);
+            // On a repair the record is re-read, because the page may be seconds old and the
+            // membership may have changed since. Writing from the stale copy would record a
+            // transition that is no longer the latest one.
+            Membership current = write
+                    ? memberships.findById(member.id()).orElse(null)
+                    : member;
+            if (current == null || !organizationId.equals(current.organizationId())) continue;
+            membershipGap(current)
+                    .map(entry -> write ? writeMembership(current, entry) : entry)
+                    .ifPresent(entries::add);
         }
         // The organization carries a single ownership marker, so it belongs to one page only.
         boolean ownershipScanned = page == 0;
-        if (ownershipScanned) ownershipGap(organization).ifPresent(entries::add);
+        if (ownershipScanned) {
+            Organization currentOrganization = write
+                    ? organizations.findById(organizationId).orElse(organization)
+                    : organization;
+            ownershipGap(currentOrganization)
+                    .map(entry -> write ? writeOwnership(currentOrganization, entry) : entry)
+                    .ifPresent(entries::add);
+        }
 
         return new AuditRecoveryReport(organizationId, Instant.now(),
                 members.getNumber(), members.getTotalPages(),
                 members.getTotalElements(), ownershipScanned,
                 (int) entries.stream().filter(e -> e.status() == AuditGapStatus.RECOVERABLE).count(),
                 (int) entries.stream().filter(e -> e.status() == AuditGapStatus.AMBIGUOUS).count(),
-                false, List.copyOf(entries));
+                write, List.copyOf(entries));
     }
 
     // -- Gap detection ------------------------------------------------------------------------
@@ -162,6 +199,51 @@ public class OrganizationAuditRecoveryService {
                 AuditAction.OWNERSHIP_TRANSFERRED, organization.ownershipTransferredBy(),
                 organization.ownershipTransferredAt(), AuditGapStatus.RECOVERABLE,
                 "The organization records this transfer; its audit event is absent."));
+    }
+
+    // -- Repair ------------------------------------------------------------------------------
+
+    /**
+     * Inserts the event a recoverable membership marker implies. Ambiguous entries pass through
+     * untouched: repair must never be the thing that invents a transition.
+     */
+    private AuditGapEntry writeMembership(Membership member, AuditGapEntry entry) {
+        if (entry.status() != AuditGapStatus.RECOVERABLE) return entry;
+        Map<String, String> details = new HashMap<>();
+        if (member.previousRole() != null) details.put("previousRole", member.previousRole().name());
+        details.put("role", member.role().name());
+        details.put("recoveredBy", "AUDIT_RECOVERY");
+        return insert(new AuditEvent(entry.expectedEventId(), member.organizationId(),
+                member.lastChangeActorId(), entry.action(), "MEMBERSHIP", member.userId(),
+                member.lastChangedAt(), details), entry);
+    }
+
+    private AuditGapEntry writeOwnership(Organization organization, AuditGapEntry entry) {
+        if (entry.status() != AuditGapStatus.RECOVERABLE) return entry;
+        return insert(new AuditEvent(entry.expectedEventId(), organization.id(),
+                organization.ownershipTransferredBy(), AuditAction.OWNERSHIP_TRANSFERRED,
+                "ORGANIZATION", organization.id(), organization.ownershipTransferredAt(),
+                Map.of("previousOwnerUserId", organization.previousOwnerUserId(),
+                        "ownerUserId", organization.ownerUserId(),
+                        "recoveredBy", "AUDIT_RECOVERY")), entry);
+    }
+
+    /**
+     * The deterministic id is what makes this idempotent. A duplicate key means another run, or
+     * the owning service's own replay, already recorded this immutable transition — which is the
+     * intended end state, so it is reported as written rather than as a failure.
+     */
+    private AuditGapEntry insert(AuditEvent event, AuditGapEntry entry) {
+        try {
+            auditEvents.insert(event);
+        } catch (DuplicateKeyException alreadyRecorded) {
+            return new AuditGapEntry(entry.targetType(), entry.targetId(), entry.expectedEventId(),
+                    entry.action(), entry.actorUserId(), entry.occurredAt(), entry.status(),
+                    "Already recorded by a concurrent run; nothing was overwritten.");
+        }
+        return new AuditGapEntry(entry.targetType(), entry.targetId(), entry.expectedEventId(),
+                entry.action(), entry.actorUserId(), entry.occurredAt(), entry.status(),
+                "Recovered from the record's durable markers.");
     }
 
     /** Mirrors MembershipService.ensureAudit. Only called when every marker is present. */

@@ -149,6 +149,16 @@ public class PlatformAdminController {
         return auditRecovery.report(jwt.getSubject(), organizationId, page);
     }
 
+    /**
+     * Writes only the events the dry run reported as recoverable. Idempotent, so a retry after a
+     * partial failure is safe. Ambiguous records are returned untouched for manual action.
+     */
+    @PostMapping("/organizations/{organizationId}/audit-recovery")
+    public AuditRecoveryReport repairAuditRecovery(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
+        return auditRecovery.repair(jwt.getSubject(), organizationId, page);
+    }
+
     @GetMapping("/users/{userId}")
     public PlatformUserView user(@AuthenticationPrincipal Jwt jwt, @PathVariable String userId) {
         return platform.user(jwt.getSubject(), userId);
