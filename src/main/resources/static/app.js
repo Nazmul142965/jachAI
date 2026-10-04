@@ -2042,10 +2042,13 @@ async function loadIntegrityEvents(attemptId, pageNumber, target) {
   pager.append(previous, next);
   target.append(pager);
 }
+function talentCandidateName(candidate) {
+  return candidate.candidateDisplayName?.trim() || `Candidate ${candidate.candidateUserId}`;
+}
 async function compareCandidates(campaignId, pageNumber = 0) {
   const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates?page=${pageNumber}`));
   const rows = (page.content || []).map((candidate) => {
-    const info = item(`Candidate ID: ${candidate.candidateUserId}`,
+    const info = item(talentCandidateName(candidate),
       candidate.attemptId
         ? `Latest attempt: ${candidate.attemptId} · ${candidate.percentage == null ? 'Awaiting manual grading · Review unavailable' : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'} · ${candidate.decision || 'Not reviewed'}`}`
         : 'No submitted attempt yet.');
@@ -2099,7 +2102,7 @@ async function compareCandidates(campaignId, pageNumber = 0) {
   summary.append(head);
   for (const candidate of page.content || []) {
     const row = node('div', '', 'compare-row');
-    row.append(node('span', candidate.candidateUserId));
+    row.append(node('span', talentCandidateName(candidate)));
 
     // Comparing is this screen's whole job, so the score gets a bar as well as
     // a number. A candidate with no submitted attempt, or one not yet graded,
@@ -3110,7 +3113,7 @@ async function loadCampaignWorkspaceCandidates(token, pageNumber = 0) {
       ? (candidate.percentage == null ? 'Awaiting grading'
         : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`)
       : 'No submitted attempt';
-    row.append(node('span', candidate.candidateUserId), node('span', attempt),
+    row.append(node('span', talentCandidateName(candidate)), node('span', attempt),
       node('span', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'));
     summary.append(row);
   }
@@ -3118,7 +3121,7 @@ async function loadCampaignWorkspaceCandidates(token, pageNumber = 0) {
   const select = $('#talent-campaign-candidate');
   const previous = state.campaignWorkspaceCandidateId || select.value;
   select.replaceChildren(...rows.map((candidate) => {
-    const option = node('option', candidate.candidateUserId); option.value = candidate.candidateUserId; return option;
+    const option = node('option', talentCandidateName(candidate)); option.value = candidate.candidateUserId; return option;
   }));
   if (rows.some((candidate) => candidate.candidateUserId === previous)) select.value = previous;
   renderPageControls('#talent-campaign-comparison-pagination', page,
@@ -3137,7 +3140,7 @@ async function loadCampaignWorkspaceCandidate(candidate, token) {
   const route = `/talent/campaigns/${encodeURIComponent(campaignId)}`
     + `/candidates/${encodeURIComponent(candidate.candidateUserId)}`;
   setList('#talent-campaign-candidate-summary', [
-    item(`Candidate ${candidate.candidateUserId}`,
+    item(talentCandidateName(candidate),
       `Assignment ${candidate.assignmentId || 'not reported'}`,
       candidate.assignmentId && !candidate.attemptId ? [reminderButton(candidate.assignmentId)] : []),
     item('Latest submitted attempt', candidate.attemptId

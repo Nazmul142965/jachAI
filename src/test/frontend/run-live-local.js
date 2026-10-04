@@ -1,7 +1,8 @@
 // Opt-in, read-only browser check against the real local Spring/Mongo demo.
 // Unlike run-journeys.js, this never installs API fixtures. It signs in through
 // the page and saves screenshots only under ignored target/frontend-live-evidence.
-// Required: DEMO_EMAIL, DEMO_PASSWORD, DEMO_OWNER_EMAIL, DEMO_BASE_URL (loopback).
+// Required: DEMO_EMAIL, DEMO_CANDIDATE_EMAIL, DEMO_PASSWORD,
+// DEMO_OWNER_EMAIL, DEMO_BASE_URL (loopback).
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -11,7 +12,7 @@ const base = new URL(process.env.DEMO_BASE_URL || 'http://127.0.0.1:8095/');
 if (!['127.0.0.1', 'localhost'].includes(base.hostname) || base.protocol !== 'http:') {
   throw new Error('The live browser check is restricted to a loopback HTTP demo.');
 }
-for (const key of ['DEMO_EMAIL', 'DEMO_PASSWORD', 'DEMO_OWNER_EMAIL']) {
+for (const key of ['DEMO_EMAIL', 'DEMO_CANDIDATE_EMAIL', 'DEMO_PASSWORD', 'DEMO_OWNER_EMAIL']) {
   if (!process.env[key]) throw new Error(`${key} is required in the private environment.`);
 }
 const evidence = path.join(__dirname, '..', '..', '..', 'target', 'frontend-live-evidence');
@@ -151,8 +152,45 @@ async function main() {
     await evaluate("document.documentElement.setAttribute('data-theme', 'dark'); true");
     await wait(200);
     await screenshot('academy-cohort-dark');
+
+    const talentSelected = await evaluate(`(() => { const select = document.querySelector('#organization-select');
+      const option = [...select.options].find((entry) => entry.textContent.toLowerCase().includes('talent'));
+      if (!option) return false; select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    if (!talentSelected) throw new Error('Owner has no Talent organization.');
+    await until("!!document.querySelector('#workspace-nav button[data-screen=\"talent\"]')", 'Talent navigation');
+    await evaluate("document.querySelector('#workspace-nav button[data-screen=\"talent\"]').click(); true");
+    await until("!!document.querySelector('#screen-tabs button[data-view=\"talent-campaign\"]')", 'Talent workspace tab');
+    await evaluate("document.querySelector('#screen-tabs button[data-view=\"talent-campaign\"]').click(); true");
+    await until("!!document.querySelector('#talent-campaign-comparison .compare-row:not(.compare-head)')", 'real candidate comparison');
+    const comparison = await evaluate("document.querySelector('#talent-campaign-comparison').textContent");
+    if (!comparison.includes('Latest attempt') || !comparison.includes('Decision')) {
+      throw new Error('Talent comparison is missing its assessment/review columns.');
+    }
+    if (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(comparison)) {
+      throw new Error('Talent comparison still shows a raw candidate ID instead of a name.');
+    }
+    await evaluate("document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('#talent-campaign-comparison').scrollIntoView(); true");
+    await wait(200);
+    await screenshot('talent-comparison-light');
+    await evaluate("document.documentElement.setAttribute('data-theme', 'dark'); true");
+    await wait(200);
+    await screenshot('talent-comparison-dark');
+
+    await login(process.env.DEMO_CANDIDATE_EMAIL);
+    await evaluate("document.querySelector('#workspace-nav button[data-screen=\"my-assessments\"]').click(); true");
+    await until("document.querySelector('#assignments-list')?.textContent.includes('hiring campaign')", 'real candidate assignment');
+    const candidateOpened = await evaluate(`(() => { const row = [...document.querySelectorAll('#assignments-list .item')]
+      .find((entry) => entry.textContent.includes('hiring campaign'));
+      const button = [...row.querySelectorAll('button')].find((entry) => entry.textContent.includes('Open assessment'));
+      if (!button) return false; button.click(); return true; })()`);
+    if (!candidateOpened) throw new Error('The candidate cannot open their campaign assessment.');
+    await until("document.querySelector('#assessment-detail-attempts .item')?.textContent.includes('Attempt')", 'candidate attempt history');
+    await evaluate("document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('#assessment-detail-attempts').scrollIntoView(); true");
+    await wait(200);
+    await screenshot('talent-candidate-light');
     if (errors.length) throw new Error(`Browser JavaScript errors: ${errors.slice(0, 2).join(' | ')}`);
-    console.log(`LIVE local browser PASS: learner result ${score}% / ${topics} topics; Academy cohort populated; 4 screenshots in ${evidence}`);
+    console.log(`LIVE local browser PASS: Academy learner/result/cohort and Talent recruiter/candidate; 7 screenshots in ${evidence}`);
   } finally {
     if (socket) socket.close();
     child.kill();

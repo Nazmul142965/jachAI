@@ -78,13 +78,15 @@ $env:JAVA_HOME='<jdk21>'; .\mvnw.cmd -o test -Dtest=TenantScopedReadIntegrationT
 For a separate **local browser/demo** check (not Atlas integration and not a
 fixture run), first start a populated loopback JachAI demo. Set
 `DEMO_BASE_URL`, `DEMO_EMAIL` (an Academy learner with a submitted batch
-attempt and released result), `DEMO_OWNER_EMAIL` (the Academy owner), and
+attempt and released result), `DEMO_CANDIDATE_EMAIL` (a Talent campaign
+candidate with an assignment), `DEMO_OWNER_EMAIL` (the Academy/Talent owner), and
 `DEMO_PASSWORD` privately in the shell. Then run
 `node src/test/frontend/run-live-local.js`. It refuses non-loopback URLs,
 does not mutate server data, signs in through the real page, and saves
 light/dark screenshots under ignored `target/frontend-live-evidence/`.
-It checks only the learner result and Academy cohort; it does **not** prove
-Talent, billing, Redis, external providers, or deployment.
+It checks the Academy learner result/cohort and Talent recruiter comparison /
+candidate assignment. It does **not** prove every action in those roles,
+billing, Redis, external providers, or deployment.
 
 Remaining live-only unknowns: real authentication against MongoDB, Redis-backed rate limits and
 revocation, SMTP/outbox delivery, AI providers, and both sandbox payment gateways.
