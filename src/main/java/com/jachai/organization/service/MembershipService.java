@@ -226,6 +226,9 @@ public class MembershipService {
 
     private void update(String actorId, Membership member, boolean active, OrganizationRole currentRole,
                         OrganizationRole nextRole, boolean nextActive) {
+        // The document holds only the latest transition's recovery marker. Persist any
+        // missing prior event before replacing that marker with a new change.
+        ensureAudit(member);
         Instant now = Instant.now();
         String changeId = UUID.randomUUID().toString();
         Query query = Query.query(Criteria.where("_id").is(member.id())

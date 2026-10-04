@@ -370,6 +370,29 @@ class MembershipServiceTests {
     }
 
     @Test
+    void missingPriorAuditMustBeRepairedBeforeAnotherRoleChange() {
+        Instant now = Instant.now();
+        Membership previouslyChanged = new Membership("membership-learner", "learner", "org-a",
+                OrganizationRole.INSTRUCTOR, true, now, "prior-change", "owner", now,
+                OrganizationRole.LEARNER, true);
+        when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
+        when(memberships.findByUserIdAndOrganizationId("learner", "org-a"))
+                .thenReturn(Optional.of(previouslyChanged));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner", "learner@example.com",
+                "Learner", null, true, false, 0, now)));
+        doThrow(new IllegalStateException("prior audit unavailable"))
+                .when(auditEvents).insert(any(AuditEvent.class));
+
+        assertThrows(IllegalStateException.class,
+                () -> service().changeRole("owner", "org-a", "learner", OrganizationRole.LEARNER));
+
+        ArgumentCaptor<AuditEvent> event = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditEvents).insert(event.capture());
+        assertEquals("membership:prior-change", event.getValue().id());
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(Membership.class));
+    }
+
+    @Test
     void deactivationRecordsActorAndOldRole() {
         when(organizations.findById("org-a")).thenReturn(Optional.of(academy()));
         when(memberships.findByUserIdAndOrganizationId("learner", "org-a"))
