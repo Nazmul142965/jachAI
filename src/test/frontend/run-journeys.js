@@ -368,8 +368,17 @@ async function main() {
     await ev(`[...document.querySelectorAll('#academy-batch-assessments button')].some((b) => b.textContent === 'Reconcile assignments')`));
   await clickText('#academy-batch-assessments', 'Progress & analytics'); await wait(1400);
   const analyticsText = await ev(`document.querySelector('#academy-batch-analytics').textContent`);
-  check(staff, 'cohort analytics render for the selected assessment',
-    /Cohort coverage/.test(analyticsText) && /66.7%/.test(analyticsText));
+  check(staff, 'cohort analytics render every funnel stage',
+    /Active learners/.test(analyticsText) && /Assigned/.test(analyticsText)
+      && /Submitted/.test(analyticsText) && /Graded/.test(analyticsText) && /Passed/.test(analyticsText),
+    analyticsText.slice(0, 140));
+  check(staff, 'funnel prints each count and its share, not only a bar',
+    /6 · 100%/.test(analyticsText) && /5 · 83%/.test(analyticsText), analyticsText.slice(0, 160));
+  check(staff, 'funnel reports the pass and completion rates the server gave',
+    /66.7%/.test(analyticsText));
+  check(staff, 'funnel names what is still awaiting grading',
+    /awaiting grading/.test(analyticsText));
+  await shotBoth('academy-cohort-funnel');
   check(staff, 'per-learner progress rows render',
     /u-learner/.test(await ev(`document.querySelector('#academy-batch-progress').textContent`)));
   await clickText('#academy-batch-assessments', 'Reconcile assignments'); await wait(500);
