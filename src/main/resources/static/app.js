@@ -258,12 +258,65 @@ function showSignedOut() {
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
+  setInAppLinks(false);
+}
+
+// ---------------------------------------------------------------------------
+// Leaving the page signs you out.
+//
+// The access token lives in a JS variable and nothing else, which is what keeps
+// it out of localStorage and out of a cookie. The cost is that any full page
+// load ends the session. Every link in the header and the footer was a plain
+// href, so clicking the JachAI mark, or Plans, or How it works, silently
+// signed a person out and dropped them back on the login screen.
+//
+// While signed in: the brand mark becomes the Overview, and the public pages
+// open in a new tab so this one — and the session in it — survives. While
+// signed out the links behave as ordinary links again.
+// ---------------------------------------------------------------------------
+function setInAppLinks(signedInNow) {
+  const brand = document.querySelector('.topbar .brand');
+  if (brand) {
+    // The href itself changes, not just the click handler. A handler alone
+    // leaves href="/" armed: if it has not bound yet, or throws, the browser
+    // still performs a full document load and the in-memory token is gone.
+    // Pointing the anchor at a hash means even an unhandled activation is a
+    // same-document navigation, which the router picks up and which cannot
+    // end the session. Keyboard Enter and middle-click get the same guarantee,
+    // because they are the browser following the href rather than our handler.
+    brand.setAttribute('href', signedInNow ? '#/overview' : '/');
+    brand.setAttribute('aria-label', signedInNow ? 'JachAI — go to Overview' : 'JachAI home');
+    if (!brand.dataset.bound) {
+      brand.dataset.bound = 'true';
+      brand.addEventListener('click', (event) => {
+        if (!state.accessToken) return;
+        // Let a modifier-click open a tab as the browser normally would.
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button > 0) return;
+        event.preventDefault();
+        run(() => showScreen('overview'));
+      });
+    }
+  }
+  for (const link of document.querySelectorAll('.topbar .topnav a, .workspace-foot a')) {
+    const external = (link.getAttribute('href') || '').startsWith('/');
+    if (!external) continue;
+    if (signedInNow) {
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.title = 'Opens in a new tab so you stay signed in here';
+    } else {
+      link.removeAttribute('target');
+      link.removeAttribute('rel');
+      link.removeAttribute('title');
+    }
+  }
 }
 async function signedIn(tokens) {
   state.accessToken = tokens.accessToken;
   state.refreshToken = tokens.refreshToken;
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
+  setInAppLinks(true);
   let invitationMessage = 'Signed in.';
   const pending = sessionStorage.getItem('jachaiPendingInvitation');
   if (pending) {
@@ -3307,6 +3360,13 @@ $('#verify-code-form').addEventListener('submit', (event) => { event.preventDefa
 }); });
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
+  // Leaving for the gateway ends this session, because the token is only in
+  // memory. Saying so first is the difference between a redirect and a
+  // surprise sign-out.
+  if (!await confirmDialog('Open the SSLCommerz sandbox?\n\n'
+      + 'JachAI hands you to the gateway, which signs you out of this tab. '
+      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
+      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-ssl-demo');
   control.disabled = true; control.textContent = 'Opening SSLCommerz sandbox…';
   try {
@@ -3319,6 +3379,13 @@ $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   }
 }));
 $('#start-bkash-demo').addEventListener('click', () => run(async () => {
+  // Leaving for the gateway ends this session, because the token is only in
+  // memory. Saying so first is the difference between a redirect and a
+  // surprise sign-out.
+  if (!await confirmDialog('Open the bKash sandbox?\n\n'
+      + 'JachAI hands you to the gateway, which signs you out of this tab. '
+      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
+      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-bkash-demo');
   control.disabled = true; control.textContent = 'Opening bKash sandbox…';
   try {
