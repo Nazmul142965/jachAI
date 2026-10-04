@@ -10,7 +10,7 @@ Updated: 2026-10-04. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Ownership audit recovery passed local MongoDB integration (`b4c5971`). AI quota Redis keys now hide tenant/user IDs; unit tests passed (`0e85bd6`).
 - [x] The committed `frontend/ui-refresh` branch was merged into `main` (`5a7fc5f`). Public theme assets were fixed and checked through a focused Spring test and local HTTP responses (`2b27096`). The UI still needs live-browser assessment and design iteration.
 - [x] A concurrent owner-transfer test passed against disposable local MongoDB: one winner, one rejected transfer, one durable audit event. This is not an Atlas concurrency result.
-- [x] Outbox concurrent claim, expired-lease fencing, and durable retry/backoff passed two tests against disposable local MongoDB. This does not prove SMTP delivery or exactly-once email delivery.
+- [x] Outbox concurrent claim, pre-send stale-lease guard, expired-lease fencing, and durable retry/backoff passed focused unit/local-Mongo tests. This does not prove SMTP delivery or exactly-once email delivery.
 - [x] Academy batch-analytics aggregation passed a disposable local-Mongo test covering latest submitted attempt, pending grade, zero score, empty cohort, and tenant/batch isolation. Atlas performance remains unverified.
 
 ## Next implementation and integration
