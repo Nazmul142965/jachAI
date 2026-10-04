@@ -82,11 +82,15 @@ attempt and released result), `DEMO_CANDIDATE_EMAIL` (a Talent campaign
 candidate with an assignment), `DEMO_OWNER_EMAIL` (the Academy/Talent owner), and
 `DEMO_PASSWORD` privately in the shell. Then run
 `node src/test/frontend/run-live-local.js`. It refuses non-loopback URLs,
-does not mutate server data, signs in through the real page, and saves
+is read-only by default, signs in through the real page, and saves
 light/dark screenshots under ignored `target/frontend-live-evidence/`.
 It checks the Academy learner result/cohort, Talent recruiter comparison /
 candidate assignment, and the owner's read-only Billing view (plan, quota
 reconciliation, order history, sandbox disclosure, and checkout button state).
+For the disposable `JachAI Demo Talent` candidate only, setting
+`DEMO_ALLOW_REVIEW_WRITE=1` also saves a HOLD decision with a fixed demo note
+and checks that the decision and immutable audit history render. It refuses
+other workspaces, candidates, and non-demo review history before writing.
 It never starts checkout or repairs counters. It does **not** prove every action
 in those roles, payment-provider callbacks, Redis, external providers, or
 deployment.

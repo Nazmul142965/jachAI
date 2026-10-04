@@ -1,4 +1,5 @@
-// Opt-in, read-only browser check against the real local Spring/Mongo demo.
+// Opt-in browser check against the real local Spring/Mongo demo. Read-only by
+// default; DEMO_ALLOW_REVIEW_WRITE=1 permits one guarded demo Talent review.
 // Unlike run-journeys.js, this never installs API fixtures. It signs in through
 // the page and saves screenshots only under ignored target/frontend-live-evidence.
 // Required: DEMO_EMAIL, DEMO_CANDIDATE_EMAIL, DEMO_PASSWORD,
@@ -177,6 +178,36 @@ async function main() {
     await wait(200);
     await screenshot('talent-comparison-dark');
 
+    if (process.env.DEMO_ALLOW_REVIEW_WRITE === '1') {
+      const demoReview = await evaluate(`(() => ({
+        organization: document.querySelector('#organization-select').selectedOptions[0]?.textContent,
+        candidate: document.querySelector('#talent-campaign-candidate').selectedOptions[0]?.textContent,
+        decision: document.querySelector('#talent-campaign-candidate-summary')?.textContent,
+        integrity: document.querySelector('#talent-campaign-events')?.textContent,
+        history: [...document.querySelectorAll('#talent-campaign-history .item')].map((entry) => entry.textContent),
+        form: !!document.querySelector('#talent-campaign-review form')
+      }))()`);
+      if (demoReview.organization?.trim() !== 'JachAI Demo Talent' ||
+          !demoReview.candidate?.includes('Demo Talent Candidate') ||
+          !demoReview.form || !demoReview.integrity?.includes('not proof of misconduct') ||
+          !demoReview.history?.every((entry) => entry.includes('Local demo')) ||
+          (!demoReview.decision?.includes('Not reviewed') &&
+           !demoReview.decision?.includes('Local demo browser verification'))) {
+        throw new Error('The Talent review write is restricted to an unreviewed disposable demo candidate.');
+      }
+      await evaluate(`(() => { const form = document.querySelector('#talent-campaign-review form');
+        form.querySelector('select').value = 'HOLD';
+        form.querySelector('input').value = 'Local demo browser verification';
+        form.requestSubmit(); return true; })()`);
+      await until("document.querySelector('#talent-campaign-history')?.textContent.includes('Local demo browser verification')",
+        'durable Talent review audit history');
+      await until("document.querySelector('#talent-campaign-candidate-summary')?.textContent.includes('Local demo browser verification')",
+        'saved Talent review in candidate detail');
+      await evaluate("document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('#talent-campaign-review').scrollIntoView(); true");
+      await wait(200);
+      await screenshot('talent-review-light');
+    }
+
     await evaluate("document.querySelector('#workspace-nav button[data-screen=\"billing\"]').click(); true");
     await until("document.querySelector('#plan-details')?.textContent.includes('plan')", 'live workspace plan');
     await until("!!document.querySelector('#usage-generated')?.textContent.trim()", 'quota reconciliation timestamp');
@@ -221,7 +252,7 @@ async function main() {
     await wait(200);
     await screenshot('talent-candidate-light');
     if (errors.length) throw new Error(`Browser JavaScript errors: ${errors.slice(0, 2).join(' | ')}`);
-    console.log(`LIVE local browser PASS: Academy learner/result/cohort, Talent recruiter/candidate, and read-only billing; 9 screenshots in ${evidence}`);
+    console.log(`LIVE local browser PASS: Academy learner/result/cohort, Talent recruiter/candidate${process.env.DEMO_ALLOW_REVIEW_WRITE === '1' ? '/review' : ''}, and read-only billing; ${process.env.DEMO_ALLOW_REVIEW_WRITE === '1' ? 10 : 9} screenshots in ${evidence}`);
   } finally {
     if (socket) socket.close();
     child.kill();
