@@ -18,6 +18,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   campaignWorkspaceToken: 0, campaignWorkspacePage: 0,
   detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
   versionsAssessment: null, versionsToken: 0,
+  orderDetailId: null, orderDetailToken: 0,
   view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'platform'];
@@ -200,6 +201,8 @@ function showSignedOut() {
   state.editingQuestion = null;
   state.versionsAssessment = null;
   state.versionsToken++;
+  state.orderDetailId = null;
+  state.orderDetailToken++;
   state.reviewLoadToken++;
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
@@ -263,6 +266,7 @@ async function setOrganization() {
   state.editingAssessment = null;
   state.editingQuestion = null;
   hideAssessmentVersions();
+  hideOrderDetail();
   $('#question-form').reset();
   updateQuestionEditor();
   $('#assessment-form').reset();
@@ -515,16 +519,68 @@ async function loadEntitlements() {
 }
 async function loadPaymentHistory(pageNumber = 0) {
   const payments = await request(ownOrg(`/billing/orders?page=${pageNumber}`));
-  setList('#payment-history', (payments.content || []).map((order) => item(
-    `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
-    `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
-    order.status === 'CHECKOUT_READY' || order.status === 'VERIFIED'
-      ? [button('Check payment', async () => {
-          await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/reconcile`), { method: 'POST' });
-          await loadEntitlements();
-        })] : [])),
-  'No demo transactions yet.');
+  setList('#payment-history', (payments.content || []).map((order) => {
+    const actions = [];
+    if (order.status === 'CHECKOUT_READY' || order.status === 'VERIFIED') {
+      actions.push(button('Check payment', async () => {
+        await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/reconcile`), { method: 'POST' });
+        await loadEntitlements();
+      }));
+    }
+    actions.push(button('Details', () => showOrderDetail(order.id), 'button quiet small'));
+    return item(
+      `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
+      `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
+      actions);
+  }), 'No demo transactions yet.');
   renderPageControls('#payment-history-pagination', payments, loadPaymentHistory);
+  if (state.orderDetailId
+      && !(payments.content || []).some((order) => order.id === state.orderDetailId)) {
+    hideOrderDetail();
+  }
+}
+function hideOrderDetail() {
+  state.orderDetailId = null;
+  state.orderDetailToken += 1;
+  $('#order-detail').classList.add('hidden');
+}
+async function showOrderDetail(orderId) {
+  state.orderDetailId = orderId;
+  const panel = $('#order-detail');
+  panel.classList.remove('hidden');
+  await loadOrderDetail();
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('#order-detail-close').focus({ preventScroll: true });
+}
+async function loadOrderDetail() {
+  const orderId = state.orderDetailId;
+  if (!orderId) return;
+  state.orderDetailToken += 1;
+  const token = state.orderDetailToken;
+  await loadList('#order-detail-body', async () => {
+    const order = await request(ownOrg(`/billing/orders/${encodeURIComponent(orderId)}`));
+    if (token !== state.orderDetailToken) return;
+    // The list already shows provider, amount and status. What it cannot show
+    // is where the order stopped, so the detail is the lifecycle: the server
+    // only grants access at the applied step, and a gap between these stamps
+    // is exactly what "Check payment" is for.
+    const stages = [
+      ['Created', order.createdAt, 'Checkout was started in the sandbox.'],
+      ['Verified with the provider', order.verifiedAt,
+        'The provider confirmed the transaction to the server. A browser redirect alone never reaches this step.'],
+      ['Applied to the plan', order.appliedAt,
+        'Entitlements were granted. Until this is stamped, the plan has not changed.']
+    ];
+    setList('#order-detail-body', [
+      item(`${order.provider} · ৳${order.amountBdt}`, `${order.id} · status ${order.status}`),
+      ...stages.map(([label, stamp, explanation]) => {
+        const row = item(label, `${stamp ? when(stamp) : 'Not reached'} · ${explanation}`);
+        row.querySelector('.item-actions')
+          .append(node('span', stamp ? 'Done' : 'Pending', stamp ? 'pill ok' : 'pill warn'));
+        return row;
+      })
+    ], 'This order could not be described.');
+  }, 'The order detail could not be loaded.');
 }
 async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
@@ -3331,6 +3387,7 @@ $('#platform-inspect-user').addEventListener('click', () => run(() =>
 $('#platform-grant-role').addEventListener('click', () => run(() => changePlatformRole(true)));
 $('#platform-revoke-role').addEventListener('click', () => run(() => changePlatformRole(false)));
 $('#assessment-versions-close').addEventListener('click', () => hideAssessmentVersions());
+$('#order-detail-close').addEventListener('click', () => hideOrderDetail());
 $('#usage-refresh').addEventListener('click', () => run(() =>
   loadList('#usage-report', () => loadUsageReconciliation(), 'The quota check could not be run.')));
 $('#usage-repair').addEventListener('click', () => run(() => repairUsageReconciliation()));

@@ -87,6 +87,10 @@ const SOURCE = String.raw`(() => {
       publishedAt: new Date(Date.now() - 604800000).toISOString(), instructions: '' }
   ];
 
+  const demoOrder = { id: 'order-1', provider: 'SSLCOMMERZ', status: 'VERIFIED', amountBdt: 100,
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+    verifiedAt: new Date(Date.now() - 3600000).toISOString(), appliedAt: null };
+
   window.__calls = [];
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
@@ -148,7 +152,10 @@ const SOURCE = String.raw`(() => {
       maxPublishedAssessments: 3, monthlyInvitations: 30, dailyUserAiRequests: 5, monthlyCertificates: 30 });
     if (path === org + '/billing/options') return json({ sandboxOnly: true, sslCommerzAvailable: false,
       directBkashAvailable: false, demoTeamPriceBdt: 100 });
-    if (path === org + '/billing/orders') return json(page([]));
+    if (path === org + '/billing/orders') return json(page([demoOrder]));
+    // Verified with the provider but not yet applied to the plan: the gap the
+    // order detail exists to show.
+    if (path === org + '/billing/orders/order-1') return json(demoOrder);
     if (path === org + '/settings') return json({ defaultResultReleasePolicy: 'IMMEDIATE' });
     if (path === org + '/members') return json(page([caller, member]));
     if (path.includes('/members/u-learner/audit')) return json(page([]));

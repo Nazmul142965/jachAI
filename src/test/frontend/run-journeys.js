@@ -208,6 +208,22 @@ async function main() {
   // ---------------------------------------------------------------- academy staff journey
   await load('academy-staff');
   const staff = 'academy-staff';
+  // Billing order detail: the lifecycle the history row cannot show.
+  await clickText('#payment-history', 'Details'); await wait(800);
+  const order = await ev(`document.querySelector('#order-detail').textContent`);
+  check(staff, 'order detail names the three lifecycle stages',
+    /Created/.test(order) && /Verified with the provider/.test(order) && /Applied to the plan/.test(order),
+    order.slice(0, 160));
+  check(staff, 'order detail marks a stage that has not been reached',
+    /Not reached/.test(order) && /Pending/.test(order));
+  check(staff, 'order detail says a browser redirect does not verify a payment',
+    /browser redirect alone never reaches this step/.test(order));
+  check(staff, 'order detail says the plan is unchanged until applied',
+    /Until this is stamped, the plan has not changed/.test(order));
+  await clickText('#order-detail', 'Close'); await wait(300);
+  check(staff, 'order detail closes again',
+    await ev(`document.querySelector('#order-detail').classList.contains('hidden')`));
+
   // Quota reconciliation: org-admin only, on the overview.
   const usage = await ev(`document.querySelector('#usage-panel').textContent`);
   check(staff, 'quota reconciliation is visible to an org admin',
