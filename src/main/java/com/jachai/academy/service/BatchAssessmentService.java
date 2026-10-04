@@ -16,6 +16,7 @@ import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.auth.repository.UserRepository;
 import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.model.Assignment;
@@ -31,6 +32,7 @@ import com.jachai.shared.error.ApiException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,6 +59,7 @@ public class BatchAssessmentService {
     private final PublishedVersionStore versions;
     private final AssignmentRepository assignments;
     private final AttemptRepository attempts;
+    private final UserRepository users;
     private final OrganizationRepository organizations;
     private final TenantAccessService access;
     private final EntitlementService entitlements;
@@ -116,13 +119,17 @@ public class BatchAssessmentService {
                 organizationId, batchAssessmentId, pageable);
         if (page.isEmpty()) return new PageImpl<>(List.of(), pageable, page.getTotalElements());
         List<String> assignmentIds = page.getContent().stream().map(Assignment::id).toList();
+        Map<String, String> names = new HashMap<>();
+        users.findAllById(page.getContent().stream().map(Assignment::assignedUserId).toList())
+                .forEach(user -> names.put(user.id(), user.displayName()));
         Map<String, Attempt> latest = attempts.findByOrganizationIdAndAssignmentIdInAndStatus(
                         organizationId, assignmentIds, AttemptStatus.SUBMITTED).stream()
                 .collect(Collectors.toMap(Attempt::assignmentId, Function.identity(),
                         (a, b) -> Comparator.comparingInt(Attempt::attemptNumber).compare(a, b) >= 0 ? a : b));
         return new PageImpl<>(page.getContent().stream().map(assignment -> {
             Attempt attempt = latest.get(assignment.id());
-            return new BatchProgressRow(assignment.assignedUserId(), assignment.id(),
+            return new BatchProgressRow(assignment.assignedUserId(),
+                    names.get(assignment.assignedUserId()), assignment.id(),
                     attempt == null ? null : attempt.id(), attempt == null ? null : attempt.percentage(),
                     attempt == null ? null : attempt.passed(), attempt == null ? null : attempt.submittedAt());
         }).toList(), pageable, page.getTotalElements());

@@ -18,7 +18,9 @@ import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -86,7 +88,7 @@ public class AcademyCatalogService {
         Course course = course(organizationId, courseId);
         Batch batch = batch(organizationId, courseId, batchId);
         access.requireRole(learnerUserId, organizationId, OrganizationRole.LEARNER);
-        users.findById(learnerUserId)
+        var learner = users.findById(learnerUserId)
                 .filter(user -> user.emailVerified() && !user.disabled())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "LEARNER_UNAVAILABLE",
                         "Learner account is unavailable"));
@@ -97,7 +99,7 @@ public class AcademyCatalogService {
                 throw new ApiException(HttpStatus.CONFLICT, "ENROLLMENT_INACTIVE", "Enrollment is inactive");
             }
             batchAssessmentService.syncLearner(existing);
-            return EnrollmentView.from(existing);
+            return EnrollmentView.from(existing, learner.displayName());
         }
         BatchEnrollment enrollment = new BatchEnrollment(UUID.randomUUID().toString(), organizationId,
                 courseId, batchId, course.name(), batch.name(), learnerUserId, true, Instant.now());
@@ -112,22 +114,31 @@ public class AcademyCatalogService {
                             "Enrollment changed concurrently; reload it"));
         }
         batchAssessmentService.syncLearner(saved);
-        return EnrollmentView.from(saved);
+        return EnrollmentView.from(saved, learner.displayName());
     }
 
     public Page<EnrollmentView> listBatchLearners(String actorId, String organizationId,
                                                    String courseId, String batchId, Pageable pageable) {
         requireStaff(actorId, organizationId);
         batch(organizationId, courseId, batchId);
-        return enrollments.findByOrganizationIdAndBatchIdAndActiveTrue(organizationId, batchId, pageable)
-                .map(EnrollmentView::from);
+        Page<BatchEnrollment> page = enrollments.findByOrganizationIdAndBatchIdAndActiveTrue(
+                organizationId, batchId, pageable);
+        Map<String, String> names = new HashMap<>();
+        if (page.hasContent()) {
+            users.findAllById(page.getContent().stream().map(BatchEnrollment::learnerUserId).toList())
+                    .forEach(user -> names.put(user.id(), user.displayName()));
+        }
+        return page.map(enrollment -> EnrollmentView.from(enrollment,
+                names.get(enrollment.learnerUserId())));
     }
 
     public Page<EnrollmentView> myBatches(String learnerId, String organizationId, Pageable pageable) {
         access.requireRole(learnerId, organizationId, OrganizationRole.LEARNER);
         requireAcademy(organizationId);
+        String displayName = users.findById(learnerId).map(user -> user.displayName()).orElse(null);
         return enrollments.findByOrganizationIdAndLearnerUserIdAndActiveTrue(
-                organizationId, learnerId, pageable).map(EnrollmentView::from);
+                organizationId, learnerId, pageable)
+                .map(enrollment -> EnrollmentView.from(enrollment, displayName));
     }
 
     private Course course(String organizationId, String courseId) {

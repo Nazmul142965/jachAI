@@ -24,6 +24,8 @@ import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.repository.AssessmentRepository;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.auth.model.User;
+import com.jachai.auth.repository.UserRepository;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
@@ -61,6 +63,7 @@ class BatchAssessmentServiceTests {
     @Mock PublishedVersionStore versions;
     @Mock AssignmentRepository assignments;
     @Mock AttemptRepository attempts;
+    @Mock UserRepository users;
     @Mock OrganizationRepository organizations;
     @Mock TenantAccessService access;
     @Mock EntitlementService entitlements;
@@ -69,7 +72,7 @@ class BatchAssessmentServiceTests {
     @BeforeEach
     void setUp() {
         service = new BatchAssessmentService(batchAssessments, analyticsReader, enrollments, batches, assessments,
-                versions, assignments, attempts, organizations, access, entitlements);
+                versions, assignments, attempts, users, organizations, access, entitlements);
     }
 
     @Test
@@ -184,11 +187,14 @@ class BatchAssessmentServiceTests {
         when(attempts.findByOrganizationIdAndAssignmentIdInAndStatus(
                 "org-a", List.of("assignment-a"), AttemptStatus.SUBMITTED))
                 .thenReturn(List.of(attempt(1, 60), attempt(2, 90)));
+        when(users.findAllById(List.of("learner"))).thenReturn(List.of(new User(
+                "learner", "learner@example.com", "Learner Name", "hash", true, false, 0, Instant.now())));
 
         var page = service.progress("teacher", "org-a", "course-a", "batch-a", "ba-a", pageable);
 
         assertEquals(1, page.getTotalElements());
         assertEquals(90, page.getContent().getFirst().percentage());
+        assertEquals("Learner Name", page.getContent().getFirst().learnerDisplayName());
         assertTrue(page.getContent().getFirst().passed());
         verify(access).requireRole("teacher", "org-a", OrganizationRole.ORG_ADMIN, OrganizationRole.INSTRUCTOR);
     }

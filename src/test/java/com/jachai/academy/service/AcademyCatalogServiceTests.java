@@ -108,6 +108,7 @@ class AcademyCatalogServiceTests {
 
         assertEquals("Java", enrolled.courseName());
         assertEquals("Fall", enrolled.batchName());
+        assertEquals("Learner", enrolled.learnerDisplayName());
         verify(access).requireRole("learner", "org-a", OrganizationRole.LEARNER);
         ArgumentCaptor<BatchEnrollment> saved = ArgumentCaptor.forClass(BatchEnrollment.class);
         verify(enrollments).insert(saved.capture());
@@ -145,6 +146,7 @@ class AcademyCatalogServiceTests {
         var result = service.enroll("teacher", "org-a", "course-a", "batch-a", "learner");
 
         assertEquals("batch-a", result.batchId());
+        assertEquals("Learner", result.learnerDisplayName());
         verify(enrollments, never()).insert(any(BatchEnrollment.class));
         ArgumentCaptor<BatchEnrollment> synced = ArgumentCaptor.forClass(BatchEnrollment.class);
         verify(batchAssessmentService).syncLearner(synced.capture());
@@ -163,6 +165,23 @@ class AcademyCatalogServiceTests {
         assertEquals(1, result.getTotalElements());
         assertEquals("Fall", result.getContent().getFirst().batchName());
         verify(access).requireRole("learner", "org-a", OrganizationRole.LEARNER);
+    }
+
+    @Test
+    void staffRosterIncludesDisplayNameFromScopedEnrollments() {
+        academy();
+        var pageable = PageRequest.of(0, 20);
+        when(batches.findByIdAndOrganizationIdAndCourseId("batch-a", "org-a", "course-a"))
+                .thenReturn(Optional.of(batch()));
+        when(enrollments.findByOrganizationIdAndBatchIdAndActiveTrue("org-a", "batch-a", pageable))
+                .thenReturn(new PageImpl<>(java.util.List.of(enrollment()), pageable, 1));
+        when(users.findAllById(java.util.List.of("learner")))
+                .thenReturn(java.util.List.of(user(true, false)));
+
+        var result = service.listBatchLearners("teacher", "org-a", "course-a", "batch-a", pageable);
+
+        assertEquals("Learner", result.getContent().getFirst().learnerDisplayName());
+        verify(access).requireRole("teacher", "org-a", OrganizationRole.ORG_ADMIN, OrganizationRole.INSTRUCTOR);
     }
 
     @Test
