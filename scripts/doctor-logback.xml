@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging for the connection doctor only.
+
+  The MongoDB driver logs its full MongoClientSettings at INFO, and that dump
+  contains the database username and the cluster host. A tool whose whole
+  promise is that its output can be pasted anywhere must not print it, so every
+  logger is silenced and the doctor's own System.out is the only output.
+-->
+<configuration>
+  <root level="OFF"/>
+</configuration>
