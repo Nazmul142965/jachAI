@@ -315,6 +315,7 @@ async function setOrganization() {
   const role = state.organization.myRole;
   $('#plan-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#tenant-support-audit-panel')?.classList.toggle('hidden', role !== 'ORG_ADMIN');
+  $('#usage-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#organization-settings-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#billing-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   const academyFeedbackStaff = state.organization.type === 'ACADEMY'
@@ -444,6 +445,8 @@ async function showView(key) {
   if (key === 'overview') await loadOverviewMetrics();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
+    await loadList('#usage-report', () => loadUsageReconciliation(),
+      'The quota check could not be run.');
     ensureTenantSupportAuditPanel();
     await loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
       'Platform support history could not be loaded.');
@@ -721,6 +724,60 @@ async function loadPlatformOrders(id, pageNumber, token) {
     `${order.id} · ${new Date(order.createdAt).toLocaleString()}`)), 'No demo orders found.');
   renderPageControls('#platform-orders-pagination', page,
     (nextPage) => loadPlatformOrders(id, nextPage, token));
+}
+// Tenant-scoped quota reconciliation. The platform admin has a wider version
+// of this on PlatformAdminController with an audit trail; this one is scoped to
+// the caller's own organization and reports only its own counters.
+function renderUsageReport(report) {
+  const entries = report.entries || [];
+  $('#usage-generated').textContent = `Checked ${when(report.generatedAt)}`
+    + ` · ${report.tier || 'unknown'} plan`
+    + ` · looking back ${report.lookbackMonths} month${report.lookbackMonths === 1 ? '' : 's'}`;
+  setList('#usage-report', entries.map((entry) => {
+    const row = item(
+      `${entry.metric.replaceAll('_', ' ')} · ${entry.window}`,
+      `Recorded ${entry.recordedUsage}; proven ${entry.provenMinimumUsage}-${entry.provenMaximumUsage};`
+        + ` plan limit ${entry.planLimit}. ${entry.detail || ''}`.trim());
+    // The status is spelled out, not only coloured, so it survives being read
+    // aloud or printed.
+    const status = (entry.status || '').replaceAll('_', ' ');
+    const tone = entry.status === 'MATCHES' ? 'pill ok'
+      : entry.status === 'OUTCOME_UNCONFIRMED' ? 'pill danger' : 'pill warn';
+    row.querySelector('.item-actions').append(node('span', status, tone));
+    return row;
+  }), 'No quota discrepancies in the scanned windows.');
+
+  const manual = $('#usage-manual');
+  const steps = report.manualSteps || [];
+  manual.textContent = steps.length
+    ? ['This check could not settle everything by itself:', ...steps].join('\n')
+    : '';
+  manual.classList.toggle('hidden', !steps.length);
+
+  // Repair is only offered when something is actually out of step. Offering it
+  // against a clean report would invite a write that changes nothing.
+  const repairable = entries.some((entry) => entry.status && entry.status !== 'MATCHES');
+  const repair = $('#usage-repair');
+  repair.disabled = !repairable;
+  repair.title = repairable ? 'Rewrite the counters to match what the records prove'
+    : 'Nothing to repair: every scanned window matches';
+}
+async function loadUsageReconciliation() {
+  renderUsageReport(await request(ownOrg('/billing/entitlements/usage-reconciliation')));
+}
+async function repairUsageReconciliation() {
+  if (!await confirmDialog('Repair the quota counters for this workspace?\n\n'
+      + 'This rewrites the recorded usage for the scanned windows to match what the stored records prove. '
+      + 'It does not change your plan, issue a refund, or create a payment. '
+      + 'The counters and the records are not updated together, so a report that comes back unconfirmed '
+      + 'needs a fresh check rather than a second repair.')) return;
+  const repair = $('#usage-repair');
+  repair.disabled = true;
+  const report = await request(ownOrg('/billing/entitlements/usage-reconciliation'), { method: 'POST' });
+  renderUsageReport(report);
+  notice(report.repaired
+    ? 'Quota counters rewritten to match the stored records.'
+    : 'The check ran and changed nothing. The counters already matched.');
 }
 async function loadPlatformUsageReport(id, token) {
   const report = await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation`);
@@ -3274,6 +3331,9 @@ $('#platform-inspect-user').addEventListener('click', () => run(() =>
 $('#platform-grant-role').addEventListener('click', () => run(() => changePlatformRole(true)));
 $('#platform-revoke-role').addEventListener('click', () => run(() => changePlatformRole(false)));
 $('#assessment-versions-close').addEventListener('click', () => hideAssessmentVersions());
+$('#usage-refresh').addEventListener('click', () => run(() =>
+  loadList('#usage-report', () => loadUsageReconciliation(), 'The quota check could not be run.')));
+$('#usage-repair').addEventListener('click', () => run(() => repairUsageReconciliation()));
 $('#platform-manual-refresh').addEventListener('click', () => run(() => {
   const id = state.platformOrganizationId;
   if (!id) return;

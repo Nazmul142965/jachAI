@@ -130,6 +130,20 @@ const SOURCE = String.raw`(() => {
       displayName: 'Target Person', emailVerified: true, disabled: false });
 
     // Academy workspace
+    // Tenant-scoped quota reconciliation. One window is out of step so the
+    // repair control has a reason to be enabled; POST reports it as repaired.
+    if (path === org + '/billing/entitlements/usage-reconciliation') return json({
+      organizationId: 'org-a', generatedAt: new Date().toISOString(), tier: 'FREE',
+      downwardGraceSeconds: 60, lookbackMonths: 3, repaired: method === 'POST',
+      entries: [
+        { metric: 'MONTHLY_INVITATIONS', window: '2026-10', status: method === 'POST' ? 'MATCHES' : 'RECORDED_ABOVE_PROVEN',
+          recordedUsage: 12, provenMinimumUsage: 9, provenMaximumUsage: 9, planLimit: 30,
+          detail: 'Three invitations were counted twice.' },
+        { metric: 'MONTHLY_CERTIFICATES', window: '2026-10', status: 'MATCHES',
+          recordedUsage: 2, provenMinimumUsage: 2, provenMaximumUsage: 2, planLimit: 30, detail: '' }
+      ],
+      manualSteps: method === 'POST' ? [] : ['Confirm the duplicated invitations with the instructor.']
+    });
     if (path === org + '/billing/entitlements') return json({ tier: 'FREE', retentionDays: 90,
       maxPublishedAssessments: 3, monthlyInvitations: 30, dailyUserAiRequests: 5, monthlyCertificates: 30 });
     if (path === org + '/billing/options') return json({ sandboxOnly: true, sslCommerzAvailable: false,

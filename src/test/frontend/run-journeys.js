@@ -208,6 +208,32 @@ async function main() {
   // ---------------------------------------------------------------- academy staff journey
   await load('academy-staff');
   const staff = 'academy-staff';
+  // Quota reconciliation: org-admin only, on the overview.
+  const usage = await ev(`document.querySelector('#usage-panel').textContent`);
+  check(staff, 'quota reconciliation is visible to an org admin',
+    await ev(`!document.querySelector('#usage-panel').classList.contains('hidden')`));
+  check(staff, 'quota reconciliation reports each scanned window',
+    /MONTHLY INVITATIONS/.test(usage) && /MONTHLY CERTIFICATES/.test(usage), usage.slice(0, 140));
+  check(staff, 'quota status is spelled out, not colour only',
+    /RECORDED ABOVE PROVEN/.test(usage) && /MATCHES/.test(usage));
+  check(staff, 'quota reconciliation states it is not a bill',
+    /not a bill/.test(usage) && /does not change your plan/.test(usage));
+  check(staff, 'quota reconciliation surfaces the manual steps it could not settle',
+    /could not settle everything/.test(usage) && /duplicated invitations/.test(usage));
+  check(staff, 'repair is offered because a window is out of step',
+    await ev(`!document.querySelector('#usage-repair').disabled`));
+  await clickText('#usage-panel', 'Repair counters'); await wait(500);
+  const repairText = await dialogText();
+  check(staff, 'repair dialog denies a payment or plan change',
+    /does not change your plan/.test(repairText) && /create a payment/.test(repairText), repairText.slice(0, 140));
+  check(staff, 'repair dialog warns the two writes are not atomic',
+    /not updated together/.test(repairText));
+  await clickDialog('primary'); await wait(900);
+  check(staff, 'repair reports the counters were rewritten',
+    (await ev(`document.querySelector('#notice').textContent`)).includes('rewritten'));
+  check(staff, 'repair disables itself once everything matches',
+    await ev(`document.querySelector('#usage-repair').disabled`));
+
   await view('Members'); await wait(1200);
   check(staff, 'members render with a page filter', (await ev(`document.querySelector('#members-list').textContent`)).includes('Learner One')
     && await ev(`!!document.querySelector('input[data-filter-for="#members-list"]')`));
