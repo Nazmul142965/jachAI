@@ -281,6 +281,11 @@ async function setOrganization() {
   $('#attempt-review-detail').classList.add('hidden');
   $('#review-output').classList.add('hidden');
   $('#review-output').textContent = '';
+  $('#feedback-form').reset();
+  $('#feedback-output').textContent = '';
+  $('#feedback-output').classList.add('hidden');
+  $('#feedback-audit-list')?.replaceChildren();
+  $('#feedback-audit-pagination')?.replaceChildren();
   $('#review-certificate-id').value = '';
   $('#certificate-audit-pagination').replaceChildren();
   $('#campaign-candidates-panel').classList.add('hidden');
@@ -308,7 +313,10 @@ async function setOrganization() {
   $('#tenant-support-audit-panel')?.classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#organization-settings-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#billing-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
-  $('#academy-feedback-panel').classList.toggle('hidden', state.organization.type !== 'ACADEMY');
+  const academyFeedbackStaff = state.organization.type === 'ACADEMY'
+    && ['ORG_ADMIN', 'INSTRUCTOR'].includes(role);
+  $('#academy-feedback-panel').classList.toggle('hidden', !academyFeedbackStaff);
+  if (academyFeedbackStaff) ensureFeedbackAuditPanel();
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
   $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
@@ -1281,6 +1289,10 @@ async function showStaffReview(attemptId) {
   if (state.organization?.id !== organizationId || loadToken !== state.reviewLoadToken) return;
   state.activeReviewAttemptId = review.attemptId;
   $('#review-attempt-id').value = review.attemptId;
+  if ($('#feedback-form').elements.attemptId.value !== review.attemptId) {
+    $('#feedback-audit-list')?.replaceChildren();
+    $('#feedback-audit-pagination')?.replaceChildren();
+  }
   $('#feedback-form').elements.attemptId.value = review.attemptId;
   $('#attempt-review-summary').textContent = `${review.assessmentTitle} · Participant ${review.participantUserId} · ${review.percentage == null ? 'Score pending' : `${review.percentage}% · ${review.passed ? 'Passed' : 'Not passed'}`} · ${review.resultReleasedAt ? 'Released' : 'Not released'}`;
   const answerText = (question, ids) => {
@@ -3050,10 +3062,44 @@ $('#publish-feedback').addEventListener('click', () => run(async () => {
   try {
     const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback/publish`),
       { method: 'POST' });
-    $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}. The learner can now read it.`;
-    $('#feedback-output').classList.remove('hidden'); notice('Learner can now view the feedback.');
+    $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}. The learner can now read it; email delivery is not confirmed.`;
+    $('#feedback-output').classList.remove('hidden');
+    try { await loadFeedbackAudit(attemptId, 0); }
+    catch (_) { setList('#feedback-audit-list', [], 'Feedback is published; audit history could not be loaded. Retry the history view.'); }
+    notice('Feedback published. The learner can view it; email delivery is not confirmed.');
   } finally { control.disabled = false; }
 }));
+function ensureFeedbackAuditPanel() {
+  if ($('#feedback-audit-panel')) return;
+  const panel = node('div', '', '');
+  panel.id = 'feedback-audit-panel';
+  panel.innerHTML = `<button id="feedback-audit-refresh" class="button quiet small" type="button">View publish history</button>
+    <div id="feedback-audit-list" class="item-list"></div><div id="feedback-audit-pagination"></div>`;
+  $('#feedback-output').after(panel);
+  $('#feedback-audit-refresh').addEventListener('click', () => run(async () => {
+    const attemptId = $('#feedback-form').elements.attemptId.value.trim();
+    if (!attemptId) throw new Error('Enter an attempt ID first.');
+    await loadList('#feedback-audit-list', () => loadFeedbackAudit(attemptId, 0),
+      'Publish history could not be loaded.');
+  }));
+  $('#feedback-form').elements.attemptId.addEventListener('input', () => {
+    $('#feedback-audit-list').replaceChildren();
+    $('#feedback-audit-pagination').replaceChildren();
+  });
+}
+async function loadFeedbackAudit(attemptId, pageNumber) {
+  const orgId = state.organization?.id;
+  if (!orgId || state.organization.type !== 'ACADEMY'
+      || !['ORG_ADMIN', 'INSTRUCTOR'].includes(state.organization.myRole)) return;
+  const page = await request(`/organizations/${encodeURIComponent(orgId)}/academy/attempts/${encodeURIComponent(attemptId)}/feedback/audit?page=${pageNumber}`);
+  if (state.organization?.id !== orgId || $('#feedback-form').elements.attemptId.value.trim() !== attemptId) return;
+  setList('#feedback-audit-list', (page.content || []).map((event) => item(
+    event.action.replaceAll('_', ' '),
+    `By ${event.actorUserId} · ${when(event.occurredAt)}`)),
+  'No published feedback event recorded for this attempt.');
+  renderPageControls('#feedback-audit-pagination', page,
+    (nextPage) => loadFeedbackAudit(attemptId, nextPage));
+}
 $('#academy-course-select').addEventListener('change', () => run(loadAcademyBatches));
 $('#academy-batch-select').addEventListener('change', () => run(async () => {
   await loadAcademyBatchLearners(); await loadBatchAssessments();
