@@ -638,6 +638,64 @@ dl.cert-details dd { margin: 0; font-weight: var(--weight-semibold); overflow-wr
 .faq details[open] summary::after { transform: rotate(45deg); }
 .faq p { margin: var(--sp-3) 0 0; color: var(--muted); font-size: var(--text-base); }
 
+/* -- Form fields ----------------------------------------------------------
+   Used by the verify-email and reset-password pages, which are unauthenticated
+   and so sit on this stylesheet rather than app.css.
+   ------------------------------------------------------------------------- */
+
+.field { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.field label { color: var(--ink-soft); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.field small { color: var(--muted); font-weight: var(--weight-regular); }
+
+input[type="email"], input[type="password"], input[type="text"] {
+  width: 100%;
+  min-height: 46px;
+  padding: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+input:hover:not(:disabled) { border-color: var(--brand-300); }
+input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 22%, transparent);
+}
+input::placeholder { color: var(--neutral-400); }
+
+/* A status line only becomes a callout once it actually says something, so
+   the page does not open with an empty coloured box. */
+.status:not(:empty) {
+  margin: var(--sp-5) 0 0;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  font-size: var(--text-base);
+}
+.status.is-ok:not(:empty) {
+  background: var(--success-surface);
+  border-color: var(--success-ink);
+  border-left-color: var(--brand);
+  color: var(--success-ink);
+}
+.status.is-error:not(:empty) {
+  background: var(--danger-surface);
+  border-color: var(--danger-ink);
+  border-left-color: var(--danger);
+  color: var(--danger-ink);
+}
+
+/* Explanatory copy sitting above a form inside a card. */
+.form-note { margin: var(--sp-5) 0 var(--sp-4); color: var(--muted); font-size: var(--text-base); }
+
+.auth-aside { margin: var(--sp-6) 0 0; font-size: var(--text-base); }
+
 /* ==========================================================================
    7. Responsive
    ========================================================================== */
