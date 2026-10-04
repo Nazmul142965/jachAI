@@ -2724,6 +2724,9 @@ async function loadAcademyBatches(pageNumber = 0) {
   await loadBatchAssessments();
 }
 
+function academyLearnerName(record) {
+  return record.learnerDisplayName?.trim() || `Learner ${record.learnerUserId}`;
+}
 async function loadAcademyBatchLearners(pageNumber = 0) {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
@@ -2734,7 +2737,7 @@ async function loadAcademyBatchLearners(pageNumber = 0) {
   }
   const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners?page=${pageNumber}`));
   setList('#batch-learners-list', (page.content || []).map((enrollment) => item(
-    `Learner ${enrollment.learnerUserId}`,
+    academyLearnerName(enrollment),
     `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
   'No learners enrolled yet.');
   renderPageControls('#batch-learners-pagination', page, loadAcademyBatchLearners);
@@ -2819,7 +2822,7 @@ async function showBatchProgress(batchAssessmentId) {
 async function loadBatchProgressPage(route, pageNumber) {
   const page = await request(ownOrg(`${route}/progress?page=${pageNumber}`));
   setList('#batch-progress-list', (page.content || []).map((row) => item(
-    `Learner ${row.learnerUserId}`,
+    academyLearnerName(row),
     row.attemptId ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
       : 'No submitted attempt yet.',
     !row.attemptId && row.assignmentId ? [reminderButton(row.assignmentId)] : [])), 'No learners assigned yet.');
@@ -2972,7 +2975,7 @@ async function loadAcademyWorkspaceProgress(assessment, token, pageNumber = 0) {
   const page = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/${encodeURIComponent(assessment.id)}/progress?page=${pageNumber}`));
   if (batchWorkspaceStale(token)) return;
   setList('#academy-batch-progress', (page.content || []).map((row) => item(
-    `Learner ${row.learnerUserId}`,
+    academyLearnerName(row),
     row.attemptId
       ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
       : 'No submitted attempt yet.')), 'No learner has been assigned this assessment yet.');
@@ -2983,7 +2986,7 @@ async function loadAcademyWorkspaceLearners(token, pageNumber = 0) {
   const page = await request(ownOrg(`${batchWorkspaceRoute()}/learners?page=${pageNumber}`));
   if (batchWorkspaceStale(token)) return;
   setList('#academy-batch-learners', (page.content || []).map((enrollment) => item(
-    `Learner ${enrollment.learnerUserId}`,
+    academyLearnerName(enrollment),
     `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
   'No learner is enrolled in this batch yet.');
   renderPageControls('#academy-batch-learners-pagination', page,

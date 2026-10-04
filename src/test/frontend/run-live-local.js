@@ -97,6 +97,9 @@ async function main() {
     await send('Emulation.setDeviceMetricsOverride',
       { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await login(process.env.DEMO_EMAIL);
+    await evaluate("document.querySelector('.topbar .brand').click(); true");
+    await until("location.hash === '#/overview' && !document.querySelector('#app').classList.contains('hidden')",
+      'brand returning to Overview without sign-out');
     await evaluate("document.querySelector('#workspace-nav button[data-screen=\"my-assessments\"]').click(); true");
     await until("document.querySelector('#assignments-list')?.textContent.includes('Assigned through a batch')", 'real batch assignment');
     const opened = await evaluate(`(() => { const row = [...document.querySelectorAll('#assignments-list .item')]
@@ -138,6 +141,10 @@ async function main() {
     await until("!!document.querySelector('#academy-batch-analytics .funnel')", 'real cohort funnel');
     const funnel = await evaluate("document.querySelector('#academy-batch-analytics .funnel').textContent");
     if (!funnel.includes('Submitted') || !funnel.includes('Graded')) throw new Error('Cohort funnel omitted real progress.');
+    const roster = await evaluate("document.querySelector('#academy-batch-learners').textContent + ' ' + document.querySelector('#academy-batch-progress').textContent");
+    if (/Learner [0-9a-f]{8}-[0-9a-f-]{27}/i.test(roster)) {
+      throw new Error('The Academy roster still shows raw learner IDs instead of display names.');
+    }
     await evaluate("document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('#academy-batch-selected').scrollIntoView(); true");
     await wait(200);
     await screenshot('academy-cohort-light');
