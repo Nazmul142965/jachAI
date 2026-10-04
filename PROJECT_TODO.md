@@ -1,0 +1,30 @@
+# JachAI — current delivery checklist
+
+Updated: 2026-10-04. `ARCHITECTURE.md` §14 defines acceptance; this file tracks what still needs proof or implementation. A checked item means only the stated scope passed, not that the whole product is production-ready.
+
+## Working foundation
+
+- [x] Modular Spring Boot API, MongoDB models, tenant roles, JWT auth, assessment lifecycle, Academy and Talent workflows, billing/AI adapters, and deployment recipe exist in `main`.
+- [x] Academy and Talent core journeys passed isolated local HTTP/MongoDB smoke runs; see `HANDOFF.md`. This is not browser, Atlas, SMTP, or provider verification.
+- [x] Six-character registration/reset validation and local email-verification flow passed focused tests and a real local HTTP run (`61bde89`). Local verification-link opener committed (`a7aac3a`).
+- [x] Ownership audit recovery passed local MongoDB integration (`b4c5971`). AI quota Redis keys now hide tenant/user IDs; unit tests passed (`0e85bd6`).
+
+## Next implementation and integration
+
+- [ ] Resolve the in-progress merge conflicts in the separate `frontend/ui-refresh` worktree, finish its dedicated product screens, and integrate reviewed frontend commits into `main` without losing the auth changes. That worktree belongs to the frontend agent; do not edit it from `main`.
+- [ ] Complete real-browser Academy learner/instructor, Talent recruiter/candidate, billing, and platform-admin walkthroughs against a current local API. Fixture journeys alone are not live API proof.
+- [ ] Decide and implement pending-account retention. User requested automatic removal after a few unverified days; the exact duration and whether the rule applies to existing accounts require explicit approval before enabling deletion.
+- [ ] Verify remaining MongoDB-sensitive workflows on a dedicated `jachai_it_*` database: membership/owner concurrency, outbox lease/retry, telemetry TTL, batch analytics, billing reconciliation, and audit recovery. Local ownership transfer is the only newly closed item here; Atlas behavior remains separate.
+
+## External-service gates
+
+- [ ] Run live Redis checks for rate limits, token revocation, published-version cache, and atomic AI quotas. No local Redis listener/binary is available; the installed WSL distribution currently fails to start.
+- [ ] Configure a private SMTP test account and verify registration/reset/invitation delivery and outbox retry. Do not put credentials in the repository.
+- [ ] Verify Gemini question drafting, Groq tutoring, and optional Ollama locally with real provider responses; retain human approval and deterministic official scoring.
+- [ ] Verify Google OAuth with a real web client ID and exact allowed origin.
+- [ ] Verify direct bKash and SSLCOMMERZ **sandbox-only** checkouts, lost-callback recovery, independent server-side validation, and billing notices. No live-money endpoints or credentials.
+- [ ] Build and run the Docker image, check production liveness/readiness with MongoDB and Redis, and rehearse deployment/backup/recovery. Docker is not yet available in this environment.
+
+## Release gate
+
+- [ ] Reconcile the current frontend branch, run the appropriate full Java/frontend suites once on the integrated revision, complete security/cross-tenant review, and record the exact live evidence in `HANDOFF.md`. Do not infer production readiness from startup or fixture tests.
