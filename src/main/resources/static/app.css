@@ -1046,3 +1046,63 @@ a:focus-visible,
   .compare-row { grid-template-columns: 1fr; }
   .score-cell { gap: var(--sp-2); }
 }
+
+/* ==========================================================================
+   11. Released result
+   --------------------------------------------------------------------------
+   The one screen a learner came for. The score leads; the verdict is in
+   words beside it; the topic breakdown is ordered weakest first because its
+   purpose is finding where to work, not celebrating what is already done.
+   ========================================================================== */
+
+.result-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-5);
+  margin: var(--sp-4) 0 var(--sp-6);
+  padding: var(--sp-5) var(--sp-6);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-sunk);
+}
+.result-hero.is-pass { border-left-color: var(--success-ink); background: var(--success-surface); }
+.result-hero.is-fail { border-left-color: var(--danger-ink); background: var(--danger-surface); }
+
+.result-figure { display: flex; align-items: baseline; gap: 2px; }
+.result-score {
+  font-size: clamp(38px, 5vw, 52px);
+  font-weight: var(--weight-bold);
+  letter-spacing: -.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.result-unit { font-size: var(--text-xl); font-weight: var(--weight-bold); opacity: .65; }
+.is-pass .result-score, .is-pass .result-unit { color: var(--success-ink); }
+.is-fail .result-score, .is-fail .result-unit { color: var(--danger-ink); }
+
+.result-verdict { display: grid; gap: var(--sp-2); min-width: 0; }
+.result-stamps { margin: 0; color: var(--ink-soft); font-size: var(--text-sm); }
+
+.result-section { margin: var(--sp-6) 0 var(--sp-2); }
+
+.topic-list { display: grid; gap: var(--sp-4); margin-top: var(--sp-4); }
+.topic-row { display: grid; gap: var(--sp-2); }
+.topic-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.topic-name { color: var(--ink); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.topic-count {
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.topic-bar { height: 8px; margin-top: 0; }
+/* A topic answered in full is the success colour; anything with gaps is amber,
+   which is where the next attempt should go. The count says the same thing. */
+.bar-fill.bar-gap { background: var(--warn-ink); }
+.topic-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+
+@media (max-width: 560px) {
+  .result-hero { padding: var(--sp-4); gap: var(--sp-3); }
+}

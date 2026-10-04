@@ -223,8 +223,13 @@ async function main() {
       && /20 minutes/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`))
       && /5 question/.test(await ev(`document.querySelector('#assessment-detail-summary').textContent`)));
   await clickText('#assessment-detail-attempts', 'View result, feedback and tutor'); await wait(1400);
-  check(journey, 'released result and topic feedback render in the detail screen',
-    /4 of 5 correct/.test(await ev(`document.querySelector('#assessment-detail-result').textContent`)));
+  const resultText = await ev(`document.querySelector('#assessment-detail-result').textContent`);
+  check(journey, 'released result leads with the score and the verdict in words',
+    /80/.test(resultText) && /Passed/.test(resultText), resultText.slice(0, 120));
+  check(journey, 'topic breakdown reports the count it is based on',
+    /Java/.test(resultText) && /4\/5/.test(resultText));
+  check(journey, 'a topic with gaps says how many to revisit',
+    /to revisit/.test(resultText));
   check(journey, 'the AI tutor entry point is offered with a released result',
     await ev(`!!document.querySelector('#assessment-detail-result form textarea')`));
   await clickText('#assessment-detail-result', 'View instructor feedback'); await wait(1000);

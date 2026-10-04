@@ -2376,23 +2376,47 @@ function renderResult(result, target = '#result-panel') {
     panel.append(node('p', message, 'muted'));
     panel.append(button('Check again', () => showResult(result.attemptId, target), 'button secondary'));
   } else {
-    panel.append(node('h3', `${result.percentage}% · ${result.passed ? 'Passed' : 'Not passed'}`),
-      node('p', [result.submittedAt ? `Submitted ${new Date(result.submittedAt).toLocaleString()}` : null,
-        result.releasedAt ? `Released ${new Date(result.releasedAt).toLocaleString()}` : null]
-        .filter(Boolean).join(' · '), 'item-meta'));
-    for (const topic of result.topics || []) {
-      const share = topic.total ? Math.round((topic.correct / topic.total) * 100) : 0;
-      const main = node('div', '', 'item-main');
-      main.append(node('span', topic.topic, 'item-title'),
-        node('p', `${topic.correct} of ${topic.total} correct (${share}%)`, 'item-meta'));
-      const bar = node('div', '', 'bar');
-      const fill = node('div', '', 'bar-fill');
-      fill.style.width = `${share}%`;
-      bar.append(fill);
-      main.append(bar);
-      const row = node('div', '', 'item');
-      row.append(main);
-      panel.append(row);
+    // A released result is the moment this product exists to deliver, so the
+    // score leads rather than sitting in a heading among the metadata.
+    const hero = node('div', '', `result-hero ${result.passed ? 'is-pass' : 'is-fail'}`);
+    const figure = node('div', '', 'result-figure');
+    figure.append(node('span', `${result.percentage}`, 'result-score'), node('span', '%', 'result-unit'));
+    const verdict = node('div', '', 'result-verdict');
+    verdict.append(node('span', result.passed ? 'Passed' : 'Did not pass',
+      `pill ${result.passed ? 'ok' : 'danger'}`));
+    verdict.append(node('p', [result.submittedAt ? `Submitted ${new Date(result.submittedAt).toLocaleString()}` : null,
+      result.releasedAt ? `Released ${new Date(result.releasedAt).toLocaleString()}` : null]
+      .filter(Boolean).join(' · '), 'result-stamps'));
+    hero.append(figure, verdict);
+    panel.append(hero);
+
+    const topics = result.topics || [];
+    if (topics.length) {
+      panel.append(node('h3', 'By topic', 'result-section'));
+      panel.append(node('p',
+        'Each topic counts only the questions you were asked in it. A topic with gaps is where another attempt would help most.',
+        'muted'));
+      const list = node('div', '', 'topic-list');
+      // Weakest first: the point of a topic breakdown is to find where to work,
+      // and that is buried if a perfect topic sits at the top.
+      for (const topic of [...topics].sort((a, b) =>
+        (a.total ? a.correct / a.total : 0) - (b.total ? b.correct / b.total : 0))) {
+        const share = topic.total ? Math.round((topic.correct / topic.total) * 100) : 0;
+        const complete = topic.total > 0 && topic.correct === topic.total;
+        const row = node('div', '', 'topic-row');
+        const head = node('div', '', 'topic-head');
+        head.append(node('span', topic.topic, 'topic-name'),
+          node('span', `${topic.correct}/${topic.total}`, 'topic-count'));
+        const bar = node('div', '', 'bar topic-bar');
+        const fill = node('div', '', `bar-fill ${complete ? 'bar-pass' : 'bar-gap'}`);
+        fill.style.width = `${share}%`;
+        bar.append(fill);
+        row.append(head, bar,
+          node('p', complete ? `${share}% · every question correct`
+            : `${share}% · ${topic.total - topic.correct} to revisit`, 'topic-note'));
+        list.append(row);
+      }
+      panel.append(list);
     }
     if (result.passed && state.organization?.type === 'ACADEMY' && state.organization?.myRole === 'LEARNER') {
       panel.append(button('My certificates', () => showView('certificates'), 'button secondary'));
