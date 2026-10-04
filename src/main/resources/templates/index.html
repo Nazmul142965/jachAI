@@ -47,12 +47,13 @@
         <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="button primary" type="submit">Sign in</button>
         <a class="inline-link" href="/reset-password.html">Forgot your password?</a>
+        <a class="inline-link" href="/verify-email.html">Need a new verification link?</a>
       </form>
       <form id="register-form" class="stack hidden" role="tabpanel" aria-labelledby="register-tab">
-        <h2>Start a workspace</h2><p class="muted">Verify your email before signing in.</p>
+        <h2>Start a workspace</h2><p class="muted">After registration, open the verification link before signing in. Local development does not send email: find the link in the IntelliJ console or <code>target/local-dev/app.&lt;port&gt;.out.log</code> when using the local launcher. With SMTP configured, check your inbox.</p>
         <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
         <label>Email<input name="email" type="email" autocomplete="email" required></label>
-        <label>Password <small>(at least 12 characters)</small><input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+        <label>Password <small>(at least 6 characters)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
         <button class="button primary" type="submit">Create account</button>
       </form>
       <div id="google-login-area" class="google-signin hidden"><p class="muted">Or continue with Google</p><div id="google-login-button"></div></div>
