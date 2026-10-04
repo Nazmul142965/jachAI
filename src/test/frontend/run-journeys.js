@@ -175,7 +175,17 @@ async function main() {
   check(journey, 'learner overview shows no plan usage',
     await ev(`document.querySelector('#usage-summary-panel').classList.contains('hidden')`));
   check(journey, 'workspace has a footer with reference links',
-    await ev(`!!document.querySelector('.workspace-foot a[href="/certificate.html"]')`));
+    await ev(`document.querySelectorAll('.workspace-foot nav a').length >= 3`));
+  // The token lives in memory, so a full page load ends the session. While
+  // signed in, the brand returns to Overview and public links open elsewhere.
+  check(journey, 'signed-in header links do not navigate away from the session',
+    await ev(`[...document.querySelectorAll('.topbar .topnav a, .workspace-foot a')]
+      .every((a) => a.target === '_blank')`));
+  check(journey, 'the brand mark returns to Overview instead of reloading',
+    await ev(`(() => { document.querySelector('.topbar .brand').click();
+      return location.hash === '#/overview' && !document.querySelector('#app').classList.contains('hidden'); })()`));
+  check(journey, 'no link points at the unrouted certificate page',
+    await ev(`!document.querySelector('a[href="/certificate.html"]')`));
   await view('My Assessments'); await tab('Assignments'); await wait(1200);
   check(journey, 'assignment list renders', (await ev(`document.querySelector('#assignments-list').textContent`)).includes('Start / resume'));
   await clickText('#assignments-list', 'Start / resume'); await wait(600);

@@ -258,12 +258,55 @@ function showSignedOut() {
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
+  setInAppLinks(false);
+}
+
+// ---------------------------------------------------------------------------
+// Leaving the page signs you out.
+//
+// The access token lives in a JS variable and nothing else, which is what keeps
+// it out of localStorage and out of a cookie. The cost is that any full page
+// load ends the session. Every link in the header and the footer was a plain
+// href, so clicking the JachAI mark, or Plans, or How it works, silently
+// signed a person out and dropped them back on the login screen.
+//
+// While signed in: the brand mark becomes the Overview, and the public pages
+// open in a new tab so this one — and the session in it — survives. While
+// signed out the links behave as ordinary links again.
+// ---------------------------------------------------------------------------
+function setInAppLinks(signedInNow) {
+  const brand = document.querySelector('.topbar .brand');
+  if (brand && !brand.dataset.bound) {
+    brand.dataset.bound = 'true';
+    brand.addEventListener('click', (event) => {
+      if (!state.accessToken) return;
+      event.preventDefault();
+      run(() => showScreen('overview'));
+    });
+  }
+  for (const link of document.querySelectorAll('.topbar .topnav a, .workspace-foot a')) {
+    const external = (link.getAttribute('href') || '').startsWith('/');
+    if (!external) continue;
+    if (signedInNow) {
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.title = 'Opens in a new tab so you stay signed in here';
+    } else {
+      link.removeAttribute('target');
+      link.removeAttribute('rel');
+      link.removeAttribute('title');
+    }
+  }
+  if (brand) {
+    brand.setAttribute('aria-label', signedInNow ? 'JachAI — go to Overview' : 'JachAI home');
+  }
 }
 async function signedIn(tokens) {
   state.accessToken = tokens.accessToken;
   state.refreshToken = tokens.refreshToken;
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
+  setInAppLinks(true);
   let invitationMessage = 'Signed in.';
   const pending = sessionStorage.getItem('jachaiPendingInvitation');
   if (pending) {
