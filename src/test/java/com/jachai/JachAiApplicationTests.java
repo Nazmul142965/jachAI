@@ -20,6 +20,7 @@ import com.jachai.auth.service.AuthService;
 import com.jachai.auth.service.GoogleAuthService;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.organization.service.OrganizationService;
+import com.jachai.organization.service.OrganizationAuditRecoveryService;
 import com.jachai.organization.service.OrganizationSettingsService;
 import com.jachai.organization.service.OrganizationInvitationService;
 import com.jachai.organization.service.TenantAccessService;
@@ -73,6 +74,7 @@ class JachAiApplicationTests {
     @MockitoBean AccessRevocationService accessRevocationService;
     @MockitoBean OrganizationService organizationService;
     @MockitoBean OrganizationSettingsService organizationSettingsService;
+    @MockitoBean OrganizationAuditRecoveryService organizationAuditRecoveryService;
     @MockitoBean OrganizationInvitationService organizationInvitationService;
     @MockitoBean TenantAccessService tenantAccessService;
     @MockitoBean QuestionService questionService;

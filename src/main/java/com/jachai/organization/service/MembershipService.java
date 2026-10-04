@@ -249,20 +249,16 @@ public class MembershipService {
     }
 
     private void ensureAudit(Membership member) {
-        if (member.lastChangeId() == null || member.lastChangeActorId() == null
-                || member.lastChangedAt() == null || member.previousActive() == null) return;
-        AuditAction action = !member.previousActive()
-                ? member.previousRole() == null ? AuditAction.MEMBERSHIP_ADDED
-                : AuditAction.MEMBERSHIP_REACTIVATED
-                : !member.active() ? AuditAction.MEMBERSHIP_DEACTIVATED
-                : AuditAction.MEMBERSHIP_ROLE_CHANGED;
-        Map<String, String> details = new HashMap<>();
-        if (member.previousRole() != null) details.put("previousRole", member.previousRole().name());
-        details.put("role", member.role().name());
+        // Derivation lives in MembershipAuditDerivation so the operator recovery tool cannot
+        // drift from it and write an event this service would never have written.
+        if (!MembershipAuditDerivation.reconstructable(member)) return;
         try {
-            auditEvents.insert(new AuditEvent("membership:" + member.lastChangeId(),
-                    member.organizationId(), member.lastChangeActorId(), action,
-                    "MEMBERSHIP", member.userId(), member.lastChangedAt(), details));
+            auditEvents.insert(new AuditEvent(
+                    MembershipAuditDerivation.eventId(member.lastChangeId()),
+                    member.organizationId(), member.lastChangeActorId(),
+                    MembershipAuditDerivation.action(member),
+                    "MEMBERSHIP", member.userId(), member.lastChangedAt(),
+                    MembershipAuditDerivation.details(member)));
         } catch (DuplicateKeyException ignored) {
             // The immutable transition was already recorded by a retry.
         }

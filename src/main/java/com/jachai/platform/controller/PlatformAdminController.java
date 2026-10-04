@@ -6,6 +6,8 @@ import com.jachai.platform.dto.PlatformOperationsView;
 import com.jachai.platform.dto.PlatformStorageView;
 import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.billing.dto.UsageReconciliationReport;
+import com.jachai.organization.dto.AuditRecoveryReport;
+import com.jachai.organization.service.OrganizationAuditRecoveryService;
 import com.jachai.billing.model.PlatformUsageRepairEvent;
 import com.jachai.billing.service.EntitlementUsageReconciliationService;
 import com.jachai.platform.dto.ChangePlatformRoleRequest;
@@ -47,17 +49,20 @@ public class PlatformAdminController {
     private final PlatformOperationsService operations;
     private final PlatformStorageService storage;
     private final PlatformPlanService plans;
+    private final OrganizationAuditRecoveryService auditRecovery;
 
     public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport,
                                    EntitlementUsageReconciliationService usageReconciliation,
                                    PlatformOperationsService operations, PlatformStorageService storage,
-                                   PlatformPlanService plans) {
+                                   PlatformPlanService plans,
+                                   OrganizationAuditRecoveryService auditRecovery) {
         this.platform = platform;
         this.billingSupport = billingSupport;
         this.usageReconciliation = usageReconciliation;
         this.operations = operations;
         this.storage = storage;
         this.plans = plans;
+        this.auditRecovery = auditRecovery;
     }
 
     @GetMapping("/me")
@@ -131,6 +136,27 @@ public class PlatformAdminController {
     public Page<PlatformUsageRepairEvent> usageRepairAudit(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return usageReconciliation.platformRepairHistory(jwt.getSubject(), organizationId, page);
+    }
+
+    /**
+     * Dry run only. Reports membership and ownership audit events that durable recovery markers
+     * prove should exist, and records whose markers are too incomplete to reconstruct. Writes
+     * nothing: an operator must be able to look before deciding.
+     */
+    @GetMapping("/organizations/{organizationId}/audit-recovery")
+    public AuditRecoveryReport auditRecoveryReport(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
+        return auditRecovery.report(jwt.getSubject(), organizationId, page);
+    }
+
+    /**
+     * Writes only the events the dry run reported as recoverable. Idempotent, so a retry after a
+     * partial failure is safe. Ambiguous records are returned untouched for manual action.
+     */
+    @PostMapping("/organizations/{organizationId}/audit-recovery")
+    public AuditRecoveryReport repairAuditRecovery(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
+        return auditRecovery.repair(jwt.getSubject(), organizationId, page);
     }
 
     @GetMapping("/users/{userId}")
