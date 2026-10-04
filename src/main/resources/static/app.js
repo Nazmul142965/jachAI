@@ -2041,16 +2041,40 @@ async function compareCandidates(campaignId, pageNumber = 0) {
   summary.append(node('h3', 'At a glance'),
     node('p', 'Latest submitted attempt per invited candidate. Decisions are visible to Talent staff only.', 'muted'));
   const head = node('div', '', 'compare-row compare-head');
-  head.append(node('span', 'Candidate'), node('span', 'Latest attempt'), node('span', 'Decision'));
+  head.append(node('span', 'Candidate'), node('span', 'Latest score'),
+    node('span', 'Outcome'), node('span', 'Decision'));
   summary.append(head);
   for (const candidate of page.content || []) {
     const row = node('div', '', 'compare-row');
-    const attempt = candidate.attemptId
-      ? (candidate.percentage == null ? 'Awaiting grading'
-        : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`)
-      : 'No submitted attempt';
-    row.append(node('span', candidate.candidateUserId), node('span', attempt),
-      node('span', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'));
+    row.append(node('span', candidate.candidateUserId));
+
+    // Comparing is this screen's whole job, so the score gets a bar as well as
+    // a number. A candidate with no submitted attempt, or one not yet graded,
+    // gets no bar at all rather than a zero-width one that reads as a zero.
+    const scoreCell = node('div', '', 'score-cell');
+    if (candidate.attemptId && candidate.percentage != null) {
+      const bar = node('div', '', 'bar score-bar');
+      const fill = node('div', '', `bar-fill ${candidate.passed ? 'bar-pass' : 'bar-fail'}`);
+      fill.style.width = `${Math.max(0, Math.min(100, candidate.percentage))}%`;
+      bar.append(fill);
+      scoreCell.append(node('span', `${candidate.percentage}%`, 'score-figure'), bar);
+    } else {
+      scoreCell.append(node('span', candidate.attemptId ? 'Awaiting grading' : 'No submitted attempt', 'score-absent'));
+    }
+    row.append(scoreCell);
+
+    const outcome = !candidate.attemptId ? ['Not attempted', 'pill']
+      : candidate.percentage == null ? ['Awaiting grading', 'pill warn']
+      : candidate.passed ? ['Passed', 'pill ok'] : ['Did not pass', 'pill danger'];
+    const outcomeCell = node('span', '', 'compare-cell');
+    outcomeCell.append(node('span', outcome[0], outcome[1]));
+    row.append(outcomeCell);
+
+    const decisionCell = node('span', '', 'compare-cell');
+    decisionCell.append(candidate.decision
+      ? node('span', roleLabel(candidate.decision), 'pill')
+      : node('span', 'Not reviewed', 'score-absent'));
+    row.append(decisionCell);
     summary.append(row);
   }
   rows.unshift(summary);
@@ -2661,17 +2685,55 @@ async function loadBatchAssessments(pageNumber = 0) {
   renderPageControls('#batch-assessments-pagination', page, loadBatchAssessments);
 }
 
+// A cohort funnel built from the analytics record the server returns. Every
+// stage is a count the API reported; the bar is that count as a share of the
+// active learners, and the share is printed beside it so the width is never
+// the only way to read the number.
+//
+// The denominator is active learners, not assigned, because a learner who was
+// never assigned is still part of the cohort a coordinator is answerable for.
+function cohortFunnel(analytics) {
+  const base = analytics.activeLearners || 0;
+  const awaitingGrades = Math.max(0, (analytics.submittedLearners || 0) - (analytics.gradedLearners || 0));
+  const stages = [
+    ['Active learners', analytics.activeLearners, 'funnel-base'],
+    ['Assigned', analytics.assignedLearners, ''],
+    ['Submitted', analytics.submittedLearners, ''],
+    ['Graded', analytics.gradedLearners, ''],
+    ['Passed', analytics.passedLearners, 'funnel-pass']
+  ];
+  const chart = node('div', '', 'funnel');
+  for (const [label, value, variant] of stages) {
+    const count = value ?? 0;
+    const share = base ? Math.round((count / base) * 100) : 0;
+    const row = node('div', '', 'funnel-row');
+    const track = node('div', '', 'funnel-track');
+    const fill = node('div', '', `funnel-fill ${variant}`.trim());
+    fill.style.width = `${base ? Math.max(share, count ? 2 : 0) : 0}%`;
+    track.append(fill);
+    row.append(node('span', label, 'funnel-label'), track,
+      node('span', base ? `${count} · ${share}%` : String(count), 'funnel-value'));
+    chart.append(row);
+  }
+  const notes = node('div', '', 'funnel-notes');
+  notes.append(node('p', analytics.averageLatestPercentage === null
+    ? 'Average latest score: no graded results yet'
+    : `Average latest score: ${analytics.averageLatestPercentage.toFixed(1)}%`, 'funnel-note'));
+  notes.append(node('p', awaitingGrades
+    ? `${awaitingGrades} submitted attempt${awaitingGrades === 1 ? '' : 's'} still awaiting grading`
+    : 'Nothing is awaiting grading', awaitingGrades ? 'funnel-note warn-note' : 'funnel-note'));
+  notes.append(node('p', analytics.gradedLearners
+    ? `Pass rate ${analytics.passRatePercent}% of graded · completion ${analytics.completionRatePercent}% of active`
+    : 'Pass rate is not meaningful until something has been graded', 'funnel-note'));
+  chart.append(notes);
+  return chart;
+}
 async function showBatchProgress(batchAssessmentId) {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   const route = `/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments/${encodeURIComponent(batchAssessmentId)}`;
   const analytics = await request(ownOrg(`${route}/analytics`));
-  const awaitingGrades = analytics.submittedLearners - analytics.gradedLearners;
-  setList('#batch-analytics', [
-    item('Cohort coverage', `${analytics.assignedLearners} assigned / ${analytics.activeLearners} active learners`),
-    item('Completion', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners)`),
-    item('Grading & pass rate', `${analytics.gradedLearners} graded · ${awaitingGrades} awaiting grading · ${analytics.passedLearners} passed (${analytics.gradedLearners ? `${analytics.passRatePercent}% of graded` : 'no graded results yet'})`),
-    item('Average latest score', analytics.averageLatestPercentage === null ? 'No graded results yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
+  setList('#batch-analytics', [cohortFunnel(analytics)
   ], 'Analytics are unavailable.');
   await loadBatchProgressPage(route, 0);
   $('#batch-progress-panel').classList.remove('hidden');
@@ -2826,13 +2888,7 @@ async function loadAcademyWorkspaceAssessment(token, assessment) {
 async function loadAcademyWorkspaceAnalytics(assessment, token) {
   const analytics = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/${encodeURIComponent(assessment.id)}/analytics`));
   if (batchWorkspaceStale(token)) return;
-  const awaitingGrades = analytics.submittedLearners - analytics.gradedLearners;
-  setList('#academy-batch-analytics', [
-    item('Cohort coverage', `${analytics.assignedLearners} assigned / ${analytics.activeLearners} active learners`),
-    item('Completion', `${analytics.submittedLearners} submitted (${analytics.completionRatePercent}% of active learners)`),
-    item('Grading & pass rate', `${analytics.gradedLearners} graded · ${awaitingGrades} awaiting grading · ${analytics.passedLearners} passed (${analytics.gradedLearners ? `${analytics.passRatePercent}% of graded` : 'no graded results yet'})`),
-    item('Average latest score', analytics.averageLatestPercentage === null
-      ? 'No graded results yet' : `${analytics.averageLatestPercentage.toFixed(1)}%`)
+  setList('#academy-batch-analytics', [cohortFunnel(analytics)
   ], 'Analytics are unavailable.');
 }
 async function loadAcademyWorkspaceProgress(assessment, token, pageNumber = 0) {

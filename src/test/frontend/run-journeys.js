@@ -368,8 +368,17 @@ async function main() {
     await ev(`[...document.querySelectorAll('#academy-batch-assessments button')].some((b) => b.textContent === 'Reconcile assignments')`));
   await clickText('#academy-batch-assessments', 'Progress & analytics'); await wait(1400);
   const analyticsText = await ev(`document.querySelector('#academy-batch-analytics').textContent`);
-  check(staff, 'cohort analytics render for the selected assessment',
-    /Cohort coverage/.test(analyticsText) && /66.7%/.test(analyticsText));
+  check(staff, 'cohort analytics render every funnel stage',
+    /Active learners/.test(analyticsText) && /Assigned/.test(analyticsText)
+      && /Submitted/.test(analyticsText) && /Graded/.test(analyticsText) && /Passed/.test(analyticsText),
+    analyticsText.slice(0, 140));
+  check(staff, 'funnel prints each count and its share, not only a bar',
+    /6 · 100%/.test(analyticsText) && /5 · 83%/.test(analyticsText), analyticsText.slice(0, 160));
+  check(staff, 'funnel reports the pass and completion rates the server gave',
+    /66.7%/.test(analyticsText));
+  check(staff, 'funnel names what is still awaiting grading',
+    /awaiting grading/.test(analyticsText));
+  await shotBoth('academy-cohort-funnel');
   check(staff, 'per-learner progress rows render',
     /u-learner/.test(await ev(`document.querySelector('#academy-batch-progress').textContent`)));
   await clickText('#academy-batch-assessments', 'Reconcile assignments'); await wait(500);
@@ -390,6 +399,14 @@ async function main() {
   await view('Talent Campaigns'); await tab('Campaigns'); await wait(1600);
   check(talent, 'campaign list renders', (await ev(`document.querySelector('#campaigns-list').textContent`)).includes('Backend Engineer'));
   await clickText('#campaigns-list', 'Compare candidates'); await wait(1300);
+  const compare = await ev(`document.querySelector('#campaign-candidates').textContent`);
+  check('talent-recruiter', 'comparison names score, outcome and decision as columns',
+    /Latest score/.test(compare) && /Outcome/.test(compare) && /Decision/.test(compare), compare.slice(0, 140));
+  check('talent-recruiter', 'comparison states the outcome in words beside the bar',
+    /Passed/.test(compare) && /70%/.test(compare));
+  check('talent-recruiter', 'a graded candidate gets a score bar',
+    await ev(`!!document.querySelector('#campaign-candidates .bar-fill.bar-pass, #campaign-candidates .bar-fill.bar-fail')`));
+  await shotBoth('talent-candidate-comparison');
   await clickText('#campaign-candidates', 'Integrity signals'); await wait(900);
   check(talent, 'integrity summary carries its caveat', /unverified and need human judgement/.test(await ev(`document.querySelector('#campaign-candidates').textContent`)));
   await clickText('#campaign-candidates', 'Event log'); await wait(900);
