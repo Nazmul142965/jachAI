@@ -69,6 +69,28 @@ const SOURCE = String.raw`(() => {
   const batchProgress = { learnerUserId: 'u-learner', assignmentId: 'asg-1', attemptId: 'att-9', percentage: 80,
     passed: true, submittedAt: new Date().toISOString() };
 
+  // A published assessment, so the version-history entry point has something
+  // to open, and the two frozen versions it would show.
+  const publishedAssessment = { id: 'assess-1', organizationId: 'org-a', title: 'Java Basics',
+    durationMinutes: 30, passingPercentage: 60, questionIds: ['q1', 'q2'],
+    resultReleasePolicy: 'IMMEDIATE', status: 'PUBLISHED', latestVersion: 2,
+    createdAt: new Date().toISOString(), revision: 3, instructions: '' };
+  const assessmentVersions = [
+    { organizationId: 'org-a', assessmentId: 'assess-1', version: 2, title: 'Java Basics',
+      durationMinutes: 30, passingPercentage: 60, resultReleasePolicy: 'IMMEDIATE',
+      questions: [{ questionId: 'q1', topic: 'Collections', prompt: 'A', type: 'SINGLE_CHOICE', difficulty: 'EASY' },
+                  { questionId: 'q2', topic: 'Generics', prompt: 'B', type: 'SHORT_ANSWER', difficulty: 'MEDIUM' }],
+      publishedAt: new Date().toISOString(), instructions: '' },
+    { organizationId: 'org-a', assessmentId: 'assess-1', version: 1, title: 'Java Basics',
+      durationMinutes: 25, passingPercentage: 50, resultReleasePolicy: 'IMMEDIATE',
+      questions: [{ questionId: 'q1', topic: 'Collections', prompt: 'A', type: 'SINGLE_CHOICE', difficulty: 'EASY' }],
+      publishedAt: new Date(Date.now() - 604800000).toISOString(), instructions: '' }
+  ];
+
+  const demoOrder = { id: 'order-1', provider: 'SSLCOMMERZ', status: 'VERIFIED', amountBdt: 100,
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+    verifiedAt: new Date(Date.now() - 3600000).toISOString(), appliedAt: null };
+
   window.__calls = [];
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
@@ -112,18 +134,36 @@ const SOURCE = String.raw`(() => {
       displayName: 'Target Person', emailVerified: true, disabled: false });
 
     // Academy workspace
+    // Tenant-scoped quota reconciliation. One window is out of step so the
+    // repair control has a reason to be enabled; POST reports it as repaired.
+    if (path === org + '/billing/entitlements/usage-reconciliation') return json({
+      organizationId: 'org-a', generatedAt: new Date().toISOString(), tier: 'FREE',
+      downwardGraceSeconds: 60, lookbackMonths: 3, repaired: method === 'POST',
+      entries: [
+        { metric: 'MONTHLY_INVITATIONS', window: '2026-10', status: method === 'POST' ? 'MATCHES' : 'RECORDED_ABOVE_PROVEN',
+          recordedUsage: 12, provenMinimumUsage: 9, provenMaximumUsage: 9, planLimit: 30,
+          detail: 'Three invitations were counted twice.' },
+        { metric: 'MONTHLY_CERTIFICATES', window: '2026-10', status: 'MATCHES',
+          recordedUsage: 2, provenMinimumUsage: 2, provenMaximumUsage: 2, planLimit: 30, detail: '' }
+      ],
+      manualSteps: method === 'POST' ? [] : ['Confirm the duplicated invitations with the instructor.']
+    });
     if (path === org + '/billing/entitlements') return json({ tier: 'FREE', retentionDays: 90,
       maxPublishedAssessments: 3, monthlyInvitations: 30, dailyUserAiRequests: 5, monthlyCertificates: 30 });
     if (path === org + '/billing/options') return json({ sandboxOnly: true, sslCommerzAvailable: false,
       directBkashAvailable: false, demoTeamPriceBdt: 100 });
-    if (path === org + '/billing/orders') return json(page([]));
+    if (path === org + '/billing/orders') return json(page([demoOrder]));
+    // Verified with the provider but not yet applied to the plan: the gap the
+    // order detail exists to show.
+    if (path === org + '/billing/orders/order-1') return json(demoOrder);
     if (path === org + '/settings') return json({ defaultResultReleasePolicy: 'IMMEDIATE' });
     if (path === org + '/members') return json(page([caller, member]));
     if (path.includes('/members/u-learner/audit')) return json(page([]));
     if (path === org + '/invitations') return json(page([]));
     if (path === org + '/ownership/audit') return json(page([]));
     if (path === org + '/questions') return json(page([]));
-    if (path === org + '/assessments') return json(page([]));
+    if (path === org + '/assessments') return json(page([publishedAssessment]));
+    if (path.includes('/assessments/assess-1/versions')) return json(page(assessmentVersions));
     if (path === org + '/attempts/review/pending') return json(page([review]));
     if (path.includes('/attempts/att-9/review/grades/audit')) return json(page([]));
     if (path.endsWith('/attempts/att-9/review')) return json(staffReview);

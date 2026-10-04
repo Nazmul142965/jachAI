@@ -121,6 +121,9 @@ async function main() {
   const APP = `${server.url}/`;
   const view = (label) => ev(`(() => { const tab = [...document.querySelectorAll('#workspace-nav button')]
     .find((b) => b.textContent === ${JSON.stringify(label)}); if (!tab) return false; tab.click(); return true; })()`);
+  const tab = (label) => ev(`(() => { const t = [...document.querySelectorAll('#screen-tabs button')]
+    .find((b) => b.textContent === ${JSON.stringify(label)}); if (!t) return false; t.click(); return true; })()`);
+  const route = () => ev(`location.hash`);
   const clickText = (scope, text) => ev(`(() => { const el = [...document.querySelectorAll('${scope} button')]
     .find((b) => b.textContent.includes(${JSON.stringify(text)})); if (!el) return false; el.click(); return true; })()`);
   const dialogText = () => ev(`document.querySelector('.modal') ? document.querySelector('.modal').textContent : ''`);
@@ -145,8 +148,12 @@ async function main() {
   const journey = 'learner';
   const nav = await ev(`[...document.querySelectorAll('#workspace-nav button')].map((b) => b.textContent)`);
   check(journey, 'sign-in reaches the workspace shell', await ev(`!document.querySelector('#app').classList.contains('hidden')`));
-  check(journey, 'nav is learner-scoped', nav.includes('My assessments') && !nav.includes('Platform'), nav.join(', '));
-  await view('My assessments'); await wait(1200);
+  check(journey, 'nav is learner-scoped',
+    nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
+    nav.join(', '));
+  check(journey, 'nav lists screens, not every view',
+    nav.length <= 6 && !nav.includes('Batch workspace'), nav.join(', '));
+  await view('My Assessments'); await tab('Assignments'); await wait(1200);
   check(journey, 'assignment list renders', (await ev(`document.querySelector('#assignments-list').textContent`)).includes('Start / resume'));
   await clickText('#assignments-list', 'Start / resume'); await wait(600);
   const rules = await ev(`document.querySelector('#attempt-panel').textContent`);
@@ -183,7 +190,7 @@ async function main() {
   check(journey, 'pending result offers Check again', await ev(`[...document.querySelectorAll('#result-panel button')].some((b) => b.textContent === 'Check again')`));
 
   // Learner assessment detail: window, attempts, result, feedback and tutor on one screen.
-  await view('Assessment detail'); await wait(1600);
+  await view('My Assessments'); await tab('Assessment detail'); await wait(1600);
   check(journey, 'assessment detail opens from the nav for the learner assignment',
     /Assignment asg-1/.test(await ev(`document.querySelector('#assessment-detail-view').textContent`)));
   check(journey, 'attempt usage is counted from the server attempt list',
@@ -208,6 +215,51 @@ async function main() {
   // ---------------------------------------------------------------- academy staff journey
   await load('academy-staff');
   const staff = 'academy-staff';
+  await view('Billing'); await wait(1500); await shot('screen-billing');
+  check(staff, 'billing is its own screen with its own route',
+    (await route()) === '#/billing', await route());
+  // Billing order detail: the lifecycle the history row cannot show.
+  await clickText('#payment-history', 'Details'); await wait(800);
+  const order = await ev(`document.querySelector('#order-detail').textContent`);
+  check(staff, 'order detail names the three lifecycle stages',
+    /Created/.test(order) && /Verified with the provider/.test(order) && /Applied to the plan/.test(order),
+    order.slice(0, 160));
+  check(staff, 'order detail marks a stage that has not been reached',
+    /Not reached/.test(order) && /Pending/.test(order));
+  check(staff, 'order detail says a browser redirect does not verify a payment',
+    /browser redirect alone never reaches this step/.test(order));
+  check(staff, 'order detail says the plan is unchanged until applied',
+    /Until this is stamped, the plan has not changed/.test(order));
+  await clickText('#order-detail', 'Close'); await wait(300);
+  check(staff, 'order detail closes again',
+    await ev(`document.querySelector('#order-detail').classList.contains('hidden')`));
+
+  // Quota reconciliation: org-admin only, on the overview.
+  const usage = await ev(`document.querySelector('#usage-panel').textContent`);
+  check(staff, 'quota reconciliation is visible to an org admin',
+    await ev(`!document.querySelector('#usage-panel').classList.contains('hidden')`));
+  check(staff, 'quota reconciliation reports each scanned window',
+    /MONTHLY INVITATIONS/.test(usage) && /MONTHLY CERTIFICATES/.test(usage), usage.slice(0, 140));
+  check(staff, 'quota status is spelled out, not colour only',
+    /RECORDED ABOVE PROVEN/.test(usage) && /MATCHES/.test(usage));
+  check(staff, 'quota reconciliation states it is not a bill',
+    /not a bill/.test(usage) && /does not change your plan/.test(usage));
+  check(staff, 'quota reconciliation surfaces the manual steps it could not settle',
+    /could not settle everything/.test(usage) && /duplicated invitations/.test(usage));
+  check(staff, 'repair is offered because a window is out of step',
+    await ev(`!document.querySelector('#usage-repair').disabled`));
+  await clickText('#usage-panel', 'Repair counters'); await wait(500);
+  const repairText = await dialogText();
+  check(staff, 'repair dialog denies a payment or plan change',
+    /does not change your plan/.test(repairText) && /create a payment/.test(repairText), repairText.slice(0, 140));
+  check(staff, 'repair dialog warns the two writes are not atomic',
+    /not updated together/.test(repairText));
+  await clickDialog('primary'); await wait(900);
+  check(staff, 'repair reports the counters were rewritten',
+    (await ev(`document.querySelector('#notice').textContent`)).includes('rewritten'));
+  check(staff, 'repair disables itself once everything matches',
+    await ev(`document.querySelector('#usage-repair').disabled`));
+
   await view('Members'); await wait(1200);
   check(staff, 'members render with a page filter', (await ev(`document.querySelector('#members-list').textContent`)).includes('Learner One')
     && await ev(`!!document.querySelector('input[data-filter-for="#members-list"]')`));
@@ -217,8 +269,27 @@ async function main() {
   await wait(500);
   check(staff, 'role change names the transition in plain words', /from learner to instructor/.test(await dialogText()), await dialogText());
   await clickDialog('quiet'); await wait(300);
-  await view('Assessments'); await wait(1600);
+  await view('Assessment Studio'); await wait(900); await shot('screen-assessment-studio-questions');
+  await tab('Assessments & review'); await wait(1600); await shot('screen-assessment-studio-assessments');
   check(staff, 'review queue lists a releasable result', (await ev(`document.querySelector('#review-queue').textContent`)).includes('Java Basics'));
+
+  // Assessment version history: opened from a published row, never from a draft.
+  check(staff, 'version history is offered on a published assessment',
+    await ev(`[...document.querySelectorAll('#assessments-list button')].some((b) => b.textContent === 'Version history')`));
+  check(staff, 'version history stays closed until it is asked for',
+    await ev(`document.querySelector('#assessment-versions').classList.contains('hidden')`));
+  await clickText('#assessments-list', 'Version history'); await wait(900);
+  const versions = await ev(`document.querySelector('#assessment-versions').textContent`);
+  check(staff, 'version history lists each frozen version', /Version 2/.test(versions) && /Version 1/.test(versions));
+  check(staff, 'version history shows what each version froze',
+    /2 questions/.test(versions) && /pass 60%/.test(versions) && /30 min/.test(versions), versions.slice(0, 160));
+  check(staff, 'version history marks the current version', /Current/.test(versions));
+  check(staff, 'version history names the frozen topics', /Collections/.test(versions) && /Generics/.test(versions));
+  check(staff, 'version history explains assignments keep their version',
+    /assignments keep the version/.test(versions));
+  await clickText('#assessment-versions', 'Close'); await wait(300);
+  check(staff, 'version history closes again',
+    await ev(`document.querySelector('#assessment-versions').classList.contains('hidden')`));
   await clickText('#review-queue', 'Release result'); await wait(500);
   const releaseText = await dialogText();
   check(staff, 'release dialog names attempt and score', /att-9/.test(releaseText) && /80%/.test(releaseText));
@@ -244,7 +315,7 @@ async function main() {
   check(staff, 'revoke reports the code is now invalid', /verifies as invalid/.test(await ev(`document.querySelector('#review-output').textContent`)));
 
   // Academy batch workspace: a distinct screen reached from the nav and from the batch list.
-  await view('Batch workspace'); await wait(1500);
+  await view('Academy Workspace'); await tab('Batch workspace'); await wait(1500);
   const workspace = await ev(`document.querySelector('#academy-batch-view').textContent`);
   check(staff, 'batch workspace is reachable from the nav and selects a course and batch',
     /Java Fundamentals/.test(workspace) && /Batch A/.test(workspace));
@@ -273,7 +344,7 @@ async function main() {
   // ---------------------------------------------------------------- talent journey
   await load('talent-recruiter');
   const talent = 'talent-recruiter';
-  await view('Hiring campaigns'); await wait(1600);
+  await view('Talent Campaigns'); await tab('Campaigns'); await wait(1600);
   check(talent, 'campaign list renders', (await ev(`document.querySelector('#campaigns-list').textContent`)).includes('Backend Engineer'));
   await clickText('#campaigns-list', 'Compare candidates'); await wait(1300);
   await clickText('#campaign-candidates', 'Integrity signals'); await wait(900);
@@ -287,7 +358,7 @@ async function main() {
   await shot('talent-integrity');
 
   // Talent campaign workspace: a distinct screen reached from the nav and from the campaign row.
-  await view('Campaign workspace'); await wait(1600);
+  await view('Talent Campaigns'); await tab('Campaign workspace'); await wait(1600);
   const campaignWorkspace = await ev(`document.querySelector('#talent-campaign-view').textContent`);
   check(talent, 'campaign workspace opens with the campaign and its frozen version',
     /Backend Engineer/.test(campaignWorkspace) && /Frozen version ver-1/.test(campaignWorkspace));
@@ -311,7 +382,7 @@ async function main() {
   // ---------------------------------------------------------------- platform journey + storage states
   await load('platform-admin', 'ok');
   const platform = 'platform-admin';
-  await view('Platform'); await wait(1600);
+  await view('Platform Operations'); await wait(1600);
   const platformText = await ev(`document.querySelector('#platform-view').textContent`);
   check(platform, 'operations render with a timestamp', /Counts generated/.test(platformText));
   check(platform, 'storage estimate is labelled as an estimate', /Storage estimate/.test(platformText));
@@ -319,7 +390,15 @@ async function main() {
   check(platform, 'storage states the threshold source', /ATLAS_STORAGE_WARNING_BYTES/.test(platformText));
   check(platform, 'storage explains it is not the official quota', /not Atlas's official quota/.test(await ev(`document.querySelector('#platform-view').textContent`)));
   await shot('platform');
-  check(platform, 'organizations carry owner and creation date', /Owner u-admin/.test(platformText));
+  check(platform, 'health tab holds only operations and storage',
+    !/Owner u-admin/.test(platformText) && !/Manual grant/.test(platformText));
+
+  // Organizations, billing support, manual plan and quota repair are their own tab.
+  await tab('Organizations'); await wait(900);
+  const tenantsText = await ev(`document.querySelector('#platform-tenants-view').textContent`);
+  check(platform, 'organizations carry owner and creation date', /Owner u-admin/.test(tenantsText));
+  check(platform, 'platform tabs carry their own route', (await route()) === '#/platform/platform-tenants', await route());
+  await shot('platform-tenants');
   await ev(`(() => { document.querySelector('#platform-organization-id').value = 'org-a';
     document.querySelector('#platform-inspect').click(); return true; })()`);
   await wait(1200);
@@ -327,6 +406,8 @@ async function main() {
   check(platform, 'manual TEAM plan panel states it is not a payment', /Manual grant — not a payment/.test(manualPlanText));
   check(platform, 'manual TEAM plan shows no active grant initially', /No active manual TEAM grant/.test(manualPlanText));
   check(platform, 'revoke button is disabled when no active grant', await ev(`document.querySelector('#platform-manual-revoke-submit').disabled`));
+  await tab('Administrators'); await wait(700);
+  await shot('platform-admins');
   await ev(`(() => { document.querySelector('#platform-user-id').value = 'u-target';
     document.querySelector('#platform-inspect-user').click(); return true; })()`);
   await wait(1200);
@@ -337,13 +418,13 @@ async function main() {
   await clickDialog('quiet'); await wait(300);
 
   await load('platform-admin', 'warn');
-  await view('Platform'); await wait(1600);
+  await view('Platform Operations'); await wait(1600);
   const warnText = await ev(`document.querySelector('#platform-storage').textContent`);
   check(platform, 'storage warning state is explicit, not colour-only', /Warning:/.test(warnText) && /Above the configured threshold/.test(warnText));
   check(platform, 'warning advises review, not a quota claim', /not as proof that a quota has been exceeded/.test(warnText));
 
   await load('platform-admin', 'unavailable');
-  await view('Platform'); await wait(1600);
+  await view('Platform Operations'); await wait(1600);
   const unavailable = await ev(`document.querySelector('#platform-storage').textContent`);
   check(platform, 'storage failure shows the server message', /Database storage metrics are unavailable/.test(unavailable), unavailable.slice(0, 90));
   check(platform, 'storage failure offers a retry', await ev(`[...document.querySelectorAll('#platform-storage button')].some((b) => b.textContent === 'Retry')`));
@@ -368,6 +449,16 @@ async function main() {
     check(mobile, `${width}px sidebar nav is a grid`, layout.nav === 'grid' && layout.columns >= 2, `${layout.nav}/${layout.columns}`);
     check(mobile, `${width}px small action buttons reach 44px`, layout.small !== null && layout.small >= 44, `height=${layout.small}`);
     await shot(`members-${width}px`);
+  }
+  // Each screen at phone width, both as evidence and as an overflow check.
+  await page.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 760, deviceScaleFactor: 1, mobile: false });
+  for (const [label, name] of [['Overview', 'overview'], ['Assessment Studio', 'assessment-studio'],
+    ['Academy Workspace', 'academy'], ['Billing', 'billing'], ['Members', 'members']]) {
+    if (!await view(label)) continue;
+    await wait(1100);
+    const wide = await ev(`document.documentElement.scrollWidth > window.innerWidth + 1`);
+    check(mobile, `${label} does not overflow at 375px`, !wide);
+    await shot(`mobile-${name}`);
   }
   await page.send('Emulation.clearDeviceMetricsOverride');
 

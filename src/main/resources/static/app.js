@@ -17,9 +17,56 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   campaignWorkspaceCandidateId: null, campaignWorkspaceCandidates: [],
   campaignWorkspaceToken: 0, campaignWorkspacePage: 0,
   detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
+  versionsAssessment: null, versionsToken: 0,
+  orderDetailId: null, orderDetailToken: 0,
   view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
-  'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'platform'];
+  'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
+
+// A screen is one product area. Several of them hold more than one view, shown
+// as tabs within the screen, so that the sidebar lists six or seven places
+// rather than thirteen. The views themselves are unchanged: a screen is a
+// grouping and a route, not a new container.
+const SCREENS = {
+  overview: { title: 'Overview', subtitle: '', views: [['overview', 'Overview']] },
+  members: { title: 'Members', subtitle: 'People in this workspace', views: [['members', 'Members']] },
+  'assessment-studio': {
+    title: 'Assessment Studio',
+    subtitle: 'Author questions, publish assessments, review results',
+    views: [['questions', 'Question bank'], ['assessments', 'Assessments & review']]
+  },
+  academy: {
+    title: 'Academy Workspace',
+    subtitle: 'Courses, batches, learner progress and cohort analytics',
+    views: [['academy', 'Courses & batches'], ['academy-batch', 'Batch workspace']]
+  },
+  talent: {
+    title: 'Talent Campaigns',
+    subtitle: 'Invitations, comparison, integrity review and decisions',
+    views: [['campaigns', 'Campaigns'], ['talent-campaign', 'Campaign workspace']]
+  },
+  messages: { title: 'Messages', subtitle: 'Instructor and learner conversations', views: [['messages', 'Messages']] },
+  'my-assessments': {
+    title: 'My Assessments',
+    subtitle: 'Your assignments, attempts and released results',
+    views: [['attempts', 'Assignments'], ['assessment-detail', 'Assessment detail']]
+  },
+  certificates: { title: 'Certificates', subtitle: 'Your issued certificates', views: [['certificates', 'Certificates']] },
+  billing: {
+    title: 'Organization Billing',
+    subtitle: 'Plan, sandbox orders and quota reconciliation',
+    views: [['billing', 'Plan & usage']]
+  },
+  platform: {
+    title: 'Platform Operations',
+    subtitle: 'Administration and support',
+    views: [['platform', 'Health'], ['platform-tenants', 'Organizations'], ['platform-admins', 'Administrators']]
+  }
+};
+const screenOfView = (view) => Object.keys(SCREENS)
+  .find((key) => SCREENS[key].views.some(([id]) => id === view));
+// Screens the signed-in person may open, filled in when the workspace loads.
+let availableScreens = [];
 const invitationFromLink = new URLSearchParams(location.search).get('invitation');
 const memberInvitationFromLink = new URLSearchParams(location.search).get('memberInvitation');
 const billingReturn = new URLSearchParams(location.search).get('billing');
@@ -32,11 +79,14 @@ if (memberInvitationFromLink) {
   history.replaceState(null, '', location.pathname);
 }
 if (billingReturn) {
-  history.replaceState(null, '', location.pathname);
+  // Drop the gateway's query string, but route to Billing, which is where the
+  // order and its Check payment control now live.
+  history.replaceState(null, '', `${location.pathname}#/billing`);
   const outcome = { verified: 'returned from the sandbox gateway', cancelled: 'was cancelled at the sandbox gateway',
     failed: 'did not complete at the sandbox gateway' }[billingReturn];
   notice(`${outcome ? `Sandbox checkout ${outcome}.` : `Sandbox checkout returned "${billingReturn}".`} `
-    + 'A browser redirect cannot confirm a payment — sign in and use Check payment to read the server-verified result.');
+    + 'A browser redirect cannot confirm a payment — sign in and open Billing, then use Check payment '
+    + 'to read the server-verified result.');
 }
 
 function node(tag, text = '', className = '') {
@@ -197,6 +247,10 @@ function showSignedOut() {
   state.selectedQuestionIds.clear();
   state.editingAssessment = null;
   state.editingQuestion = null;
+  state.versionsAssessment = null;
+  state.versionsToken++;
+  state.orderDetailId = null;
+  state.orderDetailToken++;
   state.reviewLoadToken++;
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
@@ -259,6 +313,8 @@ async function setOrganization() {
   state.selectedQuestionIds.clear();
   state.editingAssessment = null;
   state.editingQuestion = null;
+  hideAssessmentVersions();
+  hideOrderDetail();
   $('#question-form').reset();
   updateQuestionEditor();
   $('#assessment-form').reset();
@@ -301,16 +357,24 @@ async function setOrganization() {
     $('#page-title').textContent = 'Start here';
     $('#page-subtitle').textContent = 'Create an Academy or Talent workspace.';
     if (state.platformAdmin) {
-      const tab = node('button', 'Platform'); tab.type = 'button'; tab.dataset.view = 'platform';
-      tab.addEventListener('click', () => run(() => showView('platform')));
+      // A platform admin who owns no workspace still gets the platform screen,
+      // and only that one.
+      availableScreens = ['platform'];
+      const tab = node('button', 'Platform Operations');
+      tab.type = 'button'; tab.dataset.screen = 'platform';
+      tab.addEventListener('click', () => run(() => showScreen('platform')));
       nav.append(tab);
-      await showView('platform');
+      const route = readRoute();
+      await showScreen('platform', route?.screenKey === 'platform' ? route.viewKey : undefined);
+    } else {
+      availableScreens = [];
     }
     return;
   }
   const role = state.organization.myRole;
   $('#plan-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#tenant-support-audit-panel')?.classList.toggle('hidden', role !== 'ORG_ADMIN');
+  $('#usage-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#organization-settings-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#billing-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   const academyFeedbackStaff = state.organization.type === 'ACADEMY'
@@ -320,34 +384,45 @@ async function setOrganization() {
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
   $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
-  // Navigation is grouped by intent so Academy and Talent read as related but distinct products.
+  const academy = state.organization.type === 'ACADEMY';
+  const talent = state.organization.type === 'TALENT';
+  // The sidebar lists screens, not views. Grouping is by intent so Academy and
+  // Talent read as related but distinct products.
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
   group('', [['overview', 'Overview']]);
   group('Assessment engine', [
-    ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : []),
-    ...(staff ? [['questions', 'Question bank'], ['assessments', 'Assessments']] : [])
+    ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
+    ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : [])
   ]);
-  if (state.organization.type === 'ACADEMY') {
+  if (academy) {
     group('Academy', [
       ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
-        ? [['academy', role === 'LEARNER' ? 'My batches' : 'Courses & batches']] : []),
-      ...(['ORG_ADMIN', 'INSTRUCTOR'].includes(role) ? [['academy-batch', 'Batch workspace']] : []),
+        ? [['academy', role === 'LEARNER' ? 'My batches' : 'Academy Workspace']] : []),
       ...(['INSTRUCTOR', 'LEARNER'].includes(role) ? [['messages', 'Messages']] : []),
       ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
     ]);
   }
-  if (state.organization.type === 'TALENT') {
-    group('Talent', staff ? [['campaigns', 'Hiring campaigns'], ['talent-campaign', 'Campaign workspace']] : []);
-  }
+  if (talent) group('Talent', staff ? [['talent', 'Talent Campaigns']] : []);
   group('My work', ['LEARNER', 'CANDIDATE'].includes(role)
-    ? [['attempts', 'My assessments'], ['assessment-detail', 'Assessment detail']] : []);
-  group('Administration', state.platformAdmin ? [['platform', 'Platform']] : []);
+    ? [['my-assessments', 'My Assessments']] : []);
+  group('Administration', [
+    ...(role === 'ORG_ADMIN' ? [['billing', 'Billing']] : []),
+    ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])
+  ]);
+
+  // A learner sees only their own batch list, never the staff batch workspace,
+  // so that screen drops its second tab rather than showing a forbidden one.
+  SCREENS.academy.views = ['ORG_ADMIN', 'INSTRUCTOR'].includes(role)
+    ? [['academy', 'Courses & batches'], ['academy-batch', 'Batch workspace']]
+    : [['academy', 'My batches']];
+
+  availableScreens = groups.flatMap(([, items]) => items.map(([key]) => key));
   for (const [heading, items] of groups) {
     if (heading) nav.append(node('p', heading, 'nav-heading'));
     for (const [key, title] of items) {
-      const tab = node('button', title); tab.type = 'button'; tab.dataset.view = key;
-      tab.addEventListener('click', () => run(() => showView(key)));
+      const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
+      tab.addEventListener('click', () => run(() => showScreen(key)));
       nav.append(tab);
     }
   }
@@ -367,14 +442,22 @@ async function setOrganization() {
   if (academyStaff) actions.push(shortcut('Question bank', 'questions'), shortcut('Assessments & review', 'assessments'),
     shortcut('Courses & batches', 'academy'), shortcut('Messages', 'messages'));
   if (talentStaff) actions.push(shortcut('Hiring campaigns', 'campaigns'), shortcut('Assessments & review', 'assessments'));
-  if (role === 'ORG_ADMIN') actions.push(shortcut('Members', 'members'));
+  if (role === 'ORG_ADMIN') actions.push(shortcut('Members', 'members'), shortcut('Billing', 'billing'));
   if (['LEARNER', 'CANDIDATE'].includes(role)) actions.push(shortcut('My assessments', 'attempts'));
   if (role === 'LEARNER' && state.organization.type === 'ACADEMY') {
     actions.push(shortcut('My batches', 'academy'), shortcut('Certificates', 'certificates'));
   }
   if (state.platformAdmin) actions.push(shortcut('Platform', 'platform'));
   quick.replaceChildren(...actions);
-  await showView('overview');
+  // A route in the URL is honoured only if this person's role actually has
+  // that screen; otherwise the link silently becomes the overview rather than
+  // opening a section the sidebar does not offer.
+  const route = readRoute();
+  if (route && availableScreens.includes(route.screenKey)) {
+    await showScreen(route.screenKey, route.viewKey);
+  } else {
+    await showView('overview');
+  }
 }
 async function loadOverviewMetrics() {
   const container = $('#overview-metrics');
@@ -415,34 +498,85 @@ async function loadOverviewMetrics() {
     return card;
   }));
 }
+// Open a screen, optionally at one of its tabs. This is what the sidebar, the
+// overview shortcuts and the URL all go through.
+async function showScreen(screenKey, viewKey) {
+  const screen = SCREENS[screenKey];
+  if (!screen) return;
+  const tabs = screen.views;
+  const target = tabs.some(([id]) => id === viewKey) ? viewKey : tabs[0][0];
+  await showView(target);
+}
+function renderScreenTabs(screenKey, activeView) {
+  const strip = $('#screen-tabs');
+  const screen = SCREENS[screenKey];
+  const tabs = screen ? screen.views : [];
+  // A screen with one view needs no tab strip; the sidebar already named it.
+  strip.classList.toggle('hidden', tabs.length < 2);
+  if (tabs.length < 2) { strip.replaceChildren(); return; }
+  strip.replaceChildren(...tabs.map(([id, label]) => {
+    const tab = node('button', label, 'tab');
+    tab.type = 'button';
+    tab.setAttribute('role', 'tab');
+    tab.dataset.view = id;
+    const active = id === activeView;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+    tab.addEventListener('click', () => run(() => showView(id)));
+    return tab;
+  }));
+}
+// The route is the screen, then the tab when the screen has more than one.
+// Keeping it in the hash rather than the path means a reload never asks the
+// server for a page that does not exist.
+function writeRoute(screenKey, viewKey) {
+  const screen = SCREENS[screenKey];
+  const route = screen && screen.views.length > 1 ? `#/${screenKey}/${viewKey}` : `#/${screenKey}`;
+  if (location.hash !== route) history.replaceState(null, '', route);
+}
+function readRoute() {
+  const parts = (location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
+  if (!parts.length) return null;
+  const [screenKey, viewKey] = parts;
+  return SCREENS[screenKey] ? { screenKey, viewKey } : null;
+}
 async function showView(key) {
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
+  const screenKey = screenOfView(key) || 'overview';
   for (const view of views) $(`#${view}-view`).classList.toggle('hidden', key !== view);
   for (const tab of $('#workspace-nav').querySelectorAll('button')) {
-    const active = tab.dataset.view === key;
+    const active = tab.dataset.screen === screenKey;
     tab.classList.toggle('active', active);
     if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
   }
-  const names = { overview: 'Overview', members: 'Members', questions: 'Question bank',
-    assessments: 'Assessments', academy: 'Courses & batches', 'academy-batch': 'Batch workspace',
-    messages: 'Messages', campaigns: 'Hiring campaigns', 'talent-campaign': 'Campaign workspace',
-    attempts: 'My assessments', 'assessment-detail': 'Assessment detail',
-    certificates: 'Certificates', platform: 'Platform' };
-  $('#page-title').textContent = names[key];
-  document.title = `${names[key]} · JachAI`;
+  renderScreenTabs(screenKey, key);
+  writeRoute(screenKey, key);
+  const screen = SCREENS[screenKey];
+  const tabLabel = (screen.views.find(([id]) => id === key) || [, screen.title])[1];
+  $('#page-title').textContent = screen.title;
+  document.title = screen.views.length > 1
+    ? `${tabLabel} · ${screen.title} · JachAI`
+    : `${screen.title} · JachAI`;
   const heading = $('#page-title');
   heading.setAttribute('tabindex', '-1');
   heading.focus({ preventScroll: true });
-  $('#page-subtitle').textContent = key === 'platform' ? 'Administration and support'
-    : state.organization?.name || '';
-  if (key === 'platform') { await loadPlatformView(); return; }
+  // The subtitle says what the screen is for, and which workspace it belongs
+  // to when there is one, because a person may belong to several.
+  $('#page-subtitle').textContent = [screen.subtitle, key === 'platform' ? '' : state.organization?.name || '']
+    .filter(Boolean).join(' · ');
+  if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'overview') await loadOverviewMetrics();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
-    await loadEntitlements(); await loadOrganizationSettings();
+    await loadOrganizationSettings();
     ensureTenantSupportAuditPanel();
     await loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
       'Platform support history could not be loaded.');
+  }
+  if (key === 'billing' && state.organization.myRole === 'ORG_ADMIN') {
+    await loadEntitlements();
+    await loadList('#usage-report', () => loadUsageReconciliation(),
+      'The quota check could not be run.');
   }
   if (key === 'members') {
     await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
@@ -508,16 +642,68 @@ async function loadEntitlements() {
 }
 async function loadPaymentHistory(pageNumber = 0) {
   const payments = await request(ownOrg(`/billing/orders?page=${pageNumber}`));
-  setList('#payment-history', (payments.content || []).map((order) => item(
-    `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
-    `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
-    order.status === 'CHECKOUT_READY' || order.status === 'VERIFIED'
-      ? [button('Check payment', async () => {
-          await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/reconcile`), { method: 'POST' });
-          await loadEntitlements();
-        })] : [])),
-  'No demo transactions yet.');
+  setList('#payment-history', (payments.content || []).map((order) => {
+    const actions = [];
+    if (order.status === 'CHECKOUT_READY' || order.status === 'VERIFIED') {
+      actions.push(button('Check payment', async () => {
+        await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/reconcile`), { method: 'POST' });
+        await loadEntitlements();
+      }));
+    }
+    actions.push(button('Details', () => showOrderDetail(order.id), 'button quiet small'));
+    return item(
+      `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
+      `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
+      actions);
+  }), 'No demo transactions yet.');
   renderPageControls('#payment-history-pagination', payments, loadPaymentHistory);
+  if (state.orderDetailId
+      && !(payments.content || []).some((order) => order.id === state.orderDetailId)) {
+    hideOrderDetail();
+  }
+}
+function hideOrderDetail() {
+  state.orderDetailId = null;
+  state.orderDetailToken += 1;
+  $('#order-detail').classList.add('hidden');
+}
+async function showOrderDetail(orderId) {
+  state.orderDetailId = orderId;
+  const panel = $('#order-detail');
+  panel.classList.remove('hidden');
+  await loadOrderDetail();
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('#order-detail-close').focus({ preventScroll: true });
+}
+async function loadOrderDetail() {
+  const orderId = state.orderDetailId;
+  if (!orderId) return;
+  state.orderDetailToken += 1;
+  const token = state.orderDetailToken;
+  await loadList('#order-detail-body', async () => {
+    const order = await request(ownOrg(`/billing/orders/${encodeURIComponent(orderId)}`));
+    if (token !== state.orderDetailToken) return;
+    // The list already shows provider, amount and status. What it cannot show
+    // is where the order stopped, so the detail is the lifecycle: the server
+    // only grants access at the applied step, and a gap between these stamps
+    // is exactly what "Check payment" is for.
+    const stages = [
+      ['Created', order.createdAt, 'Checkout was started in the sandbox.'],
+      ['Verified with the provider', order.verifiedAt,
+        'The provider confirmed the transaction to the server. A browser redirect alone never reaches this step.'],
+      ['Applied to the plan', order.appliedAt,
+        'Entitlements were granted. Until this is stamped, the plan has not changed.']
+    ];
+    setList('#order-detail-body', [
+      item(`${order.provider} · ৳${order.amountBdt}`, `${order.id} · status ${order.status}`),
+      ...stages.map(([label, stamp, explanation]) => {
+        const row = item(label, `${stamp ? when(stamp) : 'Not reached'} · ${explanation}`);
+        row.querySelector('.item-actions')
+          .append(node('span', stamp ? 'Done' : 'Pending', stamp ? 'pill ok' : 'pill warn'));
+        return row;
+      })
+    ], 'This order could not be described.');
+  }, 'The order detail could not be loaded.');
 }
 async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
@@ -612,7 +798,7 @@ function ensureTenantSupportAuditPanel() {
     <p class="muted">Every platform-admin metadata preview of this workspace is recorded here. No staff member can hide a recorded access from this history.</p></div>
     <button id="tenant-support-audit-refresh" class="button quiet small" type="button">Reload</button></div>
     <div id="tenant-support-audit" class="item-list"></div><div id="tenant-support-audit-pagination"></div>`;
-  $('#plan-panel').insertAdjacentElement('afterend', panel);
+  $('#overview-view').append(panel);
   $('#tenant-support-audit-refresh').addEventListener('click', () => run(() =>
     loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
       'Platform support history could not be loaded.')));
@@ -717,6 +903,60 @@ async function loadPlatformOrders(id, pageNumber, token) {
     `${order.id} · ${new Date(order.createdAt).toLocaleString()}`)), 'No demo orders found.');
   renderPageControls('#platform-orders-pagination', page,
     (nextPage) => loadPlatformOrders(id, nextPage, token));
+}
+// Tenant-scoped quota reconciliation. The platform admin has a wider version
+// of this on PlatformAdminController with an audit trail; this one is scoped to
+// the caller's own organization and reports only its own counters.
+function renderUsageReport(report) {
+  const entries = report.entries || [];
+  $('#usage-generated').textContent = `Checked ${when(report.generatedAt)}`
+    + ` · ${report.tier || 'unknown'} plan`
+    + ` · looking back ${report.lookbackMonths} month${report.lookbackMonths === 1 ? '' : 's'}`;
+  setList('#usage-report', entries.map((entry) => {
+    const row = item(
+      `${entry.metric.replaceAll('_', ' ')} · ${entry.window}`,
+      `Recorded ${entry.recordedUsage}; proven ${entry.provenMinimumUsage}-${entry.provenMaximumUsage};`
+        + ` plan limit ${entry.planLimit}. ${entry.detail || ''}`.trim());
+    // The status is spelled out, not only coloured, so it survives being read
+    // aloud or printed.
+    const status = (entry.status || '').replaceAll('_', ' ');
+    const tone = entry.status === 'MATCHES' ? 'pill ok'
+      : entry.status === 'OUTCOME_UNCONFIRMED' ? 'pill danger' : 'pill warn';
+    row.querySelector('.item-actions').append(node('span', status, tone));
+    return row;
+  }), 'No quota discrepancies in the scanned windows.');
+
+  const manual = $('#usage-manual');
+  const steps = report.manualSteps || [];
+  manual.textContent = steps.length
+    ? ['This check could not settle everything by itself:', ...steps].join('\n')
+    : '';
+  manual.classList.toggle('hidden', !steps.length);
+
+  // Repair is only offered when something is actually out of step. Offering it
+  // against a clean report would invite a write that changes nothing.
+  const repairable = entries.some((entry) => entry.status && entry.status !== 'MATCHES');
+  const repair = $('#usage-repair');
+  repair.disabled = !repairable;
+  repair.title = repairable ? 'Rewrite the counters to match what the records prove'
+    : 'Nothing to repair: every scanned window matches';
+}
+async function loadUsageReconciliation() {
+  renderUsageReport(await request(ownOrg('/billing/entitlements/usage-reconciliation')));
+}
+async function repairUsageReconciliation() {
+  if (!await confirmDialog('Repair the quota counters for this workspace?\n\n'
+      + 'This rewrites the recorded usage for the scanned windows to match what the stored records prove. '
+      + 'It does not change your plan, issue a refund, or create a payment. '
+      + 'The counters and the records are not updated together, so a report that comes back unconfirmed '
+      + 'needs a fresh check rather than a second repair.')) return;
+  const repair = $('#usage-repair');
+  repair.disabled = true;
+  const report = await request(ownOrg('/billing/entitlements/usage-reconciliation'), { method: 'POST' });
+  renderUsageReport(report);
+  notice(report.repaired
+    ? 'Quota counters rewritten to match the stored records.'
+    : 'The check ran and changed nothing. The counters already matched.');
 }
 async function loadPlatformUsageReport(id, token) {
   const report = await request(`/platform/organizations/${encodeURIComponent(id)}/billing/usage-reconciliation`);
@@ -1235,12 +1475,69 @@ async function loadAssessments(pageNumber = 0) {
       actions.push(publish);
     } else if (assessment.status === 'PUBLISHED') {
       actions.push(button('New version', () => editAssessment(assessment)));
+      // Only a published assessment has frozen versions to look at; a draft
+      // has never been frozen, so the history would always be empty.
+      actions.push(button('Version history', () => showAssessmentVersions(assessment), 'button quiet small'));
     }
     return item(assessment.title,
       `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
       actions);
   }), 'No assessments yet.');
   renderPageControls('#assessments-pagination', page, loadAssessments);
+  // The open history belongs to one assessment. If that assessment is no
+  // longer on the page being shown, the panel would describe something the
+  // person can no longer see, so it closes.
+  if (state.versionsAssessment
+      && !(page.content || []).some((assessment) => assessment.id === state.versionsAssessment.id)) {
+    hideAssessmentVersions();
+  }
+}
+function hideAssessmentVersions() {
+  state.versionsAssessment = null;
+  state.versionsToken += 1;
+  $('#assessment-versions').classList.add('hidden');
+}
+async function showAssessmentVersions(assessment) {
+  state.versionsAssessment = assessment;
+  const panel = $('#assessment-versions');
+  panel.classList.remove('hidden');
+  $('#assessment-versions-for').textContent =
+    `Published versions of "${assessment.title}". Each one is frozen: assignments keep the version they were created with.`;
+  await loadAssessmentVersions(0);
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('#assessment-versions-close').focus({ preventScroll: true });
+}
+async function loadAssessmentVersions(pageNumber = 0) {
+  const assessment = state.versionsAssessment;
+  if (!assessment) return;
+  // Switching assessments while a slower request is still in flight would
+  // otherwise let the older response overwrite the newer list.
+  state.versionsToken += 1;
+  const token = state.versionsToken;
+  await loadList('#assessment-versions-list', async () => {
+    const page = await request(
+      ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/versions?page=${pageNumber}`));
+    if (token !== state.versionsToken) return;
+    setList('#assessment-versions-list', (page.content || []).map((version) => {
+      const questionCount = (version.questions || []).length;
+      const release = version.resultReleasePolicy || 'IMMEDIATE';
+      const row = item(`Version ${version.version}`,
+        `${questionCount} question${questionCount === 1 ? '' : 's'} · ${version.durationMinutes} min`
+          + ` · pass ${version.passingPercentage}% · release ${release}`
+          + ` · published ${when(version.publishedAt)}`);
+      if (version.version === assessment.latestVersion) {
+        row.querySelector('.item-actions').append(node('span', 'Current', 'pill ok'));
+      }
+      const topics = [...new Set((version.questions || [])
+        .map((question) => question.topic).filter(Boolean))];
+      if (topics.length) {
+        row.querySelector('.item-main')
+          .append(node('p', `Topics: ${topics.join(', ')}`, 'item-meta'));
+      }
+      return row;
+    }), 'This assessment has no published versions yet.');
+    renderPageControls('#assessment-versions-pagination', page, loadAssessmentVersions);
+  }, 'The version history could not be loaded.');
 }
 async function loadPublishedAssessments(selectSelector, paginationSelector, pageNumber = 0) {
   const page = await request(ownOrg(`/assessments?status=PUBLISHED&page=${pageNumber}`));
@@ -3215,6 +3512,19 @@ $('#platform-inspect-user').addEventListener('click', () => run(() =>
   inspectPlatformUser($('#platform-user-id').value)));
 $('#platform-grant-role').addEventListener('click', () => run(() => changePlatformRole(true)));
 $('#platform-revoke-role').addEventListener('click', () => run(() => changePlatformRole(false)));
+// Back and forward move between screens. writeRoute uses replaceState, so a
+// tab change does not add a history entry; only a deliberate link does.
+window.addEventListener('hashchange', () => {
+  const route = readRoute();
+  if (!route || !availableScreens.includes(route.screenKey)) return;
+  if (route.viewKey === state.view) return;
+  run(() => showScreen(route.screenKey, route.viewKey));
+});
+$('#assessment-versions-close').addEventListener('click', () => hideAssessmentVersions());
+$('#order-detail-close').addEventListener('click', () => hideOrderDetail());
+$('#usage-refresh').addEventListener('click', () => run(() =>
+  loadList('#usage-report', () => loadUsageReconciliation(), 'The quota check could not be run.')));
+$('#usage-repair').addEventListener('click', () => run(() => repairUsageReconciliation()));
 $('#platform-manual-refresh').addEventListener('click', () => run(() => {
   const id = state.platformOrganizationId;
   if (!id) return;
