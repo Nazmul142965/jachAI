@@ -3,111 +3,136 @@
    --------------------------------------------------------------------------
    The single source of truth for colour, type, space, radius, elevation and
    motion. Loaded before app.css (the authenticated workspace) and public.css
-   (the marketing and verification pages) so both describe the brand in one
-   vocabulary.
+   (the marketing and verification pages).
+
+   THE PALETTE AND WHY IT IS THIS ONE
+   ----------------------------------
+   The brand is electric aqua on warm off-white in light, deep navy in dark.
+   Green is reserved, and does not appear in the chrome at all.
+
+   That separation is the point. This product's whole job is to say whether
+   someone passed, whether a certificate is valid, whether a payment was
+   verified. When the brand colour was also green, a passing result was the
+   same colour as the sidebar, the buttons and the links, so the one signal
+   that matters most read as decoration. Green now means exactly one thing:
+   this was verified, or this passed.
+
+   Aqua carries the chrome because it holds its hue against both a warm paper
+   canvas and a navy one, and because it is not the default SaaS indigo.
+   Coral is the accent, used sparingly where something needs a person's
+   attention without claiming to be an error. Amber warns. Red fails.
+
+   Navy rather than a near-black: assessment review is long-form reading, and
+   a slightly blue dark surface keeps text legible where a flat black makes it
+   vibrate. The light canvas is warm off-white for the same reason, glare.
 
    Theme resolution, in order:
-     1. :root                              the light palette, always defined
-     2. prefers-color-scheme: dark         the OS preference, unless the
-                                           visitor has explicitly chosen light
-     3. [data-theme="dark"]                an explicit choice, which wins over
-                                           the OS either way
-
-   Rule 2 exists so a visitor who prefers dark gets it on first paint, before
-   any script runs. Rule 3 exists so the choice in the header can override the
-   OS in both directions. They carry the same values; theme.js sets the
-   attribute, and nothing else should.
+     1. :root                      the light palette, always defined
+     2. prefers-color-scheme: dark the OS preference, unless light was chosen
+     3. [data-theme="dark"]        an explicit choice, which wins either way
    ========================================================================== */
 
 :root {
   color-scheme: light dark;
 
   /* ------------------------------------------------------------------------
-     Palette ramps — fixed. These never change between themes; the semantic
-     roles below are what gets reassigned.
+     Palette ramps — fixed across both themes.
      --------------------------------------------------------------------- */
 
-  --brand-50:  #eef6f3;
-  --brand-100: #d6eee5;
-  --brand-200: #abdbcb;
-  --brand-300: #74c0a9;
-  --brand-400: #3f9d81;
-  --brand-500: #1a7a62;
-  --brand-600: #075b4d;
-  --brand-700: #064b40;
-  --brand-800: #053b33;
-  --brand-900: #042a25;
+  /* Brand: electric aqua. */
+  --brand-50:  #e8f8fa;
+  --brand-100: #c6eef3;
+  --brand-200: #93dde6;
+  --brand-300: #55c6d5;
+  --brand-400: #22a9bd;
+  --brand-500: #0f8ca3;
+  --brand-600: #0b7187;
+  --brand-700: #0a5b6d;
+  --brand-800: #0a4654;
+  --brand-900: #07323d;
 
-  --accent-300: #e6f79a;
-  --accent-400: #d5f15a;
-  --accent-500: #bcd93c;
+  /* Accent: coral. Attention without alarm. */
+  --accent-300: #ffb3a6;
+  --accent-400: #ff7f6b;
+  --accent-500: #e85c45;
 
+  /* Neutrals: warm in light, so paper rather than screen. */
   --neutral-0:   #ffffff;
-  --neutral-25:  #fafcfb;
-  --neutral-50:  #f4f8f5;
-  --neutral-200: #d9e5e1;
-  --neutral-300: #c2d3cc;
-  --neutral-500: #657879;
-  --neutral-600: #4b5e5f;
-  --neutral-700: #33474a;
-  --neutral-800: #22383c;
-  --neutral-900: #182d32;
+  --neutral-25:  #fdfcfa;
+  --neutral-50:  #f7f5f1;
+  --neutral-200: #e3ded5;
+  --neutral-300: #cec7ba;
+  --neutral-500: #6f6a60;
+  --neutral-600: #565149;
+  --neutral-700: #3c3932;
+  --neutral-800: #2a2823;
+  --neutral-900: #1c1b18;
+
+  /* Navy, used only by the dark theme but defined here so both blocks and any
+     component that needs a fixed navy can reach it. */
+  --navy-900: #080d19;
+  --navy-800: #0b1222;
+  --navy-700: #111a2e;
+  --navy-600: #16213a;
+  --navy-500: #1d2b48;
+  --navy-400: #27395c;
+  --navy-300: #3a5080;
 
   /* ------------------------------------------------------------------------
      Light theme — semantic roles
      --------------------------------------------------------------------- */
 
-  /* Neutral steps used directly as a surface or a hairline, so they need a
-     counterpart in the dark theme. */
-  --neutral-100: #eaf1ed;
-  --neutral-400: #9aaea8;
+  /* Neutral steps used directly as a surface or a hairline. */
+  --neutral-100: #efebe3;
+  --neutral-400: #a69e90;
 
-  --success-surface: #e3f5eb;
-  --success-border:  #b7dcc8;
-  --success-ink:     #1a5c41;
-  --warn-surface:    #fff4de;
-  --warn-border:     #f0dcb0;
-  --warn-ink:        #7d5713;
-  --danger-surface:  #fff0ef;
-  --danger-border:   #e9c2bf;
-  --danger-ink:      #a73535;
-  --info-surface:    #eef2f8;
-  --info-ink:        #253c60;
+  /* Green means passed or verified. Nothing else may use it. */
+  --success-surface: #e4f6ea;
+  --success-border:  #b3e0c4;
+  --success-ink:     #11703f;
+  --warn-surface:    #fdf2dd;
+  --warn-border:     #f0d9a8;
+  --warn-ink:        #8a5a12;
+  --danger-surface:  #fdecea;
+  --danger-border:   #f3c5bf;
+  --danger-ink:      #b3291b;
+  --info-surface:    #e9f1fb;
+  --info-ink:        #1d4e85;
 
   --canvas:        var(--neutral-50);
   --surface:       var(--neutral-0);
-  --surface-sunk:  var(--neutral-50);
+  --surface-sunk:  #f2efe9;
   --surface-brand: var(--brand-50);
   --line:          var(--neutral-200);
-  --line-soft:     #e6efea;
+  --line-soft:     #eeeae2;
   --line-strong:   var(--neutral-300);
   --ink:           var(--neutral-900);
   --ink-soft:      var(--neutral-700);
   --muted:         var(--neutral-500);
   --brand:         var(--brand-600);
   --brand-hover:   var(--brand-700);
-  --brand-ink:     var(--brand-600);
-  --on-brand:      var(--neutral-0);
+  --brand-ink:     var(--brand-700);
+  --on-brand:      #ffffff;
   --mint:          var(--brand-100);
-  --mint-ink:      var(--brand-700);
+  --mint-ink:      var(--brand-800);
   --accent:        var(--accent-400);
-  --accent-on:     var(--brand-700);
-  --accent-soft:   #f3fbd8;
-  --accent-ink:    #4a5a1a;
+  --accent-on:     #5c1c10;
+  --accent-soft:   #fff0ec;
+  --accent-ink:    #a23b27;
   --danger:        var(--danger-ink);
+  --on-danger:     #ffffff;
   --warn:          var(--warn-ink);
-  --on-danger:     var(--neutral-0);
   --focus-ring:    var(--brand-500);
-  --scrim:         rgba(13, 26, 28, .5);
+  --scrim:         rgba(28, 27, 24, .48);
   --shadow-text:   0 1px 1px rgba(0, 0, 0, .35);
 
-  --e-1: 0 1px 2px rgba(6, 59, 51, .05), 0 1px 3px rgba(6, 59, 51, .04);
-  --e-2: 0 2px 4px rgba(6, 59, 51, .04), 0 8px 20px rgba(6, 59, 51, .06);
-  --e-3: 0 4px 10px rgba(6, 59, 51, .06), 0 18px 44px rgba(6, 59, 51, .09);
-  --e-4: 0 24px 60px rgba(6, 59, 51, .22);
-  --shadow-brand: 0 18px 44px rgba(7, 91, 77, .14);
+  --e-1: 0 1px 2px rgba(28, 27, 24, .05), 0 1px 3px rgba(28, 27, 24, .04);
+  --e-2: 0 1px 2px rgba(28, 27, 24, .04), 0 6px 16px rgba(28, 27, 24, .06);
+  --e-3: 0 4px 10px rgba(28, 27, 24, .06), 0 16px 40px rgba(28, 27, 24, .09);
+  --e-4: 0 24px 60px rgba(28, 27, 24, .24);
+  --shadow-brand: 0 14px 36px rgba(11, 113, 135, .16);
 
-  /* Legacy names, kept so any rule not yet migrated still resolves. */
+  /* Legacy names, kept so nothing not yet migrated breaks. */
   --forest:      var(--brand);
   --forest-deep: var(--brand-hover);
   --forest-soft: var(--success-surface);
@@ -130,7 +155,7 @@
   --text-lg:   17px;
   --text-xl:   21px;
   --text-2xl:  clamp(24px, 2.4vw, 30px);
-  --text-3xl:  clamp(30px, 3.4vw, 46px);
+  --text-3xl:  clamp(28px, 3vw, 40px);
   --text-display: clamp(40px, 5.4vw, 68px);
 
   --leading-tight:   1.15;
@@ -138,41 +163,32 @@
   --leading-normal:  1.55;
   --leading-relaxed: 1.65;
 
-  --tracking-display: -.035em;
-  --tracking-tight:   -.02em;
+  --tracking-display: -.03em;
+  --tracking-tight:   -.018em;
   --tracking-wide:    .1em;
-  --tracking-caps:    .14em;
+  --tracking-caps:    .13em;
 
   --weight-regular:  400;
   --weight-medium:   500;
-  --weight-semibold: 650;
-  --weight-bold:     800;
+  --weight-semibold: 620;
+  --weight-bold:     780;
 
   /* ------------------------------------------------------------------------
      Space, radius, motion, layout
      --------------------------------------------------------------------- */
 
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-7: 32px;
-  --sp-8: 40px;
-  --sp-9: 48px;
-  --sp-10: 64px;
-  --sp-11: 80px;
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-7: 32px; --sp-8: 40px;
+  --sp-9: 48px; --sp-10: 64px; --sp-11: 80px;
 
-  --r-xs: 6px;
-  --r-sm: 9px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 20px;
-  --r-2xl: 26px;
+  --r-xs: 5px;
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --r-2xl: 24px;
   --r-pill: 999px;
 
-  /* Aliases used by the public component layer. */
   --radius-sm: var(--r-sm);
   --radius:    var(--r-lg);
   --radius-lg: var(--r-xl);
@@ -181,132 +197,128 @@
   --shadow:      var(--e-3);
 
   --ease: cubic-bezier(.2, .7, .3, 1);
-  --dur-fast: 120ms;
-  --dur-base: 180ms;
+  --dur-fast: 110ms;
+  --dur-base: 170ms;
   --dur: var(--dur-base);
 
   --gutter: clamp(18px, 4vw, 64px);
-  --topbar-h: 76px;
-  --sidebar-w: 248px;
-  --content-max: 1320px;
+  --topbar-h: 72px;
+  --sidebar-w: 252px;
+  --content-max: 1360px;
   --max: 1080px;
 
   font-family: var(--font-sans);
 }
 
 /* ==========================================================================
-   Dark theme
+   Dark theme — deep navy
    --------------------------------------------------------------------------
-   The two selectors below carry identical declarations and must stay in step.
-   They cannot be merged: one lives inside a media query and the other does
-   not, and CSS has no way to share a declaration block across that boundary.
+   The two selectors carry identical declarations and must stay in step. They
+   cannot be merged: one is inside a media query and the other is not, and CSS
+   has no way to share a declaration block across that boundary.
    ========================================================================== */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --neutral-100: #1c3338;
-    --neutral-400: #70878a;
+    --neutral-100: var(--navy-500);
+    --neutral-400: #6d7f9e;
 
-    --success-surface: #13362a;
-    --success-border:  #235842;
-    --success-ink:     #8fdcb6;
-    --warn-surface:    #3a2f16;
-    --warn-border:     #5c4a1f;
-    --warn-ink:        #f0cd84;
-    --danger-surface:  #3a1d1d;
-    --danger-border:   #5e2f2e;
-    --danger-ink:      #f3a9a4;
-    --info-surface:    #1b2740;
-    --info-ink:        #bdcdf0;
+    --success-surface: #0e2e22;
+    --success-border:  #1d5740;
+    --success-ink:     #5fd99a;
+    --warn-surface:    #33280f;
+    --warn-border:     #574419;
+    --warn-ink:        #f2c168;
+    --danger-surface:  #381a18;
+    --danger-border:   #5c2b27;
+    --danger-ink:      #ff9184;
+    --info-surface:    #15233d;
+    --info-ink:        #9dc0f0;
 
-    --canvas:        #0d1a1c;
-    --surface:       #13262a;
-    --surface-sunk:  #0f2024;
-    --surface-brand: #102b28;
-    --line:          #27454a;
-    --line-soft:     #1e3a3f;
-    --line-strong:   #35585e;
-    --ink:           #e8f1ee;
-    --ink-soft:      #c3d6d1;
-    --muted:         #90a8a5;
+    --canvas:        var(--navy-900);
+    --surface:       var(--navy-700);
+    --surface-sunk:  var(--navy-800);
+    --surface-brand: #0d2a36;
+    --line:          var(--navy-400);
+    --line-soft:     var(--navy-500);
+    --line-strong:   var(--navy-300);
+    --ink:           #e9eefa;
+    --ink-soft:      #bdc9e0;
+    --muted:         #8697b5;
     --brand:         var(--brand-300);
     --brand-hover:   var(--brand-200);
     --brand-ink:     var(--brand-300);
-    --on-brand:      #042a25;
-    --mint:          #16423a;
+    --on-brand:      var(--navy-900);
+    --mint:          #103642;
     --mint-ink:      var(--brand-200);
-    --accent-on:     #042a25;
-    --accent-soft:   #2c3a15;
-    --accent-ink:    #dcefa6;
-    --on-danger:     #3a1d1d;
+    --accent:        var(--accent-400);
+    --accent-on:     var(--navy-900);
+    --accent-soft:   #3a1d16;
+    --accent-ink:    var(--accent-300);
+    --on-danger:     var(--navy-900);
     --focus-ring:    var(--brand-300);
-    --scrim:         rgba(0, 0, 0, .66);
+    --scrim:         rgba(4, 8, 16, .7);
 
-    --e-1: 0 1px 2px rgba(0, 0, 0, .3);
-    --e-2: 0 2px 4px rgba(0, 0, 0, .25), 0 8px 20px rgba(0, 0, 0, .3);
-    --e-3: 0 4px 10px rgba(0, 0, 0, .3), 0 18px 44px rgba(0, 0, 0, .38);
-    --e-4: 0 24px 60px rgba(0, 0, 0, .55);
-    --shadow-brand: 0 18px 44px rgba(0, 0, 0, .45);
+    --e-1: 0 1px 2px rgba(0, 0, 0, .4);
+    --e-2: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 16px rgba(0, 0, 0, .35);
+    --e-3: 0 4px 10px rgba(0, 0, 0, .4), 0 16px 40px rgba(0, 0, 0, .45);
+    --e-4: 0 24px 60px rgba(0, 0, 0, .6);
+    --shadow-brand: 0 14px 36px rgba(0, 0, 0, .5);
   }
 }
 
 :root[data-theme="dark"] {
-  --neutral-100: #1c3338;
-  --neutral-400: #70878a;
+  --neutral-100: var(--navy-500);
+  --neutral-400: #6d7f9e;
 
-  --success-surface: #13362a;
-  --success-border:  #235842;
-  --success-ink:     #8fdcb6;
-  --warn-surface:    #3a2f16;
-  --warn-border:     #5c4a1f;
-  --warn-ink:        #f0cd84;
-  --danger-surface:  #3a1d1d;
-  --danger-border:   #5e2f2e;
-  --danger-ink:      #f3a9a4;
-  --info-surface:    #1b2740;
-  --info-ink:        #bdcdf0;
+  --success-surface: #0e2e22;
+  --success-border:  #1d5740;
+  --success-ink:     #5fd99a;
+  --warn-surface:    #33280f;
+  --warn-border:     #574419;
+  --warn-ink:        #f2c168;
+  --danger-surface:  #381a18;
+  --danger-border:   #5c2b27;
+  --danger-ink:      #ff9184;
+  --info-surface:    #15233d;
+  --info-ink:        #9dc0f0;
 
-  --canvas:        #0d1a1c;
-  --surface:       #13262a;
-  --surface-sunk:  #0f2024;
-  --surface-brand: #102b28;
-  --line:          #27454a;
-  --line-soft:     #1e3a3f;
-  --line-strong:   #35585e;
-  --ink:           #e8f1ee;
-  --ink-soft:      #c3d6d1;
-  --muted:         #90a8a5;
+  --canvas:        var(--navy-900);
+  --surface:       var(--navy-700);
+  --surface-sunk:  var(--navy-800);
+  --surface-brand: #0d2a36;
+  --line:          var(--navy-400);
+  --line-soft:     var(--navy-500);
+  --line-strong:   var(--navy-300);
+  --ink:           #e9eefa;
+  --ink-soft:      #bdc9e0;
+  --muted:         #8697b5;
   --brand:         var(--brand-300);
   --brand-hover:   var(--brand-200);
   --brand-ink:     var(--brand-300);
-  --on-brand:      #042a25;
-  --mint:          #16423a;
+  --on-brand:      var(--navy-900);
+  --mint:          #103642;
   --mint-ink:      var(--brand-200);
-  --accent-on:     #042a25;
-  --accent-soft:   #2c3a15;
-  --accent-ink:    #dcefa6;
-  --on-danger:     #3a1d1d;
+  --accent:        var(--accent-400);
+  --accent-on:     var(--navy-900);
+  --accent-soft:   #3a1d16;
+  --accent-ink:    var(--accent-300);
+  --on-danger:     var(--navy-900);
   --focus-ring:    var(--brand-300);
-  --scrim:         rgba(0, 0, 0, .66);
+  --scrim:         rgba(4, 8, 16, .7);
 
-  --e-1: 0 1px 2px rgba(0, 0, 0, .3);
-  --e-2: 0 2px 4px rgba(0, 0, 0, .25), 0 8px 20px rgba(0, 0, 0, .3);
-  --e-3: 0 4px 10px rgba(0, 0, 0, .3), 0 18px 44px rgba(0, 0, 0, .38);
-  --e-4: 0 24px 60px rgba(0, 0, 0, .55);
-  --shadow-brand: 0 18px 44px rgba(0, 0, 0, .45);
+  --e-1: 0 1px 2px rgba(0, 0, 0, .4);
+  --e-2: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 16px rgba(0, 0, 0, .35);
+  --e-3: 0 4px 10px rgba(0, 0, 0, .4), 0 16px 40px rgba(0, 0, 0, .45);
+  --e-4: 0 24px 60px rgba(0, 0, 0, .6);
+  --shadow-brand: 0 14px 36px rgba(0, 0, 0, .5);
 }
 
-/* Keep the browser's own widgets (scrollbars, form controls, the canvas
-   behind the page) in step with an explicit choice. */
 :root[data-theme="dark"]  { color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
 
 /* ==========================================================================
    Theme control
-   --------------------------------------------------------------------------
-   Injected into the page header by theme.js. Styled here rather than in
-   app.css or public.css because it appears on every page, authenticated or
-   not, and must look identical on both.
    ========================================================================== */
 
 .theme-toggle {
@@ -351,8 +363,6 @@
   stroke-linejoin: round;
 }
 
-/* The control is a row of icons, so it needs a reachable touch target on a
-   phone without growing the header on a desktop. */
 @media (max-width: 560px) {
   .theme-toggle button { width: 36px; height: 36px; }
 }

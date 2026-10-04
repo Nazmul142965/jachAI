@@ -108,6 +108,16 @@ async function main() {
 
   const ev = (expression) => page.evaluate(expression);
   const WANT_SCREENS = process.argv.includes('--screens');
+  // Capture the same screen in both themes. theme.js reads data-theme, so
+  // setting the attribute is exactly what the control does.
+  const theme = (mode) => ev(mode === 'system'
+    ? `document.documentElement.removeAttribute('data-theme')`
+    : `document.documentElement.setAttribute('data-theme', ${JSON.stringify(mode)})`);
+  const shotBoth = async (name) => {
+    await theme('light'); await wait(250); await shot(`${name}-light`);
+    await theme('dark'); await wait(250); await shot(`${name}-dark`);
+    await theme('system'); await wait(150);
+  };
   const shot = async (name) => {
     if (!WANT_SCREENS) return;
     const { data } = await page.send('Page.captureScreenshot', { format: 'png' });
@@ -153,6 +163,19 @@ async function main() {
     nav.join(', '));
   check(journey, 'nav lists screens, not every view',
     nav.length <= 6 && !nav.includes('Batch workspace'), nav.join(', '));
+
+  // The signed-in overview is a command centre, not marketing copy.
+  const learnerDash = await ev(`document.querySelector('#overview-view').textContent`);
+  check(journey, 'overview drops the marketing cards',
+    !/Build with care/.test(learnerDash) && !/Share achievement/.test(learnerDash));
+  check(journey, 'learner overview leads with the next step',
+    /Your next step/.test(learnerDash) && /Java Basics/.test(learnerDash), learnerDash.slice(0, 120));
+  check(journey, 'learner overview states the availability window',
+    /Open until|Opens |Closed /.test(learnerDash));
+  check(journey, 'learner overview shows no plan usage',
+    await ev(`document.querySelector('#usage-summary-panel').classList.contains('hidden')`));
+  check(journey, 'workspace has a footer with reference links',
+    await ev(`!!document.querySelector('.workspace-foot a[href="/certificate.html"]')`));
   await view('My Assessments'); await tab('Assignments'); await wait(1200);
   check(journey, 'assignment list renders', (await ev(`document.querySelector('#assignments-list').textContent`)).includes('Start / resume'));
   await clickText('#assignments-list', 'Start / resume'); await wait(600);
@@ -207,15 +230,29 @@ async function main() {
   await clickText('#assessment-detail-result', 'View instructor feedback'); await wait(1000);
   check(journey, 'instructor feedback is reachable from the released result',
     /Practise streams/.test(await ev(`document.querySelector('#assessment-detail-result').textContent`)));
-  await shot('learner-assessment-detail');
+  await shotBoth('learner-assessment-detail');
   await ev(`document.querySelector('#assessment-detail-back').click()`); await wait(1300);
   check(journey, 'assessment detail back navigation returns to My assessments',
     await ev(`!document.querySelector('#attempts-view').classList.contains('hidden')`));
+  // Captured here rather than before the attempt: the fixture attempt deadline
+  // is six seconds from page load, so a theme switch earlier would expire it.
+  await view('Overview'); await wait(1200);
+  await shotBoth('overview-learner');
 
   // ---------------------------------------------------------------- academy staff journey
   await load('academy-staff');
   const staff = 'academy-staff';
-  await view('Billing'); await wait(1500); await shot('screen-billing');
+  const staffDash = await ev(`document.querySelector('#overview-view').textContent`);
+  check(staff, 'staff overview leads with the review queue',
+    /Needs you now/.test(staffDash) && /Java Basics/.test(staffDash), staffDash.slice(0, 120));
+  check(staff, 'review queue row names the person and the score',
+    /u-learner/.test(staffDash) && /80%/.test(staffDash));
+  check(staff, 'plan usage shows recorded against the enforced limit',
+    /12 \/ 30/.test(staffDash), staffDash.slice(0, 200));
+  check(staff, 'plan usage names the window it scanned', /2026-10/.test(staffDash));
+  await shotBoth('overview-academy-staff');
+
+  await view('Billing'); await wait(1500); await shotBoth('screen-billing');
   check(staff, 'billing is its own screen with its own route',
     (await route()) === '#/billing', await route());
   // Billing order detail: the lifecycle the history row cannot show.
@@ -270,7 +307,7 @@ async function main() {
   check(staff, 'role change names the transition in plain words', /from learner to instructor/.test(await dialogText()), await dialogText());
   await clickDialog('quiet'); await wait(300);
   await view('Assessment Studio'); await wait(900); await shot('screen-assessment-studio-questions');
-  await tab('Assessments & review'); await wait(1600); await shot('screen-assessment-studio-assessments');
+  await tab('Assessments & review'); await wait(1600); await shotBoth('screen-assessment-studio');
   check(staff, 'review queue lists a releasable result', (await ev(`document.querySelector('#review-queue').textContent`)).includes('Java Basics'));
 
   // Assessment version history: opened from a published row, never from a draft.
@@ -334,7 +371,7 @@ async function main() {
   await clickDialog('primary'); await wait(1000);
   check(staff, 'reconcile reports created and already-present counts',
     /2 assignment\(s\) added; 3 already present/.test(await ev(`document.querySelector('#notice').textContent`)));
-  await shot('academy-batch-workspace');
+  await shotBoth('academy-batch-workspace');
   await ev(`document.querySelector('#academy-batch-back').click()`); await wait(1200);
   check(staff, 'back navigation returns to Courses & batches',
     await ev(`!document.querySelector('#academy-view').classList.contains('hidden')`));
@@ -374,7 +411,7 @@ async function main() {
   check(talent, 'review decision form is offered for a graded candidate',
     await ev(`!!document.querySelector('#talent-campaign-review form select')`));
   check(talent, 'review history area renders', await ev(`!!document.querySelector('#talent-campaign-history')`));
-  await shot('talent-campaign-workspace');
+  await shotBoth('talent-campaign-workspace');
   await ev(`document.querySelector('#talent-campaign-back').click()`); await wait(1300);
   check(talent, 'campaign workspace back navigation returns to the list',
     await ev(`!document.querySelector('#campaigns-view').classList.contains('hidden')`));
@@ -389,7 +426,7 @@ async function main() {
   check(platform, 'storage shows the estimated size and breakdown', /Estimated logical size/.test(platformText) && /Data .* · Indexes/.test(platformText));
   check(platform, 'storage states the threshold source', /ATLAS_STORAGE_WARNING_BYTES/.test(platformText));
   check(platform, 'storage explains it is not the official quota', /not Atlas's official quota/.test(await ev(`document.querySelector('#platform-view').textContent`)));
-  await shot('platform');
+  await shotBoth('platform-health');
   check(platform, 'health tab holds only operations and storage',
     !/Owner u-admin/.test(platformText) && !/Manual grant/.test(platformText));
 

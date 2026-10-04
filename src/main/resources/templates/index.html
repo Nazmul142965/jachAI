@@ -103,16 +103,42 @@
       <section id="platform-admins-view" class="view hidden"><div class="card panel"><h2>Platform administrators</h2><p class="muted">Enter an existing user's exact ID. Only verified, active accounts can receive access. You cannot change your own role or an environment-bootstrap administrator.</p><div class="form-row"><label>User ID<input id="platform-user-id" autocomplete="off" placeholder="Exact user ID"></label><button id="platform-inspect-user" class="button secondary" type="button">Inspect user</button></div><div id="platform-user-summary" class="item-list"></div><div class="form-row"><button id="platform-grant-role" class="button secondary" type="button" disabled>Grant platform admin</button><button id="platform-revoke-role" class="button quiet" type="button" disabled>Revoke platform admin</button></div><h3>Role history</h3><div id="platform-role-audit" class="item-list"></div><div id="platform-role-audit-pagination"></div></div></section>
 
       <section id="overview-view" class="view hidden">
-        <div id="overview-metrics" class="metrics hidden"></div>
-        <div class="overview-grid">
-          <article class="card feature"><span class="feature-icon">01</span><h2>Build with care</h2><p>Review every question before publishing an assessment.</p></article>
-          <article class="card feature"><span class="feature-icon">02</span><h2>Trust the result</h2><p>Server-timed attempts and versioned scoring protect the assessment lifecycle.</p></article>
-          <article class="card feature"><span class="feature-icon">03</span><h2>Share achievement</h2><p>Release results deliberately and verify Academy certificates publicly.</p></article>
+        <div id="overview-alert" class="hidden"></div>
+
+        <section class="dash-primary" aria-label="Active work">
+          <div class="card panel dash-focus">
+            <div class="section-heading"><h2 id="focus-title">Needs you now</h2>
+              <button id="overview-refresh" class="button quiet small" type="button">Refresh</button></div>
+            <p id="focus-note" class="muted"></p>
+            <div id="focus-list" class="item-list"></div>
+          </div>
+          <div class="card panel dash-side">
+            <h2>At a glance</h2>
+            <p class="muted" id="glance-note"></p>
+            <div id="overview-metrics" class="metrics"></div>
+          </div>
+        </section>
+
+        <div id="usage-summary-panel" class="card panel hidden">
+          <div class="section-heading"><h2>Plan usage</h2>
+            <button id="usage-summary-open" class="button quiet small" type="button">Open billing</button></div>
+          <p class="muted">Recorded usage against the limits this plan enforces, for the windows the server scans.</p>
+          <div id="usage-summary" class="usage-grid"></div>
         </div>
-        <div class="card panel"><h2>What would you like to do?</h2><p id="overview-hint" class="muted"></p><div id="overview-actions" class="item-actions"></div></div>
-        
+
+        <section class="dash-secondary" aria-label="Recent activity">
+          <div class="card panel">
+            <h2 id="activity-title">Recent activity</h2>
+            <p class="muted" id="activity-note"></p>
+            <div id="activity-list" class="item-list"></div>
+          </div>
+          <div class="card panel">
+            <h2>Workspace</h2>
+            <div id="workspace-facts" class="item-list"></div>
+          </div>
+        </section>
+
         <div id="organization-settings-panel" class="card panel hidden"><h2>Result release default</h2><p class="muted">This applies to newly created assessments unless their author selects an override. Published assessment versions keep their existing policy.</p><form id="organization-settings-form" class="form-row"><label>Default policy<select name="defaultResultReleasePolicy"><option value="IMMEDIATE">On submission</option><option value="MANUAL">After staff release</option></select></label><button class="button secondary" type="submit">Save default</button></form></div>
-        
         <div id="google-link-area" class="card panel hidden"><h2>Account sign-in</h2><p class="muted">Already use email and password? Link the Google account with the same verified email.</p><div id="google-link-button"></div></div>
       </section>
 
@@ -259,6 +285,19 @@
 
       <section id="certificates-view" class="view hidden"><div class="card panel"><h2>My certificates</h2><div id="certificates-list" class="item-list"></div><div id="certificates-pagination"></div></div></section>
     </div>
+
+    <footer class="workspace-foot">
+      <div class="inner">
+        <span><strong>JachAI</strong> — technical assessment and skill verification.</span>
+        <nav aria-label="Reference">
+          <a href="/how.html">How the engine works</a>
+          <a href="/certificate.html">Verify a certificate</a>
+          <a href="/plans.html">Plans</a>
+        </nav>
+        <p class="foot-note">Your work is saved to your organization's workspace. Every permission shown here is
+          checked again by the server on each request.</p>
+      </div>
+    </footer>
   </main>
 </body>
 </html>

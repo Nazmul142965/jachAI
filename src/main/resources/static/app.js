@@ -426,29 +426,6 @@ async function setOrganization() {
       nav.append(tab);
     }
   }
-  $('#overview-hint').textContent = staff
-    ? 'Start with a reviewed question, publish an assessment, then assign it to a verified member.'
-    : 'Open My assessments to begin an assignment or revisit a result.';
-  const quick = $('#overview-actions');
-  const shortcut = (label, key) => {
-    const control = node('button', label, 'button quiet small');
-    control.type = 'button';
-    control.addEventListener('click', () => run(() => showView(key)));
-    return control;
-  };
-  const academyStaff = state.organization.type === 'ACADEMY' && ['ORG_ADMIN', 'INSTRUCTOR'].includes(role);
-  const talentStaff = state.organization.type === 'TALENT' && staff;
-  const actions = [];
-  if (academyStaff) actions.push(shortcut('Question bank', 'questions'), shortcut('Assessments & review', 'assessments'),
-    shortcut('Courses & batches', 'academy'), shortcut('Messages', 'messages'));
-  if (talentStaff) actions.push(shortcut('Hiring campaigns', 'campaigns'), shortcut('Assessments & review', 'assessments'));
-  if (role === 'ORG_ADMIN') actions.push(shortcut('Members', 'members'), shortcut('Billing', 'billing'));
-  if (['LEARNER', 'CANDIDATE'].includes(role)) actions.push(shortcut('My assessments', 'attempts'));
-  if (role === 'LEARNER' && state.organization.type === 'ACADEMY') {
-    actions.push(shortcut('My batches', 'academy'), shortcut('Certificates', 'certificates'));
-  }
-  if (state.platformAdmin) actions.push(shortcut('Platform', 'platform'));
-  quick.replaceChildren(...actions);
   // A route in the URL is honoured only if this person's role actually has
   // that screen; otherwise the link silently becomes the overview rather than
   // opening a section the sidebar does not offer.
@@ -459,45 +436,310 @@ async function setOrganization() {
     await showView('overview');
   }
 }
-async function loadOverviewMetrics() {
-  const container = $('#overview-metrics');
-  const role = state.organization?.myRole;
+// ===========================================================================
+// Overview — the signed-in command centre.
+//
+// Everything here comes from an endpoint that already exists. Where a figure
+// cannot be obtained the card says so rather than showing a zero: a zero and
+// "we could not ask" mean different things to someone deciding what to do
+// next, and this product's claim is that it does not overstate what it knows.
+//
+// Four bands, in the order a person needs them:
+//   1. Needs you now   work that is actually blocked on this person
+//   2. At a glance     counts, each one a link into the screen that owns it
+//   3. Plan usage      recorded usage against the enforced limit (ORG_ADMIN)
+//   4. Recent activity what has happened lately, and workspace facts
+// ===========================================================================
+
+const ROLE_TITLES = { ORG_ADMIN: 'Org Admin', INSTRUCTOR: 'Instructor', LEARNER: 'Learner',
+  RECRUITER: 'Recruiter', CANDIDATE: 'Candidate' };
+
+// A fetch that never throws: the caller decides what an absence means.
+async function maybe(path) {
+  try { return await request(ownOrg(path)); } catch (_) { return null; }
+}
+function rowsOf(page) { return (page && page.content) || []; }
+function totalOf(page, fallback = null) {
+  if (!page) return fallback;
+  return page.totalElements ?? (page.content || []).length;
+}
+function relative(value) {
+  if (!value) return 'no date recorded';
+  const then = Date.parse(value);
+  if (Number.isNaN(then)) return 'no date recorded';
+  const minutes = Math.round((Date.now() - then) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return days < 30 ? `${days} d ago` : new Date(then).toLocaleDateString();
+}
+function focusRow(title, meta, actionLabel, action, tone) {
+  const row = item(title, meta, actionLabel ? [button(actionLabel, action)] : []);
+  if (tone) row.querySelector('.item-actions').prepend(node('span', tone[0], `pill ${tone[1]}`));
+  return row;
+}
+
+async function loadOverview() {
+  const organization = state.organization;
+  if (!organization) return;
+  const role = organization.myRole;
+  const academy = organization.type === 'ACADEMY';
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
-  if (!state.organization || !staff) {
-    container.classList.add('hidden');
-    container.replaceChildren();
+  const participant = ['LEARNER', 'CANDIDATE'].includes(role);
+
+  $('#usage-summary-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
+
+  await Promise.all([
+    loadFocus(role, academy, staff, participant),
+    loadGlance(role, academy, staff, participant),
+    loadActivity(role, academy, staff, participant),
+    loadWorkspaceFacts(organization, role),
+    role === 'ORG_ADMIN' ? loadUsageSummary() : Promise.resolve()
+  ]);
+}
+
+// --- 1. Needs you now ------------------------------------------------------
+
+async function loadFocus(role, academy, staff, participant) {
+  $('#focus-title').textContent = participant ? 'Your next step' : 'Needs you now';
+  $('#focus-note').textContent = participant
+    ? 'Assignments open to you, newest first.'
+    : 'Work that cannot move until somebody here acts on it.';
+  await loadList('#focus-list', async () => {
+    const entries = [];
+
+    if (participant) {
+      const mine = await maybe('/assignments/mine?page=0');
+      if (mine === null) {
+        setList('#focus-list', [], 'Your assignments could not be read just now.');
+        return;
+      }
+      const now = Date.now();
+      const resumable = pendingAttempt();
+      for (const assignment of rowsOf(mine).slice(0, 4)) {
+        const from = Date.parse(assignment.availableFrom);
+        const until = Date.parse(assignment.availableUntil);
+        const open = now >= from && now < until;
+        const inProgress = resumable?.assignmentId === assignment.id;
+        const title = assignment.assessmentTitle || 'Assessment assignment';
+        const windowText = now < from ? `Opens ${new Date(from).toLocaleString()}`
+          : !open ? `Closed ${new Date(until).toLocaleString()}`
+          : `Open until ${new Date(until).toLocaleString()}`;
+        const minutes = assignment.durationMinutes ? ` · ${assignment.durationMinutes} min` : '';
+        const questions = assignment.questionCount ? ` · ${assignment.questionCount} questions` : '';
+        entries.push(focusRow(inProgress ? `${title} — attempt in progress` : title,
+          `${windowText}${minutes}${questions}`,
+          'Open', () => openAssessmentDetail(assignment),
+          inProgress ? ['In progress', 'warn'] : open ? ['Open now', 'ok'] : ['Closed', '']));
+      }
+      setList('#focus-list', entries,
+        'No assignment has been given to you in this workspace yet.');
+      return;
+    }
+
+    if (staff) {
+      const pending = await maybe('/attempts/review/pending?page=0');
+      for (const review of rowsOf(pending).slice(0, 4)) {
+        entries.push(focusRow(
+          `${review.assessmentTitle || 'Attempt'} — attempt ${review.attemptNumber}`,
+          `${review.participantUserId} · scored ${review.percentage}% · submitted ${relative(review.submittedAt)}`,
+          'Review & release', () => showView('assessments'),
+          [review.passed ? 'Passed' : 'Did not pass', review.passed ? 'ok' : 'danger']));
+      }
+      const drafts = academy ? await maybe('/questions?status=DRAFT&page=0') : null;
+      const draftCount = totalOf(drafts, 0);
+      if (draftCount) {
+        entries.push(focusRow('Questions awaiting approval',
+          `${draftCount} draft question${draftCount === 1 ? '' : 's'}. A draft cannot be used in an assessment until it is approved.`,
+          'Open question bank', () => showView('questions')));
+      }
+      const draftAssessments = await maybe('/assessments?status=DRAFT&page=0');
+      const draftAssessmentCount = totalOf(draftAssessments, 0);
+      if (draftAssessmentCount) {
+        entries.push(focusRow('Assessments not yet published',
+          `${draftAssessmentCount} draft${draftAssessmentCount === 1 ? '' : 's'}. A draft cannot be assigned until it is published.`,
+          'Open studio', () => showView('assessments')));
+      }
+      if (!entries.length && pending === null && draftAssessments === null) {
+        setList('#focus-list', [], 'The work queue could not be read just now.');
+        return;
+      }
+    }
+
+    setList('#focus-list', entries,
+      staff ? 'Nothing is waiting on you. Every submitted attempt has been released.'
+        : 'Nothing is waiting on you.');
+  }, 'This queue could not be loaded.');
+}
+
+// --- 2. At a glance --------------------------------------------------------
+
+async function loadGlance(role, academy, staff, participant) {
+  $('#glance-note').textContent = 'Each count opens the screen that owns it.';
+  await loadList('#overview-metrics', async () => {
+    const jobs = [];
+    const count = (path, label, view) => jobs.push(
+      maybe(path).then((page) => ({ label, value: totalOf(page), view })));
+
+    if (staff) {
+      count('/attempts/review/pending?page=0', 'Waiting for release', 'assessments');
+      count('/assessments?status=PUBLISHED&page=0', 'Published assessments', 'assessments');
+      if (academy) {
+        count('/questions?status=DRAFT&page=0', 'Questions to approve', 'questions');
+        count('/academy/courses?page=0', 'Courses', 'academy');
+      } else {
+        count('/talent/campaigns?page=0', 'Campaigns', 'campaigns');
+      }
+      if (role === 'ORG_ADMIN') count('/members?page=0', 'Members', 'members');
+    }
+    if (participant) {
+      count('/assignments/mine?page=0', 'Assignments', 'attempts');
+      if (academy && role === 'LEARNER') count('/certificates?page=0', 'Certificates', 'certificates');
+    }
+    if (['INSTRUCTOR', 'LEARNER'].includes(role)) {
+      count('/messaging/conversations?page=0', 'Conversations', 'messages');
+    }
+
+    const metrics = await Promise.all(jobs);
+    const cards = metrics.map(({ label, value, view }) => {
+      const card = node('button', '', 'metric');
+      card.type = 'button';
+      // A null total means the request failed. Saying so beats printing a zero.
+      const unknown = value === null;
+      card.append(node('span', unknown ? '—' : String(value), 'metric-value'),
+        node('span', label, 'metric-label'));
+      if (unknown) {
+        card.classList.add('metric-unknown');
+        card.append(node('span', 'could not be read', 'metric-note'));
+      }
+      card.addEventListener('click', () => run(() => showView(view)));
+      return card;
+    });
+    setList('#overview-metrics', cards, 'No counts apply to your role in this workspace.');
+  }, 'Workspace counts could not be loaded.');
+}
+
+// --- 3. Plan usage ---------------------------------------------------------
+
+// Recorded usage against the limit the server enforces. Both numbers come from
+// the reconciliation report, which is the source the platform screen uses too,
+// so this bar cannot disagree with the quota that actually blocks an action.
+async function loadUsageSummary() {
+  const host = $('#usage-summary');
+  host.setAttribute('aria-busy', 'true');
+  host.replaceChildren(node('p', 'Reading recorded usage…', 'empty'));
+  const report = await maybe('/billing/entitlements/usage-reconciliation');
+  host.setAttribute('aria-busy', 'false');
+  if (!report) {
+    host.replaceChildren(node('p', 'Recorded usage could not be read just now.', 'empty'));
     return;
   }
-  container.classList.remove('hidden');
-  beginList('#overview-metrics', 'Loading workspace counts…');
-  const count = (path, label, view) => request(ownOrg(path))
-    .then((page) => ({ label, value: page.totalElements ?? (page.content || []).length, view }))
-    .catch(() => null);
-  const jobs = [count('/attempts/review/pending?page=0', 'Waiting for release', 'assessments')];
-  if (state.organization.type === 'ACADEMY') {
-    jobs.push(count('/questions?status=DRAFT&page=0', 'Questions awaiting approval', 'questions'));
-    jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
-    // The card opens the batch workspace, which picks its first course and batch.
-    if (['ORG_ADMIN', 'INSTRUCTOR'].includes(role)) jobs.push(count('/academy/courses?page=0', 'Courses', 'academy-batch'));
-  }
-  if (state.organization.type === 'TALENT') {
-    jobs.push(count('/talent/campaigns?page=0', 'Hiring campaigns', 'talent-campaign'));
-    jobs.push(count('/assessments?status=DRAFT&page=0', 'Draft assessments', 'assessments'));
-  }
-  if (role === 'ORG_ADMIN') jobs.push(count('/members?page=0', 'Members', 'members'));
-  const metrics = (await Promise.all(jobs)).filter(Boolean);
-  if (!metrics.length) {
-    container.replaceChildren(node('p', 'Workspace counts are unavailable right now.', 'empty'));
+  const entries = (report.entries || []).filter((entry) => entry.planLimit > 0);
+  if (!entries.length) {
+    host.replaceChildren(node('p', 'No metered window applies to this plan yet.', 'empty'));
     return;
   }
-  container.replaceChildren(...metrics.map((metric) => {
-    const card = node('button', '', 'metric');
-    card.type = 'button';
-    card.append(node('span', String(metric.value), 'metric-value'), node('span', metric.label, 'metric-label'));
-    card.addEventListener('click', () => run(() => showView(metric.view)));
-    return card;
+  host.replaceChildren(...entries.map((entry) => {
+    const used = entry.recordedUsage ?? 0;
+    const limit = entry.planLimit;
+    const share = Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
+    const cell = node('div', '', 'usage-cell');
+    const head = node('div', '', 'usage-head');
+    head.append(node('span', entry.metric.replaceAll('_', ' ').toLowerCase(), 'usage-label'),
+      node('span', `${used} / ${limit}`, 'usage-figure'));
+    const bar = node('div', '', 'bar');
+    const fill = node('div', '', 'bar-fill');
+    fill.style.width = `${share}%`;
+    if (share >= 90) fill.classList.add('bar-danger');
+    else if (share >= 70) fill.classList.add('bar-warn');
+    bar.append(fill);
+    // The window, and any disagreement between counter and records, are facts
+    // the server reported. They belong beside the bar, not hidden behind it.
+    const note = entry.status && entry.status !== 'MATCHES'
+      ? `${entry.window} · counter and records disagree`
+      : entry.window;
+    cell.append(head, bar, node('p', `${share}% used · ${note}`, 'usage-note'));
+    return cell;
   }));
 }
+
+// --- 4. Recent activity and workspace facts --------------------------------
+
+async function loadActivity(role, academy, staff, participant) {
+  $('#activity-title').textContent = participant ? 'Your record' : 'Recent activity';
+  $('#activity-note').textContent = participant
+    ? 'Certificates and assignments on your account.'
+    : 'The newest records this workspace has produced.';
+  await loadList('#activity-list', async () => {
+    const entries = [];
+
+    if (participant) {
+      const certificates = academy && role === 'LEARNER' ? await maybe('/certificates?page=0') : null;
+      for (const certificate of rowsOf(certificates).slice(0, 3)) {
+        entries.push(item(`Certificate ${certificate.verificationCode || certificate.id}`,
+          `${certificate.status || 'ISSUED'} · issued ${relative(certificate.issuedAt)}`,
+          [button('View', () => showView('certificates'))]));
+      }
+      const mine = await maybe('/assignments/mine?page=0');
+      for (const assignment of rowsOf(mine).slice(0, 3)) {
+        entries.push(item(assignment.assessmentTitle || 'Assessment assignment',
+          `Window ${new Date(assignment.availableFrom).toLocaleDateString()}`
+            + ` – ${new Date(assignment.availableUntil).toLocaleDateString()}`
+            + ` · ${assignment.attemptsAllowed} attempt${assignment.attemptsAllowed === 1 ? '' : 's'} allowed`,
+          [button('Open', () => openAssessmentDetail(assignment))]));
+      }
+    }
+
+    if (staff) {
+      if (academy) {
+        const courses = await maybe('/academy/courses?page=0');
+        for (const course of rowsOf(courses).slice(0, 3)) {
+          entries.push(item(course.name, `Course · created ${relative(course.createdAt)}`,
+            [button('Open workspace', () => showView('academy-batch'))]));
+        }
+      } else {
+        const campaigns = await maybe('/talent/campaigns?page=0');
+        for (const campaign of rowsOf(campaigns).slice(0, 3)) {
+          entries.push(item(campaign.title || campaign.name || 'Campaign',
+            `${campaign.open === false ? 'Closed' : 'Open'} · created ${relative(campaign.createdAt)}`,
+            [button('Open workspace', () => showView('talent-campaign'))]));
+        }
+      }
+      const assessments = await maybe('/assessments?page=0');
+      for (const assessment of rowsOf(assessments).slice(0, 3)) {
+        entries.push(item(assessment.title,
+          `${assessment.status} · version ${assessment.latestVersion}`
+            + ` · ${assessment.questionIds?.length ?? 0} questions`,
+          [button('Open studio', () => showView('assessments'))]));
+      }
+    }
+
+    setList('#activity-list', entries, 'Nothing has been recorded in this workspace yet.');
+  }, 'Recent activity could not be loaded.');
+}
+
+async function loadWorkspaceFacts(organization, role) {
+  const facts = [
+    item(organization.name,
+      `${organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} workspace`
+        + ` · you are ${ROLE_TITLES[role] || role}`
+        + (organization.owner ? ' · you own this workspace' : ''))
+  ];
+  if (role === 'ORG_ADMIN') {
+    const plan = await maybe('/billing/entitlements');
+    facts.push(plan
+      ? item(`${plan.tier} plan`,
+        `${plan.maxPublishedAssessments} published assessments`
+          + ` · ${plan.monthlyInvitations} invitations per month`
+          + ` · ${plan.monthlyCertificates} certificates per month`
+          + ` · ${plan.retentionDays}-day retention`)
+      : item('Plan', 'Plan limits could not be read just now.'));
+  }
+  setList('#workspace-facts', facts, '');
+}
+
 // Open a screen, optionally at one of its tabs. This is what the sidebar, the
 // overview shortcuts and the URL all go through.
 async function showScreen(screenKey, viewKey) {
@@ -566,7 +808,7 @@ async function showView(key) {
   $('#page-subtitle').textContent = [screen.subtitle, key === 'platform' ? '' : state.organization?.name || '']
     .filter(Boolean).join(' · ');
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
-  if (key === 'overview') await loadOverviewMetrics();
+  if (key === 'overview') await loadOverview();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadOrganizationSettings();
     ensureTenantSupportAuditPanel();
@@ -3522,6 +3764,8 @@ window.addEventListener('hashchange', () => {
 });
 $('#assessment-versions-close').addEventListener('click', () => hideAssessmentVersions());
 $('#order-detail-close').addEventListener('click', () => hideOrderDetail());
+$('#overview-refresh').addEventListener('click', () => run(() => loadOverview()));
+$('#usage-summary-open').addEventListener('click', () => run(() => showView('billing')));
 $('#usage-refresh').addEventListener('click', () => run(() =>
   loadList('#usage-report', () => loadUsageReconciliation(), 'The quota check could not be run.')));
 $('#usage-repair').addEventListener('click', () => run(() => repairUsageReconciliation()));
