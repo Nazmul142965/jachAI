@@ -391,6 +391,11 @@ async function main() {
   // Academy batch workspace: a distinct screen reached from the nav and from the batch list.
   await view('Academy Workspace'); await tab('Batch workspace'); await wait(1500);
   const workspace = await ev(`document.querySelector('#academy-batch-view').textContent`);
+  const rosterText = await ev(`document.querySelector('#academy-batch-learners').textContent`);
+  check(staff, 'roster shows a learner name when the account resolves',
+    /Learner One/.test(rosterText), rosterText.slice(0, 140));
+  check(staff, 'roster falls back to the id when no name is available',
+    /Learner u-gone/.test(rosterText) && /Display name unavailable/.test(rosterText));
   check(staff, 'batch workspace is reachable from the nav and selects a course and batch',
     /Java Fundamentals/.test(workspace) && /Batch A/.test(workspace));
   check(staff, 'batch summary counts the server roster',
@@ -410,8 +415,11 @@ async function main() {
   check(staff, 'funnel names what is still awaiting grading',
     /awaiting grading/.test(analyticsText));
   await shotBoth('academy-cohort-funnel');
-  check(staff, 'per-learner progress rows render',
-    /u-learner/.test(await ev(`document.querySelector('#academy-batch-progress').textContent`)));
+  const progressText = await ev(`document.querySelector('#academy-batch-progress').textContent`);
+  check(staff, 'progress rows lead with the learner name, not the id',
+    /Learner One/.test(progressText), progressText.slice(0, 120));
+  check(staff, 'progress rows still carry the id staff forms need',
+    /ID u-learner/.test(progressText));
   await clickText('#academy-batch-assessments', 'Reconcile assignments'); await wait(500);
   check(staff, 'reconcile confirms it only adds missing assignments', /never changed or removed/.test(await dialogText()));
   await clickDialog('primary'); await wait(1000);
