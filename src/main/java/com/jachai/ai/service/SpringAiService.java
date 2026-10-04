@@ -25,17 +25,17 @@ public class SpringAiService implements AiService {
         String provider = useCase == AiUseCase.QUESTION_DRAFT
                 ? environment.getProperty("spring.ai.model.chat", "none")
                 : environment.getProperty("app.ai.tutor-provider", "none");
-        ChatModel model = switch (provider) {
-            case "google-genai" -> gemini.getIfAvailable();
-            case "ollama" -> ollama.getIfAvailable();
-            case "groq" -> groq.getIfAvailable();
-            default -> null;
-        };
-        if (model == null) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE",
-                    "AI is not configured for this environment");
-        }
         try {
+            ChatModel model = switch (provider) {
+                case "google-genai" -> gemini.getIfAvailable();
+                case "ollama" -> ollama.getIfAvailable();
+                case "groq" -> groq.getIfAvailable();
+                default -> null;
+            };
+            if (model == null) {
+                throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE",
+                        "AI is not configured for this environment");
+            }
             String response = ChatClient.builder(model).build().prompt()
                     .system(systemInstruction).user(userInput).call().content();
             int maxLength = useCase == AiUseCase.TUTOR ? 3000 : 12000;

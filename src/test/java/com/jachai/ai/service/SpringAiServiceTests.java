@@ -3,6 +3,7 @@ package com.jachai.ai.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.jachai.shared.error.ApiException;
 import org.junit.jupiter.api.Test;
@@ -42,5 +43,18 @@ class SpringAiServiceTests {
         assertEquals("AI_UNAVAILABLE", assertThrows(ApiException.class,
                 () -> service.generate(AiUseCase.QUESTION_DRAFT, "system", "brief")).code());
         verifyNoInteractions(gemini, ollama, groq);
+    }
+
+    @Test
+    void providerInitializationFailureIsReportedAsUnavailable() {
+        var environment = new MockEnvironment().withProperty("app.ai.tutor-provider", "groq");
+        when(groq.getIfAvailable()).thenThrow(new IllegalStateException("provider initialization failed"));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> new SpringAiService(gemini, ollama, groq, environment)
+                        .generate(AiUseCase.TUTOR, "system", "question"));
+
+        assertEquals("AI_UNAVAILABLE", error.code());
+        verifyNoInteractions(gemini, ollama);
     }
 }
