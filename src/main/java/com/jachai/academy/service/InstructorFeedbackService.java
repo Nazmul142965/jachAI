@@ -1,6 +1,7 @@
 package com.jachai.academy.service;
 
 import com.jachai.academy.dto.FeedbackView;
+import com.jachai.academy.dto.FeedbackAuditView;
 import com.jachai.academy.dto.WriteFeedbackRequest;
 import com.jachai.academy.model.FeedbackStatus;
 import com.jachai.academy.model.InstructorFeedback;
@@ -17,6 +18,9 @@ import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
+import com.jachai.shared.audit.AuditAction;
+import com.jachai.shared.audit.AuditEvent;
+import com.jachai.shared.audit.AuditEventRepository;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +28,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -36,11 +43,13 @@ public class InstructorFeedbackService {
     private final TenantAccessService access;
     private final UserRepository users;
     private final EmailSender emailSender;
+    private final AuditEventRepository auditEvents;
     private final String publicBaseUrl;
 
     public InstructorFeedbackService(InstructorFeedbackRepository feedback, AttemptRepository attempts,
                                      OrganizationRepository organizations, PublishedVersionStore versions,
                                      TenantAccessService access, UserRepository users, EmailSender emailSender,
+                                     AuditEventRepository auditEvents,
                                      @Value("${app.public-base-url}") String publicBaseUrl) {
         this.feedback = feedback;
         this.attempts = attempts;
@@ -49,6 +58,7 @@ public class InstructorFeedbackService {
         this.access = access;
         this.users = users;
         this.emailSender = emailSender;
+        this.auditEvents = auditEvents;
         this.publicBaseUrl = publicBaseUrl;
     }
 
@@ -83,6 +93,7 @@ public class InstructorFeedbackService {
         InstructorFeedback current = feedback.findByOrganizationIdAndAttemptId(organizationId, attemptId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Feedback not found"));
         if (current.status() == FeedbackStatus.PUBLISHED) {
+            ensurePublishedAudit(current);
             queuePublishedEmail(current);
             return FeedbackView.from(current);
         }
@@ -94,11 +105,37 @@ public class InstructorFeedbackService {
                     "Release the result before publishing feedback");
         }
         try {
-            InstructorFeedback published = feedback.save(current.publish(Instant.now()));
+            InstructorFeedback published = feedback.save(current.publish(actorId, Instant.now()));
+            ensurePublishedAudit(published);
             queuePublishedEmail(published);
             return FeedbackView.from(published);
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Feedback changed concurrently; reload it");
+        }
+    }
+
+    public Page<FeedbackAuditView> audit(String actorId, String organizationId, String attemptId, int page) {
+        requireAcademyStaff(actorId, organizationId);
+        if (page < 0 || page > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Page must be between 0 and 500");
+        }
+        feedback.findByOrganizationIdAndAttemptId(organizationId, attemptId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Feedback not found"));
+        return auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+                organizationId, "FEEDBACK", attemptId,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")))
+                .map(FeedbackAuditView::from);
+    }
+
+    private void ensurePublishedAudit(InstructorFeedback published) {
+        if (published.publishedAt() == null || published.authorUserId() == null) return;
+        AuditEvent event = new AuditEvent("feedback:" + published.id() + ":published",
+                published.organizationId(), published.authorUserId(), AuditAction.FEEDBACK_PUBLISHED,
+                "FEEDBACK", published.attemptId(), published.publishedAt());
+        try {
+            auditEvents.insert(event);
+        } catch (DuplicateKeyException ignored) {
+            // A retry already recorded this immutable transition.
         }
     }
 

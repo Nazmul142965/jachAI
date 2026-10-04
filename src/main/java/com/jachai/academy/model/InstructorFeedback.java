@@ -27,8 +27,8 @@ public record InstructorFeedback(
                 newSummary, newNextSteps, status, createdAt, now, publishedAt, revision);
     }
 
-    public InstructorFeedback publish(Instant now) {
-        return new InstructorFeedback(id, organizationId, attemptId, learnerUserId, authorUserId,
+    public InstructorFeedback publish(String actorId, Instant now) {
+        return new InstructorFeedback(id, organizationId, attemptId, learnerUserId, actorId,
                 summary, nextSteps, FeedbackStatus.PUBLISHED, createdAt, now, now, revision);
     }
 }

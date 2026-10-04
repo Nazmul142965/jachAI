@@ -1,6 +1,7 @@
 package com.jachai.academy.controller;
 
 import com.jachai.academy.dto.FeedbackView;
+import com.jachai.academy.dto.FeedbackAuditView;
 import com.jachai.academy.dto.WriteFeedbackRequest;
 import com.jachai.academy.service.InstructorFeedbackService;
 import jakarta.validation.Valid;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.data.domain.Page;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequiredArgsConstructor
@@ -37,6 +40,14 @@ public class InstructorFeedbackController {
     public FeedbackView staffView(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
                                   @PathVariable String attemptId) {
         return feedback.staffView(jwt.getSubject(), organizationId, attemptId);
+    }
+
+    @GetMapping("/audit")
+    public Page<FeedbackAuditView> audit(@AuthenticationPrincipal Jwt jwt,
+                                          @PathVariable String organizationId,
+                                          @PathVariable String attemptId,
+                                          @RequestParam(defaultValue = "0") int page) {
+        return feedback.audit(jwt.getSubject(), organizationId, attemptId, page);
     }
 
     @GetMapping("/mine")

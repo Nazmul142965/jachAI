@@ -26,6 +26,9 @@ import com.jachai.organization.model.OrganizationType;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
+import com.jachai.shared.audit.AuditEvent;
+import com.jachai.shared.audit.AuditEventRepository;
+import com.jachai.shared.audit.AuditAction;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -45,12 +48,13 @@ class InstructorFeedbackServiceTests {
     @Mock TenantAccessService access;
     @Mock UserRepository users;
     @Mock EmailSender emailSender;
+    @Mock AuditEventRepository auditEvents;
     InstructorFeedbackService service;
 
     @BeforeEach
     void setUp() {
         service = new InstructorFeedbackService(feedback, attempts, organizations, versions, access,
-                users, emailSender, "https://jachai.test");
+                users, emailSender, auditEvents, "https://jachai.test");
     }
 
     @Test
@@ -156,11 +160,11 @@ class InstructorFeedbackServiceTests {
         when(attempts.findByIdAndOrganizationIdAndUserId("a1", "academy-a", "learner"))
                 .thenReturn(Optional.of(attempt(Instant.now())));
         when(feedback.findByOrganizationIdAndAttemptIdAndLearnerUserId("academy-a", "a1", "learner"))
-                .thenReturn(Optional.of(draft().publish(Instant.now())));
+                .thenReturn(Optional.of(draft().publish("teacher", Instant.now())));
         assertEquals("Good work", service.learnerView("learner", "academy-a", "a1").summary());
 
         when(feedback.findByOrganizationIdAndAttemptId("academy-a", "a1"))
-                .thenReturn(Optional.of(draft().publish(Instant.now())));
+                .thenReturn(Optional.of(draft().publish("teacher", Instant.now())));
         ApiException error = assertThrows(ApiException.class, () -> service.writeDraft(
                 "teacher", "academy-a", "a1", new WriteFeedbackRequest("Changed", "Changed")));
         assertEquals("FEEDBACK_PUBLISHED", error.code());
@@ -172,7 +176,7 @@ class InstructorFeedbackServiceTests {
         when(attempts.findByIdAndOrganizationId("a1", "academy-a"))
                 .thenReturn(Optional.of(attempt(Instant.now())));
         when(feedback.findByOrganizationIdAndAttemptId("academy-a", "a1"))
-                .thenReturn(Optional.of(draft()), Optional.of(draft().publish(Instant.now())));
+                .thenReturn(Optional.of(draft()), Optional.of(draft().publish("publisher", Instant.now())));
         when(feedback.save(any(InstructorFeedback.class))).thenAnswer(call -> call.getArgument(0));
         when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
                 "learner@example.com", "Learner", null, true, false, 0, Instant.now())));
@@ -180,12 +184,35 @@ class InstructorFeedbackServiceTests {
                 .doNothing().when(emailSender).sendFeedbackPublished("f1", "learner@example.com",
                         "Learner", "https://jachai.test/");
 
-        service.publish("teacher", "academy-a", "a1");
-        service.publish("teacher", "academy-a", "a1");
+        service.publish("publisher", "academy-a", "a1");
+        service.publish("publisher", "academy-a", "a1");
 
         verify(emailSender, org.mockito.Mockito.times(2)).sendFeedbackPublished("f1",
                 "learner@example.com", "Learner", "https://jachai.test/");
         verify(feedback, org.mockito.Mockito.times(1)).save(any(InstructorFeedback.class));
+        verify(auditEvents, org.mockito.Mockito.times(2)).insert(org.mockito.ArgumentMatchers.<AuditEvent>argThat(
+                event -> event.action() == AuditAction.FEEDBACK_PUBLISHED
+                        && event.organizationId().equals("academy-a")
+                        && event.targetId().equals("a1")
+                        && event.actorUserId().equals("publisher")));
+    }
+
+    @Test
+    void feedbackAuditIsTenantScopedAndStaffOnly() {
+        academy();
+        when(feedback.findByOrganizationIdAndAttemptId("academy-a", "a1"))
+                .thenReturn(Optional.of(draft().publish("teacher", Instant.now())));
+        when(auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+                org.mockito.ArgumentMatchers.eq("academy-a"),
+                org.mockito.ArgumentMatchers.eq("FEEDBACK"),
+                org.mockito.ArgumentMatchers.eq("a1"), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+
+        assertEquals(0, service.audit("teacher", "academy-a", "a1", 0).getTotalElements());
+        verify(access).requireRole("teacher", "academy-a", OrganizationRole.ORG_ADMIN,
+                OrganizationRole.INSTRUCTOR);
+        assertEquals("INVALID_PAGE", assertThrows(ApiException.class,
+                () -> service.audit("teacher", "academy-a", "a1", -1)).code());
     }
 
     @Test
