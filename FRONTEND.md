@@ -31,7 +31,7 @@ ports unchanged — it is plain custom properties. The component layers and
 It has been raised and deliberately not done. A migration would need a build
 step, a Dockerfile change, and either a second origin (so CORS, cookie and
 token handling all change) or a server-side render step the API is specified
-not to depend on. It would also discard the browser test harness in §8, which
+not to depend on. It would also discard the browser test harness in §9, which
 is currently the only automated check on this UI. None of that is forbidden —
 it is just a decision that belongs to whoever owns the deployment, not to a
 styling change.
@@ -57,7 +57,7 @@ that does not exist, add a token to `theme.css` and use it. `grep -nE
 empty, and the same for `public.css`.
 
 Load order in every page head is `theme.css`, then the component layer. The
-inline no-flash script sits between them; see §5.
+inline no-flash script sits between them; see §6.
 
 ---
 
@@ -127,7 +127,167 @@ list row. Built by the `item()` helper in `app.js`; do not hand-roll one.
 
 ---
 
-## 4. `app.js` — how the workspace works
+## 4. The screen map
+
+What exists, what each screen is for, and the layout each one follows. Build a
+new screen by picking the closest pattern in §4.5 rather than starting from a
+blank section.
+
+### 4.1 The public surface
+
+Served by `PageController`, which returns a view name and nothing else — there
+is no server-side data binding on these pages. Each loads `theme.css` then
+`public.css`.
+
+| Page | Path | For | Contains |
+| --- | --- | --- | --- |
+| Landing | `/` | everyone | Hero, the sign-in / create-account card, a certificate lookup, links into the product pages |
+| Academy | `/academy.html` | training institutes | What an Academy cohort run looks like, end to end |
+| Talent | `/talent.html` | hiring teams | What a hiring campaign looks like, end to end |
+| Plans | `/plans.html` | buyers | FREE and TEAM side by side, a comparison table, FAQ |
+| How it works | `/how.html` | everyone | The assessment lifecycle, one engine, two products |
+| Certificate | `/certificate.html` | anyone with a code | Public verification. Shows organization, assessment, issue date, validity — and nothing about the holder's identity |
+| Verify email | `/verify-email.html` | a new account | Consumes the one-time token, offers a resend |
+| Reset password | `/reset-password.html` | a locked-out account | Consumes the one-time token, offers a new request |
+
+**The public page skeleton.** Follow it exactly; the five marketing pages
+already do.
+
+```
+header.topbar          brand · topnav · (theme control, injected)
+main.page              or .page--narrow for a single-column page
+  p.eyebrow            small caps, names the section of the product
+  h1                   one line, a claim rather than a label
+  p.lede               one sentence that earns the claim
+  div.cta-row          one primary action, at most two others
+  section.section      repeated: .section-head then a grid, list or table
+footer.footer          one line of what JachAI is, then a nav
+```
+
+### 4.2 The workspace shell
+
+`index.html` is a single page. Everything authenticated lives inside it, and
+the access token stays in a JS variable, so there are no separate signed-in
+pages to navigate between.
+
+```
+header.topbar          brand · note · (theme control) · Sign out
+#notice                the status / error banner, role="status"
+main.workspace         a two-column grid
+  aside.sidebar        organization select · role badge · grouped nav · footnote
+  div.content          .page-head (title + subtitle) then exactly one .view
+```
+
+Only one `<section class="view">` is visible at a time; `showView` toggles
+`.hidden` on all of them and moves focus to the page heading.
+
+**Responsive behaviour**, already in `app.css`:
+
+- Below **900px** the sidebar stops being a column and becomes a horizontal
+  bar above the content; the nav scrolls sideways.
+- Below **560px** the nav becomes a two-column grid, group headings span both
+  columns, list rows stack, and compact buttons grow to a 44px touch target.
+- At **320px** nothing may overflow horizontally. There is a check for it.
+
+### 4.3 Navigation, and who sees what
+
+The sidebar is grouped by intent so Academy and Talent read as related but
+distinct products. Groups with no visible items are not rendered at all.
+
+| Group | Item | Visible to |
+| --- | --- | --- |
+| — | Overview | everyone |
+| Assessment engine | Members | `ORG_ADMIN` |
+| | Question bank, Assessments | `ORG_ADMIN` `INSTRUCTOR` `RECRUITER` |
+| Academy *(Academy orgs only)* | Courses & batches / My batches | `ORG_ADMIN` `INSTRUCTOR` `LEARNER` |
+| | Batch workspace | `ORG_ADMIN` `INSTRUCTOR` |
+| | Messages | `INSTRUCTOR` `LEARNER` |
+| | Certificates | `LEARNER` |
+| Talent *(Talent orgs only)* | Hiring campaigns, Campaign workspace | `ORG_ADMIN` `INSTRUCTOR` `RECRUITER` |
+| My work | My assessments, Assessment detail | `LEARNER` `CANDIDATE` |
+| Administration | Platform | verified platform admins |
+
+The learner-facing label changes with the role: staff see **Courses &
+batches**, a learner sees **My batches**. Same view, different entry point.
+
+Hiding an item is a courtesy. The server re-checks every request, and nothing
+in the UI may suggest that the menu is the permission.
+
+### 4.4 The views
+
+Thirteen, in nav order. "Sections" are the `h2` blocks inside the view.
+
+| View | For | Sections |
+| --- | --- | --- |
+| `overview` | everyone | Three `.feature` cards (Build with care / Trust the result / Share achievement), a role-aware quick-action row, workspace plan, result-release default, sandbox billing |
+| `members` | `ORG_ADMIN` | Transfer ownership, add a registered member, invite by email, the member list, ownership history |
+| `questions` | staff | The bank, create a question, AI-assisted draft |
+| `assessments` | staff | The list, create, assign a published one, pending result review, submitted answers, review outcomes, instructor feedback |
+| `academy` | Academy roles | Courses, batches, enroll a learner, batch assessments, my batches |
+| `academy-batch` | Academy staff | One batch on one screen: course → batch selector in the head, its assessments, per-learner progress, cohort analytics, reconcile |
+| `messages` | instructor, learner | Conversation list beside one open thread |
+| `campaigns` | Talent staff | The list, create, invite a registered candidate, invite by email, email invitations, candidate comparison |
+| `talent-campaign` | Talent staff | One campaign: frozen version, candidate comparison, integrity summary, raw event log, review decision, review history |
+| `attempts` | learner, candidate | My assignments, with the window state and whether Start is open |
+| `assessment-detail` | learner, candidate | One assignment: window, attempts allowed, attempt history, current attempt, released result with topic bars, feedback and AI tutor |
+| `certificates` | learner | My certificates, each with its public verification code |
+| `platform` | platform admin | Operations counts, storage estimate, organizations, billing support, manual TEAM plan, quota reconciliation, administrators |
+
+### 4.5 The four layout patterns
+
+Nearly every view is one of these. Reuse them.
+
+**A. List screen** — `questions`, `members`, `campaigns`, `attempts`.
+
+```
+.screen-head        h2 + one line of what this list is, actions on the right
+.filter-row         optional, one control
+#…-list.item-list   rows via item(), filled by loadList()
+#…-pagination       page controls
+.panel              the create / invite form, below the list it adds to
+```
+
+The form sits **below** the list it feeds, not above it. The list is what the
+person came for.
+
+**B. Workspace screen** — `academy-batch`, `talent-campaign`.
+
+One record, every related thing about it on one screen, no tabs.
+
+```
+.screen-head        the record's name in the head, plus a back link
+.form-row           the selector that chooses the record
+.metrics            the figures that summarise it
+.subpanel           repeated: one concern each, h4 label, then a list
+```
+
+Reached from a row in its list screen ("Open workspace"), or from a metric
+card. Never by typing a URL — the id comes from `state`.
+
+**C. Detail screen** — `assessment-detail`.
+
+One record a learner owns, read-mostly, in the order they care about:
+what it is → when it opens → what they have done → the result.
+
+**D. Operations screen** — `platform`.
+
+`.metrics` of counts first, then panels that each name one deliberate action.
+Every action states what it does and what it cannot do before it runs.
+
+### 4.6 Not built yet
+
+Four features whose API exists with no UI. §10 lists the endpoints.
+
+| Feature | Belongs in | Shape |
+| --- | --- | --- |
+| Assessment version history | `assessments`, under the list | Pattern A. Rows of version, question count, published date. Opening a published assessment's history shows what each version froze |
+| Batch analytics and progress | `academy-batch` | Pattern B. A `.metrics` row of cohort figures, then per-learner progress rows with `.bar` |
+| Tenant quota reconciliation | a billing panel in `overview` | Pattern D. Request, then show the audit. Must not claim a repair the server did not confirm |
+| Order detail | `overview` billing, from an order row | Pattern C in a modal or subpanel |
+
+---
+
+## 5. `app.js` — how the workspace works
 
 One module, no router library. Roughly:
 
@@ -194,7 +354,7 @@ that fetches without it is a bug.
 
 ---
 
-## 5. Theming
+## 6. Theming
 
 `theme.css` defines the light palette on `:root`, then the dark palette
 twice: once under `prefers-color-scheme: dark` for a visitor who has made no
@@ -217,9 +377,9 @@ mistake is `color: #fff` on a brand fill; the fix is `var(--on-brand)`.
 
 ---
 
-## 6. Accessibility, as actually practised here
+## 7. Accessibility, as actually practised here
 
-These are checked by the harness in §8 and should not regress.
+These are checked by the harness in §9 and should not regress.
 
 - One focus style, defined once per stylesheet, on every interactive element.
 - Compact buttons reach **44px** at phone widths. There is a check for it.
@@ -237,7 +397,7 @@ These are checked by the harness in §8 and should not regress.
 
 ---
 
-## 7. Writing copy
+## 8. Writing copy
 
 The product's promise is a trustworthy assessment lifecycle, and the copy
 carries most of that weight.
@@ -252,7 +412,7 @@ carries most of that weight.
 
 ---
 
-## 8. Verifying a change
+## 9. Verifying a change
 
 ```bash
 node src/test/frontend/run-journeys.js
@@ -280,7 +440,7 @@ checked by hand — in both themes, at 320px, 375px and desktop.
 
 ---
 
-## 9. API coverage
+## 10. API coverage
 
 The frontend calls ~93 of the 101 real API endpoints. Regenerate this by
 listing `@*Mapping` annotations across `src/main/java/**/*Controller.java`
@@ -307,7 +467,7 @@ Known uncovered, with no UI yet:
 
 ---
 
-## 10. Things not to do
+## 11. Things not to do
 
 - Do not add a colour outside `theme.css`.
 - Do not add a build step, a framework or a CDN script without that being the
