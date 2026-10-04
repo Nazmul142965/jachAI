@@ -70,6 +70,7 @@ if (-not (Test-Java21Home $env:JAVA_HOME)) {
 $env:Path = (Join-Path $env:JAVA_HOME 'bin') + [IO.Path]::PathSeparator + $env:Path
 $env:SPRING_PROFILES_ACTIVE = 'local'
 $env:SERVER_PORT = "$Port"
+$env:SERVER_ADDRESS = '127.0.0.1'
 $env:MONGODB_URI = "mongodb://127.0.0.1:27017/$DatabaseName"
 $env:APP_PUBLIC_BASE_URL = "http://127.0.0.1:$Port"
 $env:CACHE_ENABLED = 'false'
