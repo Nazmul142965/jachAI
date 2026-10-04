@@ -39,3 +39,10 @@ build/
 !.env.example
 application-local-secret.properties
 application-prod-secret.properties
+
+# JVM crash dumps. A hotspot crash writes these into the working directory, so
+# they appear beside pom.xml rather than under target/. They are large, they are
+# specific to one machine and one crash, and they record the full command line,
+# which on this project includes the MongoDB connection string.
+hs_err_pid*.log
+replay_pid*.log
