@@ -620,9 +620,67 @@ a:focus-visible,
 
 [aria-busy="true"] .item { opacity: .55; }
 
+/* -- Dashboard ------------------------------------------------------------
+   The overview is two bands. The first pairs the work queue with the counts,
+   because deciding what to do needs both at once; the queue gets the wider
+   column because its rows carry sentences, not numbers. The second pairs
+   recent activity with the workspace facts.
+   ------------------------------------------------------------------------- */
+
+.dash-primary,
+.dash-secondary {
+  display: grid;
+  gap: var(--sp-5);
+  align-items: start;
+}
+.dash-primary { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
+.dash-secondary { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+
+/* The queue is the one thing on this screen that is genuinely urgent, so it
+   carries a brand edge no other panel has. */
+.dash-focus { border-left: 3px solid var(--brand); }
+.dash-focus .item-title { letter-spacing: var(--tracking-tight); }
+
+.dash-side .metrics { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--sp-3); }
+.dash-side .metric { padding: var(--sp-4); }
+.dash-side .metric-value { font-size: 26px; }
+
+#glance-note, #focus-note, #activity-note { margin-bottom: var(--sp-4); font-size: var(--text-md); }
+
+/* -- Plan usage ----------------------------------------------------------- */
+
+.usage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--sp-5); }
+.usage-cell { display: grid; gap: var(--sp-2); }
+.usage-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.usage-label {
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-transform: capitalize;
+}
+.usage-figure {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.usage-cell .bar { margin-top: 0; height: 8px; }
+.usage-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+
+/* Amber then red as a window fills. The share is also printed underneath, so
+   the colour repeats the number rather than carrying it alone. */
+.bar-fill.bar-warn { background: linear-gradient(90deg, var(--warn-ink), var(--warn-ink)); }
+.bar-fill.bar-danger { background: linear-gradient(90deg, var(--danger-ink), var(--danger-ink)); }
+
 /* -- Metrics -------------------------------------------------------------- */
 
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: var(--sp-4); }
+
+/* A count that could not be read shows a dash and says why, because a zero
+   would be a claim the server never made. */
+.metric-unknown .metric-value { color: var(--muted); }
+.metric-note { color: var(--warn-ink); font-size: var(--text-2xs); font-weight: var(--weight-semibold); }
 
 .metric {
   display: grid;
@@ -785,6 +843,10 @@ a:focus-visible,
    ========================================================================== */
 
 @media (max-width: 900px) {
+  .dash-primary, .dash-secondary { grid-template-columns: 1fr; }
+  .workspace-foot .inner { flex-direction: column; align-items: flex-start; }
+  .workspace-foot nav { margin-left: 0; }
+
   .auth-layout { grid-template-columns: 1fr; max-width: 620px; }
   .hero { padding: 0; }
   .hero h1 { font-size: 46px; }
@@ -816,6 +878,9 @@ a:focus-visible,
 
 @media (max-width: 560px) {
   :root { --topbar-h: 66px; }
+
+  .usage-grid { grid-template-columns: 1fr; }
+  .dash-side .metrics { grid-template-columns: 1fr 1fr; }
 
   .topbar {
     height: auto;
@@ -865,3 +930,33 @@ a:focus-visible,
   .feature:hover,
   .metric:hover { transform: none; }
 }
+
+/* ==========================================================================
+   8. Workspace footer
+   --------------------------------------------------------------------------
+   The signed-in shell had no footer, so the public pages' links back into
+   verification and plans were unreachable once a person signed in, and the
+   build had nowhere to say what it is.
+   ========================================================================== */
+
+.workspace-foot {
+  grid-column: 1 / -1;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.workspace-foot .inner {
+  width: min(100%, var(--content-max));
+  margin: 0 auto;
+  padding: var(--sp-5) clamp(18px, 3.5vw, 56px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.workspace-foot strong { color: var(--ink-soft); font-weight: var(--weight-semibold); }
+.workspace-foot nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--sp-4); }
+.workspace-foot a { color: var(--muted); text-decoration: none; }
+.workspace-foot a:hover { color: var(--brand-ink); text-decoration: underline; }
+.workspace-foot .foot-note { flex: 1 1 100%; margin: 0; font-size: var(--text-xs); }
