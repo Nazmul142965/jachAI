@@ -14,6 +14,7 @@ Updated: 2026-10-04. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Academy batch-analytics aggregation passed a disposable local-Mongo test covering latest submitted attempt, pending grade, zero score, empty cohort, and tenant/batch isolation. Atlas performance remains unverified.
 - [x] Membership role changes now repair a pending prior audit before replacing its recovery marker; focused unit and local-Mongo tests passed. Atlas concurrency remains open.
 - [x] An opt-in `local,smtp` transport and isolated `jachai_smtp_*` launcher path allow real inbox testing without production mode; profile-selection and fail-closed checks passed. No live SMTP send has been performed.
+- [x] The frontend agent's committed command-centre Overview and Assessment Studio tabs were merged into `main` (`1689b96`). The merged fixture browser suite passed 121/121 checks. The updated loopback demo on port 8095 served its assets, owner login and both organization lists worked, and the Overview's pending-review, draft-assessment and usage-reconciliation APIs returned successfully for Academy and Talent. This is not a signed-in live-browser walkthrough.
 
 ## Next implementation and integration
 
