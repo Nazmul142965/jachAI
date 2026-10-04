@@ -3350,6 +3350,13 @@ $('#verify-code-form').addEventListener('submit', (event) => { event.preventDefa
 }); });
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
+  // Leaving for the gateway ends this session, because the token is only in
+  // memory. Saying so first is the difference between a redirect and a
+  // surprise sign-out.
+  if (!await confirmDialog('Open the SSLCommerz sandbox?\n\n'
+      + 'JachAI hands you to the gateway, which signs you out of this tab. '
+      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
+      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-ssl-demo');
   control.disabled = true; control.textContent = 'Opening SSLCommerz sandbox…';
   try {
@@ -3362,6 +3369,13 @@ $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   }
 }));
 $('#start-bkash-demo').addEventListener('click', () => run(async () => {
+  // Leaving for the gateway ends this session, because the token is only in
+  // memory. Saying so first is the difference between a redirect and a
+  // surprise sign-out.
+  if (!await confirmDialog('Open the bKash sandbox?\n\n'
+      + 'JachAI hands you to the gateway, which signs you out of this tab. '
+      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
+      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-bkash-demo');
   control.disabled = true; control.textContent = 'Opening bKash sandbox…';
   try {
