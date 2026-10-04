@@ -96,6 +96,9 @@ public class OrganizationService {
         if (!target.emailVerified() || target.disabled()) {
             throw new ApiException(HttpStatus.CONFLICT, "USER_UNAVAILABLE", "New owner account is unavailable");
         }
+        // A failed audit insert after the prior compare-and-swap is recoverable only while
+        // its transfer metadata remains on the organization document. Do not overwrite it.
+        ensureOwnershipAudit(organization);
         Instant now = Instant.now();
         String transferId = UUID.randomUUID().toString();
         Query query = Query.query(Criteria.where("_id").is(organizationId)

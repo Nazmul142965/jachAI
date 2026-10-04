@@ -45,7 +45,7 @@ public class AuthController {
         limits.consume(RateLimitPolicy.REGISTER_ACCOUNT, emailKey(request.email()));
         auth.register(request);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(Map.of("message", "Check your email to verify your account"));
+                .body(Map.of("message", "A verification link has been queued"));
     }
 
     @PostMapping("/verify-email")
@@ -60,7 +60,7 @@ public class AuthController {
     public record RefreshRequest(@NotBlank String refreshToken) { }
     public record RequestResetRequest(@NotBlank @Email String email) { }
     public record ResetPasswordRequest(@NotBlank String token,
-                                       @NotBlank @Size(min = 12, max = 128) String newPassword) { }
+                                       @NotBlank @Size(min = 6, max = 128) String newPassword) { }
     public record GoogleCredentialRequest(@NotBlank @Size(max = 8192) String credential) { }
 
     @GetMapping("/google/config")
@@ -90,7 +90,7 @@ public class AuthController {
         limits.consume(RateLimitPolicy.RESEND_IP, clientIps.resolve(servlet));
         limits.consume(RateLimitPolicy.RESEND_ACCOUNT, emailKey(request.email()));
         auth.resendVerification(request.email());
-        return ResponseEntity.accepted().body(Map.of("message", "If the account needs verification, an email has been sent"));
+        return ResponseEntity.accepted().body(Map.of("message", "If the account needs verification, a verification link has been queued"));
     }
 
     @PostMapping("/login")

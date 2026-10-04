@@ -33,15 +33,16 @@
 
       <section id="resend" hidden>
         <p class="form-note">
-          Enter the address you registered with and JachAI will queue a new verification email.
-          This page cannot confirm delivery.
+          Enter the address you registered with to queue a new verification link.
+          In local development no email reaches your inbox: open the link from the application
+          console or log. With SMTP configured, check your inbox. This page cannot confirm delivery.
         </p>
         <form id="resend-form">
           <div class="field">
             <label for="email">Email</label>
             <input id="email" type="email" autocomplete="email" required>
           </div>
-          <button class="button primary" type="submit">Send verification email</button>
+          <button class="button primary" type="submit">Request verification link</button>
         </form>
       </section>
     </div>

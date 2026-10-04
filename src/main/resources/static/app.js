@@ -3066,6 +3066,9 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
     await signedIn(tokens);
   } catch (error) {
     fieldErrors(element, error);
+    if (error.code === 'EMAIL_UNVERIFIED') {
+      error.message = 'Email not verified yet. Open the verification link, or use “Need a new verification link?” below. In local development, find the link in the IntelliJ console or target/local-dev app log; no email is sent.';
+    }
     throw error;
   } finally { if (control) control.disabled = false; }
 }); });
