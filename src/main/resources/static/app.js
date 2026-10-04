@@ -17,6 +17,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   campaignWorkspaceCandidateId: null, campaignWorkspaceCandidates: [],
   campaignWorkspaceToken: 0, campaignWorkspacePage: 0,
   detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
+  versionsAssessment: null, versionsToken: 0,
   view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'platform'];
@@ -197,6 +198,8 @@ function showSignedOut() {
   state.selectedQuestionIds.clear();
   state.editingAssessment = null;
   state.editingQuestion = null;
+  state.versionsAssessment = null;
+  state.versionsToken++;
   state.reviewLoadToken++;
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
@@ -259,6 +262,7 @@ async function setOrganization() {
   state.selectedQuestionIds.clear();
   state.editingAssessment = null;
   state.editingQuestion = null;
+  hideAssessmentVersions();
   $('#question-form').reset();
   updateQuestionEditor();
   $('#assessment-form').reset();
@@ -1235,12 +1239,69 @@ async function loadAssessments(pageNumber = 0) {
       actions.push(publish);
     } else if (assessment.status === 'PUBLISHED') {
       actions.push(button('New version', () => editAssessment(assessment)));
+      // Only a published assessment has frozen versions to look at; a draft
+      // has never been frozen, so the history would always be empty.
+      actions.push(button('Version history', () => showAssessmentVersions(assessment), 'button quiet small'));
     }
     return item(assessment.title,
       `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
       actions);
   }), 'No assessments yet.');
   renderPageControls('#assessments-pagination', page, loadAssessments);
+  // The open history belongs to one assessment. If that assessment is no
+  // longer on the page being shown, the panel would describe something the
+  // person can no longer see, so it closes.
+  if (state.versionsAssessment
+      && !(page.content || []).some((assessment) => assessment.id === state.versionsAssessment.id)) {
+    hideAssessmentVersions();
+  }
+}
+function hideAssessmentVersions() {
+  state.versionsAssessment = null;
+  state.versionsToken += 1;
+  $('#assessment-versions').classList.add('hidden');
+}
+async function showAssessmentVersions(assessment) {
+  state.versionsAssessment = assessment;
+  const panel = $('#assessment-versions');
+  panel.classList.remove('hidden');
+  $('#assessment-versions-for').textContent =
+    `Published versions of "${assessment.title}". Each one is frozen: assignments keep the version they were created with.`;
+  await loadAssessmentVersions(0);
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('#assessment-versions-close').focus({ preventScroll: true });
+}
+async function loadAssessmentVersions(pageNumber = 0) {
+  const assessment = state.versionsAssessment;
+  if (!assessment) return;
+  // Switching assessments while a slower request is still in flight would
+  // otherwise let the older response overwrite the newer list.
+  state.versionsToken += 1;
+  const token = state.versionsToken;
+  await loadList('#assessment-versions-list', async () => {
+    const page = await request(
+      ownOrg(`/assessments/${encodeURIComponent(assessment.id)}/versions?page=${pageNumber}`));
+    if (token !== state.versionsToken) return;
+    setList('#assessment-versions-list', (page.content || []).map((version) => {
+      const questionCount = (version.questions || []).length;
+      const release = version.resultReleasePolicy || 'IMMEDIATE';
+      const row = item(`Version ${version.version}`,
+        `${questionCount} question${questionCount === 1 ? '' : 's'} · ${version.durationMinutes} min`
+          + ` · pass ${version.passingPercentage}% · release ${release}`
+          + ` · published ${when(version.publishedAt)}`);
+      if (version.version === assessment.latestVersion) {
+        row.querySelector('.item-actions').append(node('span', 'Current', 'pill ok'));
+      }
+      const topics = [...new Set((version.questions || [])
+        .map((question) => question.topic).filter(Boolean))];
+      if (topics.length) {
+        row.querySelector('.item-main')
+          .append(node('p', `Topics: ${topics.join(', ')}`, 'item-meta'));
+      }
+      return row;
+    }), 'This assessment has no published versions yet.');
+    renderPageControls('#assessment-versions-pagination', page, loadAssessmentVersions);
+  }, 'The version history could not be loaded.');
 }
 async function loadPublishedAssessments(selectSelector, paginationSelector, pageNumber = 0) {
   const page = await request(ownOrg(`/assessments?status=PUBLISHED&page=${pageNumber}`));
@@ -3212,6 +3273,7 @@ $('#platform-inspect-user').addEventListener('click', () => run(() =>
   inspectPlatformUser($('#platform-user-id').value)));
 $('#platform-grant-role').addEventListener('click', () => run(() => changePlatformRole(true)));
 $('#platform-revoke-role').addEventListener('click', () => run(() => changePlatformRole(false)));
+$('#assessment-versions-close').addEventListener('click', () => hideAssessmentVersions());
 $('#platform-manual-refresh').addEventListener('click', () => run(() => {
   const id = state.platformOrganizationId;
   if (!id) return;

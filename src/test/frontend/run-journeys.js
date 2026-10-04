@@ -219,6 +219,24 @@ async function main() {
   await clickDialog('quiet'); await wait(300);
   await view('Assessments'); await wait(1600);
   check(staff, 'review queue lists a releasable result', (await ev(`document.querySelector('#review-queue').textContent`)).includes('Java Basics'));
+
+  // Assessment version history: opened from a published row, never from a draft.
+  check(staff, 'version history is offered on a published assessment',
+    await ev(`[...document.querySelectorAll('#assessments-list button')].some((b) => b.textContent === 'Version history')`));
+  check(staff, 'version history stays closed until it is asked for',
+    await ev(`document.querySelector('#assessment-versions').classList.contains('hidden')`));
+  await clickText('#assessments-list', 'Version history'); await wait(900);
+  const versions = await ev(`document.querySelector('#assessment-versions').textContent`);
+  check(staff, 'version history lists each frozen version', /Version 2/.test(versions) && /Version 1/.test(versions));
+  check(staff, 'version history shows what each version froze',
+    /2 questions/.test(versions) && /pass 60%/.test(versions) && /30 min/.test(versions), versions.slice(0, 160));
+  check(staff, 'version history marks the current version', /Current/.test(versions));
+  check(staff, 'version history names the frozen topics', /Collections/.test(versions) && /Generics/.test(versions));
+  check(staff, 'version history explains assignments keep their version',
+    /assignments keep the version/.test(versions));
+  await clickText('#assessment-versions', 'Close'); await wait(300);
+  check(staff, 'version history closes again',
+    await ev(`document.querySelector('#assessment-versions').classList.contains('hidden')`));
   await clickText('#review-queue', 'Release result'); await wait(500);
   const releaseText = await dialogText();
   check(staff, 'release dialog names attempt and score', /att-9/.test(releaseText) && /80%/.test(releaseText));

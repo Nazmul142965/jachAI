@@ -69,6 +69,24 @@ const SOURCE = String.raw`(() => {
   const batchProgress = { learnerUserId: 'u-learner', assignmentId: 'asg-1', attemptId: 'att-9', percentage: 80,
     passed: true, submittedAt: new Date().toISOString() };
 
+  // A published assessment, so the version-history entry point has something
+  // to open, and the two frozen versions it would show.
+  const publishedAssessment = { id: 'assess-1', organizationId: 'org-a', title: 'Java Basics',
+    durationMinutes: 30, passingPercentage: 60, questionIds: ['q1', 'q2'],
+    resultReleasePolicy: 'IMMEDIATE', status: 'PUBLISHED', latestVersion: 2,
+    createdAt: new Date().toISOString(), revision: 3, instructions: '' };
+  const assessmentVersions = [
+    { organizationId: 'org-a', assessmentId: 'assess-1', version: 2, title: 'Java Basics',
+      durationMinutes: 30, passingPercentage: 60, resultReleasePolicy: 'IMMEDIATE',
+      questions: [{ questionId: 'q1', topic: 'Collections', prompt: 'A', type: 'SINGLE_CHOICE', difficulty: 'EASY' },
+                  { questionId: 'q2', topic: 'Generics', prompt: 'B', type: 'SHORT_ANSWER', difficulty: 'MEDIUM' }],
+      publishedAt: new Date().toISOString(), instructions: '' },
+    { organizationId: 'org-a', assessmentId: 'assess-1', version: 1, title: 'Java Basics',
+      durationMinutes: 25, passingPercentage: 50, resultReleasePolicy: 'IMMEDIATE',
+      questions: [{ questionId: 'q1', topic: 'Collections', prompt: 'A', type: 'SINGLE_CHOICE', difficulty: 'EASY' }],
+      publishedAt: new Date(Date.now() - 604800000).toISOString(), instructions: '' }
+  ];
+
   window.__calls = [];
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
@@ -123,7 +141,8 @@ const SOURCE = String.raw`(() => {
     if (path === org + '/invitations') return json(page([]));
     if (path === org + '/ownership/audit') return json(page([]));
     if (path === org + '/questions') return json(page([]));
-    if (path === org + '/assessments') return json(page([]));
+    if (path === org + '/assessments') return json(page([publishedAssessment]));
+    if (path.includes('/assessments/assess-1/versions')) return json(page(assessmentVersions));
     if (path === org + '/attempts/review/pending') return json(page([review]));
     if (path.includes('/attempts/att-9/review/grades/audit')) return json(page([]));
     if (path.endsWith('/attempts/att-9/review')) return json(staffReview);
