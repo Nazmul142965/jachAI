@@ -234,6 +234,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 ## Frontend implementation decision
 
 - Browser HTML belongs in `src/main/resources/templates` and is served by a small Spring MVC page controller using Thymeleaf, per user preference. CSS and JavaScript belong in `src/main/resources/static`. Page controllers render only the shell and email-action pages; business data is fetched through the same `/api/v1` REST API used by external clients.
+- Paged GET routes keep the fixed 20-row page size and reject page indexes outside `0–500` before repository access. Controller parameter annotations document the bound; a shared MVC interceptor enforces it even when method validation is not configured in a particular test or deployment. This protects the small MongoDB tier from unbounded skip queries. Larger histories will need cursor pagination rather than silently lifting this limit.
 
 ## Phase 3 implementation decisions
 

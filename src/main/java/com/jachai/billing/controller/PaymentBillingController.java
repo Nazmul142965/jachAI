@@ -7,6 +7,7 @@ import com.jachai.billing.model.PaymentProvider;
 import com.jachai.billing.service.PaymentBillingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -49,7 +50,7 @@ public class PaymentBillingController {
     @GetMapping("/orders")
     public Page<PaymentOrderView> history(@AuthenticationPrincipal Jwt jwt,
                                           @PathVariable String organizationId,
-                                          @RequestParam(defaultValue = "0") @Min(0) int page) {
+                                          @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return billing.history(jwt.getSubject(), organizationId, page);
     }
 

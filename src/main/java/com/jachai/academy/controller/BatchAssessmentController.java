@@ -7,6 +7,7 @@ import com.jachai.academy.dto.BatchProgressRow;
 import com.jachai.academy.dto.CreateBatchAssessmentRequest;
 import com.jachai.academy.service.BatchAssessmentService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -43,7 +44,7 @@ public class BatchAssessmentController {
     @GetMapping
     public Page<BatchAssessmentView> list(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String courseId, @PathVariable String batchId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return batchAssessments.list(jwt.getSubject(), organizationId, courseId, batchId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")));
     }
@@ -59,7 +60,7 @@ public class BatchAssessmentController {
     @GetMapping("/{batchAssessmentId}/progress")
     public Page<BatchProgressRow> progress(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String courseId, @PathVariable String batchId,
-            @PathVariable String batchAssessmentId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String batchAssessmentId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return batchAssessments.progress(jwt.getSubject(), organizationId, courseId, batchId,
                 batchAssessmentId, PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")));
     }

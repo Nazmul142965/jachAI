@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -38,7 +39,7 @@ public class MembershipController {
 
     @GetMapping
     public Page<MemberResponse> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return members.list(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
     }
@@ -51,7 +52,7 @@ public class MembershipController {
 
     @GetMapping("/candidates")
     public Page<MemberResponse> candidates(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return members.listCandidates(jwt.getSubject(), organizationId, PageRequest.of(page, 20));
     }
 
@@ -84,7 +85,7 @@ public class MembershipController {
     @GetMapping("/{userId}/audit")
     public Page<MemberAuditView> audit(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String userId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return members.audit(jwt.getSubject(), organizationId, userId, page);
     }
 }

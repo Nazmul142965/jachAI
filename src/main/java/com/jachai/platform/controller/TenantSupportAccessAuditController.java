@@ -2,6 +2,7 @@ package com.jachai.platform.controller;
 
 import com.jachai.platform.dto.SupportAccessAuditView;
 import com.jachai.platform.service.PlatformSupportAccessService;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,7 +24,7 @@ public class TenantSupportAccessAuditController {
 
     @GetMapping
     public Page<SupportAccessAuditView> history(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return support.tenantHistory(jwt.getSubject(), organizationId, page);
     }
 }

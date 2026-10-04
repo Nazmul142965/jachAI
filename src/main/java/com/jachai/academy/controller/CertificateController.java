@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.validation.annotation.Validated;
@@ -29,7 +30,7 @@ public class CertificateController {
 
     @GetMapping("/certificates/mine")
     public Page<CertificateView> mine(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return certificates.mine(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "issuedAt", "id")));
     }
@@ -50,7 +51,7 @@ public class CertificateController {
     @GetMapping("/certificates/{certificateId}/audit")
     public Page<CertificateAuditView> audit(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String certificateId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return certificates.audit(jwt.getSubject(), organizationId, certificateId, page);
     }
 }

@@ -7,6 +7,7 @@ import com.jachai.messaging.dto.MessagingPartnerView;
 import com.jachai.messaging.dto.SendMessageRequest;
 import com.jachai.messaging.service.AcademyMessagingService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -34,7 +35,7 @@ public class AcademyMessagingController {
 
     @GetMapping("/partners")
     public Page<MessagingPartnerView> partners(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return messaging.partners(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.ASC, "createdAt")));
     }
@@ -48,7 +49,7 @@ public class AcademyMessagingController {
 
     @GetMapping("/conversations")
     public Page<ConversationView> conversations(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return messaging.list(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")));
     }
@@ -56,7 +57,7 @@ public class AcademyMessagingController {
     @GetMapping("/conversations/{conversationId}/messages")
     public Page<ChatMessageView> messages(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String conversationId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return messaging.messages(jwt.getSubject(), organizationId, conversationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "sentAt")
                         .and(Sort.by(Sort.Direction.DESC, "id"))));

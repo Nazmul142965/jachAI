@@ -22,6 +22,7 @@ import com.jachai.platform.service.PlatformOperationsService;
 import com.jachai.platform.service.PlatformStorageService;
 import com.jachai.platform.service.PlatformPlanService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -76,7 +77,7 @@ public class PlatformAdminController {
 
     @GetMapping("/organizations")
     public Page<PlatformOrganizationView> organizations(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return platform.organizations(jwt.getSubject(), page);
     }
 
@@ -87,7 +88,7 @@ public class PlatformAdminController {
 
     @GetMapping("/organizations/{organizationId}/billing/orders")
     public Page<PaymentOrderView> billingOrders(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return billingSupport.orders(jwt.getSubject(), organizationId, page);
     }
 
@@ -110,7 +111,7 @@ public class PlatformAdminController {
 
     @GetMapping("/organizations/{organizationId}/billing/manual-plan/audit")
     public Page<ManualPlanAuditView> manualPlanHistory(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return plans.history(jwt.getSubject(), organizationId, page);
     }
 
@@ -128,7 +129,7 @@ public class PlatformAdminController {
 
     @GetMapping("/organizations/{organizationId}/billing/usage-reconciliation/audit")
     public Page<PlatformUsageRepairEvent> usageRepairAudit(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return usageReconciliation.platformRepairHistory(jwt.getSubject(), organizationId, page);
     }
 
@@ -150,7 +151,7 @@ public class PlatformAdminController {
 
     @GetMapping("/users/{userId}/role/audit")
     public Page<PlatformRoleAuditView> roleHistory(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String userId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String userId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return platform.roleHistory(jwt.getSubject(), userId, page);
     }
 

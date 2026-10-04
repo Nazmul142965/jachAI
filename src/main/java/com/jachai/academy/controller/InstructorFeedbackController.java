@@ -5,6 +5,8 @@ import com.jachai.academy.dto.FeedbackAuditView;
 import com.jachai.academy.dto.WriteFeedbackRequest;
 import com.jachai.academy.service.InstructorFeedbackService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -15,10 +17,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
+@Validated
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/organizations/{organizationId}/academy/attempts/{attemptId}/feedback")
 public class InstructorFeedbackController {
@@ -46,7 +50,7 @@ public class InstructorFeedbackController {
     public Page<FeedbackAuditView> audit(@AuthenticationPrincipal Jwt jwt,
                                           @PathVariable String organizationId,
                                           @PathVariable String attemptId,
-                                          @RequestParam(defaultValue = "0") int page) {
+                                          @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return feedback.audit(jwt.getSubject(), organizationId, attemptId, page);
     }
 

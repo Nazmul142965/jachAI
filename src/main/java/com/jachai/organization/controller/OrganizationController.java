@@ -8,6 +8,7 @@ import com.jachai.organization.service.OrganizationService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.data.domain.Page;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.http.HttpStatus;
@@ -53,7 +54,7 @@ public class OrganizationController {
 
     @GetMapping("/{organizationId}/ownership/audit")
     public Page<OwnershipAuditView> ownershipAudit(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return organizations.ownershipAudit(jwt.getSubject(), organizationId, page);
     }
 }

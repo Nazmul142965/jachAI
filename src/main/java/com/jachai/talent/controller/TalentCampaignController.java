@@ -11,6 +11,7 @@ import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.shared.security.RateLimitPolicy;
 import com.jachai.shared.security.RateLimitService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -47,7 +48,7 @@ public class TalentCampaignController {
 
     @GetMapping
     public Page<CampaignView> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
-                                    @RequestParam(defaultValue = "0") @Min(0) int page) {
+                                    @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return campaigns.list(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")));
     }
@@ -70,7 +71,7 @@ public class TalentCampaignController {
     @GetMapping("/{campaignId}/candidates")
     public Page<CandidateComparison> compare(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String campaignId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return campaigns.compare(jwt.getSubject(), organizationId, campaignId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")));
     }
@@ -85,7 +86,7 @@ public class TalentCampaignController {
     @GetMapping("/{campaignId}/candidates/{candidateId}/review/audit")
     public Page<ReviewAuditView> reviewAudit(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String campaignId,
-            @PathVariable String candidateId, @RequestParam(defaultValue = "0") int page) {
+            @PathVariable String candidateId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return campaigns.audit(jwt.getSubject(), organizationId, campaignId, candidateId, page);
     }
 }

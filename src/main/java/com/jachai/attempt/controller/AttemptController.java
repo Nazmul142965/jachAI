@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,7 +42,7 @@ public class AttemptController {
 
     @GetMapping("/assignments/mine")
     public Page<AssignmentView> mine(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return attempts.myAssignments(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
     }
@@ -101,7 +102,7 @@ public class AttemptController {
 
     @GetMapping("/attempts/review/pending")
     public Page<ReviewAttemptView> pendingReview(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return attempts.pendingReview(jwt.getSubject(), organizationId, page);
     }
 
@@ -122,7 +123,7 @@ public class AttemptController {
     @GetMapping("/attempts/{attemptId}/review/grades/audit")
     public Page<ManualGradeAuditView> manualGradeAudit(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String attemptId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return attempts.manualGradeAudit(jwt.getSubject(), organizationId, attemptId, page);
     }
 }

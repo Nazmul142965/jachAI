@@ -5,6 +5,7 @@ import com.jachai.attempt.dto.RecordTelemetryRequest;
 import com.jachai.attempt.dto.TelemetryEventView;
 import com.jachai.attempt.service.IntegrityTelemetryService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -47,7 +48,7 @@ public class IntegrityTelemetryController {
     @GetMapping("/talent/attempts/{attemptId}/integrity/events")
     public Page<TelemetryEventView> events(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String attemptId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return telemetry.events(jwt.getSubject(), organizationId, attemptId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "receivedAt")));
     }

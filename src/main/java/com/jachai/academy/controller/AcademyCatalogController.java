@@ -8,6 +8,7 @@ import com.jachai.academy.dto.EnrollLearnerRequest;
 import com.jachai.academy.dto.EnrollmentView;
 import com.jachai.academy.service.AcademyCatalogService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -42,7 +43,7 @@ public class AcademyCatalogController {
 
     @GetMapping("/courses")
     public Page<CourseView> listCourses(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return catalog.listCourses(jwt.getSubject(), organizationId, page(page));
     }
 
@@ -57,7 +58,7 @@ public class AcademyCatalogController {
     @GetMapping("/courses/{courseId}/batches")
     public Page<BatchView> listBatches(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String courseId,
-            @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return catalog.listBatches(jwt.getSubject(), organizationId, courseId, page(page));
     }
 
@@ -72,14 +73,14 @@ public class AcademyCatalogController {
     @GetMapping("/courses/{courseId}/batches/{batchId}/learners")
     public Page<EnrollmentView> listBatchLearners(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String courseId,
-            @PathVariable String batchId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String batchId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return catalog.listBatchLearners(jwt.getSubject(), organizationId, courseId, batchId,
                 enrollmentPage(page));
     }
 
     @GetMapping("/batches/mine")
     public Page<EnrollmentView> myBatches(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return catalog.myBatches(jwt.getSubject(), organizationId, enrollmentPage(page));
     }
 

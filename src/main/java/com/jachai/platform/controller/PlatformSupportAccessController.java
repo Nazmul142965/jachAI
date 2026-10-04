@@ -7,6 +7,7 @@ import com.jachai.platform.service.PlatformSupportAccessService;
 import com.jachai.shared.security.RateLimitPolicy;
 import com.jachai.shared.security.RateLimitService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,7 +39,7 @@ public class PlatformSupportAccessController {
 
     @GetMapping("/audit")
     public Page<SupportAccessAuditView> history(@AuthenticationPrincipal Jwt jwt,
-            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return support.platformHistory(jwt.getSubject(), organizationId, page);
     }
 }

@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,7 +34,7 @@ public class QuestionController {
 
     @GetMapping
     public Page<Question> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page,
             @RequestParam(required = false) QuestionStatus status) {
         return questions.list(jwt.getSubject(), organizationId, status,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));

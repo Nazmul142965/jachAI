@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -30,6 +31,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiError> invalidParameter(ConstraintViolationException exception) {
+        return ResponseEntity.badRequest().body(new ApiError("VALIDATION_ERROR", "Request validation failed"));
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiError> invalidMethodParameter(HandlerMethodValidationException exception) {
         return ResponseEntity.badRequest().body(new ApiError("VALIDATION_ERROR", "Request validation failed"));
     }
 

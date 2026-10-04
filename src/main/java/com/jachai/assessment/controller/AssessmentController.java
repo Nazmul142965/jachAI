@@ -10,6 +10,7 @@ import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,7 +37,7 @@ public class AssessmentController {
 
     @GetMapping
     public Page<Assessment> list(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page,
             @RequestParam(required = false) AssessmentStatus status) {
         return assessments.list(jwt.getSubject(), organizationId, status,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
@@ -58,7 +59,7 @@ public class AssessmentController {
 
     @GetMapping("/{assessmentId}/versions")
     public Page<AssessmentVersion> versions(@AuthenticationPrincipal Jwt jwt, @PathVariable String organizationId,
-            @PathVariable String assessmentId, @RequestParam(defaultValue = "0") @Min(0) int page) {
+            @PathVariable String assessmentId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return assessments.listVersions(jwt.getSubject(), organizationId, assessmentId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "version")));
     }

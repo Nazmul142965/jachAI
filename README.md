@@ -80,6 +80,8 @@ After a sandbox order is independently verified and applied, an encrypted, dedup
 
 All routes below start with `/api/v1`. Except registration, verification, login, refresh, and health, they require a Bearer access token. Organization routes additionally check membership and role.
 
+Paged GET routes use 20-row pages. The API rejects `page` outside `0–500` before a database query to avoid unbounded MongoDB skip work on the free-tier deployment; controllers also declare the same bounds for parameter validation.
+
 | Area | Routes |
 | --- | --- |
 | Auth | `POST /auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/request-password-reset`, `/auth/reset-password` |
