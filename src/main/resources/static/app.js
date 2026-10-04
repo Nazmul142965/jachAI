@@ -21,7 +21,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   orderDetailId: null, orderDetailToken: 0,
   view: 'overview' };
 const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
-  'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform'];
+  'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
 // as tabs within the screen, so that the sidebar lists six or seven places
@@ -57,7 +57,11 @@ const SCREENS = {
     subtitle: 'Plan, sandbox orders and quota reconciliation',
     views: [['billing', 'Plan & usage']]
   },
-  platform: { title: 'Platform Operations', subtitle: 'Administration and support', views: [['platform', 'Operations']] }
+  platform: {
+    title: 'Platform Operations',
+    subtitle: 'Administration and support',
+    views: [['platform', 'Health'], ['platform-tenants', 'Organizations'], ['platform-admins', 'Administrators']]
+  }
 };
 const screenOfView = (view) => Object.keys(SCREENS)
   .find((key) => SCREENS[key].views.some(([id]) => id === view));
@@ -353,10 +357,17 @@ async function setOrganization() {
     $('#page-title').textContent = 'Start here';
     $('#page-subtitle').textContent = 'Create an Academy or Talent workspace.';
     if (state.platformAdmin) {
-      const tab = node('button', 'Platform'); tab.type = 'button'; tab.dataset.view = 'platform';
-      tab.addEventListener('click', () => run(() => showView('platform')));
+      // A platform admin who owns no workspace still gets the platform screen,
+      // and only that one.
+      availableScreens = ['platform'];
+      const tab = node('button', 'Platform Operations');
+      tab.type = 'button'; tab.dataset.screen = 'platform';
+      tab.addEventListener('click', () => run(() => showScreen('platform')));
       nav.append(tab);
-      await showView('platform');
+      const route = readRoute();
+      await showScreen('platform', route?.screenKey === 'platform' ? route.viewKey : undefined);
+    } else {
+      availableScreens = [];
     }
     return;
   }
@@ -554,7 +565,7 @@ async function showView(key) {
   // to when there is one, because a person may belong to several.
   $('#page-subtitle').textContent = [screen.subtitle, key === 'platform' ? '' : state.organization?.name || '']
     .filter(Boolean).join(' · ');
-  if (key === 'platform') { await loadPlatformView(); return; }
+  if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'overview') await loadOverviewMetrics();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadOrganizationSettings();

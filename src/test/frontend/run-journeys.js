@@ -390,7 +390,15 @@ async function main() {
   check(platform, 'storage states the threshold source', /ATLAS_STORAGE_WARNING_BYTES/.test(platformText));
   check(platform, 'storage explains it is not the official quota', /not Atlas's official quota/.test(await ev(`document.querySelector('#platform-view').textContent`)));
   await shot('platform');
-  check(platform, 'organizations carry owner and creation date', /Owner u-admin/.test(platformText));
+  check(platform, 'health tab holds only operations and storage',
+    !/Owner u-admin/.test(platformText) && !/Manual grant/.test(platformText));
+
+  // Organizations, billing support, manual plan and quota repair are their own tab.
+  await tab('Organizations'); await wait(900);
+  const tenantsText = await ev(`document.querySelector('#platform-tenants-view').textContent`);
+  check(platform, 'organizations carry owner and creation date', /Owner u-admin/.test(tenantsText));
+  check(platform, 'platform tabs carry their own route', (await route()) === '#/platform/platform-tenants', await route());
+  await shot('platform-tenants');
   await ev(`(() => { document.querySelector('#platform-organization-id').value = 'org-a';
     document.querySelector('#platform-inspect').click(); return true; })()`);
   await wait(1200);
@@ -398,6 +406,8 @@ async function main() {
   check(platform, 'manual TEAM plan panel states it is not a payment', /Manual grant — not a payment/.test(manualPlanText));
   check(platform, 'manual TEAM plan shows no active grant initially', /No active manual TEAM grant/.test(manualPlanText));
   check(platform, 'revoke button is disabled when no active grant', await ev(`document.querySelector('#platform-manual-revoke-submit').disabled`));
+  await tab('Administrators'); await wait(700);
+  await shot('platform-admins');
   await ev(`(() => { document.querySelector('#platform-user-id').value = 'u-target';
     document.querySelector('#platform-inspect-user').click(); return true; })()`);
   await wait(1200);
