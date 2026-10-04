@@ -305,6 +305,7 @@ async function setOrganization() {
   }
   const role = state.organization.myRole;
   $('#plan-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
+  $('#tenant-support-audit-panel')?.classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#organization-settings-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#billing-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
   $('#academy-feedback-panel').classList.toggle('hidden', state.organization.type !== 'ACADEMY');
@@ -431,6 +432,9 @@ async function showView(key) {
   if (key === 'overview') await loadOverviewMetrics();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadEntitlements(); await loadOrganizationSettings();
+    ensureTenantSupportAuditPanel();
+    await loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
+      'Platform support history could not be loaded.');
   }
   if (key === 'members') {
     await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
@@ -509,6 +513,7 @@ async function loadPaymentHistory(pageNumber = 0) {
 }
 async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
+  ensurePlatformSupportPanel();
   await Promise.all([
     loadList('#platform-operations', () => loadPlatformOperations(), 'Operational counts could not be loaded.'),
     loadList('#platform-storage', () => loadPlatformStorage(), 'Storage metrics could not be loaded.'),
@@ -517,12 +522,103 @@ async function loadPlatformView() {
   if (state.platformOrganizationId) {
     await inspectPlatformOrganization(state.platformOrganizationId);
   } else {
+    setList('#platform-support-preview', [], 'Inspect an organization before opening a support ticket.');
+    setList('#platform-support-audit', [], 'No organization selected.');
+    $('#platform-support-audit-pagination').replaceChildren();
     setList('#platform-manual-plan', [], 'Inspect an organization above to see and change its manual TEAM grant.');
     setList('#platform-manual-audit', [], 'No organization selected.');
     $('#platform-manual-audit-pagination').replaceChildren();
     $('#platform-manual-revoke-submit').disabled = true;
   }
   if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
+}
+function ensurePlatformSupportPanel() {
+  if ($('#platform-support-panel')) return;
+  const panel = node('div', '', 'card panel');
+  panel.id = 'platform-support-panel';
+  panel.innerHTML = `<h2>Ticketed assessment support</h2>
+    <p class="muted">Exceptional access to one assessment's metadata only. Every preview is audited and visible to that organization's admins. No questions, answers, attempts or learner details are shown.</p>
+    <form id="platform-support-form" class="form-row">
+      <label>Assessment ID<input name="assessmentId" maxlength="100" required autocomplete="off" placeholder="Exact assessment ID"></label>
+      <label>Support ticket<input name="ticketReference" minlength="6" maxlength="80" required autocomplete="off" placeholder="Ticket reference"></label>
+      <label>Reason<input name="reason" minlength="20" maxlength="500" required placeholder="Why access is needed"></label>
+      <label><input name="acknowledgeTenantContent" type="checkbox" required> I acknowledge this accesses tenant metadata</label>
+      <button class="button secondary" type="submit">Preview with audit</button>
+    </form>
+    <div id="platform-support-preview" class="item-list"></div>
+    <div class="section-heading"><h3>Support access audit</h3><button id="platform-support-audit-refresh" class="button quiet small" type="button">Reload</button></div>
+    <div id="platform-support-audit" class="item-list"></div><div id="platform-support-audit-pagination"></div>`;
+  $('#platform-inspect-user').closest('.card').insertAdjacentElement('beforebegin', panel);
+  const form = $('#platform-support-form');
+  form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+    const id = state.platformOrganizationId;
+    if (!id || $('#platform-organization-id').value.trim() !== id)
+      throw new Error('Inspect the selected organization before opening a support ticket.');
+    const values = new FormData(form);
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    beginList('#platform-support-preview');
+    try {
+      const preview = await request(`/platform/organizations/${encodeURIComponent(id)}/support/assessment-access`, {
+        method: 'POST', body: {
+          assessmentId: String(values.get('assessmentId') || '').trim(),
+          ticketReference: String(values.get('ticketReference') || '').trim(),
+          reason: String(values.get('reason') || '').trim(),
+          acknowledgeTenantContent: values.get('acknowledgeTenantContent') === 'on'
+        }
+      });
+      if (id !== state.platformOrganizationId || $('#platform-organization-id').value.trim() !== id) return;
+      setList('#platform-support-preview', [item(`${preview.title} · ${preview.status}`,
+        `Assessment ${preview.assessmentId} · version ${preview.latestVersion || 0} · ${preview.questionCount} question(s) · ${preview.durationMinutes} minutes · audit ${preview.accessEventId}`)],
+      'No preview returned.');
+      await loadPlatformSupportAudit(id, 0, state.platformLoadToken);
+      notice('Metadata preview recorded in the tenant-visible support audit.');
+    } catch (error) {
+      if (id === state.platformOrganizationId)
+        setList('#platform-support-preview', [], 'Preview unavailable. Check the ticket and try again.');
+      fieldErrors(form, error);
+      throw error;
+    } finally { submit.disabled = false; }
+  }); });
+  $('#platform-support-audit-refresh').addEventListener('click', () => run(() => {
+    const id = state.platformOrganizationId;
+    if (!id) throw new Error('Inspect an organization first.');
+    return loadPlatformSupportAudit(id, 0, state.platformLoadToken);
+  }));
+}
+async function loadPlatformSupportAudit(id, pageNumber, token) {
+  const page = await request(`/platform/organizations/${encodeURIComponent(id)}/support/assessment-access/audit?page=${pageNumber}`);
+  if (token !== state.platformLoadToken) return;
+  setList('#platform-support-audit', (page.content || []).map((event) => item(
+    `${event.ticketReference} · ${when(event.occurredAt)}`,
+    `Assessment ${event.assessmentId} · By ${event.actorUserId} · ${event.reason}`)),
+  'No support previews recorded for this organization.');
+  renderPageControls('#platform-support-audit-pagination', page,
+    (nextPage) => loadPlatformSupportAudit(id, nextPage, token));
+}
+function ensureTenantSupportAuditPanel() {
+  if ($('#tenant-support-audit-panel')) return;
+  const panel = node('div', '', 'card panel');
+  panel.id = 'tenant-support-audit-panel';
+  panel.innerHTML = `<div class="section-heading"><div><h2>Platform support access</h2>
+    <p class="muted">Every platform-admin metadata preview of this workspace is recorded here. No staff member can hide a recorded access from this history.</p></div>
+    <button id="tenant-support-audit-refresh" class="button quiet small" type="button">Reload</button></div>
+    <div id="tenant-support-audit" class="item-list"></div><div id="tenant-support-audit-pagination"></div>`;
+  $('#plan-panel').insertAdjacentElement('afterend', panel);
+  $('#tenant-support-audit-refresh').addEventListener('click', () => run(() =>
+    loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
+      'Platform support history could not be loaded.')));
+}
+async function loadTenantSupportAudit(pageNumber) {
+  const id = state.organization?.id;
+  if (!id || state.organization.myRole !== 'ORG_ADMIN') return;
+  const page = await request(`/organizations/${encodeURIComponent(id)}/support/assessment-access/audit?page=${pageNumber}`);
+  if (state.organization?.id !== id) return;
+  setList('#tenant-support-audit', (page.content || []).map((event) => item(
+    `${event.ticketReference} · ${when(event.occurredAt)}`,
+    `Assessment ${event.assessmentId} · Platform admin ${event.actorUserId} · ${event.reason}`)),
+  'No platform support access has been recorded for this workspace.');
+  renderPageControls('#tenant-support-audit-pagination', page, loadTenantSupportAudit);
 }
 function formatBytes(bytes) {
   const value = Number(bytes);
@@ -578,15 +674,17 @@ async function inspectPlatformOrganization(organizationId) {
   $('#platform-organization-id').value = id;
   $('#platform-repair-usage').disabled = true;
   $('#platform-manual-revoke-submit').disabled = true;
+  setList('#platform-support-preview', [], 'A preview requires a new ticket and explicit acknowledgement.');
   for (const selector of ['#platform-billing', '#platform-orders', '#platform-usage-report', '#platform-usage-audit',
-    '#platform-manual-plan', '#platform-manual-audit']) {
+    '#platform-manual-plan', '#platform-manual-audit', '#platform-support-audit']) {
     beginList(selector);
   }
   try {
     await Promise.all([
       loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
       loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token),
-      loadPlatformManualPlan(id, token), loadPlatformManualPlanAudit(id, 0, token)
+      loadPlatformManualPlan(id, token), loadPlatformManualPlanAudit(id, 0, token),
+      loadPlatformSupportAudit(id, 0, token)
     ]);
   } finally {
     if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
