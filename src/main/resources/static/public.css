@@ -147,7 +147,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   letter-spacing: .19em;
   text-transform: uppercase;
 }
-.eyebrow--accent { color: var(--accent); text-shadow: 0 1px 1px rgba(0, 0, 0, .35); }
+.eyebrow--accent { color: var(--accent); text-shadow: var(--shadow-text); }
 
 h1 {
   margin: 0 0 var(--sp-4);
@@ -387,7 +387,7 @@ dl.cert-details dd { margin: 0; font-weight: var(--weight-semibold); overflow-wr
   font-weight: var(--weight-bold);
   letter-spacing: .08em;
   text-transform: uppercase;
-  box-shadow: 0 4px 12px rgba(7, 91, 77, .18);
+  box-shadow: var(--e-2);
 }
 
 .plan-name { font-size: var(--text-xl); font-weight: var(--weight-bold); letter-spacing: -.02em; }

@@ -113,7 +113,7 @@ code, pre, .code { font-family: var(--font-mono); font-size: .92em; }
 }
 .button.quiet:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-sunk); }
 
-.button.danger-action { background: var(--danger); color: #fff; }
+.button.danger-action { background: var(--danger); color: var(--on-danger); }
 
 .button.small { min-height: 34px; padding: 7px var(--sp-3); font-size: var(--text-sm); }
 

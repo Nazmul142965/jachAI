@@ -96,8 +96,10 @@
   --accent-ink:    #4a5a1a;
   --danger:        var(--danger-ink);
   --warn:          var(--warn-ink);
+  --on-danger:     var(--neutral-0);
   --focus-ring:    var(--brand-500);
   --scrim:         rgba(13, 26, 28, .5);
+  --shadow-text:   0 1px 1px rgba(0, 0, 0, .35);
 
   --e-1: 0 1px 2px rgba(6, 59, 51, .05), 0 1px 3px rgba(6, 59, 51, .04);
   --e-2: 0 2px 4px rgba(6, 59, 51, .04), 0 8px 20px rgba(6, 59, 51, .06);
@@ -236,6 +238,7 @@
     --accent-on:     #042a25;
     --accent-soft:   #2c3a15;
     --accent-ink:    #dcefa6;
+    --on-danger:     #3a1d1d;
     --focus-ring:    var(--brand-300);
     --scrim:         rgba(0, 0, 0, .66);
 
@@ -282,6 +285,7 @@
   --accent-on:     #042a25;
   --accent-soft:   #2c3a15;
   --accent-ink:    #dcefa6;
+  --on-danger:     #3a1d1d;
   --focus-ring:    var(--brand-300);
   --scrim:         rgba(0, 0, 0, .66);
 
