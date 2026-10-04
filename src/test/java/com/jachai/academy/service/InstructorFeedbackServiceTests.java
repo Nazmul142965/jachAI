@@ -14,6 +14,9 @@ import com.jachai.academy.repository.InstructorFeedbackRepository;
 import com.jachai.assessment.model.AssessmentVersion;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.auth.model.User;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
@@ -40,11 +43,14 @@ class InstructorFeedbackServiceTests {
     @Mock OrganizationRepository organizations;
     @Mock PublishedVersionStore versions;
     @Mock TenantAccessService access;
+    @Mock UserRepository users;
+    @Mock EmailSender emailSender;
     InstructorFeedbackService service;
 
     @BeforeEach
     void setUp() {
-        service = new InstructorFeedbackService(feedback, attempts, organizations, versions, access);
+        service = new InstructorFeedbackService(feedback, attempts, organizations, versions, access,
+                users, emailSender, "https://jachai.test");
     }
 
     @Test
@@ -158,6 +164,28 @@ class InstructorFeedbackServiceTests {
         ApiException error = assertThrows(ApiException.class, () -> service.writeDraft(
                 "teacher", "academy-a", "a1", new WriteFeedbackRequest("Changed", "Changed")));
         assertEquals("FEEDBACK_PUBLISHED", error.code());
+    }
+
+    @Test
+    void publishedFeedbackQueuesLearnerNoticeAndRetryRepairsEnqueue() {
+        academy();
+        when(attempts.findByIdAndOrganizationId("a1", "academy-a"))
+                .thenReturn(Optional.of(attempt(Instant.now())));
+        when(feedback.findByOrganizationIdAndAttemptId("academy-a", "a1"))
+                .thenReturn(Optional.of(draft()), Optional.of(draft().publish(Instant.now())));
+        when(feedback.save(any(InstructorFeedback.class))).thenAnswer(call -> call.getArgument(0));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
+                "learner@example.com", "Learner", null, true, false, 0, Instant.now())));
+        org.mockito.Mockito.doThrow(new IllegalStateException("outbox unavailable"))
+                .doNothing().when(emailSender).sendFeedbackPublished("f1", "learner@example.com",
+                        "Learner", "https://jachai.test/");
+
+        service.publish("teacher", "academy-a", "a1");
+        service.publish("teacher", "academy-a", "a1");
+
+        verify(emailSender, org.mockito.Mockito.times(2)).sendFeedbackPublished("f1",
+                "learner@example.com", "Learner", "https://jachai.test/");
+        verify(feedback, org.mockito.Mockito.times(1)).save(any(InstructorFeedback.class));
     }
 
     @Test

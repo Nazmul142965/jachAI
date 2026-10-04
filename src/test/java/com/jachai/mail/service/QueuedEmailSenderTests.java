@@ -114,6 +114,21 @@ class QueuedEmailSenderTests {
     }
 
     @Test
+    void feedbackNoticeUsesPermanentDeterministicJobId() {
+        when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
+        new QueuedEmailSender(jobs, cipher).sendFeedbackPublished("feedback-1",
+                "learner@example.com", "Learner", "https://example.test/");
+
+        ArgumentCaptor<EmailPayload> payload = ArgumentCaptor.forClass(EmailPayload.class);
+        verify(cipher).seal(org.mockito.ArgumentMatchers.eq("feedback-published:feedback-1"), payload.capture());
+        assertEquals(EmailJobType.FEEDBACK_PUBLISHED, payload.getValue().type());
+        assertEquals("feedback-1", payload.getValue().resourceId());
+        ArgumentCaptor<EmailJob> job = ArgumentCaptor.forClass(EmailJob.class);
+        verify(jobs).insert(job.capture());
+        assertEquals(null, job.getValue().expiresAt());
+    }
+
+    @Test
     void assignmentReminderUsesOneEncryptedJobPerUtcDay() {
         when(cipher.seal(any(), any())).thenReturn(new EmailPayloadCipher.Sealed("ciphertext", "nonce"));
         QueuedEmailSender sender = new QueuedEmailSender(jobs, cipher);

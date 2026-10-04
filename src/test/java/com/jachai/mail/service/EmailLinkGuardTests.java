@@ -11,6 +11,9 @@ import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.model.User;
 import com.jachai.academy.repository.CertificateRepository;
+import com.jachai.academy.repository.InstructorFeedbackRepository;
+import com.jachai.academy.model.InstructorFeedback;
+import com.jachai.academy.model.FeedbackStatus;
 import com.jachai.academy.model.Certificate;
 import com.jachai.academy.model.CertificateStatus;
 import com.jachai.attempt.model.Attempt;
@@ -46,6 +49,7 @@ class EmailLinkGuardTests {
     @Mock CampaignEmailInvitationRepository invitations;
     @Mock OrganizationInvitationRepository organizationInvitations;
     @Mock CertificateRepository certificates;
+    @Mock InstructorFeedbackRepository feedback;
     @Mock AttemptRepository attempts;
     @Mock AssignmentRepository assignments;
     @Mock MembershipRepository memberships;
@@ -54,7 +58,7 @@ class EmailLinkGuardTests {
 
     private EmailLinkGuard guard() {
         return new EmailLinkGuard(verificationTokens, resetTokens, invitations,
-                organizationInvitations, certificates, attempts, assignments, memberships,
+                organizationInvitations, certificates, feedback, attempts, assignments, memberships,
                 paymentOrders, users);
     }
 
@@ -159,6 +163,38 @@ class EmailLinkGuardTests {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.RESULT_RELEASED,
                 "learner@example.com", "Learner", null, "https://example.test/",
                 now.plusSeconds(3600), "attempt")));
+    }
+
+    @Test
+    void feedbackNoticeRequiresPublishedFeedbackActiveLearnerAndMatchingEmail() {
+        Instant now = Instant.now();
+        when(feedback.findById("feedback-1")).thenReturn(Optional.of(new InstructorFeedback(
+                "feedback-1", "org", "attempt", "learner", "teacher", "Good", "Practice",
+                FeedbackStatus.PUBLISHED, now, now, now, 1L)));
+        when(memberships.findByUserIdAndOrganizationIdAndActiveTrue("learner", "org"))
+                .thenReturn(Optional.of(new Membership("member", "learner", "org",
+                        OrganizationRole.LEARNER, true, now)));
+        when(users.findById("learner")).thenReturn(Optional.of(new User("learner",
+                "learner@example.com", "Learner", null, true, false, 0, now)));
+
+        assertTrue(guard().isCurrent(new EmailPayload(EmailJobType.FEEDBACK_PUBLISHED,
+                "learner@example.com", "Learner", null, "https://example.test/",
+                now.plusSeconds(3600), "feedback-1")));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.FEEDBACK_PUBLISHED,
+                "other@example.com", "Learner", null, "https://example.test/",
+                now.plusSeconds(3600), "feedback-1")));
+    }
+
+    @Test
+    void draftFeedbackNoticeIsNotDelivered() {
+        Instant now = Instant.now();
+        when(feedback.findById("feedback-1")).thenReturn(Optional.of(new InstructorFeedback(
+                "feedback-1", "org", "attempt", "learner", "teacher", "Good", "Practice",
+                FeedbackStatus.DRAFT, now, now, null, 0L)));
+
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.FEEDBACK_PUBLISHED,
+                "learner@example.com", "Learner", null, "https://example.test/",
+                now.plusSeconds(3600), "feedback-1")));
     }
 
     @Test

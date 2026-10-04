@@ -5,6 +5,8 @@ import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.academy.model.CertificateStatus;
 import com.jachai.academy.repository.CertificateRepository;
+import com.jachai.academy.model.FeedbackStatus;
+import com.jachai.academy.repository.InstructorFeedbackRepository;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AssignmentRepository;
 import com.jachai.attempt.repository.AttemptRepository;
@@ -36,6 +38,7 @@ public class EmailLinkGuard {
     private final CampaignEmailInvitationRepository invitations;
     private final OrganizationInvitationRepository organizationInvitations;
     private final CertificateRepository certificates;
+    private final InstructorFeedbackRepository feedback;
     private final AttemptRepository attempts;
     private final AssignmentRepository assignments;
     private final MembershipRepository memberships;
@@ -48,6 +51,9 @@ public class EmailLinkGuard {
         }
         if (payload.type() == EmailJobType.RESULT_RELEASED) {
             return currentResult(payload);
+        }
+        if (payload.type() == EmailJobType.FEEDBACK_PUBLISHED) {
+            return currentFeedback(payload);
         }
         if (payload.type() == EmailJobType.ASSIGNMENT_REMINDER) {
             return currentAssignmentReminder(payload);
@@ -74,6 +80,7 @@ public class EmailLinkGuard {
                             && value.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case CERTIFICATE_ISSUED -> false;
             case RESULT_RELEASED -> false;
+            case FEEDBACK_PUBLISHED -> false;
             case ASSIGNMENT_REMINDER -> false;
             case BILLING_NOTICE -> false;
         };
@@ -128,6 +135,25 @@ public class EmailLinkGuard {
                             && attempt.resultReleasedAt() != null)
                     .flatMap(attempt -> users.findById(attempt.userId()))
                     .filter(user -> user.email().equalsIgnoreCase(payload.recipient()))
+                    .isPresent();
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    private boolean currentFeedback(EmailPayload payload) {
+        if (payload.resourceId() == null) return false;
+        try {
+            URI url = URI.create(payload.url());
+            if (!"/".equals(url.getPath()) || url.getQuery() != null) return false;
+            return feedback.findById(payload.resourceId())
+                    .filter(item -> item.status() == FeedbackStatus.PUBLISHED)
+                    .filter(item -> memberships.findByUserIdAndOrganizationIdAndActiveTrue(
+                            item.learnerUserId(), item.organizationId())
+                            .filter(member -> member.role() == OrganizationRole.LEARNER).isPresent())
+                    .flatMap(item -> users.findById(item.learnerUserId()))
+                    .filter(user -> user.emailVerified() && !user.disabled()
+                            && user.email().equalsIgnoreCase(payload.recipient()))
                     .isPresent();
         } catch (IllegalArgumentException exception) {
             return false;

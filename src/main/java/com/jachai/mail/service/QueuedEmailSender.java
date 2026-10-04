@@ -74,6 +74,18 @@ public class QueuedEmailSender implements EmailSender {
     }
 
     @Override
+    public void sendFeedbackPublished(String feedbackId, String recipient, String displayName, String signInUrl) {
+        EmailPayload payload = new EmailPayload(EmailJobType.FEEDBACK_PUBLISHED,
+                recipient, displayName, null, signInUrl,
+                Instant.now().plus(Duration.ofDays(7)), feedbackId);
+        try {
+            enqueue("feedback-published:" + feedbackId, payload, null);
+        } catch (DuplicateKeyException ignored) {
+            // Retry can repair a failed enqueue without delivering a second notification.
+        }
+    }
+
+    @Override
     public boolean sendAssignmentReminder(String assignmentId, String recipient, String displayName,
                                           String assessmentTitle, String signInUrl, Instant availableUntil) {
         Instant now = Instant.now();

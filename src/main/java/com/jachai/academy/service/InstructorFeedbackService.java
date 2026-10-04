@@ -7,6 +7,8 @@ import com.jachai.academy.model.InstructorFeedback;
 import com.jachai.academy.repository.InstructorFeedbackRepository;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.assessment.service.PublishedVersionStore;
+import com.jachai.auth.repository.UserRepository;
+import com.jachai.auth.service.EmailSender;
 import com.jachai.attempt.model.Attempt;
 import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
@@ -17,20 +19,38 @@ import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
+@Slf4j
 public class InstructorFeedbackService {
     private final InstructorFeedbackRepository feedback;
     private final AttemptRepository attempts;
     private final OrganizationRepository organizations;
     private final PublishedVersionStore versions;
     private final TenantAccessService access;
+    private final UserRepository users;
+    private final EmailSender emailSender;
+    private final String publicBaseUrl;
+
+    public InstructorFeedbackService(InstructorFeedbackRepository feedback, AttemptRepository attempts,
+                                     OrganizationRepository organizations, PublishedVersionStore versions,
+                                     TenantAccessService access, UserRepository users, EmailSender emailSender,
+                                     @Value("${app.public-base-url}") String publicBaseUrl) {
+        this.feedback = feedback;
+        this.attempts = attempts;
+        this.organizations = organizations;
+        this.versions = versions;
+        this.access = access;
+        this.users = users;
+        this.emailSender = emailSender;
+        this.publicBaseUrl = publicBaseUrl;
+    }
 
     public FeedbackView writeDraft(String actorId, String organizationId, String attemptId,
                                    WriteFeedbackRequest request) {
@@ -62,7 +82,10 @@ public class InstructorFeedbackService {
         Attempt attempt = submittedAttempt(organizationId, attemptId);
         InstructorFeedback current = feedback.findByOrganizationIdAndAttemptId(organizationId, attemptId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Feedback not found"));
-        if (current.status() == FeedbackStatus.PUBLISHED) return FeedbackView.from(current);
+        if (current.status() == FeedbackStatus.PUBLISHED) {
+            queuePublishedEmail(current);
+            return FeedbackView.from(current);
+        }
         boolean released = attempt.percentage() != null && (attempt.resultReleasedAt() != null
                 || versions.get(organizationId, attempt.assessmentVersionId()).resultReleasePolicy()
                         != ResultReleasePolicy.MANUAL);
@@ -71,9 +94,26 @@ public class InstructorFeedbackService {
                     "Release the result before publishing feedback");
         }
         try {
-            return FeedbackView.from(feedback.save(current.publish(Instant.now())));
+            InstructorFeedback published = feedback.save(current.publish(Instant.now()));
+            queuePublishedEmail(published);
+            return FeedbackView.from(published);
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Feedback changed concurrently; reload it");
+        }
+    }
+
+    private void queuePublishedEmail(InstructorFeedback published) {
+        try {
+            users.findById(published.learnerUserId()).ifPresent(user -> {
+                if (user.emailVerified() && !user.disabled()) {
+                    emailSender.sendFeedbackPublished(published.id(), user.email(), user.displayName(),
+                            publicBaseUrl.replaceAll("/+$", "") + "/");
+                }
+            });
+        } catch (RuntimeException exception) {
+            // Published feedback remains authoritative. A publish retry repairs enqueue failure.
+            log.warn("Feedback email enqueue failed for feedback {}: {}",
+                    published.id(), exception.getClass().getSimpleName());
         }
     }
 

@@ -271,7 +271,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Academy feedback implementation decision
 
-- One instructor feedback document is scoped to an Academy organization and submitted attempt. Staff can revise a private draft; publishing requires the result to be released and makes the text immutable. Only the attempt owner can read published feedback. This is narrative guidance, not an AI-generated score or a score override. Result-release review queue now exists; feedback notifications and audit events remain separate work.
+- One instructor feedback document is scoped to an Academy organization and submitted attempt. Staff can revise a private draft; publishing requires the result to be released and makes the text immutable. Only the attempt owner can read published feedback. This is narrative guidance, not an AI-generated score or a score override. Publishing queues a deduplicated learner email through the encrypted outbox; delivery rechecks published state, active Academy membership, and the current verified account email. Repeating publish repairs an enqueue failure. Feedback transition audit events remain separate work.
 
 ## Academy course and batch implementation decision
 
