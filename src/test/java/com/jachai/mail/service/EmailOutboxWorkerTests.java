@@ -46,6 +46,8 @@ class EmailOutboxWorkerTests {
                 null, "https://example.test/verify?token=secret", Instant.now().plusSeconds(3600));
         when(cipher.open("job", "ciphertext", "nonce")).thenReturn(payload);
         when(linkGuard.isCurrent(payload)).thenReturn(true);
+        when(mongo.exists(any(Query.class), org.mockito.ArgumentMatchers.eq(EmailJob.class)))
+                .thenReturn(true);
 
         worker().deliver(job(1));
 
@@ -87,6 +89,8 @@ class EmailOutboxWorkerTests {
                 null, "https://example.test/verify?token=secret", Instant.now().plusSeconds(3600));
         when(cipher.open("job", "ciphertext", "nonce")).thenReturn(payload);
         when(linkGuard.isCurrent(payload)).thenReturn(true);
+        when(mongo.exists(any(Query.class), org.mockito.ArgumentMatchers.eq(EmailJob.class)))
+                .thenReturn(true);
         doThrow(new IllegalStateException("SMTP unavailable")).when(transport).deliver(payload);
 
         worker().deliver(job(1));

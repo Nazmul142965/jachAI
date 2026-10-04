@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 import com.jachai.billing.integration.BaseMongoIntegrationTest;
 import com.jachai.mail.model.EmailJob;
@@ -115,6 +117,7 @@ class EmailOutboxMongoIntegrationTests extends BaseMongoIntegrationTest {
         assertEquals(EmailJobStatus.SENT, sent.status());
         assertNull(sent.encryptedPayload());
         assertNull(sent.nonce());
+        verify(transport, times(1)).deliver(payload);
     }
 
     private EmailJob claimWhenReleased(EmailOutboxWorker worker, CountDownLatch ready,

@@ -85,6 +85,10 @@ public class EmailOutboxWorker {
             return;
         }
         try {
+            // A slow worker may have lost its lease while validating the payload. Do not
+            // send from that stale claim after another worker has reclaimed the job.
+            if (!mongo.exists(owned(job).addCriteria(Criteria.where("leaseUntil").gt(Instant.now())),
+                    EmailJob.class)) return;
             transport.deliver(payload);
         } catch (RuntimeException exception) {
             scheduleFailure(job, exception);
