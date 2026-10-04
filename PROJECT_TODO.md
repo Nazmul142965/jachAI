@@ -13,6 +13,7 @@ Updated: 2026-10-04. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Outbox concurrent claim, pre-send stale-lease guard, expired-lease fencing, and durable retry/backoff passed focused unit/local-Mongo tests. This does not prove SMTP delivery or exactly-once email delivery.
 - [x] Academy batch-analytics aggregation passed a disposable local-Mongo test covering latest submitted attempt, pending grade, zero score, empty cohort, and tenant/batch isolation. Atlas performance remains unverified.
 - [x] Membership role changes now repair a pending prior audit before replacing its recovery marker; focused unit and local-Mongo tests passed. Atlas concurrency remains open.
+- [x] An opt-in `local,smtp` transport and isolated `jachai_smtp_*` launcher path allow real inbox testing without production mode; profile-selection and fail-closed checks passed. No live SMTP send has been performed.
 
 ## Next implementation and integration
 
