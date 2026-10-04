@@ -212,9 +212,19 @@ class EntitlementUsageReconciliationServiceTests {
         assertEquals(UsageReconciliationStatus.STRANDED_RELEASED, august.status());
         assertEquals(0, august.appliedUsage());
         assertTrue(august.windowClosed());
-        assertEquals(4, report.entries().size());
+        assertEquals(3, report.entries().size());
         assertTrue(report.entries().stream().noneMatch(candidate -> candidate.window().equals("2026-09")));
-        assertFalse(report.reconciled(), "current invitation history can be incomplete after TTL");
+        assertTrue(report.reconciled(), "empty invitation windows have no counter to repair");
+    }
+
+    @Test
+    void emptyTenantHasNoFalseInvitationIncidentOrCounterWrite() {
+        UsageReconciliationReport report = service().repair("admin-a", "org-a");
+
+        assertTrue(report.entries().stream().noneMatch(entry -> entry.metric() == UsageMetric.INVITATION));
+        assertTrue(report.manualSteps().isEmpty());
+        assertTrue(report.reconciled());
+        assertEquals(0, store.writes);
     }
 
     @Test
@@ -248,7 +258,7 @@ class EntitlementUsageReconciliationServiceTests {
         assertEquals(3, store.used("org-a", UsageMetric.PUBLISHED_ASSESSMENT, "all"));
         assertEquals(2L, store.revision("org-a:PUBLISHED_ASSESSMENT:all"));
         assertTrue(report.repaired());
-        assertFalse(report.reconciled(), "current invitation history can be incomplete after TTL");
+        assertTrue(report.reconciled(), "no invitation counter or surviving record needs a repair");
     }
 
     @Test
@@ -470,7 +480,7 @@ class EntitlementUsageReconciliationServiceTests {
         UsageReconciliationReport retried = service().repair("admin-a", "org-a");
         assertEquals(UsageReconciliationStatus.BACKFILLED,
                 entry(retried, UsageMetric.CERTIFICATE, "2026-10").status());
-        assertFalse(retried.reconciled(), "current invitation history can be incomplete after TTL");
+        assertTrue(retried.reconciled(), "the failed certificate write converged on retry");
     }
 
     @Test
@@ -487,10 +497,10 @@ class EntitlementUsageReconciliationServiceTests {
         UsageReconciliationReport second = service.repair("admin-a", "org-a");
 
         assertTrue(first.repaired());
-        assertFalse(first.reconciled(), "current invitation history can be incomplete after TTL");
+        assertTrue(first.reconciled(), "all provable changes were applied");
         assertEquals(writesAfterFirstRun, store.writes, "a second run must not write again");
         assertFalse(second.repaired());
-        assertFalse(second.reconciled(), "current invitation history can be incomplete after TTL");
+        assertTrue(second.reconciled(), "the second run has no remaining action");
         assertEquals(UsageReconciliationStatus.IN_SYNC,
                 entry(second, UsageMetric.CERTIFICATE, "2026-10").status());
     }
@@ -533,7 +543,7 @@ class EntitlementUsageReconciliationServiceTests {
 
         UsageReconciliationReport report = service().report("admin-a", "org-a");
 
-        assertEquals(3, report.entries().size());
+        assertEquals(2, report.entries().size());
         assertTrue(report.manualSteps().stream().noneMatch(step -> step.contains("2026-06")));
     }
 

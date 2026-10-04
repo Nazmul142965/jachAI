@@ -168,7 +168,10 @@ public class EntitlementUsageReconciliationService {
         for (UsageWindow window : candidates) {
             UsageBucket bucket = buckets.get(window.bucketId());
             Bounds bounds = bounds(window, evidence);
-            if (bucket == null && bounds.maximum() == 0 && !isCurrent(window, current)) {
+            if (bucket == null && bounds.maximum() == 0
+                    && (!isCurrent(window, current) || window.metric() == UsageMetric.INVITATION)) {
+                // No counter or surviving record can be adjusted. Reporting every empty current-month
+                // invitation window as a manual incident would swamp an all-tenant migration review.
                 continue;
             }
             Row row = new Row(window, bucket, bounds, plan.limitFor(window.metric()), window.closedAt(now));
