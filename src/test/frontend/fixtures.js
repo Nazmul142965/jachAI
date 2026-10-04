@@ -60,13 +60,19 @@ const SOURCE = String.raw`(() => {
     startsAt: new Date(Date.now() - 86400000).toISOString(), endsAt: new Date(Date.now() + 2592000000).toISOString(),
     createdAt: new Date().toISOString() };
   const enrollment = { courseId: 'course-1', courseName: 'Java Fundamentals', batchId: 'batch-1', batchName: 'Batch A',
-    learnerUserId: 'u-learner', enrolledAt: new Date().toISOString() };
+    learnerUserId: 'u-learner', learnerDisplayName: 'Learner One', enrolledAt: new Date().toISOString() };
+  // A learner whose account no longer resolves: the server sends a null name
+  // and the row must fall back to the id rather than print nothing.
+  const enrollmentNoName = { courseId: 'course-1', courseName: 'Java Fundamentals', batchId: 'batch-1',
+    batchName: 'Batch A', learnerUserId: 'u-gone', learnerDisplayName: null,
+    enrolledAt: new Date().toISOString() };
   const batchAssessment = { id: 'ba-1', courseId: 'course-1', batchId: 'batch-1', assessmentId: 'assess-1',
     assessmentVersionId: 'assess-1:1', assessmentTitle: 'Java Basics', attemptsAllowed: 2,
     availableFrom: new Date(Date.now() - 86400000).toISOString(), availableUntil: new Date(Date.now() + 604800000).toISOString() };
   const batchAnalytics = { batchAssessmentId: 'ba-1', activeLearners: 6, assignedLearners: 5, submittedLearners: 4,
     gradedLearners: 3, passedLearners: 2, averageLatestPercentage: 71.5, completionRatePercent: 66.7, passRatePercent: 66.7 };
-  const batchProgress = { learnerUserId: 'u-learner', assignmentId: 'asg-1', attemptId: 'att-9', percentage: 80,
+  const batchProgress = { learnerUserId: 'u-learner', learnerDisplayName: 'Learner One',
+    assignmentId: 'asg-1', attemptId: 'att-9', percentage: 80,
     passed: true, submittedAt: new Date().toISOString() };
 
   // A published assessment, so the version-history entry point has something
@@ -175,7 +181,7 @@ const SOURCE = String.raw`(() => {
     // Academy batch/cohort workspace
     if (path === org + '/academy/courses') return json(page([course]));
     if (path === org + '/academy/courses/course-1/batches') return json(page([batch]));
-    if (path === org + '/academy/courses/course-1/batches/batch-1/learners') return json(page([enrollment]));
+    if (path === org + '/academy/courses/course-1/batches/batch-1/learners') return json(page([enrollment, enrollmentNoName]));
     if (path === org + '/academy/courses/course-1/batches/batch-1/assessments') return json(page([batchAssessment]));
     if (path.endsWith('/assessments/ba-1/reconcile')) return json({ batchAssessmentId: 'ba-1', createdAssignments: 2, alreadyAssigned: 3 });
     if (path.includes('/assessments/ba-1/analytics')) return json(batchAnalytics);

@@ -2727,8 +2727,19 @@ async function loadAcademyBatches(pageNumber = 0) {
   await loadBatchAssessments();
 }
 
-function academyLearnerName(record) {
-  return record.learnerDisplayName?.trim() || `Learner ${record.learnerUserId}`;
+// Academy rows identify a learner. The server now sends learnerDisplayName
+// beside learnerUserId, but it can be absent — the account may have been
+// removed, or the lookup may have found nothing — so the id remains the
+// fallback and is always shown somewhere. A name alone is not enough to act
+// on: two learners can share one, and staff forms take the id.
+function learnerName(row) {
+  const name = (row.learnerDisplayName || '').trim();
+  return name || `Learner ${row.learnerUserId}`;
+}
+function learnerIdNote(row) {
+  return (row.learnerDisplayName || '').trim()
+    ? `ID ${row.learnerUserId}`
+    : 'Display name unavailable for this account';
 }
 async function loadAcademyBatchLearners(pageNumber = 0) {
   const courseId = $('#academy-course-select').value;
@@ -2740,8 +2751,8 @@ async function loadAcademyBatchLearners(pageNumber = 0) {
   }
   const page = await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners?page=${pageNumber}`));
   setList('#batch-learners-list', (page.content || []).map((enrollment) => item(
-    academyLearnerName(enrollment),
-    `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
+    learnerName(enrollment),
+    `${learnerIdNote(enrollment)} · Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
   'No learners enrolled yet.');
   renderPageControls('#batch-learners-pagination', page, loadAcademyBatchLearners);
 }
@@ -2825,9 +2836,9 @@ async function showBatchProgress(batchAssessmentId) {
 async function loadBatchProgressPage(route, pageNumber) {
   const page = await request(ownOrg(`${route}/progress?page=${pageNumber}`));
   setList('#batch-progress-list', (page.content || []).map((row) => item(
-    academyLearnerName(row),
-    row.attemptId ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
-      : 'No submitted attempt yet.',
+    learnerName(row),
+    `${learnerIdNote(row)} · ` + (row.attemptId ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
+      : 'No submitted attempt yet.'),
     !row.attemptId && row.assignmentId ? [reminderButton(row.assignmentId)] : [])), 'No learners assigned yet.');
   renderPageControls('#batch-progress-pagination', page,
     (nextPage) => loadBatchProgressPage(route, nextPage));
@@ -2978,10 +2989,10 @@ async function loadAcademyWorkspaceProgress(assessment, token, pageNumber = 0) {
   const page = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/${encodeURIComponent(assessment.id)}/progress?page=${pageNumber}`));
   if (batchWorkspaceStale(token)) return;
   setList('#academy-batch-progress', (page.content || []).map((row) => item(
-    academyLearnerName(row),
-    row.attemptId
+    learnerName(row),
+    `${learnerIdNote(row)} · ` + (row.attemptId
       ? `Latest attempt: ${row.percentage == null ? 'Awaiting manual grading' : `${row.percentage}% · ${row.passed ? 'Passed' : 'Not passed'}`} · ${new Date(row.submittedAt).toLocaleString()}`
-      : 'No submitted attempt yet.')), 'No learner has been assigned this assessment yet.');
+      : 'No submitted attempt yet.'))), 'No learner has been assigned this assessment yet.');
   renderPageControls('#academy-batch-progress-pagination', page,
     (nextPage) => run(() => loadAcademyWorkspaceProgress(assessment, token, nextPage)));
 }
@@ -2989,8 +3000,8 @@ async function loadAcademyWorkspaceLearners(token, pageNumber = 0) {
   const page = await request(ownOrg(`${batchWorkspaceRoute()}/learners?page=${pageNumber}`));
   if (batchWorkspaceStale(token)) return;
   setList('#academy-batch-learners', (page.content || []).map((enrollment) => item(
-    academyLearnerName(enrollment),
-    `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
+    learnerName(enrollment),
+    `${learnerIdNote(enrollment)} · Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
   'No learner is enrolled in this batch yet.');
   renderPageControls('#academy-batch-learners-pagination', page,
     (nextPage) => run(() => loadAcademyWorkspaceLearners(token, nextPage)));
