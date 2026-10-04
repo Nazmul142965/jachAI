@@ -22,6 +22,7 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/index.html", "/app.css", "/app.js", "/public.css",
+                                "/theme.css", "/theme.js",
                                 "/api/v1/health", "/actuator/health", "/actuator/health/**", "/verify-email.html", "/reset-password.html",
                                 "/api/v1/auth/register", "/api/v1/auth/verify-email",
                                 "/api/v1/auth/google", "/api/v1/auth/google/config",

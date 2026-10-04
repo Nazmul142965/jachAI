@@ -28,6 +28,7 @@ import com.jachai.assessment.service.AssessmentService;
 import com.jachai.assessment.service.PublishedVersionStore;
 import com.jachai.attempt.service.AssignmentService;
 import com.jachai.attempt.service.AttemptService;
+import com.jachai.attempt.service.AssignmentReminderService;
 import com.jachai.attempt.repository.AttemptAnswerStore;
 import com.jachai.attempt.service.IntegrityTelemetryService;
 import com.jachai.organization.service.MembershipService;
@@ -50,6 +51,7 @@ import com.jachai.platform.service.PlatformBillingSupportService;
 import com.jachai.platform.service.PlatformOperationsService;
 import com.jachai.platform.service.PlatformStorageService;
 import com.jachai.platform.service.PlatformPlanService;
+import com.jachai.platform.service.PlatformSupportAccessService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
@@ -77,6 +79,7 @@ class JachAiApplicationTests {
     @MockitoBean AssessmentService assessmentService;
     @MockitoBean PublishedVersionStore publishedVersionStore;
     @MockitoBean AssignmentService assignmentService;
+    @MockitoBean AssignmentReminderService assignmentReminderService;
     @MockitoBean AttemptService attemptService;
     @MockitoBean AttemptAnswerStore attemptAnswerStore;
     @MockitoBean IntegrityTelemetryService integrityTelemetryService;
@@ -99,6 +102,7 @@ class JachAiApplicationTests {
     @MockitoBean PlatformOperationsService platformOperationsService;
     @MockitoBean PlatformStorageService platformStorageService;
     @MockitoBean PlatformPlanService platformPlanService;
+    @MockitoBean PlatformSupportAccessService platformSupportAccessService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
@@ -338,9 +342,11 @@ class JachAiApplicationTests {
                 .andExpect(content().string(containsString("platform-role-audit-pagination")));
         mvc.perform(get("/verify-email.html"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("JachAI email verification")));
+                .andExpect(content().string(containsString("Verify email")));
         mvc.perform(get("/app.js")).andExpect(status().isOk());
         mvc.perform(get("/app.css")).andExpect(status().isOk());
+        mvc.perform(get("/theme.css")).andExpect(status().isOk());
+        mvc.perform(get("/theme.js")).andExpect(status().isOk());
     }
 
     @Test
