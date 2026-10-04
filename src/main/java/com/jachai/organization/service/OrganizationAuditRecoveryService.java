@@ -145,17 +145,16 @@ public class OrganizationAuditRecoveryService {
     // owning service would not have written, which is a falsified history rather than a bug.
 
     java.util.Optional<AuditGapEntry> membershipGap(Membership member) {
-        boolean any = member.lastChangeId() != null || member.lastChangeActorId() != null
-                || member.lastChangedAt() != null || member.previousActive() != null;
+        boolean any = MembershipAuditDerivation.hasAnyMarker(member);
         // A membership that has never changed carries no markers at all. There is nothing
         // missing, so it is not a gap.
         if (!any) return java.util.Optional.empty();
 
-        boolean complete = member.lastChangeId() != null && member.lastChangeActorId() != null
-                && member.lastChangedAt() != null && member.previousActive() != null;
+        boolean complete = MembershipAuditDerivation.reconstructable(member);
         if (!complete) {
             return java.util.Optional.of(new AuditGapEntry("MEMBERSHIP", member.userId(),
-                    member.lastChangeId() == null ? null : "membership:" + member.lastChangeId(),
+                    member.lastChangeId() == null
+                            ? null : MembershipAuditDerivation.eventId(member.lastChangeId()),
                     null, member.lastChangeActorId(), member.lastChangedAt(),
                     AuditGapStatus.AMBIGUOUS,
                     "A change was recorded on this membership but its markers are incomplete, "
@@ -163,7 +162,7 @@ public class OrganizationAuditRecoveryService {
                             + "Resolve it from an external record; repair will not write it."));
         }
 
-        String expectedId = "membership:" + member.lastChangeId();
+        String expectedId = MembershipAuditDerivation.eventId(member.lastChangeId());
         if (auditEvents.existsById(expectedId)) return java.util.Optional.empty();
         return java.util.Optional.of(new AuditGapEntry("MEMBERSHIP", member.userId(), expectedId,
                 membershipAction(member), member.lastChangeActorId(), member.lastChangedAt(),
@@ -209,9 +208,7 @@ public class OrganizationAuditRecoveryService {
      */
     private AuditGapEntry writeMembership(Membership member, AuditGapEntry entry) {
         if (entry.status() != AuditGapStatus.RECOVERABLE) return entry;
-        Map<String, String> details = new HashMap<>();
-        if (member.previousRole() != null) details.put("previousRole", member.previousRole().name());
-        details.put("role", member.role().name());
+        Map<String, String> details = MembershipAuditDerivation.details(member);
         details.put("recoveredBy", "AUDIT_RECOVERY");
         return insert(new AuditEvent(entry.expectedEventId(), member.organizationId(),
                 member.lastChangeActorId(), entry.action(), "MEMBERSHIP", member.userId(),
@@ -246,14 +243,9 @@ public class OrganizationAuditRecoveryService {
                 "Recovered from the record's durable markers.");
     }
 
-    /** Mirrors MembershipService.ensureAudit. Only called when every marker is present. */
+    /** Delegates so report, repair and the owning service cannot disagree. */
     static AuditAction membershipAction(Membership member) {
-        if (!member.previousActive()) {
-            return member.previousRole() == null
-                    ? AuditAction.MEMBERSHIP_ADDED : AuditAction.MEMBERSHIP_REACTIVATED;
-        }
-        return !member.active()
-                ? AuditAction.MEMBERSHIP_DEACTIVATED : AuditAction.MEMBERSHIP_ROLE_CHANGED;
+        return MembershipAuditDerivation.action(member);
     }
 
     private void requirePlatformAdmin(String actorUserId) {
