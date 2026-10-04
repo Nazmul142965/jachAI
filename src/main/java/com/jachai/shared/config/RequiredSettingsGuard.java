@@ -70,6 +70,18 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
                     .append("    ").append(setting.purpose())
                     .append(System.lineSeparator());
         }
+        // Where it looked, and what it found. Without this the reader cannot tell a file
+        // that is absent from one that is present but in the wrong folder, or present and
+        // missing the line they thought they wrote.
+        java.nio.file.Path secrets = java.nio.file.Paths.get("application-local-secret.properties")
+                .toAbsolutePath();
+        message.append(System.lineSeparator())
+                .append("Looked for a local secrets file at:").append(System.lineSeparator())
+                .append("  ").append(secrets).append(System.lineSeparator())
+                .append("  ").append(java.nio.file.Files.exists(secrets)
+                        ? "found, so a setting reported above is missing from it or misspelled"
+                        : "not found")
+                .append(System.lineSeparator());
         message.append(System.lineSeparator())
                 .append("Two ways to supply them:").append(System.lineSeparator())
                 .append(System.lineSeparator())
