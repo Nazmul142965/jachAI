@@ -52,13 +52,11 @@ class TutorServiceTests {
 
     @Test
     void activeRetryBlocksTutor() {
-        Attempt active = new Attempt("retry", "org-a", "assignment", "assessment:1", "learner", 2,
-                Instant.now(), Instant.now().plusSeconds(600), AttemptStatus.IN_PROGRESS,
-                Map.of(), null, null, null, null, 0L);
         when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "learner"))
                 .thenReturn(Optional.of(submitted()));
-        when(attempts.findByOrganizationIdAndUserIdAndStatus("org-a", "learner", AttemptStatus.IN_PROGRESS))
-                .thenReturn(List.of(active));
+        when(attempts.existsByOrganizationIdAndUserIdAndStatusAndDeadlineAfter(
+                eq("org-a"), eq("learner"), eq(AttemptStatus.IN_PROGRESS), any(Instant.class)))
+                .thenReturn(true);
 
         ApiException error = assertThrows(ApiException.class, () -> service().explain("learner", "org-a",
                 "attempt", new TutorRequest("Explain records")));

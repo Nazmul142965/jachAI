@@ -13,8 +13,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @CompoundIndexes({
         @CompoundIndex(name = "attempt_assignment_no_unique",
                 def = "{'assignmentId': 1, 'attemptNumber': 1}", unique = true),
-        @CompoundIndex(name = "attempt_org_user_status",
-                def = "{'organizationId': 1, 'userId': 1, 'status': 1}"),
+        @CompoundIndex(name = "attempt_org_user_active_deadline",
+                def = "{'organizationId': 1, 'userId': 1, 'status': 1, 'deadline': 1}"),
         @CompoundIndex(name = "attempt_org_assignment_status",
                 def = "{'organizationId': 1, 'assignmentId': 1, 'status': 1}"),
         @CompoundIndex(name = "attempt_review_queue",

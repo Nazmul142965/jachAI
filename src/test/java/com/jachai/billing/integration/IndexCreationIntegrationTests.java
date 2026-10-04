@@ -119,6 +119,12 @@ class IndexCreationIntegrationTests extends BaseMongoIntegrationTest {
                 "organizationId", "revision");
     }
 
+    @Test
+    void tutorActiveAttemptLookupHasApplicationCreatedIndex() {
+        assertIndex("attempts", "attempt_org_user_active_deadline",
+                "organizationId", "userId", "status", "deadline");
+    }
+
     private void assertUniqueIndex(String collectionName, String name, String... fields) {
         MongoCollection<Document> collection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
         for (Document index : collection.listIndexes()) {

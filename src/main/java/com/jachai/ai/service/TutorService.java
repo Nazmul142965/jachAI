@@ -43,9 +43,8 @@ public class TutorService {
             throw new ApiException(HttpStatus.CONFLICT, "TUTOR_NOT_READY",
                     "AI tutor is available after the attempt is submitted");
         }
-        boolean active = attempts.findByOrganizationIdAndUserIdAndStatus(
-                        organizationId, userId, AttemptStatus.IN_PROGRESS).stream()
-                .anyMatch(other -> Instant.now().isBefore(other.deadline()));
+        boolean active = attempts.existsByOrganizationIdAndUserIdAndStatusAndDeadlineAfter(
+                organizationId, userId, AttemptStatus.IN_PROGRESS, Instant.now());
         if (active) {
             throw new ApiException(HttpStatus.CONFLICT, "TUTOR_NOT_READY",
                     "AI tutor is unavailable during an active attempt");

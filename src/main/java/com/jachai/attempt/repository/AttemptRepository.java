@@ -13,8 +13,8 @@ public interface AttemptRepository extends MongoRepository<Attempt, String> {
     Optional<Attempt> findByIdAndOrganizationIdAndUserId(String id, String organizationId, String userId);
     List<Attempt> findByAssignmentIdAndOrganizationIdAndUserId(
             String assignmentId, String organizationId, String userId);
-    List<Attempt> findByOrganizationIdAndUserIdAndStatus(
-            String organizationId, String userId, AttemptStatus status);
+    boolean existsByOrganizationIdAndUserIdAndStatusAndDeadlineAfter(
+            String organizationId, String userId, AttemptStatus status, java.time.Instant deadline);
     List<Attempt> findByOrganizationIdAndAssignmentIdInAndStatus(
             String organizationId, List<String> assignmentIds, AttemptStatus status);
     Page<Attempt> findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
