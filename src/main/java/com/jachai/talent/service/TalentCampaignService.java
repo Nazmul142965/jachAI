@@ -3,6 +3,7 @@ package com.jachai.talent.service;
 import com.jachai.assessment.model.Assessment;
 import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.repository.AssessmentRepository;
+import com.jachai.auth.repository.UserRepository;
 import com.jachai.billing.model.UsageMetric;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.attempt.dto.CreateAssignmentRequest;
@@ -33,6 +34,7 @@ import com.jachai.talent.repository.ReviewDecisionRepository;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,6 +59,7 @@ public class TalentCampaignService {
     private final AssessmentRepository assessments;
     private final AssignmentRepository assignments;
     private final AttemptRepository attempts;
+    private final UserRepository users;
     private final OrganizationRepository organizations;
     private final TenantAccessService access;
     private final EntitlementService entitlements;
@@ -127,6 +130,8 @@ public class TalentCampaignService {
         if (page.isEmpty()) return new PageImpl<>(List.of(), pageable, page.getTotalElements());
         List<String> assignmentIds = page.getContent().stream().map(Assignment::id).toList();
         List<String> candidateIds = page.getContent().stream().map(Assignment::assignedUserId).toList();
+        Map<String, String> names = new HashMap<>();
+        users.findAllById(candidateIds).forEach(user -> names.put(user.id(), user.displayName()));
         Map<String, Attempt> latest = attempts.findByOrganizationIdAndAssignmentIdInAndStatus(
                         organizationId, assignmentIds, AttemptStatus.SUBMITTED).stream()
                 .collect(Collectors.toMap(Attempt::assignmentId, Function.identity(),
@@ -140,7 +145,8 @@ public class TalentCampaignService {
             if (attempt == null || (review != null && !attempt.id().equals(review.attemptId()))) {
                 review = null;
             }
-            return new CandidateComparison(assignment.assignedUserId(), assignment.id(),
+            return new CandidateComparison(assignment.assignedUserId(),
+                    names.get(assignment.assignedUserId()), assignment.id(),
                     attempt == null ? null : attempt.id(), attempt == null ? null : attempt.percentage(),
                     attempt == null ? null : attempt.passed(), attempt == null ? null : attempt.submittedAt(),
                     review == null ? null : review.decision(), review == null ? null : review.note());
@@ -164,13 +170,16 @@ public class TalentCampaignService {
                     "A fully graded campaign attempt is required");
         }
         String note = request.note() == null ? "" : request.note().trim();
+        String candidateDisplayName = users.findById(candidateId)
+                .map(user -> user.displayName()).orElse(null);
         String id = campaignId + ":" + candidateId;
         ReviewDecision existing = decisions.findByIdAndOrganizationId(id, organizationId).orElse(null);
         if (existing != null) {
             ensureReviewAudit(existing);
             if (existing.attemptId().equals(attempt.id()) && existing.decision() == request.decision()
                     && existing.note().equals(note)) {
-                return new CandidateComparison(candidateId, assignment.id(), attempt.id(), attempt.percentage(),
+                return new CandidateComparison(candidateId, candidateDisplayName,
+                        assignment.id(), attempt.id(), attempt.percentage(),
                         attempt.passed(), attempt.submittedAt(), existing.decision(), existing.note());
             }
         }
@@ -185,7 +194,8 @@ public class TalentCampaignService {
             throw new ApiException(HttpStatus.CONFLICT, "REVIEW_CONFLICT", "Review changed concurrently; reload it");
         }
         ensureReviewAudit(next);
-        return new CandidateComparison(candidateId, assignment.id(), attempt.id(), attempt.percentage(),
+        return new CandidateComparison(candidateId, candidateDisplayName,
+                assignment.id(), attempt.id(), attempt.percentage(),
                 attempt.passed(), attempt.submittedAt(), next.decision(), next.note());
     }
 

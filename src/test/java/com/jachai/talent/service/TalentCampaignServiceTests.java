@@ -14,6 +14,8 @@ import com.jachai.assessment.model.AssessmentStatus;
 import com.jachai.assessment.model.ResultReleasePolicy;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.assessment.repository.AssessmentRepository;
+import com.jachai.auth.model.User;
+import com.jachai.auth.repository.UserRepository;
 import com.jachai.attempt.dto.CreateAssignmentRequest;
 import com.jachai.attempt.model.Assignment;
 import com.jachai.attempt.model.Attempt;
@@ -57,6 +59,7 @@ class TalentCampaignServiceTests {
     @Mock AssessmentRepository assessments;
     @Mock AssignmentRepository assignments;
     @Mock AttemptRepository attempts;
+    @Mock UserRepository users;
     @Mock OrganizationRepository organizations;
     @Mock TenantAccessService access;
     @Mock EntitlementService entitlements;
@@ -64,7 +67,7 @@ class TalentCampaignServiceTests {
 
     private TalentCampaignService service() {
         return new TalentCampaignService(campaigns, decisions, assessments, assignments,
-                attempts, organizations, access, entitlements, auditEvents);
+                attempts, users, organizations, access, entitlements, auditEvents);
     }
 
     private Organization talent() {
@@ -168,11 +171,15 @@ class TalentCampaignServiceTests {
                 "org-a", "campaign", List.of("candidate"))).thenReturn(List.of(new ReviewDecision(
                 "campaign:candidate", "org-a", "campaign", "candidate", "attempt-2",
                 ReviewDecisionType.SHORTLISTED, "Strong Java", "recruiter", Instant.now(), 1L)));
+        when(users.findAllById(List.of("candidate"))).thenReturn(List.of(new User(
+                "candidate", "candidate@example.com", "Candidate Name", "hash", true, false,
+                0, Instant.now())));
 
         var result = service().compare("recruiter", "org-a", "campaign", PageRequest.of(0, 20));
 
         assertEquals(80, result.getContent().getFirst().percentage());
         assertEquals("attempt-2", result.getContent().getFirst().attemptId());
+        assertEquals("Candidate Name", result.getContent().getFirst().candidateDisplayName());
         assertEquals(ReviewDecisionType.SHORTLISTED, result.getContent().getFirst().decision());
     }
 
