@@ -28,10 +28,6 @@ final class MongoTestUriGuard {
      * @throws IllegalArgumentException when the value is not a valid MongoDB connection string or does
      *                                  not name a database beginning with {@value #REQUIRED_DATABASE_PREFIX}
      */
-    static String requireDedicatedTestDatabase(String testUri) {
-        return requireDedicatedTestDatabase(testUri, System.getenv("MONGODB_TEST_DATABASE"));
-    }
-
     /**
      * Validates the test connection and returns the dedicated database it will use.
      *
@@ -47,6 +43,9 @@ final class MongoTestUriGuard {
      * actually be used rather than what the URI happens to say.
      */
     static String requireDedicatedTestDatabase(String testUri, String explicitDatabase) {
+        // Deliberately takes both values rather than reading the environment itself: a guard that
+        // consults System.getenv cannot be unit tested without the result depending on the shell
+        // that happened to run the suite.
         if (testUri == null || testUri.isBlank()) {
             throw new IllegalStateException(
                     "MONGODB_TEST_URI is not set; live MongoDB integration tests must not run");

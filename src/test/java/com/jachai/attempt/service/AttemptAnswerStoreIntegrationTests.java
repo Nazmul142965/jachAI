@@ -19,7 +19,11 @@ class AttemptAnswerStoreIntegrationTests extends BaseMongoIntegrationTest {
     private Attempt insertAttempt(MongoTemplate mongo, Instant deadline) {
         String id = generateTestId("attempt");
         trackDocumentId("attempts", id);
-        return mongo.insert(new Attempt(id, generateTestId("org"), "assignment", "version", "learner", 1,
+        // A unique index covers (assignmentId, attemptNumber), so a literal assignment id made
+        // this test pass only while that index did not yet exist — true on a brand-new database
+        // and false on every run after it. Each attempt now gets its own assignment.
+        return mongo.insert(new Attempt(id, generateTestId("org"), generateTestId("assignment"),
+                "version", "learner", 1,
                 Instant.now().minusSeconds(60), deadline, AttemptStatus.IN_PROGRESS,
                 Map.of(), null, null, null, null, null));
     }

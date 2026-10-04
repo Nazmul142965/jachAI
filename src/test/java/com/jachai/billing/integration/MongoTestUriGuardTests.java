@@ -16,20 +16,20 @@ class MongoTestUriGuardTests {
 
     @Test
     void rejectsMissingUri() {
-        assertThrows(IllegalStateException.class, () -> MongoTestUriGuard.requireDedicatedTestDatabase(null));
-        assertThrows(IllegalStateException.class, () -> MongoTestUriGuard.requireDedicatedTestDatabase("   "));
+        assertThrows(IllegalStateException.class, () -> MongoTestUriGuard.requireDedicatedTestDatabase(null, null));
+        assertThrows(IllegalStateException.class, () -> MongoTestUriGuard.requireDedicatedTestDatabase("   ", null));
     }
 
     @Test
     void rejectsUriWithoutDatabase() {
         assertThrows(IllegalArgumentException.class,
-                () -> MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017"));
+                () -> MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017", null));
     }
 
     @Test
     void rejectsApplicationDatabase() {
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017/jachai"));
+                () -> MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017/jachai", null));
         assertEquals(true, String.valueOf(failure.getMessage()).contains("jachai_it_"));
         assertFalse(String.valueOf(failure.getMessage()).contains("/jachai"));
     }
@@ -37,28 +37,27 @@ class MongoTestUriGuardTests {
     @Test
     void rejectsMalformedUri() {
         assertThrows(IllegalArgumentException.class,
-                () -> MongoTestUriGuard.requireDedicatedTestDatabase("not-a-mongodb-connection-string"));
+                () -> MongoTestUriGuard.requireDedicatedTestDatabase("not-a-mongodb-connection-string", null));
     }
 
     @Test
     void acceptsDedicatedTestDatabase() {
         assertEquals("jachai_it_billing",
-                MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017/jachai_it_billing"));
+                MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017/jachai_it_billing", null));
         assertEquals("jachai_it_assessment",
-                MongoTestUriGuard.requireDedicatedTestDatabase(
-                        "mongodb://localhost:27017/jachai_it_assessment?retryWrites=true"));
+                MongoTestUriGuard.requireDedicatedTestDatabase("mongodb://localhost:27017/jachai_it_assessment?retryWrites=true", null));
     }
 
     @Test
     void rejectedUriIsNeverEchoedInTheFailure() {
         String credentialsWithWrongDatabase = "mongodb://appuser:sup3rsecret@localhost:27017/production";
         IllegalArgumentException wrongDatabase = assertThrows(IllegalArgumentException.class,
-                () -> MongoTestUriGuard.requireDedicatedTestDatabase(credentialsWithWrongDatabase));
+                () -> MongoTestUriGuard.requireDedicatedTestDatabase(credentialsWithWrongDatabase, null));
         assertFalse(String.valueOf(wrongDatabase.getMessage()).contains("sup3rsecret"));
 
         String malformedWithCredentials = "not-a-uri:sup3rsecret@localhost/production";
         IllegalArgumentException malformed = assertThrows(IllegalArgumentException.class,
-                () -> MongoTestUriGuard.requireDedicatedTestDatabase(malformedWithCredentials));
+                () -> MongoTestUriGuard.requireDedicatedTestDatabase(malformedWithCredentials, null));
         assertFalse(String.valueOf(malformed.getMessage()).contains("sup3rsecret"));
         assertNull(malformed.getCause(),
                 "The parser failure must not be attached as a cause, because its message can contain the URI");

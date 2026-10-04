@@ -40,7 +40,8 @@ public abstract class BaseMongoIntegrationTest {
     @DynamicPropertySource
     protected static void bindDedicatedTestDatabase(DynamicPropertyRegistry registry) {
         String testUri = System.getenv("MONGODB_TEST_URI");
-        String database = MongoTestUriGuard.requireDedicatedTestDatabase(testUri);
+        String database = MongoTestUriGuard.requireDedicatedTestDatabase(
+                testUri, System.getenv("MONGODB_TEST_DATABASE"));
         registry.add("spring.data.mongodb.uri", () -> testUri);
         // Pinned explicitly so the suite cannot inherit the application's database from
         // MONGODB_DATABASE when the shared URI names no database of its own.
@@ -57,7 +58,8 @@ public abstract class BaseMongoIntegrationTest {
         if (testUri == null || testUri.isBlank()) {
             assumeTrue(false, "MONGODB_TEST_URI not set - live MongoDB integration tests skipped");
         }
-        databaseName = MongoTestUriGuard.requireDedicatedTestDatabase(testUri);
+        databaseName = MongoTestUriGuard.requireDedicatedTestDatabase(
+                testUri, System.getenv("MONGODB_TEST_DATABASE"));
         mongoClient = MongoClients.create(testUri);
         // getDatabase(databaseName) rather than the URI's database, so the cleanup in this class
         // always targets the same database the guard approved.

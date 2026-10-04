@@ -18,7 +18,11 @@ public final class MongoIntegrationEnvironmentGuard implements EnvironmentPostPr
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         if (environment.acceptsProfiles(Profiles.of("integration"))) {
-            MongoTestUriGuard.requireDedicatedTestDatabase(environment.getProperty("MONGODB_TEST_URI"));
+            // Both values come from the environment Spring has already assembled, so this
+            // check sees exactly what the context is about to connect to.
+            MongoTestUriGuard.requireDedicatedTestDatabase(
+                    environment.getProperty("MONGODB_TEST_URI"),
+                    environment.getProperty("MONGODB_TEST_DATABASE"));
         }
     }
 }
