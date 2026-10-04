@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.jachai.auth.model.EmailVerificationToken;
+import com.jachai.auth.model.PasswordResetToken;
 import com.jachai.auth.repository.EmailVerificationTokenRepository;
 import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
@@ -66,9 +67,28 @@ class EmailLinkGuardTests {
     void currentVerificationTokenMayBeDelivered() {
         when(verificationTokens.findByTokenHash(any())).thenReturn(Optional.of(
                 new EmailVerificationToken("id", "hash", "user", Instant.now().plusSeconds(3600))));
+        when(users.findById("user")).thenReturn(Optional.of(new User("user",
+                "person@example.com", "Person", null, false, false, 0, Instant.now())));
         assertTrue(guard().isCurrent(new EmailPayload(EmailJobType.VERIFICATION,
                 "person@example.com", "Person", null, "https://example.test/verify?token=secret",
                 Instant.now().plusSeconds(3600))));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.VERIFICATION,
+                "wrong@example.com", "Person", null, "https://example.test/verify?token=secret",
+                Instant.now().plusSeconds(3600))));
+    }
+
+    @Test
+    void resetTokenMustBelongToCurrentVerifiedRecipient() {
+        when(resetTokens.findByTokenHash(any())).thenReturn(Optional.of(
+                new PasswordResetToken("id", "hash", "user", Instant.now().plusSeconds(3600))));
+        when(users.findById("user")).thenReturn(Optional.of(new User("user",
+                "person@example.com", "Person", null, true, false, 0, Instant.now())));
+        EmailPayload valid = new EmailPayload(EmailJobType.PASSWORD_RESET,
+                "person@example.com", "Person", null,
+                "https://example.test/reset-password.html?token=secret", Instant.now().plusSeconds(3600));
+        assertTrue(guard().isCurrent(valid));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.PASSWORD_RESET,
+                "wrong@example.com", "Person", null, valid.url(), valid.validUntil())));
     }
 
     @Test
@@ -76,6 +96,26 @@ class EmailLinkGuardTests {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.ASSESSMENT_INVITATION,
                 "person@example.com", "Org", "Campaign", "https://example.test/?invitation=old",
                 Instant.now().plusSeconds(3600))));
+    }
+
+    @Test
+    void assessmentInvitationMustMatchRecipientAndOpenWindow() {
+        Instant now = Instant.now();
+        CampaignEmailInvitation pending = new CampaignEmailInvitation("id", "org", "campaign",
+                "person@example.com", "assessment", "version", 1, now.minusSeconds(60),
+                now.plusSeconds(3600), "hash", now, now.plusSeconds(3600), null, 1L);
+        when(invitations.findByTokenHash(any())).thenReturn(Optional.of(pending));
+        EmailPayload valid = new EmailPayload(EmailJobType.ASSESSMENT_INVITATION,
+                "person@example.com", "Org", "Campaign",
+                "https://example.test/?invitation=secret", now.plusSeconds(3600));
+        assertTrue(guard().isCurrent(valid));
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.ASSESSMENT_INVITATION,
+                "wrong@example.com", "Org", "Campaign", valid.url(), valid.validUntil())));
+        when(invitations.findByTokenHash(any())).thenReturn(Optional.of(new CampaignEmailInvitation(
+                "id", "org", "campaign", "person@example.com", "assessment", "version", 1,
+                now.minusSeconds(3600), now.minusSeconds(1), "hash", now.minusSeconds(3600),
+                now.plusSeconds(3600), null, 1L)));
+        assertFalse(guard().isCurrent(valid));
     }
 
     @Test

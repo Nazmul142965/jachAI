@@ -69,11 +69,19 @@ public class EmailLinkGuard {
         Instant now = Instant.now();
         return switch (payload.type()) {
             case VERIFICATION -> verificationTokens.findByTokenHash(hash)
-                    .filter(value -> value.expiresAt().isAfter(now)).isPresent();
+                    .filter(value -> value.expiresAt().isAfter(now))
+                    .flatMap(value -> users.findById(value.userId()))
+                    .filter(user -> !user.emailVerified() && !user.disabled()
+                            && user.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case PASSWORD_RESET -> resetTokens.findByTokenHash(hash)
-                    .filter(value -> value.expiresAt().isAfter(now)).isPresent();
+                    .filter(value -> value.expiresAt().isAfter(now))
+                    .flatMap(value -> users.findById(value.userId()))
+                    .filter(user -> user.emailVerified() && !user.disabled()
+                            && user.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case ASSESSMENT_INVITATION -> invitations.findByTokenHash(hash)
-                    .filter(value -> value.acceptedAt() == null && value.expiresAt().isAfter(now)).isPresent();
+                    .filter(value -> value.acceptedAt() == null && value.expiresAt().isAfter(now)
+                            && value.availableUntil().isAfter(now)
+                            && value.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case ORGANIZATION_INVITATION -> organizationInvitations.findByTokenHash(hash)
                     .filter(value -> value.acceptedAt() == null && value.revokedAt() == null
                             && value.expiresAt().isAfter(now)
