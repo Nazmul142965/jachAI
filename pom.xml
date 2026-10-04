@@ -39,7 +39,25 @@
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-mail</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
         <dependency><groupId>org.springframework.ai</groupId><artifactId>spring-ai-starter-model-ollama</artifactId></dependency>
-        <dependency><groupId>org.springframework.ai</groupId><artifactId>spring-ai-starter-model-google-genai</artifactId></dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-google-genai</artifactId>
+            <exclusions>
+                <!--
+                  google-genai pulls in Apache HttpClient, which pulls in the real
+                  commons-logging jar. Spring Boot already supplies spring-jcl, which
+                  implements the same API and routes into Logback. With both present the
+                  JCL factory may bind to the standalone jar instead, so those libraries
+                  log outside Logback and ignore the levels set in application.properties
+                  — including the one that keeps the database username out of the console.
+                  Spring logs a warning about this on every startup.
+                -->
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <dependency><groupId>org.springframework.ai</groupId><artifactId>spring-ai-openai</artifactId></dependency>
         <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><optional>true</optional></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
