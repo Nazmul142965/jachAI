@@ -21,7 +21,7 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/app.css", "/app.js",
+                        .requestMatchers("/", "/index.html", "/app.css", "/app.js", "/public.css",
                                 "/api/v1/health", "/actuator/health", "/actuator/health/**", "/verify-email.html", "/reset-password.html",
                                 "/api/v1/auth/register", "/api/v1/auth/verify-email",
                                 "/api/v1/auth/google", "/api/v1/auth/google/config",
@@ -29,7 +29,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh", "/api/v1/auth/request-password-reset",
                                 "/api/v1/auth/reset-password", "/api/v1/public/certificates/*",
                                 "/certificates/*",
-                                "/academy.html", "/talent.html",
+                                "/academy.html", "/talent.html", "/plans.html", "/how.html",
                                 "/api/v1/billing/sslcommerz/ipn",
                                 "/api/v1/billing/sslcommerz/callback",
                                 "/api/v1/billing/bkash/callback").permitAll()

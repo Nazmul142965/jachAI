@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Plans · JachAI</title>
+  <meta name="description" content="JachAI plans: FREE for getting started, TEAM for growing workspaces. Server-enforced limits; sandbox-only payment in this deployment.">
+  <link rel="stylesheet" href="/public.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
+    <nav class="topnav" aria-label="Products">
+      <a href="/academy.html">Academy</a>
+      <a href="/talent.html">Talent</a>
+      <a href="/plans.html" aria-current="page">Plans</a>
+      <a href="/how.html">How it works</a>
+      <a href="/">Sign in</a>
+    </nav>
+  </header>
+  <main class="page">
+    <p class="eyebrow">Plans</p>
+    <h1>Start free. Scale when you need to.</h1>
+    <p class="lede">Every plan runs on the same assessment engine: server-timed attempts, deterministic scoring,
+      tenant-scoped data and verifiable certificates. Limits are enforced by the server, not the browser.</p>
+    <div class="cta-row">
+      <a class="button primary" href="/">Sign in or create a workspace</a>
+      <a class="button quiet" href="/how.html">How the engine works</a>
+    </div>
+
+    <section class="section grid cols-2" aria-label="Plans">
+      <article class="plan-card">
+        <div class="plan-name">FREE</div>
+        <div class="plan-price"><strong>৳0</strong><span>forever</span></div>
+        <p class="muted">For individuals and small teams getting started with reviewed assessments.</p>
+        <ul class="plan-features">
+          <li>3 published assessments</li>
+          <li>30 email invitations per month</li>
+          <li>30 certificates per month</li>
+          <li>5 daily AI requests per user (when a provider is configured)</li>
+          <li>90-day retention for messages and integrity events</li>
+          <li class="muted">No payment method required</li>
+        </ul>
+        <div class="cta-row"><a class="button primary" href="/">Start free</a></div>
+      </article>
+
+      <article class="plan-card plan-card--featured">
+        <span class="plan-badge">Sandbox demo</span>
+        <div class="plan-name">TEAM</div>
+        <div class="plan-price"><strong>Sandbox</strong><span>30-day TEAM access · amount shown at checkout</span></div>
+        <p class="muted">For institutes and hiring teams that need more headroom. This deployment runs
+          against the bKash and SSLCOMMERZ <strong>sandbox</strong> gateways only — no live money is taken.</p>
+        <ul class="plan-features">
+          <li>Everything in FREE</li>
+          <li>Higher published-assessment and invitation limits</li>
+          <li>Higher certificate and AI quotas</li>
+          <li>90-day message and telemetry retention, as on FREE</li>
+          <li>Audited manual TEAM grants available to platform admins</li>
+          <li class="muted">Payment is verified server-to-server before TEAM is activated</li>
+        </ul>
+        <div class="cta-row"><a class="button primary" href="/">Upgrade in your workspace</a></div>
+      </article>
+    </section>
+
+    <section class="section" aria-labelledby="compare">
+      <div class="section-head">
+        <h2 id="compare">What changes between plans</h2>
+        <p>Exact limits are read from your workspace plan on the server.</p>
+      </div>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Capability</th><th>FREE</th><th>TEAM</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Published assessments</td><td class="yes">3</td><td class="yes">Higher</td></tr>
+          <tr><td>Invitations per month</td><td class="yes">30</td><td class="yes">Higher</td></tr>
+          <tr><td>Certificates per month</td><td class="yes">30</td><td class="yes">Higher</td></tr>
+          <tr><td>AI requests per user / day</td><td class="yes">5</td><td class="yes">Higher</td></tr>
+          <tr><td>Message &amp; telemetry retention</td><td class="yes">90 days</td><td class="yes">90 days</td></tr>
+          <tr><td>Academy module</td><td class="yes">Included</td><td class="yes">Included</td></tr>
+          <tr><td>Talent module</td><td class="yes">Included</td><td class="yes">Included</td></tr>
+          <tr><td>Server-side limit enforcement</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section grid cols-2" aria-label="Payment and honesty">
+      <div class="card"><h2>Payment, honestly</h2>
+        <ul class="facts">
+          <li>This deployment runs <strong>sandbox</strong> bKash and SSLCOMMERZ only. No live money is taken.</li>
+          <li>A browser redirect never activates a plan — the server verifies the payment before TEAM is granted.</li>
+          <li>Expired TEAM falls back to FREE automatically; there is no silent renewal.</li>
+          <li>Platform admins can grant a bounded manual TEAM period (up to 30 days) for support cases.</li>
+        </ul>
+      </div>
+      <div class="card"><h2>What the server enforces</h2>
+        <ul class="facts">
+          <li>Every plan limit is checked server-side before a write, not in the UI.</li>
+          <li>Slot reservations are atomic, so two simultaneous publishes cannot both succeed past the limit.</li>
+          <li>Usage counters are reconciled from durable records; ambiguous gaps are flagged for manual review.</li>
+          <li>A paid TEAM period always takes precedence over a manual grant; revoking a manual grant cannot revoke a paid one.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="faq">
+      <div class="section-head">
+        <h2 id="faq">Common questions</h2>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>Can I use both Academy and Talent on one plan?</summary>
+          <p>Yes. Each organization has one module type (ACADEMY or TALENT) in the first release; both modules share the same assessment engine and the same plan limits. A later release will allow a tenant to enable both.</p>
+        </details>
+        <details>
+          <summary>What happens when my TEAM period expires?</summary>
+          <p>Your organization falls back to FREE with its limits. Nothing is deleted; existing published assessments and attempts remain readable, but new writes are subject to FREE caps. Manual renewal is explicit — there is no automatic charging.</p>
+        </details>
+        <details>
+          <summary>Why is the payment sandbox-only?</summary>
+          <p>The first release runs against the bKash and SSLCOMMERZ sandbox gateways. Live-money endpoints are intentionally not enabled; enabling them requires contractual and API work that is out of scope for this deployment.</p>
+        </details>
+        <details>
+          <summary>What is a manual TEAM grant?</summary>
+          <p>A platform administrator can grant a bounded TEAM period (at most 30 days) to a tenant without any payment. It is clearly labelled "manual grant — not a payment" in the UI, is append-only audited, and cannot mark an order paid or replace an active paid subscription.</p>
+        </details>
+      </div>
+    </section>
+
+    <div class="note"><p>Ready to try it? <a href="/">Create a workspace</a> — you start on FREE, no payment required.</p></div>
+  </main>
+  <footer class="footer"><div class="inner">
+    <span>JachAI · technical assessment and certification</span>
+    <nav aria-label="Footer">
+      <a href="/academy.html">Academy</a>
+      <a href="/talent.html">Talent</a>
+      <a href="/plans.html">Plans</a>
+      <a href="/how.html">How it works</a>
+      <a href="/">Sign in</a>
+    </nav>
+  </div></footer>
+</body>
+</html>
+

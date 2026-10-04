@@ -34,4 +34,14 @@ public class PageController {
     public String talent() {
         return "talent";
     }
+
+    @GetMapping("/plans.html")
+    public String plans() {
+        return "plans";
+    }
+
+    @GetMapping("/how.html")
+    public String how() {
+        return "how";
+    }
 }

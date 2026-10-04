@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>How it works · JachAI</title>
+  <meta name="description" content="How the JachAI assessment engine works: create, publish, invite, attempt, score, review, report and verify — with honest integrity signals and human-reviewed AI.">
+  <link rel="stylesheet" href="/public.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
+    <nav class="topnav" aria-label="Products">
+      <a href="/academy.html">Academy</a>
+      <a href="/talent.html">Talent</a>
+      <a href="/plans.html">Plans</a>
+      <a href="/how.html" aria-current="page">How it works</a>
+      <a href="/">Sign in</a>
+    </nav>
+  </header>
+  <main class="page">
+    <p class="eyebrow">How it works</p>
+    <h1>One engine, two products, an honest lifecycle.</h1>
+    <p class="lede">JachAI's central promise is a trustworthy assessment lifecycle: create, publish, invite,
+      attempt, score, review, report and verify. AI assists people within that lifecycle; it does not
+      control official scores or publish unreviewed questions.</p>
+    <div class="cta-row">
+      <a class="button primary" href="/">Sign in or create a workspace</a>
+      <a class="button quiet" href="/plans.html">Compare plans</a>
+    </div>
+
+    <section class="section" aria-labelledby="lifecycle">
+      <div class="section-head">
+        <h2 id="lifecycle">The assessment lifecycle</h2>
+        <p>Every attempt follows the same path, whether it is an Academy batch or a Talent campaign.</p>
+      </div>
+      <ol class="workflow">
+        <li><span class="step-number">1</span><div><h3>Draft questions</h3>
+          <p>Instructors and recruiters write single-choice, multiple-choice or manually-graded short-answer questions. AI-generated questions remain drafts until a human reviews them.</p></div></li>
+        <li><span class="step-number">2</span><div><h3>Publish an immutable version</h3>
+          <p>An assessment is configured and published as an immutable version. Editing later creates a new version; published versions are never changed in place.</p></div></li>
+        <li><span class="step-number">3</span><div><h3>Invite or assign</h3>
+          <p>A learner or candidate receives an assignment or invitation. The server validates availability, membership or invite, attempt limit and module entitlement.</p></div></li>
+        <li><span class="step-number">4</span><div><h3>Start a server-timed attempt</h3>
+          <p>The server starts the attempt and records the deadline. The client timer is visual only; the server decides whether an answer is on time.</p></div></li>
+        <li><span class="step-number">5</span><div><h3>Save answers and submit</h3>
+          <p>Answers are saved with validation and an attempt state check. Submitting is idempotent and cannot change a finalized result.</p></div></li>
+        <li><span class="step-number">6</span><div><h3>Deterministic scoring</h3>
+          <p>Objective questions are scored by deterministic rules against the published version. Manual-review questions enter a review queue. AI may suggest feedback but cannot silently set official scores.</p></div></li>
+        <li><span class="step-number">7</span><div><h3>Release and verify</h3>
+          <p>Result release follows organization policy. Topic-level breakdown and weak areas use the versioned question/topic data. Academy certificates are issued only after the required pass/review conditions, and verify publicly.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="section grid cols-3" aria-label="Roles">
+      <article class="card"><h3>Instructors &amp; recruiters</h3><p>Build the question bank, publish assessments, manage campaigns, review results and issue decisions.</p></article>
+      <article class="card"><h3>Learners &amp; candidates</h3><p>Take assigned assessments and see released results. Academy learners can use the AI Tutor after release and receive verifiable certificates when eligible; Talent review decisions remain staff-only.</p></article>
+      <article class="card"><h3>Organization admins</h3><p>Manage workspace, memberships, roles, billing and result-release defaults. The server re-checks authorization on every request.</p></article>
+    </section>
+
+    <section class="section grid cols-2" aria-label="Integrity and honesty">
+      <div class="card"><h2>Integrity signals, honestly framed</h2>
+        <ul class="facts">
+          <li>Tab visibility, optional fullscreen exit, copy/paste and client-reported answer-save timing can be recorded for an active campaign attempt.</li>
+          <li>They are <strong>client-reported, unverifiable and not proof of misconduct</strong>. JachAI makes no automatic cheating verdict.</li>
+          <li>No IP address, user agent, clipboard contents or keystrokes are stored, and the data expires on a TTL.</li>
+          <li>Signals are evidence for human review, not a block on the attempt.</li>
+        </ul>
+      </div>
+      <div class="card"><h2>AI, where it helps</h2>
+        <ul class="facts">
+          <li>Instructors can ask for AI-drafted questions; they always arrive as drafts for human review.</li>
+          <li>After a released result, learners can use the AI Tutor to ask questions about their performance.</li>
+          <li>AI never sets or changes an official score, and never publishes unreviewed questions.</li>
+          <li>If no provider is configured, the UI says so honestly instead of faking a response.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="security">
+      <div class="section-head">
+        <h2 id="security">Security and trust</h2>
+        <p>The same rules apply to every tenant.</p>
+      </div>
+      <div class="grid cols-3">
+        <article class="card"><h3>Tenant isolation</h3><p>Every organization-owned document carries an <code>organizationId</code>. Services include it in every read, update and delete.</p></article>
+        <article class="card"><h3>Server-side authorization</h3><p>Roles are scoped to an organization. A client-supplied organization ID never grants access by itself.</p></article>
+        <article class="card"><h3>Append-only audit</h3><p>Role changes, assessment publishing, score overrides, certificate actions and billing transitions are recorded with actor, target and timestamp.</p></article>
+      </div>
+    </section>
+
+    <div class="note note--accent"><p>Curious what a plan can do? <a href="/plans.html">Compare FREE and TEAM</a>, or <a href="/">create a workspace</a> to try the engine.</p></div>
+  </main>
+  <footer class="footer"><div class="inner">
+    <span>JachAI · technical assessment and certification</span>
+    <nav aria-label="Footer">
+      <a href="/academy.html">Academy</a>
+      <a href="/talent.html">Talent</a>
+      <a href="/plans.html">Plans</a>
+      <a href="/how.html">How it works</a>
+      <a href="/">Sign in</a>
+    </nav>
+  </div></footer>
+</body>
+</html>
+
