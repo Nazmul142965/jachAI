@@ -2041,16 +2041,40 @@ async function compareCandidates(campaignId, pageNumber = 0) {
   summary.append(node('h3', 'At a glance'),
     node('p', 'Latest submitted attempt per invited candidate. Decisions are visible to Talent staff only.', 'muted'));
   const head = node('div', '', 'compare-row compare-head');
-  head.append(node('span', 'Candidate'), node('span', 'Latest attempt'), node('span', 'Decision'));
+  head.append(node('span', 'Candidate'), node('span', 'Latest score'),
+    node('span', 'Outcome'), node('span', 'Decision'));
   summary.append(head);
   for (const candidate of page.content || []) {
     const row = node('div', '', 'compare-row');
-    const attempt = candidate.attemptId
-      ? (candidate.percentage == null ? 'Awaiting grading'
-        : `${candidate.percentage}% · ${candidate.passed ? 'Passed' : 'Not passed'}`)
-      : 'No submitted attempt';
-    row.append(node('span', candidate.candidateUserId), node('span', attempt),
-      node('span', candidate.decision ? roleLabel(candidate.decision) : 'Not reviewed'));
+    row.append(node('span', candidate.candidateUserId));
+
+    // Comparing is this screen's whole job, so the score gets a bar as well as
+    // a number. A candidate with no submitted attempt, or one not yet graded,
+    // gets no bar at all rather than a zero-width one that reads as a zero.
+    const scoreCell = node('div', '', 'score-cell');
+    if (candidate.attemptId && candidate.percentage != null) {
+      const bar = node('div', '', 'bar score-bar');
+      const fill = node('div', '', `bar-fill ${candidate.passed ? 'bar-pass' : 'bar-fail'}`);
+      fill.style.width = `${Math.max(0, Math.min(100, candidate.percentage))}%`;
+      bar.append(fill);
+      scoreCell.append(node('span', `${candidate.percentage}%`, 'score-figure'), bar);
+    } else {
+      scoreCell.append(node('span', candidate.attemptId ? 'Awaiting grading' : 'No submitted attempt', 'score-absent'));
+    }
+    row.append(scoreCell);
+
+    const outcome = !candidate.attemptId ? ['Not attempted', 'pill']
+      : candidate.percentage == null ? ['Awaiting grading', 'pill warn']
+      : candidate.passed ? ['Passed', 'pill ok'] : ['Did not pass', 'pill danger'];
+    const outcomeCell = node('span', '', 'compare-cell');
+    outcomeCell.append(node('span', outcome[0], outcome[1]));
+    row.append(outcomeCell);
+
+    const decisionCell = node('span', '', 'compare-cell');
+    decisionCell.append(candidate.decision
+      ? node('span', roleLabel(candidate.decision), 'pill')
+      : node('span', 'Not reviewed', 'score-absent'));
+    row.append(decisionCell);
     summary.append(row);
   }
   rows.unshift(summary);

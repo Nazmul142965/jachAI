@@ -710,7 +710,7 @@ a:focus-visible,
 
 .compare-row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--sp-3);
   align-items: center;
   padding: var(--sp-3) 0;
@@ -1020,4 +1020,29 @@ a:focus-visible,
 
 @media (prefers-reduced-motion: reduce) {
   .funnel-fill { transition: none; }
+}
+
+/* ==========================================================================
+   10. Candidate comparison
+   ========================================================================== */
+
+.score-cell { display: grid; gap: var(--sp-1); align-content: center; min-width: 0; }
+.score-figure {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.score-bar { height: 7px; margin-top: 0; }
+/* Pass and fail are the comparison's point, so the bar carries the outcome
+   colour; the pill beside it says the same thing in words. */
+.bar-fill.bar-pass { background: var(--success-ink); }
+.bar-fill.bar-fail { background: var(--danger-ink); }
+.score-absent { color: var(--muted); font-size: var(--text-sm); }
+
+.compare-cell { display: flex; align-items: center; min-width: 0; }
+
+@media (max-width: 560px) {
+  .compare-row { grid-template-columns: 1fr; }
+  .score-cell { gap: var(--sp-2); }
 }

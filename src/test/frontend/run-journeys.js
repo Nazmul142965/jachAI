@@ -399,6 +399,14 @@ async function main() {
   await view('Talent Campaigns'); await tab('Campaigns'); await wait(1600);
   check(talent, 'campaign list renders', (await ev(`document.querySelector('#campaigns-list').textContent`)).includes('Backend Engineer'));
   await clickText('#campaigns-list', 'Compare candidates'); await wait(1300);
+  const compare = await ev(`document.querySelector('#campaign-candidates').textContent`);
+  check('talent-recruiter', 'comparison names score, outcome and decision as columns',
+    /Latest score/.test(compare) && /Outcome/.test(compare) && /Decision/.test(compare), compare.slice(0, 140));
+  check('talent-recruiter', 'comparison states the outcome in words beside the bar',
+    /Passed/.test(compare) && /70%/.test(compare));
+  check('talent-recruiter', 'a graded candidate gets a score bar',
+    await ev(`!!document.querySelector('#campaign-candidates .bar-fill.bar-pass, #campaign-candidates .bar-fill.bar-fail')`));
+  await shotBoth('talent-candidate-comparison');
   await clickText('#campaign-candidates', 'Integrity signals'); await wait(900);
   check(talent, 'integrity summary carries its caveat', /unverified and need human judgement/.test(await ev(`document.querySelector('#campaign-candidates').textContent`)));
   await clickText('#campaign-candidates', 'Event log'); await wait(900);
