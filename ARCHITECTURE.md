@@ -285,7 +285,7 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Academy direct messaging implementation decision
 
-- One `Conversation` document represents an instructor–learner pair within one Academy tenant; messages are separate documents indexed by tenant, conversation, and send time. Only active participants can read/send. Message bodies are limited to 1,000 characters, a 500-stored-message guard reduces accidental free-tier growth, and TTL removes messages approximately 90 days after sending. The count guard is not an atomic quota under concurrency; production rate limits and storage monitoring are still needed. The browser polls an open conversation every 15 seconds rather than introducing WebSocket infrastructure. AI Tutor responses are separate and not persisted as human chat history.
+- One `Conversation` document represents an instructor–learner pair within one Academy tenant; messages are separate documents indexed by tenant, conversation, and send time. Only active participants can read/send. Message bodies are limited to 1,000 characters, a 500-stored-message guard reduces accidental free-tier growth, and TTL removes messages approximately 90 days after sending. Production applies an additional Redis-backed 30-message-per-minute actor limit; the stored-message count guard is still not an atomic quota under concurrency, so storage monitoring remains necessary. The browser polls an open conversation every 15 seconds rather than introducing WebSocket infrastructure. AI Tutor responses are separate and not persisted as human chat history.
 
 ## Staff result-review queue implementation decision
 

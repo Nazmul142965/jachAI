@@ -16,7 +16,8 @@ public enum RateLimitPolicy {
     CERTIFICATE_IP(60, Duration.ofMinutes(1)),
     INVITE_ACTOR(30, Duration.ofHours(1)),
     PLATFORM_SUPPORT(5, Duration.ofHours(1)),
-    AI_ACTOR(10, Duration.ofMinutes(1));
+    AI_ACTOR(10, Duration.ofMinutes(1)),
+    MESSAGE_ACTOR(30, Duration.ofMinutes(1));
 
     private final long limit;
     private final Duration window;

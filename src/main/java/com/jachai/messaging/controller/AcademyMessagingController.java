@@ -6,6 +6,8 @@ import com.jachai.messaging.dto.CreateConversationRequest;
 import com.jachai.messaging.dto.MessagingPartnerView;
 import com.jachai.messaging.dto.SendMessageRequest;
 import com.jachai.messaging.service.AcademyMessagingService;
+import com.jachai.shared.security.RateLimitPolicy;
+import com.jachai.shared.security.RateLimitService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/organizations/{organizationId}/messaging")
 public class AcademyMessagingController {
     private final AcademyMessagingService messaging;
+    private final RateLimitService limits;
 
     @GetMapping("/partners")
     public Page<MessagingPartnerView> partners(@AuthenticationPrincipal Jwt jwt,
@@ -67,6 +70,7 @@ public class AcademyMessagingController {
     public ResponseEntity<ChatMessageView> send(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @PathVariable String conversationId,
             @Valid @RequestBody SendMessageRequest request) {
+        limits.consume(RateLimitPolicy.MESSAGE_ACTOR, organizationId + ":" + jwt.getSubject());
         return ResponseEntity.status(HttpStatus.CREATED).body(messaging.send(
                 jwt.getSubject(), organizationId, conversationId, request.body()));
     }
