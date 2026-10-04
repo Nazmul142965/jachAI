@@ -75,5 +75,16 @@ fixture runs must never be described as live verification. When the gate opens:
 $env:JAVA_HOME='<jdk21>'; .\mvnw.cmd -o test -Dtest=TenantScopedReadIntegrationTests
 ```
 
+For a separate **local browser/demo** check (not Atlas integration and not a
+fixture run), first start a populated loopback JachAI demo. Set
+`DEMO_BASE_URL`, `DEMO_EMAIL` (an Academy learner with a submitted batch
+attempt and released result), `DEMO_OWNER_EMAIL` (the Academy owner), and
+`DEMO_PASSWORD` privately in the shell. Then run
+`node src/test/frontend/run-live-local.js`. It refuses non-loopback URLs,
+does not mutate server data, signs in through the real page, and saves
+light/dark screenshots under ignored `target/frontend-live-evidence/`.
+It checks only the learner result and Academy cohort; it does **not** prove
+Talent, billing, Redis, external providers, or deployment.
+
 Remaining live-only unknowns: real authentication against MongoDB, Redis-backed rate limits and
 revocation, SMTP/outbox delivery, AI providers, and both sandbox payment gateways.
