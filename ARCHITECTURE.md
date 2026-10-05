@@ -13,6 +13,8 @@ An organization buys access to one or both modules. Each organization has its ow
 
 The product's central promise is a trustworthy assessment lifecycle: create, publish, invite, attempt, score, review, report, and verify. AI assists people within that lifecycle; it does not control official scores or publish unreviewed questions.
 
+Verified people can also use **personal practice** without creating or joining an organization. It is a separate, application-owned question catalog: no tenant question or answer key is copied into it. A starter catalog supports immediate feedback and a five-answer-per-UTC-day free allowance. The server stores each answer under the user's identity, with a retry-safe request ID; history is visible only to that user and expires after 90 days. This is practice, not an official assessment: it cannot issue certificates or change a tenant result. Individual paid plans and checkout are a later product slice and must not be represented as available until implemented and verified. Organization billing remains separate.
+
 ## 2. Product boundaries
 
 ### Shared core
@@ -74,6 +76,7 @@ com.jachai
   messaging/     instructor–learner conversations
   billing/       plans, entitlements, payment orders, provider adapters
   ai/            provider adapter, prompts, limits, usage records
+  practice/      personal starter catalog, free allowance, answer history
 ```
 
 Within each module, use `controller`, `service`, `repository`, `model`, and `dto` folders only where they improve clarity. Avoid creating empty packages in advance.
