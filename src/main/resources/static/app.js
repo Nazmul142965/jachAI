@@ -371,9 +371,9 @@ async function setOrganization() {
   state.editingQuestion = null;
   hideAssessmentVersions();
   hideOrderDetail();
-  $('#question-form').reset();
+  $('#question-form')?.reset();
   updateQuestionEditor();
-  $('#assessment-form').reset();
+  $('#assessment-form')?.reset();
   updateAssessmentEditor();
   $('#recent-assignment')?.remove();
   state.tutorHistory.clear();
@@ -393,7 +393,7 @@ async function setOrganization() {
   $('#attempt-review-detail').classList.add('hidden');
   $('#review-output').classList.add('hidden');
   $('#review-output').textContent = '';
-  $('#feedback-form').reset();
+  $('#feedback-form')?.reset();
   $('#feedback-output').textContent = '';
   $('#feedback-output').classList.add('hidden');
   $('#feedback-audit-list')?.replaceChildren();
@@ -410,8 +410,8 @@ async function setOrganization() {
     : '';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
-    $('#page-title').textContent = 'Start here';
-    $('#page-subtitle').textContent = 'Create an Academy or Talent workspace.';
+    $('#page-title').textContent = 'Choose your path';
+    $('#page-subtitle').textContent = 'Join an existing assessment or set up a workspace for your team.';
     if (state.platformAdmin) {
       // A platform admin who owns no workspace still gets the platform screen,
       // and only that one.
@@ -3510,6 +3510,22 @@ $('#organization-select').addEventListener('change', (event) => run(async () => 
   state.organization = state.organizations.find((item) => item.id === event.target.value);
   await setOrganization();
 }));
+function updateOnboardingIntent() {
+  const intent = $('#onboarding-intent').value;
+  const guidance = {
+    learner: 'You do not need to create a workspace. An instructor or recruiter gives you access to an assessment.',
+    instructor: 'Join an existing Academy when invited. If you create a new Academy, you become its owner and can invite other instructors.',
+    recruiter: 'Join an existing Talent workspace when invited. If you create a new one, you become its owner and can invite recruiters.',
+    owner: 'Create an Academy for training and certificates, or a Talent workspace for hiring assessments.'
+  };
+  $('#onboarding-next-step').textContent = guidance[intent] || 'Select a path above. You can change it at any time.';
+  $('#onboarding-join').classList.toggle('hidden', !['learner', 'instructor', 'recruiter'].includes(intent));
+  $('#onboarding-create').classList.toggle('hidden', !['instructor', 'recruiter', 'owner'].includes(intent));
+  if (intent === 'instructor') $('#create-org-form [name="type"]').value = 'ACADEMY';
+  if (intent === 'recruiter') $('#create-org-form [name="type"]').value = 'TALENT';
+}
+$('#onboarding-intent').addEventListener('change', updateOnboardingIntent);
+updateOnboardingIntent();
 $('#create-org-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   await request('/organizations', { method: 'POST', body: { name: form.get('name'), type: form.get('type') } });

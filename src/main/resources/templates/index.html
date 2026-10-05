@@ -79,13 +79,38 @@
       <div class="page-head"><div><p class="eyebrow">JachAI workspace</p><h1 id="page-title">Overview</h1><p id="page-subtitle" class="muted"></p></div><span id="busy" class="pill hidden" role="status" aria-live="polite"></span></div>
       <div id="screen-tabs" class="tabs hidden" role="tablist" aria-label="Section"></div>
 
-      <section id="empty-org" class="card panel hidden">
-        <h2>Create your first organization</h2><p class="muted">Academy is for learning and certificates. Talent is for hiring assessments. If a colleague invited you, open the invitation link from your email instead of creating a new workspace.</p>
-        <form id="create-org-form" class="form-row">
-          <label>Name<input name="name" minlength="2" maxlength="120" required placeholder="Your organization"></label>
-          <label>Module<select name="type"><option value="ACADEMY">Academy</option><option value="TALENT">Talent</option></select></label>
-          <button class="button primary" type="submit">Create workspace</button>
-        </form>
+      <section id="empty-org" class="card panel hidden" aria-labelledby="onboarding-title">
+        <p class="eyebrow">First steps</p>
+        <h2 id="onboarding-title">What are you here to do?</h2>
+        <p class="muted">Choose a path to see the next step. This choice does not grant a role; a workspace owner controls access.</p>
+        <label class="onboarding-choice">I am here as
+          <select id="onboarding-intent">
+            <option value="">Choose your path</option>
+            <option value="learner">Student or assessment candidate</option>
+            <option value="instructor">Teacher or instructor</option>
+            <option value="recruiter">Recruiter or hiring team member</option>
+            <option value="owner">Starting an Academy or company workspace</option>
+          </select>
+        </label>
+        <p id="onboarding-next-step" class="muted" role="status" aria-live="polite">Select a path above. You can change it at any time.</p>
+        <div class="onboarding-grid">
+          <div id="onboarding-join" class="onboarding-path hidden">
+            <p class="eyebrow">Join an existing team</p>
+            <h3>Wait for your invitation</h3>
+            <p>An instructor or recruiter can add this verified account or email an invitation. Open the link and sign in with the same address; the workspace then appears in your sidebar.</p>
+            <p class="muted">No invitation? Ask the person running the assessment to invite your account email. You do not need an organization code or your own workspace.</p>
+          </div>
+          <div id="onboarding-create" class="onboarding-path hidden">
+            <p class="eyebrow">Start a team</p>
+            <h3>Set up a workspace</h3>
+            <p>Create one only if you will organize assessments and invite people. Academy is for learning and certificates; Talent is for hiring assessments.</p>
+            <form id="create-org-form" class="stack">
+              <label>Workspace name<input name="name" minlength="2" maxlength="120" required placeholder="e.g. Acme Academy"></label>
+              <label>Workspace type<select name="type"><option value="ACADEMY">Academy</option><option value="TALENT">Talent</option></select></label>
+              <button class="button primary" type="submit">Create workspace</button>
+            </form>
+          </div>
+        </div>
       </section>
 
       <section id="billing-view" class="view hidden"><div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div><div id="usage-panel" class="card panel hidden"><h2>Quota reconciliation</h2><p class="muted">Compares what this workspace has recorded against what the stored records prove, for the windows the plan limits. This reads the same counters the server enforces; it is not a bill and it does not change your plan.</p><div class="form-row"><button id="usage-refresh" class="button secondary" type="button">Check quotas</button><button id="usage-repair" class="button quiet" type="button" disabled>Repair counters</button></div><p id="usage-generated" class="muted"></p><div id="usage-report" class="item-list"></div><p id="usage-manual" class="result-box hidden"></p></div><div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted"></p><button id="start-ssl-demo" class="button secondary" type="button" disabled>Pay with SSLCommerz sandbox</button> <button id="start-bkash-demo" class="button secondary" type="button" disabled>Pay with direct bKash sandbox</button><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div><div id="payment-history-pagination"></div><section id="order-detail" class="subpanel hidden" aria-labelledby="order-detail-title"><div class="section-heading"><h4 id="order-detail-title">Order detail</h4><button id="order-detail-close" class="button quiet small" type="button">Close</button></div><div id="order-detail-body" class="item-list"></div></section></div></section>

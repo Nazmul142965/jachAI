@@ -618,6 +618,15 @@ a:focus-visible,
 
 .empty { padding: var(--sp-4) 0; color: var(--muted); font-size: var(--text-md); }
 
+.onboarding-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); margin-top: var(--sp-5); }
+.onboarding-choice { max-width: 420px; margin-top: var(--sp-5); }
+#onboarding-next-step { margin-top: var(--sp-3); }
+.onboarding-path { min-width: 0; padding: var(--sp-5); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-sunk); }
+.onboarding-path h3 { margin: 0 0 var(--sp-3); }
+.onboarding-path p { line-height: var(--leading-normal); }
+.onboarding-path .stack { margin-top: var(--sp-4); }
+@media (max-width: 760px) { .onboarding-grid { grid-template-columns: 1fr; } }
+
 [aria-busy="true"] .item { opacity: .55; }
 
 /* -- Dashboard ------------------------------------------------------------
