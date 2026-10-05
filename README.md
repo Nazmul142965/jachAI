@@ -45,6 +45,8 @@ For a support ticket, a platform admin may `POST /api/v1/platform/organizations/
 
 Email jobs use `MAIL_JOB_ENCRYPTION_KEY` when set, otherwise a key derived from `JWT_SECRET`. Keep the chosen key stable until queued jobs are drained; changing it makes pending payloads unreadable. Use a separate 32+ byte random mail key in production. The worker polls every 15 seconds by default (`MAIL_OUTBOX_POLL_MS`). Local development prints links to the console only after the worker processes the queued job. Email delivery is at-least-once: a crash after SMTP accepted a message but before MongoDB marks it sent can cause a duplicate. Failed jobs retain only metadata for 30 days, not the encrypted link payload.
 
+Unverified accounts are eligible for deletion seven days after registration. A scheduled, bounded cleanup checks for any membership before an atomic delete, and verification cannot resurrect a concurrently deleted account. Account deletion can lag the deadline by the cleanup interval; no verified account is targeted. If an old unverified address still blocks re-registration briefly, wait for cleanup or use a different address; resend links are not issued after the seven-day window.
+
 ```powershell
 $env:JWT_SECRET = '<generate-a-random-secret-of-at-least-32-bytes>'
 $env:MONGODB_URI = '<private-Atlas-connection-string-without-database-name>'

@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import com.jachai.organization.model.OrganizationRole;
 
 public interface MembershipRepository extends MongoRepository<Membership, String> {
+    boolean existsByUserId(String userId);
     Optional<Membership> findByUserIdAndOrganizationIdAndActiveTrue(String userId, String organizationId);
     Optional<Membership> findByUserIdAndOrganizationId(String userId, String organizationId);
     List<Membership> findByUserIdAndActiveTrue(String userId);

@@ -74,7 +74,8 @@ public class AuthService {
 
     public void resendVerification(String email) {
         users.findByEmail(normalizeEmail(email))
-                .filter(user -> !user.emailVerified() && !user.disabled())
+                .filter(user -> !user.emailVerified() && !user.disabled()
+                        && user.createdAt().isAfter(Instant.now().minus(Duration.ofDays(7))))
                 .ifPresent(this::issueVerification);
     }
 
@@ -87,8 +88,13 @@ public class AuthService {
         }
         User user = users.findById(token.userId()).orElseThrow(() ->
                 new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Verification link is invalid or expired"));
-        if (!user.emailVerified()) {
-            users.save(user.verified());
+        if (user.emailVerified()) return;
+        UpdateResult updated = mongo.updateFirst(Query.query(Criteria.where("_id").is(user.id())
+                        .and("emailVerified").is(false)
+                        .and("createdAt").gt(Instant.now().minus(Duration.ofDays(7)))),
+                new Update().set("emailVerified", true), User.class);
+        if (updated.getMatchedCount() != 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Verification link is invalid or expired");
         }
     }
 

@@ -78,6 +78,24 @@ class AuthServiceTests {
     }
 
     @Test
+    void verificationUsesConditionalUpdateInsteadOfSavingAStaleUser() {
+        User user = new User("u1", "test@example.com", "Test", "hash", false, false,
+                0, Instant.now());
+        when(mongo.findAndRemove(any(Query.class), eq(EmailVerificationToken.class)))
+                .thenReturn(new EmailVerificationToken("t1", "hash", "u1", Instant.now().plusSeconds(300)));
+        when(users.findById("u1")).thenReturn(Optional.of(user));
+        when(mongo.updateFirst(any(Query.class), any(Update.class), eq(User.class)))
+                .thenReturn(UpdateResult.acknowledged(1, 1L, null));
+
+        service.verifyEmail("raw-token");
+
+        ArgumentCaptor<Query> query = ArgumentCaptor.forClass(Query.class);
+        verify(mongo).updateFirst(query.capture(), any(Update.class), eq(User.class));
+        assertTrue(query.getValue().getQueryObject().containsKey("emailVerified"));
+        verify(users, never()).save(any());
+    }
+
+    @Test
     void unverifiedUserCannotReceiveJwt() {
         String hash = new BCryptPasswordEncoder().encode("long-password-123");
         when(users.findByEmail("test@example.com")).thenReturn(Optional.of(

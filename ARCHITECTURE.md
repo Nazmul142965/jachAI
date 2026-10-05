@@ -124,6 +124,7 @@ Telemetry records tab visibility changes, fullscreen exits, copy/paste attempts,
 ## 8. Authentication and security
 
 - Registration requires email verification before normal access. Use a random, single-use, expiring verification token; store only its hash in MongoDB or Redis.
+- Unverified accounts expire after seven days. A bounded scheduled cleanup removes only records still unverified and without any organization membership; verification uses a conditional MongoDB update so a cleanup race cannot recreate a deleted user. Resend and verification are unavailable after the seven-day window. The cleanup interval is operational, not a guarantee that deletion occurs at the exact deadline.
 - Optional Google Identity Services sign-in verifies ID-token signature, audience, issuer, expiry, subject, and verified email server-side. Use the stable Google subject as the external identity; never silently merge an existing password account by email. Require authenticated same-email linking. A third-party email that Google does not authoritatively host must complete JachAI's own email verification before linking. Google login returns ordinary JachAI access/refresh tokens; organization authorization rules do not change.
 - Passwords use an adaptive hash such as BCrypt. Add password-reset tokens with the same single-use and expiry rules.
 - REST API authentication uses short-lived JWT access tokens and rotated refresh tokens. Bind refresh sessions to a user/device record; revoke on logout or security events.
