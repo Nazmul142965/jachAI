@@ -62,13 +62,10 @@ $env:SPRING_PROFILES_ACTIVE = if ($Smtp) { 'local,smtp' } else { 'local' }
 $env:SERVER_PORT = "$Port"
 $env:SERVER_ADDRESS = '127.0.0.1'
 $env:LOCAL_MONGODB_DATABASE = $DatabaseName
-# Use Atlas credentials from MONGODB_URI or the ignored local secrets file.
+# Use Atlas credentials from the process environment only.
 # Never substitute a localhost MongoDB server or put the database in the URI.
-if ($env:MONGODB_URI) {
-    $env:SPRING_DATA_MONGODB_URI = $env:MONGODB_URI
-} else {
-    Remove-Item Env:SPRING_DATA_MONGODB_URI -ErrorAction SilentlyContinue
-}
+if (-not $env:MONGODB_URI) { throw 'Set MONGODB_URI in this shell before starting JachAI.' }
+$env:SPRING_DATA_MONGODB_URI = $env:MONGODB_URI
 $env:SPRING_DATA_MONGODB_DATABASE = $DatabaseName
 $env:APP_PUBLIC_BASE_URL = "http://127.0.0.1:$Port"
 $env:CACHE_ENABLED = 'false'
