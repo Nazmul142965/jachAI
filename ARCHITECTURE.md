@@ -36,6 +36,7 @@ Live code execution, video or face proctoring, automated cheating verdicts, adva
 ## 3. Users and permissions
 
 Roles are scoped to an organization, except for platform administration. A person may belong to more than one organization with different roles.
+After registration, the same verified account may join another workspace by participant code or create its own Academy or Talent organization. Creating a workspace makes that account its owner only in the new organization; it must not upgrade or replace a learner/candidate role elsewhere. The dashboard must expose these actions even when the account already belongs to a workspace.
 
 | Role | Scope | Main capabilities |
 | --- | --- | --- |

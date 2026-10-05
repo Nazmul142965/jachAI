@@ -21,7 +21,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   versionsAssessment: null, versionsToken: 0,
   orderDetailId: null, orderDetailToken: 0,
   view: 'overview' };
-const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+const views = ['overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
@@ -30,6 +30,8 @@ const views = ['overview', 'members', 'questions', 'assessments', 'academy', 'ac
 // grouping and a route, not a new container.
 const SCREENS = {
   overview: { title: 'Overview', subtitle: '', views: [['overview', 'Overview']] },
+  'workspace-access': { title: 'Your workspaces', subtitle: 'Join or create another workspace',
+    views: [['workspace-access', 'Your workspaces']] },
   members: { title: 'Members', subtitle: 'People in this workspace', views: [['members', 'Members']] },
   'assessment-studio': {
     title: 'Assessment Studio',
@@ -353,8 +355,8 @@ async function signedIn(tokens) {
     ? `${invitationMessage} An assessment attempt is still in progress — open My assessments and choose Resume.`
     : invitationMessage);
 }
-async function loadOrganizations() {
-  const previous = state.organization?.id;
+async function loadOrganizations(preferredId = state.organization?.id) {
+  const previous = preferredId;
   const platformAccess = await request('/platform/me');
   state.platformAdmin = platformAccess.platformAdmin;
   state.platformUserId = platformAccess.userId;
@@ -459,6 +461,7 @@ async function setOrganization() {
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
   group('', [['overview', 'Overview']]);
+  group('Account', [['workspace-access', 'Your workspaces']]);
   group('Assessment engine', [
     ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
     ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : [])
@@ -922,6 +925,7 @@ async function showView(key) {
     .filter(Boolean).join(' · ');
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'overview') await loadOverview();
+  if (key === 'workspace-access') loadWorkspaceAccess();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
     await loadOrganizationSettings();
     ensureTenantSupportAuditPanel();
@@ -3685,6 +3689,18 @@ $('#organization-select').addEventListener('change', (event) => run(async () => 
   state.organization = state.organizations.find((item) => item.id === event.target.value);
   await setOrganization();
 }));
+function loadWorkspaceAccess() {
+  setList('#workspace-access-list', state.organizations.map((organization) => item(
+    organization.name,
+    `${organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${organization.owner ? 'Owner' : roleTitle(organization.myRole)}`,
+    [button(organization.id === state.organization?.id ? 'Current workspace' : 'Open workspace',
+      async () => {
+        if (organization.id === state.organization?.id) return;
+        state.organization = organization;
+        await setOrganization();
+      })])), 'You have not joined a workspace yet.');
+}
+
 function updateOnboardingIntent() {
   const intent = $('#onboarding-intent').value;
   const guidance = {
@@ -3701,14 +3717,19 @@ function updateOnboardingIntent() {
 }
 $('#onboarding-intent').addEventListener('change', updateOnboardingIntent);
 updateOnboardingIntent();
-$('#join-code-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = event.currentTarget;
-  const code = new FormData(form).get('code').trim();
-  const joined = await request('/join-codes/accept', { method: 'POST', body: { code } });
-  form.reset();
-  await loadOrganizations();
-  notice(`Joined ${joined.name} as ${roleTitle(joined.myRole)}.`);
-}); });
+for (const form of [$('#join-code-form'), $('#workspace-join-code-form')]) {
+  form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+    const code = new FormData(form).get('code').trim();
+    const submit = form.querySelector('button[type="submit"]'); submit.disabled = true;
+    try {
+      const joined = await request('/join-codes/accept', { method: 'POST', body: { code } });
+      form.reset();
+      await loadOrganizations(joined.id);
+      notice(`Joined ${joined.name} as ${roleTitle(joined.myRole)}.`);
+    } catch (error) { fieldErrors(form, error); throw error; }
+    finally { submit.disabled = false; }
+  }); });
+}
 $('#create-join-code').addEventListener('click', () => run(async () => {
   const created = await request(ownOrg('/join-codes'), { method: 'POST' });
   const output = $('#join-code-once');
@@ -3716,11 +3737,20 @@ $('#create-join-code').addEventListener('click', () => run(async () => {
   output.classList.remove('hidden');
   await loadJoinCodes();
 }));
-$('#create-org-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
-  await request('/organizations', { method: 'POST', body: { name: form.get('name'), type: form.get('type') } });
-  event.currentTarget.reset(); await loadOrganizations(); notice('Workspace created.');
-}); });
+for (const form of [$('#create-org-form'), $('#workspace-create-org-form')]) {
+  form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+    const values = new FormData(form);
+    const submit = form.querySelector('button[type="submit"]'); submit.disabled = true;
+    try {
+      const created = await request('/organizations', { method: 'POST',
+        body: { name: values.get('name'), type: values.get('type') } });
+      form.reset();
+      await loadOrganizations(created.id);
+      notice(`Created ${created.name}. You are its owner.`);
+    } catch (error) { fieldErrors(form, error); throw error; }
+    finally { submit.disabled = false; }
+  }); });
+}
 $('#organization-settings-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   await request(ownOrg('/settings'), { method: 'PUT', body: {

@@ -273,6 +273,16 @@ async function main() {
     await ev(`!document.querySelector('#app').classList.contains('hidden')`));
   check(journey, 'the brand names where it goes while signed in',
     await ev(`/Overview/.test(document.querySelector('.topbar .brand').getAttribute('aria-label'))`));
+  await view('Your workspaces'); await wait(400);
+  check(journey, 'a learner can open the add-workspace path',
+    await ev(`!document.querySelector('#workspace-access-view').classList.contains('hidden')`));
+  await ev(`(() => { const form = document.querySelector('#workspace-create-org-form');
+    form.elements.name.value = 'My Academy';
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); return true; })()`);
+  await wait(900);
+  check(journey, 'the same account can become an Academy owner',
+    await ev(`document.querySelector('#workspace-role').textContent.includes('Owner')
+      && document.querySelector('#organization-select').value === 'org-new'`));
   check(journey, 'no link points at the unrouted certificate page',
     await ev(`!document.querySelector('a[href="/certificate.html"]')`));
   await shotBoth('overview-learner');

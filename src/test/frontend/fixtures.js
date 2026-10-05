@@ -96,6 +96,7 @@ const SOURCE = String.raw`(() => {
   const demoOrder = { id: 'order-1', provider: 'SSLCOMMERZ', status: 'VERIFIED', amountBdt: 100,
     createdAt: new Date(Date.now() - 7200000).toISOString(),
     verifiedAt: new Date(Date.now() - 3600000).toISOString(), appliedAt: null };
+  const organizations = [ROLE.org];
 
   window.__calls = [];
   window.fetch = async (input, init = {}) => {
@@ -109,7 +110,14 @@ const SOURCE = String.raw`(() => {
     if (path === '/api/v1/auth/login') return json({ accessToken: 'fixture-access', refreshToken: 'fixture-refresh' });
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });
     if (path === '/api/v1/platform/me') return json({ userId: ROLE.userId, platformAdmin: ROLE.platformAdmin });
-    if (path === '/api/v1/organizations') return json([ROLE.org]);
+    if (path === '/api/v1/organizations' && method === 'POST') {
+      const body = JSON.parse(init.body);
+      const created = { id: 'org-new', name: body.name, type: body.type,
+        myRole: 'ORG_ADMIN', owner: true };
+      organizations.push(created);
+      return json(created, 201);
+    }
+    if (path === '/api/v1/organizations') return json(organizations);
 
     // Platform administration
     if (path === '/api/v1/platform/operations/summary') return json({ generatedAt: new Date().toISOString(),

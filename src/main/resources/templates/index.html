@@ -80,6 +80,14 @@
       <div class="page-head"><div><p class="eyebrow">JachAI workspace</p><h1 id="page-title">Overview</h1><p id="page-subtitle" class="muted"></p></div><span id="busy" class="pill hidden" role="status" aria-live="polite"></span></div>
       <div id="screen-tabs" class="tabs hidden" role="tablist" aria-label="Section"></div>
 
+      <section id="workspace-access-view" class="view hidden" aria-labelledby="workspace-access-heading">
+        <div class="card panel"><h2 id="workspace-access-heading">Your workspaces</h2><p class="muted">One account can be a learner or candidate in one workspace and own another. Switching does not change your role in either.</p><div id="workspace-access-list" class="item-list"></div></div>
+        <div class="onboarding-grid">
+          <div class="card panel"><h2>Join with a code</h2><p class="muted">Use a code from an Academy or Talent organizer. It grants learner or candidate access only; staff roles require an invitation.</p><form id="workspace-join-code-form" class="stack"><label>Workspace join code<input name="code" autocomplete="off" maxlength="32" required placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="button primary" type="submit">Join workspace</button></form></div>
+          <div class="card panel"><h2>Start your own workspace</h2><p class="muted">Keep your existing learner or candidate access and become the owner of a separate Academy or Talent workspace.</p><form id="workspace-create-org-form" class="stack"><label>Workspace name<input name="name" minlength="2" maxlength="120" required placeholder="e.g. Acme Academy"></label><label>Workspace type<select name="type"><option value="ACADEMY">Academy</option><option value="TALENT">Talent</option></select></label><button class="button secondary" type="submit">Create workspace</button></form></div>
+        </div>
+      </section>
+
       <section id="empty-org" class="card panel hidden" aria-labelledby="onboarding-title">
         <p class="eyebrow">First steps</p>
         <h2 id="onboarding-title">What are you here to do?</h2>
