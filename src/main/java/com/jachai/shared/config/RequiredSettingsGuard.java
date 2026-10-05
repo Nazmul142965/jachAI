@@ -50,6 +50,10 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
         // this stage. Checking them here would fail a suite that is correctly configured, and
         // the guard's purpose is to help a person starting the application, not a test context.
         if (environment.acceptsProfiles(Profiles.of("test", "integration"))) return;
+        if (environment.acceptsProfiles(Profiles.of("local"))
+                && environment.acceptsProfiles(Profiles.of("prod"))) {
+            throw new IllegalStateException("JachAI cannot start with local and prod profiles together.");
+        }
 
         List<Required> missing = new ArrayList<>();
         List<Required> unedited = new ArrayList<>();
@@ -104,18 +108,11 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
                         : "not found")
                 .append(System.lineSeparator());
         message.append(System.lineSeparator())
-                .append("Two ways to supply them:").append(System.lineSeparator())
+                .append("Supply missing production settings in the deployment environment.")
                 .append(System.lineSeparator())
-                .append("  1. Easiest for development. Copy ")
+                .append("For local JWT_SECRET only, you may copy ")
                 .append("application-local-secret.properties.example to").append(System.lineSeparator())
-                .append("     application-local-secret.properties beside pom.xml and fill it in.")
-                .append(System.lineSeparator())
-                .append("     It is read on every run and is already in .gitignore.")
-                .append(System.lineSeparator())
-                .append(System.lineSeparator())
-                .append("  2. As environment variables, in the shell or run configuration that")
-                .append(System.lineSeparator())
-                .append("     starts the application. This is how deployment supplies them.")
+                .append("application-local-secret.properties beside pom.xml and fill it in.")
                 .append(System.lineSeparator());
         throw new IllegalStateException(message.toString());
     }
@@ -141,16 +138,15 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
     }
 
     /**
-     * Reads the environment variable first, because that is what a person actually sets.
+     * Reads the effective profile-specific property, rather than a raw environment variable.
+     * A leftover Atlas MONGODB_URI must not be mistaken for the local profile's connection.
      *
-     * <p>The property is only consulted as a fallback, and inside a try: reading
+     * <p>Reading
      * {@code app.jwt.secret} resolves its {@code ${JWT_SECRET}} placeholder, which throws when
      * nothing supplied the variable. That throw is the unreadable failure this guard exists to
      * replace, so here it simply means the setting is absent.
      */
     private String resolve(ConfigurableEnvironment environment, Required setting) {
-        String fromVariable = environment.getProperty(setting.variable(), String.class, null);
-        if (fromVariable != null && !fromVariable.isBlank()) return fromVariable;
         try {
             return environment.getProperty(setting.property(), String.class, null);
         } catch (RuntimeException unresolvedPlaceholder) {

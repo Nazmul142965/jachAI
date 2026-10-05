@@ -89,7 +89,12 @@ $env:Path = (Join-Path $env:JAVA_HOME 'bin') + [IO.Path]::PathSeparator + $env:P
 $env:SPRING_PROFILES_ACTIVE = if ($Smtp) { 'local,smtp' } else { 'local' }
 $env:SERVER_PORT = "$Port"
 $env:SERVER_ADDRESS = '127.0.0.1'
-$env:MONGODB_URI = "mongodb://127.0.0.1:27017/$DatabaseName"
+$env:LOCAL_MONGODB_URI = 'mongodb://127.0.0.1:27017'
+$env:LOCAL_MONGODB_DATABASE = $DatabaseName
+# Explicit Spring overrides keep an inherited IDE/shell Mongo setting from
+# redirecting this local-only launcher to Atlas or a production database.
+$env:SPRING_DATA_MONGODB_URI = $env:LOCAL_MONGODB_URI
+$env:SPRING_DATA_MONGODB_DATABASE = $DatabaseName
 $env:APP_PUBLIC_BASE_URL = "http://127.0.0.1:$Port"
 $env:CACHE_ENABLED = 'false'
 $env:REDIS_REVOCATION_ENABLED = 'false'

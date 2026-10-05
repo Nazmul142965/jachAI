@@ -37,7 +37,7 @@ To test real email locally without enabling the production profile, configure `M
 
 Use JDK 21, Maven, and a MongoDB instance. Set environment variables in your terminal or IntelliJ run configuration; Spring Boot does not load `.env` automatically. `.env.example` contains only placeholders. Never commit actual credentials.
 
-Required: `JWT_SECRET` (at least 32 UTF-8 bytes). `MONGODB_URI` defaults to a local database under the local profile. The production profile requires `MONGODB_URI` and SMTP settings.
+Required: `JWT_SECRET` (at least 32 UTF-8 bytes). The default `local` profile uses `mongodb://127.0.0.1:27017` with database `jachai_local` from `application-local.properties`; it ignores a stale `MONGODB_URI` Atlas variable. To use a different local server/database, set `LOCAL_MONGODB_URI` (server only) and/or `LOCAL_MONGODB_DATABASE`. The `prod` profile requires `MONGODB_URI` (cluster and credentials only) and uses `jachai_prod` from `application-prod.properties` unless `MONGODB_DATABASE` is set. Never point local and production at the same database. IntelliJ's normal Run button does not start MongoDB; start the local MongoDB service first or use `scripts/start-local.ps1`.
 
 Platform administration is separately bootstrapped with optional `PLATFORM_ADMIN_USER_IDS`, a comma-separated list of existing verified JachAI user IDs. Find your own ID with authenticated `GET /api/v1/platform/me`, then set the variable in the IntelliJ run configuration and restart. An empty value grants nobody platform access initially. A current platform administrator may grant or revoke another user's platform role using `PUT /api/v1/platform/users/{userId}/role` with `{"platformAdmin":true}` or `false`; `GET` on that route and `/audit?page=0` show the current effective role and immutable history. Only verified, enabled users can receive a grant; no one can change their own role or alter an environment-bootstrap admin through the API. Grant/revoke operations have an indexed per-user revision; concurrent changes return 409 and must be retried after reloading. For billing support, `GET /api/v1/platform/organizations/{organizationId}/billing` shows the stored paid-subscription state and `/billing/orders?page=0` shows a tenant-scoped, paged order summary without gateway credentials or validation identifiers. Platform admins can also `GET` a per-tenant `/billing/usage-reconciliation` report and `POST` the same route to repair only provable quota gaps; compare-and-set prevents overwriting concurrent reservations, and each changed bucket records the acting admin. These routes do not reconcile payments. The separate `/billing/manual-plan` endpoint shows the current manual TEAM grant; `POST` there accepts `{"expiresAt":"<UTC instant within 30 days>","reason":"<10–500 characters>"}`, while `POST /billing/manual-plan/revoke` accepts a reason. `/billing/manual-plan/audit?page=0` shows immutable changes. Manual grants cannot replace an active paid TEAM subscription and never mark an order paid. The platform API cannot read assessment answers or attempts, disable accounts, or modify paid periods. Protect administrator accounts with strong credentials. Live MongoDB concurrency/index verification remains open.
 
@@ -47,7 +47,7 @@ Email jobs use `MAIL_JOB_ENCRYPTION_KEY` when set, otherwise a key derived from 
 
 ```powershell
 $env:JWT_SECRET = '<generate-a-random-secret-of-at-least-32-bytes>'
-$env:MONGODB_URI = 'mongodb://localhost:27017/jachai_local'
+$env:LOCAL_MONGODB_DATABASE = 'jachai_local'
 .\mvnw.cmd test
 .\mvnw.cmd spring-boot:run
 ```
