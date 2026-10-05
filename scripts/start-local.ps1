@@ -1,7 +1,7 @@
 param(
     [ValidateRange(1024, 65535)] [int]$Port = 8080,
-    [ValidatePattern('^jachai_(local|demo_[A-Za-z0-9_-]+|smtp_[A-Za-z0-9_-]+)$')]
-    [string]$DatabaseName = 'jachai_local',
+    [ValidatePattern('^jachai_(dev|demo_[A-Za-z0-9_-]+|smtp_[A-Za-z0-9_-]+)$')]
+    [string]$DatabaseName = 'jachai_dev',
     [switch]$Smtp
 )
 
@@ -28,34 +28,6 @@ if ($Smtp) {
 
 function Test-LocalPort([int]$Number) {
     return [bool](Get-NetTCPConnection -LocalPort $Number -State Listen -ErrorAction SilentlyContinue)
-}
-
-if (-not (Test-LocalPort 27017)) {
-    $knownMongo = Join-Path $env:USERPROFILE 'Documents\Codex\local-tools\mongodb\server\mongodb-win32-x86_64-windows-8.0.29\bin\mongod.exe'
-    $onPath = Get-Command mongod -ErrorAction SilentlyContinue
-    $mongoExe = @($env:JACHAI_MONGOD_EXE, $onPath.Source, $knownMongo) |
-        Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } |
-        Select-Object -First 1
-    if (-not $mongoExe) {
-        throw 'MongoDB is not running. Install MongoDB or set JACHAI_MONGOD_EXE to mongod.exe.'
-    }
-
-    $mongoData = if ($env:JACHAI_MONGO_DATA_DIR) {
-        $env:JACHAI_MONGO_DATA_DIR
-    } else {
-        Join-Path $env:USERPROFILE 'Documents\Codex\local-tools\mongodb\data'
-    }
-    New-Item -ItemType Directory -Path $mongoData -Force | Out-Null
-    Start-Process -FilePath $mongoExe -WindowStyle Hidden -PassThru `
-        -ArgumentList "--bind_ip 127.0.0.1 --port 27017 --dbpath `"$mongoData`"" `
-        -RedirectStandardOutput (Join-Path $logDir 'mongo.out.log') `
-        -RedirectStandardError (Join-Path $logDir 'mongo.err.log') | Out-Null
-    for ($i = 0; $i -lt 15 -and -not (Test-LocalPort 27017); $i++) {
-        Start-Sleep -Seconds 1
-    }
-    if (-not (Test-LocalPort 27017)) {
-        throw "MongoDB did not start. Check $logDir\mongo.err.log."
-    }
 }
 
 $healthUrl = "http://127.0.0.1:$Port/api/v1/health"
@@ -89,11 +61,14 @@ $env:Path = (Join-Path $env:JAVA_HOME 'bin') + [IO.Path]::PathSeparator + $env:P
 $env:SPRING_PROFILES_ACTIVE = if ($Smtp) { 'local,smtp' } else { 'local' }
 $env:SERVER_PORT = "$Port"
 $env:SERVER_ADDRESS = '127.0.0.1'
-$env:LOCAL_MONGODB_URI = 'mongodb://127.0.0.1:27017'
 $env:LOCAL_MONGODB_DATABASE = $DatabaseName
-# Explicit Spring overrides keep an inherited IDE/shell Mongo setting from
-# redirecting this local-only launcher to Atlas or a production database.
-$env:SPRING_DATA_MONGODB_URI = $env:LOCAL_MONGODB_URI
+# Use Atlas credentials from MONGODB_URI or the ignored local secrets file.
+# Never substitute a localhost MongoDB server or put the database in the URI.
+if ($env:MONGODB_URI) {
+    $env:SPRING_DATA_MONGODB_URI = $env:MONGODB_URI
+} else {
+    Remove-Item Env:SPRING_DATA_MONGODB_URI -ErrorAction SilentlyContinue
+}
 $env:SPRING_DATA_MONGODB_DATABASE = $DatabaseName
 $env:APP_PUBLIC_BASE_URL = "http://127.0.0.1:$Port"
 $env:CACHE_ENABLED = 'false'

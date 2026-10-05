@@ -11,14 +11,24 @@ class RequiredSettingsGuardTests {
     private final RequiredSettingsGuard guard = new RequiredSettingsGuard();
 
     @Test
-    void localUsesEffectiveMongoPropertyInsteadOfStaleAtlasVariable() {
+    void localAcceptsAnAtlasUriFromTheEffectiveConfiguration() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("app.jwt.secret", "valid-local-test-secret-with-at-least-32-bytes")
-                .withProperty("spring.data.mongodb.uri", "mongodb://127.0.0.1:27017")
-                .withProperty("MONGODB_URI", "mongodb+srv://USER:PASSWORD@cluster.invalid/");
+                .withProperty("spring.data.mongodb.uri", "mongodb+srv://user:password@cluster.invalid/");
         environment.setActiveProfiles("local");
 
         assertDoesNotThrow(() -> guard.postProcessEnvironment(environment, null));
+    }
+
+    @Test
+    void localRequiresAnAtlasUriToo() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("app.jwt.secret", "valid-local-test-secret-with-at-least-32-bytes");
+        environment.setActiveProfiles("local");
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> guard.postProcessEnvironment(environment, null));
+        assertTrue(failure.getMessage().contains("MONGODB_URI is not set"));
     }
 
     @Test

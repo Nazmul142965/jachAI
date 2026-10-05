@@ -14,7 +14,7 @@ if (-not $env:MONGODB_URI) {
     Write-Output 'MONGODB_URI is not set in this shell.'
     Write-Output 'Set it here first, for example:'
     Write-Output '  $env:MONGODB_URI = "mongodb+srv://user:pass@cluster/"'
-    Write-Output '  $env:MONGODB_DATABASE = "jachai"'
+    Write-Output '  $env:MONGODB_DATABASE = "jachai_dev"'
     exit 1
 }
 
@@ -34,3 +34,4 @@ $classpath = (Get-Content $classpathFile -Raw).Trim()
 # logger so the only output is the doctor's own, which prints nothing sensitive.
 $logback = Join-Path $PSScriptRoot 'doctor-logback.xml'
 & (Join-Path $env:JAVA_HOME 'bin\java.exe') "-Dlogback.configurationFile=$logback" -cp $classpath (Join-Path $PSScriptRoot 'MongoConnectionDoctor.java')
+exit $LASTEXITCODE

@@ -110,9 +110,9 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
         message.append(System.lineSeparator())
                 .append("Supply missing production settings in the deployment environment.")
                 .append(System.lineSeparator())
-                .append("For local JWT_SECRET only, you may copy ")
+                .append("For local development, you may copy ")
                 .append("application-local-secret.properties.example to").append(System.lineSeparator())
-                .append("application-local-secret.properties beside pom.xml and fill it in.")
+                .append("application-local-secret.properties beside pom.xml and fill in JWT_SECRET and MONGODB_URI.")
                 .append(System.lineSeparator());
         throw new IllegalStateException(message.toString());
     }
@@ -138,8 +138,8 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
     }
 
     /**
-     * Reads the effective profile-specific property, rather than a raw environment variable.
-     * A leftover Atlas MONGODB_URI must not be mistaken for the local profile's connection.
+     * Reads the effective property, not a raw environment variable. This also
+     * supports a gitignored local secrets file without echoing its contents.
      *
      * <p>Reading
      * {@code app.jwt.secret} resolves its {@code ${JWT_SECRET}} placeholder, which throws when

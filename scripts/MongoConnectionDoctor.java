@@ -45,7 +45,7 @@ public final class MongoConnectionDoctor {
             System.out.println("  The application should start with these settings.");
         } catch (MongoSecurityException authentication) {
             fail("Authentication was refused by the server.",
-                    "The username or password is wrong.",
+                    "Check the Atlas database user, its password, and the cluster connection string.",
                     "  - If you just changed the password in Atlas, wait 30 seconds and retry.",
                     "  - Use the Database User password, not your Atlas account password.",
                     "  - Atlas: Database Access -> Edit -> Edit Password. Choose letters and digits",
@@ -136,5 +136,6 @@ public final class MongoConnectionDoctor {
         for (String line : detail) {
             System.out.println("  " + line);
         }
+        System.exit(1);
     }
 }
