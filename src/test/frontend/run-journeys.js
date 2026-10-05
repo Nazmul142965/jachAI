@@ -162,7 +162,23 @@ async function main() {
     nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
     nav.join(', '));
   check(journey, 'nav lists screens, not every view',
-    nav.length <= 6 && !nav.includes('Batch workspace'), nav.join(', '));
+    nav.length <= 7 && !nav.includes('Batch workspace'), nav.join(', '));
+  check(journey, 'account-level Practice is reachable', nav.includes('Practice'), nav.join(', '));
+  await view('Practice'); await wait(450);
+  check(journey, 'Practice shows a private question without its answer key',
+    /Which statement about a Java record/.test(await ev(`document.querySelector('#practice-view').textContent`))
+      && !(await ev(`document.querySelector('#practice-view').textContent`)).includes('Records generate component accessors and a canonical constructor.'),
+    await route());
+  await ev(`(() => { const answer = document.querySelector('#practice-options input[value="b"]');
+    answer.checked = true; document.querySelector('#practice-answer-form').dispatchEvent(
+      new Event('submit', { cancelable: true, bubbles: true })); })()`);
+  await wait(550);
+  check(journey, 'Practice saves an answer and reveals its explanation',
+    /Correct/.test(await ev(`document.querySelector('#practice-result').textContent`))
+      && /Records generate/.test(await ev(`document.querySelector('#practice-result').textContent`)));
+  check(journey, 'Practice shows the consumed free allowance',
+    /4 of 5/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+  await view('Overview'); await wait(350);
 
   // The signed-in overview is a command centre, not marketing copy.
   const learnerDash = await ev(`document.querySelector('#overview-view').textContent`);

@@ -88,7 +88,7 @@
         </div>
       </section>
 
-      <section id="empty-org" class="card panel hidden" aria-labelledby="onboarding-title">
+      <section id="start-view" class="view card panel hidden" aria-labelledby="onboarding-title">
         <p class="eyebrow">First steps</p>
         <h2 id="onboarding-title">What are you here to do?</h2>
         <p class="muted">Choose a path to see the next step. This choice does not grant a role; a workspace owner controls access.</p>
@@ -105,8 +105,9 @@
         <div class="onboarding-grid">
           <div id="onboarding-join" class="onboarding-path hidden">
             <p class="eyebrow">Join an existing team</p>
-            <h3>Wait for your invitation</h3>
-            <p>An instructor or recruiter can add this verified account or email an invitation. Open the link and sign in with the same address; the workspace then appears in your sidebar.</p>
+            <h3>Practice now, join a workspace when invited</h3>
+            <p>You can use Practice without an organization. For a private Academy or Talent assessment, an organizer can invite this verified account. Open the link and sign in with the same address; that workspace then appears in your sidebar.</p>
+            <button id="onboarding-open-practice" class="button secondary" type="button">Open Practice</button>
             <p class="muted">Have a join code from the organizer? Enter it below. Codes grant participant access only; teacher and recruiter access requires an invitation.</p>
             <form id="join-code-form" class="form-row"><label>Workspace join code<input name="code" autocomplete="off" maxlength="32" required placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="button primary" type="submit">Join workspace</button></form>
           </div>
@@ -120,6 +121,24 @@
               <button class="button primary" type="submit">Create workspace</button>
             </form>
           </div>
+        </div>
+      </section>
+
+      <section id="practice-view" class="view hidden" aria-labelledby="practice-heading">
+        <div class="practice-layout">
+          <div class="practice-main card panel">
+            <div class="section-heading"><div><h2 id="practice-heading">Practice on your own</h2><p class="muted">A short technical question, instant feedback, and a reason you can learn from. This question bank is separate from private workspace assessments.</p></div></div>
+            <div class="practice-context"><span id="practice-usage" role="status" aria-live="polite">Checking today's free practice…</span><span>Resets at 00:00 UTC</span></div>
+            <label for="practice-question">Choose a question</label>
+            <select id="practice-question"></select>
+            <form id="practice-answer-form" class="stack">
+              <fieldset id="practice-options"><legend id="practice-prompt">Select a question to begin.</legend></fieldset>
+              <button id="practice-submit" class="button primary" type="submit">Check answer</button>
+            </form>
+            <div id="practice-result" class="practice-feedback hidden" role="status" aria-live="polite"></div>
+            <p class="muted">Five free answers per day. Personal paid plans are not available yet; no payment is collected here.</p>
+          </div>
+          <aside class="card panel practice-history" aria-label="Practice history"><h2>Your recent answers</h2><p class="muted">Your practice is private to this account and kept for 90 days.</p><div id="practice-history" class="item-list"></div></aside>
         </div>
       </section>
 

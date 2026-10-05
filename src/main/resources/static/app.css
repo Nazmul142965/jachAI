@@ -1100,6 +1100,24 @@ a:focus-visible,
 
 .result-section { margin: var(--sp-6) 0 var(--sp-2); }
 
+/* Personal practice: one active question, with history kept secondary. */
+.practice-layout { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(260px, 1fr); gap: var(--sp-4); align-items: start; }
+.practice-main { display: grid; gap: var(--sp-4); }
+.practice-main .section-heading { margin-bottom: 0; }
+.practice-context { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-3) 0; border-block: 1px solid var(--line); font-size: var(--text-sm); }
+.practice-context span:first-child { color: var(--ink); font-weight: var(--weight-bold); }
+.practice-context span:last-child { color: var(--muted); }
+.practice-main > label { font-weight: var(--weight-semibold); }
+.practice-main fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.practice-main legend { margin-bottom: var(--sp-4); color: var(--ink); font-size: clamp(1.15rem, 2vw, 1.5rem); font-weight: var(--weight-semibold); line-height: 1.35; }
+.practice-option { display: flex; gap: var(--sp-3); align-items: flex-start; margin-bottom: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; }
+.practice-option:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.practice-option input { margin-top: .2rem; flex: 0 0 auto; }
+.practice-feedback { padding: var(--sp-4); border-inline-start: 3px solid var(--accent); background: var(--surface-sunk); }
+.practice-feedback p { margin: var(--sp-2) 0 0; }
+.practice-history { min-width: 0; }
+@media (max-width: 760px) { .practice-layout { grid-template-columns: 1fr; } }
+
 .topic-list { display: grid; gap: var(--sp-4); margin-top: var(--sp-4); }
 .topic-row { display: grid; gap: var(--sp-2); }
 .topic-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }

@@ -20,8 +20,9 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   certificateDesign: null,
   versionsAssessment: null, versionsToken: 0,
   orderDetailId: null, orderDetailToken: 0,
+  practiceQuestions: [], practiceRequestId: null, practiceRemaining: 0,
   view: 'overview' };
-const views = ['overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+const views = ['start', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
@@ -29,6 +30,8 @@ const views = ['overview', 'workspace-access', 'members', 'questions', 'assessme
 // rather than thirteen. The views themselves are unchanged: a screen is a
 // grouping and a route, not a new container.
 const SCREENS = {
+  start: { title: 'Get started', subtitle: 'Choose how you want to use JachAI', views: [['start', 'Get started']] },
+  practice: { title: 'Practice', subtitle: 'Learn at your own pace', views: [['practice', 'Practice']] },
   overview: { title: 'Overview', subtitle: '', views: [['overview', 'Overview']] },
   'workspace-access': { title: 'Your workspaces', subtitle: 'Join or create another workspace',
     views: [['workspace-access', 'Your workspaces']] },
@@ -412,7 +415,7 @@ async function setOrganization() {
   $('#campaign-candidates-panel').classList.add('hidden');
   $('#email-invitations-panel').classList.add('hidden');
   $('#conversation-panel').classList.add('hidden');
-  $('#empty-org').classList.toggle('hidden', !!state.organization);
+  $('#start-view').classList.add('hidden');
   $('#organization-select').classList.toggle('hidden', !state.organization);
   $('#workspace-role').textContent = state.organization
     ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${state.organization.owner ? 'Owner / Org Admin' : roleTitle(state.organization.myRole)}`
@@ -423,21 +426,15 @@ async function setOrganization() {
     : 'Signed in · waiting for a workspace';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
-    $('#page-title').textContent = 'Choose your path';
-    $('#page-subtitle').textContent = 'Join an existing assessment or set up a workspace for your team.';
-    if (state.platformAdmin) {
-      // A platform admin who owns no workspace still gets the platform screen,
-      // and only that one.
-      availableScreens = ['platform'];
-      const tab = node('button', 'Platform Operations');
-      tab.type = 'button'; tab.dataset.screen = 'platform';
-      tab.addEventListener('click', () => run(() => showScreen('platform')));
+    availableScreens = ['start', 'practice', ...(state.platformAdmin ? ['platform'] : [])];
+    for (const [key, title] of [['start', 'Get started'], ['practice', 'Practice'],
+      ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])]) {
+      const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
+      tab.addEventListener('click', () => run(() => showScreen(key)));
       nav.append(tab);
-      const route = readRoute();
-      await showScreen('platform', route?.screenKey === 'platform' ? route.viewKey : undefined);
-    } else {
-      availableScreens = [];
     }
+    const route = readRoute();
+    await showScreen(route && availableScreens.includes(route.screenKey) ? route.screenKey : 'start', route?.viewKey);
     return;
   }
   const role = state.organization.myRole;
@@ -461,7 +458,7 @@ async function setOrganization() {
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
   group('', [['overview', 'Overview']]);
-  group('Account', [['workspace-access', 'Your workspaces']]);
+  group('Account', [['workspace-access', 'Your workspaces'], ['practice', 'Practice']]);
   group('Assessment engine', [
     ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
     ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : [])
@@ -924,6 +921,7 @@ async function showView(key) {
   $('#page-subtitle').textContent = [screen.subtitle, key === 'platform' ? '' : state.organization?.name || '']
     .filter(Boolean).join(' · ');
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
+  if (key === 'practice') { await loadPractice(); return; }
   if (key === 'overview') await loadOverview();
   if (key === 'workspace-access') loadWorkspaceAccess();
   if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
@@ -3689,6 +3687,94 @@ $('#organization-select').addEventListener('change', (event) => run(async () => 
   state.organization = state.organizations.find((item) => item.id === event.target.value);
   await setOrganization();
 }));
+async function loadPractice() {
+  const [questions, usage, history] = await Promise.all([
+    request('/practice/questions'), request('/practice/usage'), request('/practice/answers/mine?page=0')
+  ]);
+  state.practiceQuestions = questions;
+  const select = $('#practice-question');
+  const previous = select.value;
+  select.replaceChildren(...questions.map((question) => {
+    const option = node('option', `${question.topic} — ${question.prompt}`);
+    option.value = question.id;
+    return option;
+  }));
+  if (questions.some((question) => question.id === previous)) select.value = previous;
+  state.practiceRemaining = usage.remaining;
+  $('#practice-usage').textContent = `${usage.remaining} of ${usage.limit} free answers left today`;
+  $('#practice-submit').disabled = usage.remaining === 0 || questions.length === 0;
+  const rows = (history.content || []).map((answer) => item(
+    state.practiceQuestions.find((question) => question.id === answer.questionId)?.prompt || answer.questionId,
+    `${answer.correct ? 'Correct' : 'Review this'} · ${when(answer.answeredAt)}`));
+  setList('#practice-history', rows, 'No practice answers yet. Choose a question to begin.');
+  renderPracticeQuestion();
+}
+
+function renderPracticeQuestion() {
+  const question = state.practiceQuestions.find((entry) => entry.id === $('#practice-question').value);
+  const fieldset = $('#practice-options');
+  fieldset.replaceChildren();
+  const legend = node('legend', question?.prompt || 'No practice questions are available yet.');
+  fieldset.append(legend);
+  for (const option of question?.options || []) {
+    const label = node('label', '', 'practice-option');
+    const input = node('input');
+    input.type = 'radio'; input.name = 'optionId'; input.value = option.id; input.required = true;
+    label.append(input, node('span', option.text));
+    fieldset.append(label);
+  }
+  state.practiceRequestId = crypto.randomUUID();
+  $('#practice-submit').disabled = state.practiceRemaining === 0 || !question;
+  $('#practice-result').classList.add('hidden');
+  $('#practice-result').replaceChildren();
+}
+
+$('#practice-question').addEventListener('change', renderPracticeQuestion);
+$('#practice-answer-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(async () => {
+    const form = event.currentTarget;
+    const optionId = new FormData(form).get('optionId');
+    if (!optionId) return;
+    const submit = $('#practice-submit');
+    submit.disabled = true;
+    try {
+      const result = await request('/practice/answers', { method: 'POST', body: {
+        requestId: state.practiceRequestId, questionId: $('#practice-question').value, optionId
+      } });
+      const answer = state.practiceQuestions.find((question) => question.id === result.questionId);
+      const correct = answer?.options.find((option) => option.id === result.correctOptionId)?.text || 'See explanation';
+      const box = $('#practice-result');
+      box.replaceChildren(node('strong', result.correct ? 'Correct.' : `Not quite. Correct answer: ${correct}.`),
+        node('p', result.explanation));
+      box.classList.remove('hidden');
+      const refreshed = await Promise.allSettled([
+        request('/practice/usage'), request('/practice/answers/mine?page=0')
+      ]);
+      if (refreshed[0].status === 'fulfilled') {
+        const usage = refreshed[0].value;
+        state.practiceRemaining = usage.remaining;
+        $('#practice-usage').textContent = `${usage.remaining} of ${usage.limit} free answers left today`;
+      } else {
+        state.practiceRemaining = Math.max(0, state.practiceRemaining - 1);
+        $('#practice-usage').textContent = 'Answer saved. Refresh Practice to check today’s remaining limit.';
+      }
+      if (refreshed[1].status === 'fulfilled') {
+        setList('#practice-history', (refreshed[1].value.content || []).map((answer) => item(
+          state.practiceQuestions.find((question) => question.id === answer.questionId)?.prompt || answer.questionId,
+          `${answer.correct ? 'Correct' : 'Review this'} · ${when(answer.answeredAt)}`)),
+        'No practice answers yet. Choose a question to begin.');
+      }
+      submit.disabled = true;
+    } catch (error) {
+      // Keep the same request ID for a retry; the backend will not charge it twice.
+      submit.disabled = false;
+      if (error.code === 'PRACTICE_LIMIT_REACHED') $('#practice-usage').textContent = 'Today’s free practice limit is used.';
+      throw error;
+    }
+  });
+});
+
 function loadWorkspaceAccess() {
   setList('#workspace-access-list', state.organizations.map((organization) => item(
     organization.name,
@@ -3704,7 +3790,7 @@ function loadWorkspaceAccess() {
 function updateOnboardingIntent() {
   const intent = $('#onboarding-intent').value;
   const guidance = {
-    learner: 'You do not need to create a workspace. An instructor or recruiter gives you access to an assessment.',
+    learner: 'Open Practice now. To take an Academy or Talent assessment, join with an organizer’s code or invitation.',
     instructor: 'Join an existing Academy when invited. If you create a new Academy, you become its owner and can invite other instructors.',
     recruiter: 'Join an existing Talent workspace when invited. If you create a new one, you become its owner and can invite recruiters.',
     owner: 'Create an Academy for training and certificates, or a Talent workspace for hiring assessments.'
@@ -3716,6 +3802,7 @@ function updateOnboardingIntent() {
   if (intent === 'recruiter') $('#create-org-form [name="type"]').value = 'TALENT';
 }
 $('#onboarding-intent').addEventListener('change', updateOnboardingIntent);
+$('#onboarding-open-practice').addEventListener('click', () => run(() => showScreen('practice')));
 updateOnboardingIntent();
 for (const form of [$('#join-code-form'), $('#workspace-join-code-form')]) {
   form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {

@@ -99,6 +99,8 @@ const SOURCE = String.raw`(() => {
   const organizations = [ROLE.org];
 
   window.__calls = [];
+  let practiceUsed = 0;
+  const practiceAnswers = [];
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
     const method = (init.method || 'GET').toUpperCase();
@@ -118,6 +120,27 @@ const SOURCE = String.raw`(() => {
       return json(created, 201);
     }
     if (path === '/api/v1/organizations') return json(organizations);
+    if (path === '/api/v1/practice/questions') return json([{ id: 'java-record', topic: 'Java',
+      prompt: 'Which statement about a Java record is correct?', options: [
+        { id: 'a', text: 'It cannot implement interfaces' },
+        { id: 'b', text: 'Its components generate accessors and a canonical constructor' },
+        { id: 'c', text: 'Its components are mutable by default' }] }]);
+    if (path === '/api/v1/practice/usage') return json({ utcDay: '2026-10-05', used: practiceUsed,
+      limit: 5, remaining: 5 - practiceUsed });
+    if (path === '/api/v1/practice/answers/mine') return json(page(practiceAnswers));
+    if (path === '/api/v1/practice/answers' && method === 'POST') {
+      const body = JSON.parse(init.body);
+      const existing = practiceAnswers.find((answer) => answer.id === ROLE.userId + ':' + body.requestId);
+      if (existing) return json({ ...existing });
+      if (practiceUsed >= 5) return error(429, 'PRACTICE_LIMIT_REACHED', 'Daily limit reached');
+      practiceUsed += 1;
+      const answer = { id: ROLE.userId + ':' + body.requestId, questionId: body.questionId,
+        selectedOptionId: body.optionId, correctOptionId: 'b', correct: body.optionId === 'b',
+        explanation: 'Records generate component accessors and a canonical constructor.',
+        answeredAt: new Date().toISOString() };
+      practiceAnswers.unshift(answer);
+      return json(answer);
+    }
 
     // Platform administration
     if (path === '/api/v1/platform/operations/summary') return json({ generatedAt: new Date().toISOString(),
