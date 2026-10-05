@@ -3550,7 +3550,7 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
   } catch (error) {
     fieldErrors(element, error);
     if (error.code === 'EMAIL_UNVERIFIED') {
-      error.message = 'Email not verified yet. Open the verification link, or use “Need a new verification link?” below. In local development, find the link in the IntelliJ console or target/local-dev app log; no email is sent.';
+      error.message = 'Email not verified yet. Open the verification link, or use “Need a new verification link?” below. Check your inbox if SMTP is configured; otherwise check the IntelliJ console or local app log.';
     }
     throw error;
   } finally { if (control) control.disabled = false; }
@@ -3569,6 +3569,9 @@ $('#register-form').addEventListener('submit', (event) => { event.preventDefault
       : 'Account created. The server queues a verification email; delivery is not confirmed on this screen.');
   } catch (error) {
     fieldErrors(element, error);
+    if (error.code === 'EMAIL_EXISTS') {
+      error.message = 'This email already has an account. Use Sign in, or request a new verification link below if it is not verified yet. This attempt did not create a new account or email.';
+    }
     throw error;
   } finally { if (control) control.disabled = false; }
 }); });

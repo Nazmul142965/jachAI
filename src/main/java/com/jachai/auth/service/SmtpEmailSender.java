@@ -2,19 +2,14 @@ package com.jachai.auth.service;
 
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.mail.service.EmailTransport;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.stereotype.Component;
 
-@Component
-@Profile("prod | smtp")
 final class SmtpEmailSender implements EmailTransport {
     private final JavaMailSender mailSender;
     private final String from;
 
-    SmtpEmailSender(JavaMailSender mailSender, @Value("${app.mail.from}") String from) {
+    SmtpEmailSender(JavaMailSender mailSender, String from) {
         this.mailSender = mailSender;
         this.from = from;
     }

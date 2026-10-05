@@ -4,11 +4,7 @@ import com.jachai.mail.model.EmailPayload;
 import com.jachai.mail.service.EmailTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Component;
 
-@Component
-@Profile("!prod & !smtp")
 final class LocalEmailSender implements EmailTransport {
     private static final Logger log = LoggerFactory.getLogger(LocalEmailSender.class);
 
