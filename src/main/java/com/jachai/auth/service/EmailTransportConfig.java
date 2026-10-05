@@ -7,9 +7,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Configuration
 class EmailTransportConfig {
+    private static final Logger log = LoggerFactory.getLogger(EmailTransportConfig.class);
+
     @Bean
     EmailTransport emailTransport(Environment environment) {
         String host = value(environment, "MAIL_HOST");
@@ -20,7 +24,10 @@ class EmailTransportConfig {
         boolean required = environment.matchesProfiles("prod", "smtp");
         boolean configured = !host.isBlank() || !username.isBlank() || !password.isBlank()
                 || !from.isBlank() || !portText.isBlank();
-        if (!configured && !required) return new LocalEmailSender();
+        if (!configured && !required) {
+            log.warn("Email delivery mode: LOCAL CONSOLE. No SMTP settings found; verification links are not emailed. Set MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM, then restart.");
+            return new LocalEmailSender();
+        }
         if (host.isBlank() || username.isBlank() || password.isBlank() || from.isBlank()) {
             throw new IllegalStateException("SMTP requires MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM");
         }
@@ -49,6 +56,7 @@ class EmailTransportConfig {
         properties.put("mail.smtp.connectiontimeout", "5000");
         properties.put("mail.smtp.timeout", "5000");
         properties.put("mail.smtp.writetimeout", "5000");
+        log.info("Email delivery mode: SMTP. Verification links will be queued for SMTP delivery; check email_jobs for the final status.");
         return new SmtpEmailSender(sender, from);
     }
 
