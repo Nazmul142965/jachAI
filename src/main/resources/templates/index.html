@@ -113,7 +113,7 @@
         </div>
       </section>
 
-      <section id="billing-view" class="view hidden"><div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div><div id="usage-panel" class="card panel hidden"><h2>Quota reconciliation</h2><p class="muted">Compares what this workspace has recorded against what the stored records prove, for the windows the plan limits. This reads the same counters the server enforces; it is not a bill and it does not change your plan.</p><div class="form-row"><button id="usage-refresh" class="button secondary" type="button">Check quotas</button><button id="usage-repair" class="button quiet" type="button" disabled>Repair counters</button></div><p id="usage-generated" class="muted"></p><div id="usage-report" class="item-list"></div><p id="usage-manual" class="result-box hidden"></p></div><div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted"></p><button id="start-ssl-demo" class="button secondary" type="button" disabled>Pay with SSLCommerz sandbox</button> <button id="start-bkash-demo" class="button secondary" type="button" disabled>Pay with direct bKash sandbox</button><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div><div id="payment-history-pagination"></div><section id="order-detail" class="subpanel hidden" aria-labelledby="order-detail-title"><div class="section-heading"><h4 id="order-detail-title">Order detail</h4><button id="order-detail-close" class="button quiet small" type="button">Close</button></div><div id="order-detail-body" class="item-list"></div></section></div></section>
+      <section id="billing-view" class="view hidden"><div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div><div id="usage-panel" class="card panel hidden"><h2>Quota reconciliation</h2><p class="muted">Compares what this workspace has recorded against what the stored records prove, for the windows the plan limits. This reads the same counters the server enforces; it is not a bill and it does not change your plan.</p><div class="form-row"><button id="usage-refresh" class="button secondary" type="button">Check quotas</button><button id="usage-repair" class="button quiet" type="button" disabled>Repair counters</button></div><p id="usage-generated" class="muted"></p><div id="usage-report" class="item-list"></div><p id="usage-manual" class="result-box hidden"></p></div><div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted" role="status"></p><div class="form-row"><button id="start-ssl-demo" class="button secondary" type="button" disabled>Pay with SSLCommerz sandbox</button><button id="start-bkash-demo" class="button secondary" type="button" disabled>Pay with direct bKash sandbox</button></div><p class="muted">Only a gateway-verified, applied sandbox order changes the plan. The buyer then gets a queued demo notice by email; delivery still requires working SMTP.</p><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div><div id="payment-history-pagination"></div><section id="order-detail" class="subpanel hidden" aria-labelledby="order-detail-title"><div class="section-heading"><h4 id="order-detail-title">Order detail</h4><button id="order-detail-close" class="button quiet small" type="button">Close</button></div><div id="order-detail-body" class="item-list"></div></section></div></section>
 
       <section id="platform-view" class="view hidden"><div class="card panel"><div class="section-heading"><div><h2>Platform operations</h2><p class="muted">Only platform administrators can see these counts. They help spot backlogs; they do not confirm a payment.</p></div><button id="platform-refresh" class="button secondary" type="button">Refresh</button></div><div id="platform-operations" class="item-list"></div></div><div class="card panel"><h2>Storage estimate</h2><p class="muted">An estimate from MongoDB's own database statistics (data plus indexes for one database). It is <strong>not</strong> Atlas's official quota, billing figure or a per-collection breakdown, and it needs a reachable database to measure anything.</p><div id="platform-storage" class="item-list"></div></div></section>
 
@@ -132,7 +132,7 @@
 
         <section class="dash-primary" aria-label="Active work">
           <div class="card panel dash-focus">
-            <div class="section-heading"><h2 id="focus-title">Needs you now</h2>
+            <div class="section-heading"><h2 id="focus-title">Next steps</h2>
               <button id="overview-refresh" class="button quiet small" type="button">Refresh</button></div>
             <p id="focus-note" class="muted"></p>
             <div id="focus-list" class="item-list"></div>
@@ -150,6 +150,12 @@
           <p class="muted">Recorded usage against the limits this plan enforces, for the windows the server scans.</p>
           <div id="usage-summary" class="usage-grid"></div>
         </div>
+
+        <section id="journey-panel" class="card panel" aria-labelledby="journey-title">
+          <h2 id="journey-title">How work moves here</h2>
+          <p id="journey-note" class="muted"></p>
+          <ol id="journey-steps" class="journey-steps"></ol>
+        </section>
 
         <section class="dash-secondary" aria-label="Recent activity">
           <div class="card panel">
@@ -307,18 +313,6 @@
       <section id="certificates-view" class="view hidden"><div class="card panel"><h2>My certificates</h2><div id="certificates-list" class="item-list"></div><div id="certificates-pagination"></div></div></section>
     </div>
 
-    <footer class="workspace-foot">
-      <div class="inner">
-        <span><strong>JachAI</strong> — technical assessment and skill verification.</span>
-        <nav aria-label="Reference">
-          <a href="/how.html">How the engine works</a>
-          <a href="/#verify-code">Verify a certificate</a>
-          <a href="/plans.html">Plans</a>
-        </nav>
-        <p class="foot-note">Your work is saved to your organization's workspace. Every permission shown here is
-          checked again by the server on each request.</p>
-      </div>
-    </footer>
   </main>
 </body>
 </html>

@@ -275,6 +275,10 @@ function showSignedOut() {
 // signed out the links behave as ordinary links again.
 // ---------------------------------------------------------------------------
 function setInAppLinks(signedInNow) {
+  document.querySelector('.topbar .topnav')?.classList.toggle('hidden', signedInNow);
+  const headerContext = document.querySelector('.topbar-note');
+  if (headerContext) headerContext.textContent = signedInNow
+    ? 'Signed in · choose a workspace below' : 'Technical assessment workspace';
   const brand = document.querySelector('.topbar .brand');
   if (brand) {
     // The href itself changes, not just the click handler. A handler alone
@@ -406,8 +410,12 @@ async function setOrganization() {
   $('#empty-org').classList.toggle('hidden', !!state.organization);
   $('#organization-select').classList.toggle('hidden', !state.organization);
   $('#workspace-role').textContent = state.organization
-    ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${roleTitle(state.organization.myRole)}`
+    ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${state.organization.owner ? 'Owner / Org Admin' : roleTitle(state.organization.myRole)}`
     : '';
+  const headerContext = document.querySelector('.topbar-note');
+  if (headerContext) headerContext.textContent = state.organization
+    ? `${state.organization.name} · ${state.organization.owner ? 'Owner' : roleTitle(state.organization.myRole)}`
+    : 'Signed in · waiting for a workspace';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
     $('#page-title').textContent = 'Choose your path';
@@ -546,6 +554,7 @@ async function loadOverview() {
   const participant = ['LEARNER', 'CANDIDATE'].includes(role);
 
   $('#usage-summary-panel').classList.toggle('hidden', role !== 'ORG_ADMIN');
+  renderWorkspaceJourney(role, academy);
 
   await Promise.all([
     loadFocus(role, academy, staff, participant),
@@ -556,13 +565,46 @@ async function loadOverview() {
   ]);
 }
 
+function renderWorkspaceJourney(role, academy) {
+  const learner = role === 'LEARNER';
+  const candidate = role === 'CANDIDATE';
+  const steps = learner
+    ? [['Join a batch', 'Your instructor enrolls you or sends an invitation.', 'academy'],
+      ['Open an assignment', 'See its availability and instructions.', 'attempts'],
+      ['Take the assessment', 'Save answers before the server deadline.', 'attempts'],
+      ['See result & certificate', 'Results must be released; staff issue a certificate after a pass.', 'certificates']]
+    : candidate
+      ? [['Accept invitation', 'Use the recruiter link sent to your email.', 'attempts'],
+        ['Take the assessment', 'Open your assignment and submit before its deadline.', 'attempts'],
+        ['See result', 'The hiring team controls when the result is released.', 'attempts']]
+      : academy
+        ? [['Review questions', 'Create and approve questions for the bank.', 'questions'],
+          ['Publish assessment', 'Choose approved questions and publish a version.', 'assessments'],
+          ['Assign learners', 'Add members or a batch, then assign the assessment.', 'assign'],
+          ['Review & release', 'Grade any manual answers and release the result.', 'review'],
+          ['Issue certificate', 'A passing, released attempt can receive a public verification code.', 'review']]
+        : [['Review questions', 'Create and approve questions for the bank.', 'questions'],
+          ['Publish assessment', 'Choose approved questions and publish a version.', 'assessments'],
+          ['Invite candidates', 'Create a campaign and send assessment invitations.', 'campaigns'],
+          ['Compare & decide', 'Review results and integrity signals before recording a decision.', 'talent-campaign']];
+  $('#journey-note').textContent = learner || candidate
+    ? 'Your organization gives you access; the next step appears when an assignment is available.'
+    : 'Follow these stages in order. Each step opens the screen where that work happens.';
+  $('#journey-steps').replaceChildren(...steps.map(([title, detail, view]) => {
+    const step = node('li', '', 'journey-step');
+    step.append(node('strong', title), node('span', detail, 'muted'),
+      button('Open', () => showView(view), 'button quiet small'));
+    return step;
+  }));
+}
+
 // --- 1. Needs you now ------------------------------------------------------
 
 async function loadFocus(role, academy, staff, participant) {
-  $('#focus-title').textContent = participant ? 'Your next step' : 'Needs you now';
+  $('#focus-title').textContent = participant ? 'Your next step' : 'Next steps';
   $('#focus-note').textContent = participant
     ? 'Assignments open to you, newest first.'
-    : 'Work that cannot move until somebody here acts on it.';
+    : 'What to work on next in this workspace.';
   await loadList('#focus-list', async () => {
     const entries = [];
 
@@ -624,8 +666,16 @@ async function loadFocus(role, academy, staff, participant) {
       }
     }
 
+    if (staff && !entries.length) {
+      const published = await maybe('/assessments?status=PUBLISHED&page=0');
+      if (published !== null && totalOf(published, 0) === 0) {
+        entries.push(focusRow('Build your first assessment',
+          'Create questions, approve them, then publish an assessment before assigning it.',
+          'Open question bank', () => showView('questions')));
+      }
+    }
     setList('#focus-list', entries,
-      staff ? 'Nothing is waiting on you. Every submitted attempt has been released.'
+      staff ? 'No action is waiting. Open Assessment Studio to create or review work.'
         : 'Nothing is waiting on you.');
   }, 'This queue could not be loaded.');
 }
@@ -686,24 +736,27 @@ async function loadUsageSummary() {
   const host = $('#usage-summary');
   host.setAttribute('aria-busy', 'true');
   host.replaceChildren(node('p', 'Reading recorded usage…', 'empty'));
-  const report = await maybe('/billing/entitlements/usage-reconciliation');
+  const [report, plan] = await Promise.all([
+    maybe('/billing/entitlements/usage-reconciliation'),
+    maybe('/billing/entitlements')
+  ]);
   host.setAttribute('aria-busy', 'false');
-  if (!report) {
+  if (!report || !plan) {
     host.replaceChildren(node('p', 'Recorded usage could not be read just now.', 'empty'));
     return;
   }
-  const entries = (report.entries || []).filter((entry) => entry.planLimit > 0);
-  if (!entries.length) {
-    host.replaceChildren(node('p', 'No metered window applies to this plan yet.', 'empty'));
-    return;
-  }
-  host.replaceChildren(...entries.map((entry) => {
-    const used = entry.recordedUsage ?? 0;
-    const limit = entry.planLimit;
-    const share = Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
+  const limits = [
+    ['PUBLISHED_ASSESSMENT', 'Published assessments', plan.maxPublishedAssessments, 'Across this workspace'],
+    ['INVITATION', 'Invitations', plan.monthlyInvitations, 'This month (UTC)'],
+    ['CERTIFICATE', 'Certificates', plan.monthlyCertificates, 'This month (UTC)']
+  ];
+  host.replaceChildren(...limits.map(([metric, label, limit, period]) => {
+    const entry = (report.entries || []).find((row) => row.metric === metric && !row.windowClosed);
+    const used = entry?.recordedUsage ?? 0;
+    const share = limit > 0 ? Math.max(0, Math.min(100, Math.round((used / limit) * 100))) : 0;
     const cell = node('div', '', 'usage-cell');
     const head = node('div', '', 'usage-head');
-    head.append(node('span', entry.metric.replaceAll('_', ' ').toLowerCase(), 'usage-label'),
+    head.append(node('span', label, 'usage-label'),
       node('span', `${used} / ${limit}`, 'usage-figure'));
     const bar = node('div', '', 'bar');
     const fill = node('div', '', 'bar-fill');
@@ -713,9 +766,9 @@ async function loadUsageSummary() {
     bar.append(fill);
     // The window, and any disagreement between counter and records, are facts
     // the server reported. They belong beside the bar, not hidden behind it.
-    const note = entry.status && entry.status !== 'MATCHES'
-      ? `${entry.window} · counter and records disagree`
-      : entry.window;
+    const note = entry?.status && entry.status !== 'MATCHES'
+      ? `${period} · counter needs review`
+      : period;
     cell.append(head, bar, node('p', `${share}% used · ${note}`, 'usage-note'));
     return cell;
   }));
