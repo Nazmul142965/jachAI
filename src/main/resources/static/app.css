@@ -1119,3 +1119,52 @@ a:focus-visible,
 @media (max-width: 560px) {
   .result-hero { padding: var(--sp-4); gap: var(--sp-3); }
 }
+
+/* A credential has its own paper hierarchy; the dashboard chrome stays quiet. */
+.certificate-paper {
+  position: relative;
+  width: min(100%, 900px);
+  min-height: 500px;
+  margin: var(--sp-5) auto 0;
+  padding: clamp(28px, 5vw, 62px);
+  border: 1px solid var(--credential-rule);
+  outline: 8px solid var(--credential-paper);
+  outline-offset: -17px;
+  background: var(--credential-paper);
+  color: var(--credential-ink);
+  text-align: center;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .12);
+}
+.certificate-paper::before {
+  content: '';
+  position: absolute;
+  inset: 16px;
+  border: 1px solid var(--credential-rule);
+  pointer-events: none;
+}
+.certificate-paper > * { position: relative; }
+.certificate-logo { display: block; max-width: 140px; max-height: 72px; object-fit: contain; margin: 0 auto 22px; }
+.certificate-issuer { margin: 0 0 20px; color: var(--credential-seal); font-weight: 700; }
+.certificate-heading { margin: 0 0 18px; color: var(--credential-ink); font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 4.3vw, 48px); font-weight: 400; letter-spacing: -.03em; }
+.certificate-message { max-width: 58ch; margin: 0 auto 16px; color: var(--credential-muted); }
+.certificate-holder { margin: 0 auto 10px; color: var(--credential-ink); font-family: Georgia, 'Times New Roman', serif; font-size: clamp(25px, 3.2vw, 38px); }
+.certificate-assessment { margin: 0 auto 36px; font-weight: 700; }
+.certificate-footer { display: flex; justify-content: space-between; align-items: flex-end; gap: 30px; margin-top: 35px; text-align: left; }
+.certificate-date, .certificate-signer { display: grid; gap: 5px; min-width: 130px; border-top: 1px solid var(--credential-rule); padding-top: 8px; }
+.certificate-date span { color: var(--credential-muted); font-size: .8rem; }
+.certificate-signer img { max-width: 180px; max-height: 58px; object-fit: contain; }
+.certificate-code { margin: 36px 0 0; color: var(--credential-muted); font-size: .8rem; overflow-wrap: anywhere; }
+.certificate-revoked { margin: 16px 0 0; color: var(--credential-revoked); font-weight: 700; }
+.certificate-paper.is-revoked { border-color: var(--credential-revoked); }
+@media (max-width: 560px) {
+  .certificate-paper { min-height: 0; padding: 36px 28px; }
+  .certificate-footer { flex-wrap: wrap; }
+}
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  body * { visibility: hidden !important; }
+  #certificate-display-panel, #certificate-display-panel * { visibility: visible !important; }
+  #certificate-display-panel { position: absolute; inset: 0; width: 100%; margin: 0; padding: 0; border: 0; box-shadow: none; }
+  #certificate-display-panel > .section-heading { display: none; }
+  #certificate-display { width: 100%; min-height: 175mm; margin: 0; box-shadow: none; print-color-adjust: exact; }
+}

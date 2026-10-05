@@ -26,6 +26,8 @@ import com.jachai.attempt.model.AttemptStatus;
 import com.jachai.attempt.repository.AttemptRepository;
 import com.jachai.organization.model.Organization;
 import com.jachai.organization.model.OrganizationType;
+import com.jachai.organization.model.Membership;
+import com.jachai.organization.model.OrganizationRole;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
@@ -56,10 +58,11 @@ class CertificateServiceTests {
     @Mock AuditEventRepository auditEvents;
     @Mock UserRepository users;
     @Mock EmailSender emailSender;
+    @Mock CertificateDesignService designs;
 
     private CertificateService service() {
         CertificateService result = new CertificateService(certificates, attempts, organizations, versions, access,
-                entitlements, auditEvents, users, emailSender);
+                entitlements, auditEvents, users, emailSender, designs);
         ReflectionTestUtils.setField(result, "publicBaseUrl", "https://jachai.example");
         return result;
     }
@@ -92,13 +95,15 @@ class CertificateServiceTests {
         when(versions.get("org-a", "a:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
         when(certificates.insert(any(Certificate.class))).thenAnswer(call -> call.getArgument(0));
         when(users.findById("learner")).thenReturn(Optional.of(learner()));
+        when(designs.activeId("org-a")).thenReturn("design-1");
 
         var result = service().issue("teacher", "org-a", "attempt");
 
         assertNotNull(result.id());
         assertTrue(result.verificationCode().matches("[A-Za-z0-9_-]{32}"));
         assertEquals(CertificateStatus.ISSUED, result.status());
-        verify(certificates).insert(any(Certificate.class));
+        verify(certificates).insert(org.mockito.ArgumentMatchers.<Certificate>argThat(certificate ->
+                "design-1".equals(certificate.designId())));
         verify(auditEvents).insert(org.mockito.ArgumentMatchers.<AuditEvent>argThat(event ->
                 event.action() == AuditAction.CERTIFICATE_ISSUED
                         && event.actorUserId().equals("teacher")
@@ -207,6 +212,21 @@ class CertificateServiceTests {
         assertEquals(2, result.getTotalPages());
         assertEquals("random-code", result.getContent().getFirst().verificationCode());
         verify(certificates).findByOrganizationIdAndLearnerUserId("org-a", "learner", pageable);
+    }
+
+    @Test
+    void anotherLearnerCannotReadPrivateCertificateDesignOrHolderName() {
+        when(access.requireMember("other", "org-a")).thenReturn(new Membership(
+                "m", "other", "org-a", OrganizationRole.LEARNER, true, Instant.now()));
+        when(certificates.findByIdAndOrganizationId("cert", "org-a"))
+                .thenReturn(Optional.of(issued()));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service().display("other", "org-a", "cert"));
+
+        assertEquals("NOT_FOUND", error.code());
+        verify(users, never()).findById(any());
+        verify(designs, never()).byId(any(), any());
     }
 
     @Test

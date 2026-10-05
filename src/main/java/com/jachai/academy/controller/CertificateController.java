@@ -2,6 +2,7 @@ package com.jachai.academy.controller;
 
 import com.jachai.academy.dto.CertificateView;
 import com.jachai.academy.dto.CertificateAuditView;
+import com.jachai.academy.dto.CertificateDisplayView;
 import com.jachai.academy.service.CertificateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,12 @@ public class CertificateController {
             @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
         return certificates.mine(jwt.getSubject(), organizationId,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "issuedAt", "id")));
+    }
+
+    @GetMapping("/certificates/{certificateId}/display")
+    public CertificateDisplayView display(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String certificateId) {
+        return certificates.display(jwt.getSubject(), organizationId, certificateId);
     }
 
     @PostMapping("/attempts/{attemptId}/certificate")

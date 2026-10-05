@@ -34,6 +34,13 @@
 
 :root {
   color-scheme: light dark;
+  /* A printed credential is deliberately paper and ink in either UI theme. */
+  --credential-paper: #fffefa;
+  --credential-ink: #102036;
+  --credential-muted: #4f5f70;
+  --credential-rule: #9bc4ca;
+  --credential-seal: #0b7187;
+  --credential-revoked: #a53838;
 
   /* ------------------------------------------------------------------------
      Palette ramps — fixed across both themes.

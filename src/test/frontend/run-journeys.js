@@ -174,13 +174,20 @@ async function main() {
     /Open until|Opens |Closed /.test(learnerDash));
   check(journey, 'learner overview shows no plan usage',
     await ev(`document.querySelector('#usage-summary-panel').classList.contains('hidden')`));
-  check(journey, 'workspace has a footer with reference links',
-    await ev(`document.querySelectorAll('.workspace-foot nav a').length >= 3`));
+  check(journey, 'signed-in workspace has no marketing footer',
+    await ev(`document.querySelector('.workspace-foot') === null`));
   // The token lives in memory, so a full page load ends the session. While
   // signed in, the brand returns to Overview and public links open elsewhere.
   check(journey, 'signed-in header links do not navigate away from the session',
     await ev(`[...document.querySelectorAll('.topbar .topnav a, .workspace-foot a')]
       .every((a) => a.target === '_blank')`));
+  await view('Certificates'); await wait(800);
+  check(journey, 'issued certificate offers a private display',
+    (await ev(`document.querySelector('#certificates-list').textContent`)).includes('View & print'));
+  await clickText('#certificates-list', 'View & print'); await wait(600);
+  check(journey, 'private certificate names its holder and assessment',
+    /Learner One/.test(await ev(`document.querySelector('#certificate-display').textContent`))
+      && /Java Basics/.test(await ev(`document.querySelector('#certificate-display').textContent`)));
   await view('My Assessments'); await tab('Assignments'); await wait(1200);
   check(journey, 'assignment list renders', (await ev(`document.querySelector('#assignments-list').textContent`)).includes('Start / resume'));
   await clickText('#assignments-list', 'Start / resume'); await wait(600);
@@ -196,12 +203,12 @@ async function main() {
   check(journey, 'attempt renders every question', started.blocks === 2, `blocks=${started.blocks}`);
   check(journey, 'server timer is displayed', /Time remaining: \d+:\d\d/.test(started.timer), started.timer);
   check(journey, 'answers start unsaved', started.pills.every((p) => p === 'Not saved'), started.pills.join('/'));
-  await shot('learner-attempt');
   await ev(`(() => { const b = document.querySelectorAll('#attempt-panel .question-block')[0];
     b.querySelector('input[type=radio]').click();
     [...b.querySelectorAll('button')].find((x) => x.textContent === 'Save answer').click(); return true; })()`);
   await wait(900);
   check(journey, 'saved answer reports Saved', (await ev(`[...document.querySelectorAll('#attempt-panel .question-actions .pill')].map((p) => p.textContent)`))[0] === 'Saved');
+  await shot('learner-attempt');
   await wait(8000);
   const expired = await ev(`(() => { const p = document.querySelector('#attempt-panel');
     return { text: p.textContent, disabled: [...p.querySelectorAll('[data-attempt-save]')].every((b) => b.disabled),
@@ -275,13 +282,23 @@ async function main() {
   const staff = 'academy-staff';
   const staffDash = await ev(`document.querySelector('#overview-view').textContent`);
   check(staff, 'staff overview leads with the review queue',
-    /Needs you now/.test(staffDash) && /Java Basics/.test(staffDash), staffDash.slice(0, 120));
+    /Next steps/.test(staffDash) && /Java Basics/.test(staffDash), staffDash.slice(0, 120));
   check(staff, 'review queue row names the person and the score',
     /u-learner/.test(staffDash) && /80%/.test(staffDash));
   check(staff, 'plan usage shows recorded against the enforced limit',
     /12 \/ 30/.test(staffDash), staffDash.slice(0, 200));
-  check(staff, 'plan usage names the window it scanned', /2026-10/.test(staffDash));
+  check(staff, 'plan usage names the current UTC period', /This month \(UTC\)/.test(staffDash));
   await shotBoth('overview-academy-staff');
+
+  await view('Academy Workspace'); await wait(1000);
+  check(staff, 'org admin sees the certificate design preview',
+    /Sample Learner/.test(await ev(`document.querySelector('#certificate-design-preview').textContent`)));
+  await ev(`(() => { const form = document.querySelector('#certificate-design-form');
+    form.elements.heading.value = 'Academy achievement';
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); return true; })()`);
+  await wait(700);
+  check(staff, 'certificate design save reaches the API',
+    await ev(`window.__calls.some((call) => call.startsWith('PUT') && call.includes('/certificate-design'))`));
 
   await view('Billing'); await wait(1500); await shotBoth('screen-billing');
   check(staff, 'billing is its own screen with its own route',
@@ -307,7 +324,7 @@ async function main() {
   check(staff, 'quota reconciliation is visible to an org admin',
     await ev(`!document.querySelector('#usage-panel').classList.contains('hidden')`));
   check(staff, 'quota reconciliation reports each scanned window',
-    /MONTHLY INVITATIONS/.test(usage) && /MONTHLY CERTIFICATES/.test(usage), usage.slice(0, 140));
+    /INVITATION/.test(usage) && /CERTIFICATE/.test(usage), usage.slice(0, 140));
   check(staff, 'quota status is spelled out, not colour only',
     /RECORDED ABOVE PROVEN/.test(usage) && /MATCHES/.test(usage));
   check(staff, 'quota reconciliation states it is not a bill',

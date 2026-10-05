@@ -146,10 +146,11 @@ const SOURCE = String.raw`(() => {
       organizationId: 'org-a', generatedAt: new Date().toISOString(), tier: 'FREE',
       downwardGraceSeconds: 60, lookbackMonths: 3, repaired: method === 'POST',
       entries: [
-        { metric: 'MONTHLY_INVITATIONS', window: '2026-10', status: method === 'POST' ? 'MATCHES' : 'RECORDED_ABOVE_PROVEN',
+        { metric: 'INVITATION', window: new Date().toISOString().slice(0, 7), windowClosed: false,
+          status: method === 'POST' ? 'MATCHES' : 'RECORDED_ABOVE_PROVEN',
           recordedUsage: 12, provenMinimumUsage: 9, provenMaximumUsage: 9, planLimit: 30,
           detail: 'Three invitations were counted twice.' },
-        { metric: 'MONTHLY_CERTIFICATES', window: '2026-10', status: 'MATCHES',
+        { metric: 'CERTIFICATE', window: new Date().toISOString().slice(0, 7), windowClosed: false, status: 'MATCHES',
           recordedUsage: 2, provenMinimumUsage: 2, provenMaximumUsage: 2, planLimit: 30, detail: '' }
       ],
       manualSteps: method === 'POST' ? [] : ['Confirm the duplicated invitations with the instructor.']
@@ -163,6 +164,17 @@ const SOURCE = String.raw`(() => {
     // order detail exists to show.
     if (path === org + '/billing/orders/order-1') return json(demoOrder);
     if (path === org + '/settings') return json({ defaultResultReleasePolicy: 'IMMEDIATE' });
+    if (path === org + '/certificate-design') return json({ id: 'design-1', heading: 'Certificate of achievement',
+      message: 'Has successfully completed the assessment', signatoryName: 'Dr Example',
+      logoDataUrl: null, signatureDataUrl: null, createdAt: new Date().toISOString() });
+    if (path === org + '/certificates/mine') return json(page([{ id: 'cert-1', verificationCode: 'VC-123',
+      status: 'ISSUED', issuedAt: new Date().toISOString(), revokedAt: null }]));
+    if (path === org + '/certificates/cert-1/display') return json({ verificationCode: 'VC-123',
+      status: 'ISSUED', organizationName: 'Demo Academy', holderName: 'Learner One',
+      assessmentTitle: 'Java Basics', issuedAt: new Date().toISOString(),
+      design: { id: 'design-1', heading: 'Certificate of achievement',
+        message: 'Has successfully completed the assessment', signatoryName: 'Dr Example',
+        logoDataUrl: null, signatureDataUrl: null } });
     if (path === org + '/members') return json(page([caller, member]));
     if (path.includes('/members/u-learner/audit')) return json(page([]));
     if (path === org + '/invitations') return json(page([]));
@@ -193,7 +205,9 @@ const SOURCE = String.raw`(() => {
     if (path.endsWith('/attempts/att-9/result')) return json(releasedResult);
     if (path.includes('/academy/attempts/att-9/feedback/mine')) return json(learnerFeedback);
     if (path.endsWith('/attempts/att-9/tutor')) return json({ explanation: 'Records are a compact immutable carrier for data.' });
-    if (path.endsWith('/assignments/asg-1/attempts') && method === 'POST') return json(attempt, 201);
+    if (path.endsWith('/assignments/asg-1/attempts') && method === 'POST') {
+      return json({ ...attempt, deadline: new Date(Date.now() + 6000).toISOString() }, 201);
+    }
     if (path.includes('/answers/')) return new Response(null, { status: 204 });
     if (path.endsWith('/submit')) return json({ attemptId: 'att-1', released: false,
       percentage: null, passed: null, state: 'GRADING_PENDING', topics: [] });

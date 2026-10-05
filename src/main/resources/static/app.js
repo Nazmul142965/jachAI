@@ -17,6 +17,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   campaignWorkspaceCandidateId: null, campaignWorkspaceCandidates: [],
   campaignWorkspaceToken: 0, campaignWorkspacePage: 0,
   detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
+  certificateDesign: null,
   versionsAssessment: null, versionsToken: 0,
   orderDetailId: null, orderDetailToken: 0,
   view: 'overview' };
@@ -382,6 +383,8 @@ async function setOrganization() {
   $('#recent-assignment')?.remove();
   state.tutorHistory.clear();
   state.activeAttempt = null;
+  state.certificateDesign = null;
+  $('#certificate-display-panel').classList.add('hidden');
   state.activeReviewAttemptId = null;
   state.reviewLoadToken++;
   state.emailInvitationCampaignId = null;
@@ -446,6 +449,7 @@ async function setOrganization() {
   $('#academy-feedback-panel').classList.toggle('hidden', !academyFeedbackStaff);
   if (academyFeedbackStaff) ensureFeedbackAuditPanel();
   $('#academy-staff-panel').classList.toggle('hidden', !['ORG_ADMIN', 'INSTRUCTOR'].includes(role));
+  $('#certificate-design-panel').classList.toggle('hidden', !(state.organization.type === 'ACADEMY' && role === 'ORG_ADMIN'));
   $('#academy-learner-panel').classList.toggle('hidden', role !== 'LEARNER');
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
   const academy = state.organization.type === 'ACADEMY';
@@ -954,6 +958,10 @@ async function showView(key) {
   if (key === 'academy') {
     await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
     attachFilter('#courses-list', 'Filter courses by name or description');
+    if (state.organization.myRole === 'ORG_ADMIN') {
+      await loadList('#certificate-design-preview', () => loadCertificateDesign(),
+        'Certificate design could not be loaded.');
+    }
   }
   if (key === 'academy-batch') await loadAcademyBatchWorkspace();
   if (key === 'messages') await loadMessaging();
@@ -2728,10 +2736,104 @@ async function loadCertificates(pageNumber = 0) {
   setList('#certificates-list', (page.content || []).map((certificate) => item(
     certificate.status === 'ISSUED' ? 'Verified achievement' : 'Revoked certificate',
     `Code: ${certificate.verificationCode} · Issued ${new Date(certificate.issuedAt).toLocaleDateString()}`,
-    [button('Verify publicly', () => window.open(`/certificates/${encodeURIComponent(certificate.verificationCode)}`, '_blank', 'noopener'))])),
+    [button('View & print', () => openPrivateCertificate(certificate.id)),
+      button('Verify publicly', () => window.open(`/certificates/${encodeURIComponent(certificate.verificationCode)}`, '_blank', 'noopener'))])),
   'No certificates yet.');
   renderPageControls('#certificates-pagination', page, loadCertificates);
 }
+
+function renderCertificatePaper(selector, details) {
+  const target = $(selector);
+  target.setAttribute('aria-busy', 'false');
+  const design = details.design || {};
+  target.replaceChildren();
+  target.classList.toggle('is-revoked', details.status === 'REVOKED');
+  if (design.logoDataUrl) {
+    const logo = node('img'); logo.src = design.logoDataUrl; logo.alt = `${details.organizationName} logo`;
+    logo.className = 'certificate-logo'; target.append(logo);
+  }
+  target.append(node('p', details.organizationName, 'certificate-issuer'),
+    node('h3', design.heading || 'Certificate of achievement', 'certificate-heading'),
+    node('p', design.message || 'Has successfully completed the assessment', 'certificate-message'),
+    node('p', details.holderName, 'certificate-holder'),
+    node('p', details.assessmentTitle, 'certificate-assessment'));
+  const footer = node('div', '', 'certificate-footer');
+  const issued = node('div', '', 'certificate-date');
+  issued.append(node('strong', new Date(details.issuedAt).toLocaleDateString()), node('span', 'Issued'));
+  footer.append(issued);
+  if (design.signatureDataUrl || design.signatoryName) {
+    const signer = node('div', '', 'certificate-signer');
+    if (design.signatureDataUrl) {
+      const signature = node('img'); signature.src = design.signatureDataUrl;
+      signature.alt = 'Authorized signature'; signer.append(signature);
+    }
+    signer.append(node('strong', design.signatoryName || 'Authorized signer'));
+    footer.append(signer);
+  }
+  target.append(footer, node('p', `Verify: ${details.verificationCode}`, 'certificate-code'));
+  if (details.status === 'REVOKED') target.append(node('p', 'Revoked — not a valid credential', 'certificate-revoked'));
+}
+
+async function openPrivateCertificate(id) {
+  const certificate = await request(ownOrg(`/certificates/${encodeURIComponent(id)}/display`));
+  renderCertificatePaper('#certificate-display', certificate);
+  $('#certificate-display-panel').classList.remove('hidden');
+  $('#certificate-display-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('#certificate-print').addEventListener('click', () => window.print());
+
+async function loadCertificateDesign() {
+  const design = await request(ownOrg('/certificate-design'));
+  state.certificateDesign = design;
+  const form = $('#certificate-design-form');
+  form.elements.heading.value = design.heading;
+  form.elements.message.value = design.message;
+  form.elements.signatoryName.value = design.signatoryName || '';
+  form.elements.logo.value = '';
+  form.elements.signature.value = '';
+  form.elements.removeLogo.checked = false;
+  form.elements.removeSignature.checked = false;
+  $('#certificate-design-status').textContent = design.id
+    ? 'Current design. Changes apply only to future certificates.'
+    : 'Default design. Save to use your own wording and images for future certificates.';
+  renderCertificatePaper('#certificate-design-preview', {
+    organizationName: state.organization.name, holderName: 'Sample Learner',
+    assessmentTitle: 'Sample assessment', issuedAt: new Date().toISOString(),
+    verificationCode: 'PREVIEW ONLY', status: 'ISSUED', design
+  });
+}
+
+async function certificateImageData(file) {
+  if (!file) return null;
+  if (!['image/png', 'image/jpeg'].includes(file.type) || file.size > 65536 || file.size === 0) {
+    throw new Error('Choose a PNG or JPEG image no larger than 64 KiB.');
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 4096) {
+    binary += String.fromCharCode(...bytes.slice(offset, offset + 4096));
+  }
+  return `data:${file.type};base64,${btoa(binary)}`;
+}
+
+$('#certificate-design-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = event.currentTarget;
+  const save = form.querySelector('button[type="submit"]'); save.disabled = true;
+  try {
+    const values = new FormData(form);
+    const logo = await certificateImageData(form.elements.logo.files[0]);
+    const signature = await certificateImageData(form.elements.signature.files[0]);
+    await request(ownOrg('/certificate-design'), { method: 'PUT', body: {
+      heading: values.get('heading').trim(), message: values.get('message').trim(),
+      signatoryName: values.get('signatoryName').trim(),
+      logoDataUrl: form.elements.removeLogo.checked ? null : logo || state.certificateDesign?.logoDataUrl || null,
+      signatureDataUrl: form.elements.removeSignature.checked ? null : signature || state.certificateDesign?.signatureDataUrl || null
+    } });
+    await loadCertificateDesign();
+    notice('Certificate design saved for future certificates.');
+  } catch (error) { fieldErrors(form, error); throw error; }
+  finally { save.disabled = false; }
+}); });
 
 async function loadAcademyCatalog() {
   if (state.organization.myRole === 'LEARNER') {

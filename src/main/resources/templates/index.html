@@ -224,6 +224,10 @@
             <form id="batch-assessment-form" class="stack"><label>Published assessment<select id="batch-assessment-select" name="assessmentId" required></select></label><div id="batch-assessment-select-pagination"></div><div class="form-row"><label>Attempts allowed<input name="attemptsAllowed" type="number" min="1" max="5" value="1" required></label><label>Available from<input name="availableFrom" type="datetime-local" required></label><label>Available until<input name="availableUntil" type="datetime-local" required></label></div><button class="button primary" type="submit">Assign to batch</button></form>
             <div id="batch-progress-panel" class="result-box hidden"><h3>Batch progress</h3><div id="batch-analytics" class="item-list"></div><div id="batch-progress-list" class="item-list"></div><div id="batch-progress-pagination"></div></div>
           </div>
+          <div id="certificate-design-panel" class="card panel hidden"><h2>Certificate design</h2><p class="muted">Set the wording and images for future certificates. Issued certificates keep the design they received. Only the holder and Academy staff can see the full certificate; public verification remains minimal.</p>
+            <form id="certificate-design-form" class="stack"><label>Heading<input name="heading" maxlength="100" required></label><label>Achievement wording<textarea name="message" maxlength="500" rows="2" required></textarea></label><label>Signer name<input name="signatoryName" maxlength="100"></label><div class="form-row"><label>Logo (PNG/JPEG, up to 64 KiB)<input name="logo" type="file" accept="image/png,image/jpeg"></label><label>Signature image (PNG/JPEG, up to 64 KiB)<input name="signature" type="file" accept="image/png,image/jpeg"></label></div><div class="form-row"><label class="check"><input name="removeLogo" type="checkbox"> Remove current logo</label><label class="check"><input name="removeSignature" type="checkbox"> Remove current signature</label></div><button class="button primary" type="submit">Save certificate design</button></form>
+            <p id="certificate-design-status" class="muted" role="status"></p><div id="certificate-design-preview" class="certificate-paper" aria-label="Certificate design preview"></div>
+          </div>
         </div>
         <div id="academy-learner-panel" class="card panel hidden"><h2>My batches</h2><div id="my-batches-list" class="item-list"></div><div id="my-batches-pagination"></div></div>
       </section>
@@ -312,7 +316,7 @@
         <div id="assessment-detail-result" class="card panel hidden"></div>
       </section>
 
-      <section id="certificates-view" class="view hidden"><div class="card panel"><h2>My certificates</h2><div id="certificates-list" class="item-list"></div><div id="certificates-pagination"></div></div></section>
+      <section id="certificates-view" class="view hidden"><div class="card panel"><h2>My certificates</h2><div id="certificates-list" class="item-list"></div><div id="certificates-pagination"></div></div><div id="certificate-display-panel" class="card panel hidden"><div class="section-heading"><h2>Your certificate</h2><button id="certificate-print" class="button secondary" type="button">Print certificate</button></div><div id="certificate-display" class="certificate-paper" aria-label="Private certificate"></div></div></section>
     </div>
 
   </main>

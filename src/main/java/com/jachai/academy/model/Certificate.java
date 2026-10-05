@@ -27,19 +27,28 @@ public record Certificate(
         Instant revokedAt,
         String issuedByUserId,
         String revokedByUserId,
-        @Version Long revision) {
+        @Version Long revision,
+        String designId) {
 
     public Certificate(String id, String organizationId, String learnerUserId, String attemptId,
                        String assessmentVersionId, String verificationCode, CertificateStatus status,
                        Instant issuedAt, Instant revokedAt, Long revision) {
         this(id, organizationId, learnerUserId, attemptId, assessmentVersionId, verificationCode,
-                status, issuedAt, revokedAt, null, null, revision);
+                status, issuedAt, revokedAt, null, null, revision, null);
+    }
+
+    public Certificate(String id, String organizationId, String learnerUserId, String attemptId,
+                       String assessmentVersionId, String verificationCode, CertificateStatus status,
+                       Instant issuedAt, Instant revokedAt, String issuedByUserId,
+                       String revokedByUserId, Long revision) {
+        this(id, organizationId, learnerUserId, attemptId, assessmentVersionId, verificationCode,
+                status, issuedAt, revokedAt, issuedByUserId, revokedByUserId, revision, null);
     }
 
     public Certificate revoke(Instant when, String actorUserId) {
         return new Certificate(id, organizationId, learnerUserId, attemptId, assessmentVersionId,
                 verificationCode, CertificateStatus.REVOKED, issuedAt, when,
-                issuedByUserId, actorUserId, revision);
+                issuedByUserId, actorUserId, revision, designId);
     }
 
     public Certificate revoke(Instant when) {

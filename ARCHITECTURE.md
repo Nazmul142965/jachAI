@@ -23,6 +23,8 @@ Organization workspaces, membership and roles, question bank, assessment version
 
 Courses and batches, learner assignments, progress reports, instructor feedback, instructor–learner messaging, AI Tutor after an attempt, and certificate issuance and public verification.
 
+Academy owners can save a certificate design with heading, achievement wording, signer name, and bounded PNG/JPEG logo/signature images. Every edit creates an immutable design version; an issued certificate records the selected version ID, so later edits do not rewrite prior credentials. The holder and Academy staff may request the full private certificate display; public code verification reveals only issuer, assessment, date, and status, never holder identity or image assets.
+
 ### Talent module
 
 Hiring campaigns, recruiter invitations, candidate comparison, reviewer notes, integrity review, shortlist decisions, and candidate reports. Certificates are optional here and are not the primary outcome.

@@ -3,6 +3,7 @@ package com.jachai.academy.service;
 import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.academy.dto.CertificateAuditView;
 import com.jachai.academy.dto.CertificateView;
+import com.jachai.academy.dto.CertificateDisplayView;
 import com.jachai.academy.model.Certificate;
 import com.jachai.academy.model.CertificateStatus;
 import com.jachai.academy.repository.CertificateRepository;
@@ -57,12 +58,32 @@ public class CertificateService {
     private final AuditEventRepository auditEvents;
     private final UserRepository users;
     private final EmailSender emailSender;
+    private final CertificateDesignService designs;
     @Value("${app.public-base-url}") private String publicBaseUrl;
 
     public Page<CertificateView> mine(String learnerId, String organizationId, Pageable pageable) {
         access.requireRole(learnerId, organizationId, OrganizationRole.LEARNER);
         return certificates.findByOrganizationIdAndLearnerUserId(organizationId, learnerId, pageable)
                 .map(CertificateView::from);
+    }
+
+    public CertificateDisplayView display(String actorId, String organizationId, String certificateId) {
+        var member = access.requireMember(actorId, organizationId);
+        Certificate certificate = certificates.findByIdAndOrganizationId(certificateId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Certificate not found"));
+        boolean staff = member.role() == OrganizationRole.ORG_ADMIN
+                || member.role() == OrganizationRole.INSTRUCTOR;
+        if (!staff && !certificate.learnerUserId().equals(actorId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Certificate not found");
+        }
+        Organization organization = organizations.findById(organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Certificate not found"));
+        String holderName = users.findById(certificate.learnerUserId())
+                .map(user -> user.displayName()).orElse("Certificate holder");
+        AssessmentVersion version = versions.get(organizationId, certificate.assessmentVersionId());
+        return new CertificateDisplayView(certificate.verificationCode(), certificate.status(),
+                organization.name(), holderName, version.title(), certificate.issuedAt(),
+                designs.byId(organizationId, certificate.designId()));
     }
 
     public CertificateView issue(String actorId, String organizationId, String attemptId) {
@@ -90,7 +111,8 @@ public class CertificateService {
         Certificate certificate = new Certificate(UUID.randomUUID().toString(), organizationId,
                 attempt.userId(), attempt.id(), attempt.assessmentVersionId(),
                 Base64.getUrlEncoder().withoutPadding().encodeToString(token),
-                CertificateStatus.ISSUED, Instant.now(), null, actorId, null, null);
+                CertificateStatus.ISSUED, Instant.now(), null, actorId, null, null,
+                designs.activeId(organizationId));
         String reservation = entitlements.reserve(organizationId, UsageMetric.CERTIFICATE);
         Certificate saved;
         try {
