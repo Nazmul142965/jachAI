@@ -15,6 +15,9 @@ final class SmtpEmailSender implements EmailTransport {
     }
 
     @Override
+    public Mode mode() { return Mode.SMTP; }
+
+    @Override
     public void deliver(EmailPayload payload) {
         SimpleMailMessage mail = new SimpleMailMessage();
         mail.setFrom(from);

@@ -32,11 +32,8 @@
       <p id="status" class="status" role="status" aria-live="polite">Checking your verification link…</p>
 
       <section id="resend" hidden>
-        <p class="form-note">
-          Enter the address you registered with to queue a new verification link.
-          With SMTP configured, check your inbox and spam folder. Without SMTP, local development
-          prints the link in the application console or log. This page cannot confirm delivery.
-        </p>
+        <p class="form-note">Enter the address you registered with to queue a new verification link.</p>
+        <p id="mail-mode-note" class="form-note" role="status" aria-live="polite">Checking how this server delivers links…</p>
         <form id="resend-form">
           <div class="field">
             <label for="email">Email</label>
@@ -67,6 +64,16 @@
     history.replaceState(null, '', location.pathname);
     const status = document.getElementById('status');
     const resend = document.getElementById('resend');
+    const mailModeNote = document.getElementById('mail-mode-note');
+    fetch('/api/v1/auth/email-delivery-mode', { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : null)
+      .then(config => {
+        mailModeNote.textContent = config?.mode === 'SMTP'
+          ? 'This server queues verification links for email. Check your inbox and spam folder; this page cannot confirm delivery.'
+          : config?.mode === 'LOCAL_CONSOLE'
+            ? 'This local run does not send email. Find the link in the application console or local log. Configure SMTP and restart to receive it by email.'
+            : 'Delivery setup could not be checked. Ask the operator where this run sends verification links.';
+      }).catch(() => { mailModeNote.textContent = 'Delivery setup could not be checked. Ask the operator where this run sends verification links.'; });
     const showResend = () => { resend.hidden = false; };
     // The status line carries its outcome in its own words; the colour only
     // repeats what the sentence already says.

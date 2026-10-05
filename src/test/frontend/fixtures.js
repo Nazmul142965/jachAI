@@ -111,6 +111,7 @@ const SOURCE = String.raw`(() => {
     const org = '/api/v1/organizations/' + (ROLE.org?.id || 'none');
 
     if (path === '/api/v1/auth/login') return json({ accessToken: 'fixture-access', refreshToken: 'fixture-refresh' });
+    if (path === '/api/v1/auth/email-delivery-mode') return json({ mode: 'LOCAL_CONSOLE' });
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });
     if (path === '/api/v1/platform/me') return json({ userId: ROLE.userId, platformAdmin: ROLE.platformAdmin });
     if (path === '/api/v1/organizations' && method === 'POST') {

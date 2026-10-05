@@ -3642,6 +3642,17 @@ async function setupGoogleSignIn() {
   }
 }
 setupGoogleSignIn().catch(() => { /* optional provider: an unreachable config must not block sign-in */ });
+let mailDeliveryMode = 'UNKNOWN';
+request('/auth/email-delivery-mode', { auth: false }).then((config) => {
+  mailDeliveryMode = config?.mode || 'UNKNOWN';
+  $('#registration-mail-mode').textContent = mailDeliveryMode === 'SMTP'
+    ? 'This server queues verification links for email. Check your inbox and spam folder; delivery is not confirmed on this page.'
+    : mailDeliveryMode === 'LOCAL_CONSOLE'
+      ? 'This local run does not send email. Find the verification link in the IntelliJ console or local app log. Configure SMTP and restart to receive email.'
+      : 'Delivery setup could not be checked. Ask the operator where verification links go.';
+}).catch(() => {
+  $('#registration-mail-mode').textContent = 'Delivery setup could not be checked. Ask the operator where verification links go.';
+});
 $('#login-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const element = event.currentTarget;
   const form = new FormData(element);
@@ -3654,7 +3665,7 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
   } catch (error) {
     fieldErrors(element, error);
     if (error.code === 'EMAIL_UNVERIFIED') {
-      error.message = 'Email not verified yet. Open the verification link, or use “Need a new verification link?” below. Check your inbox if SMTP is configured; otherwise check the IntelliJ console or local app log.';
+      error.message = 'Email not verified yet. Open the verification link, or use “Need a new verification link?” below. The Create account tab shows where this run sends links.';
     }
     throw error;
   } finally { if (control) control.disabled = false; }
@@ -3668,9 +3679,11 @@ $('#register-form').addEventListener('submit', (event) => { event.preventDefault
     const created = await request('/auth/register', { method: 'POST', auth: false,
       body: { displayName: form.get('displayName'), email: form.get('email'), password: form.get('password') } });
     element.reset(); switchAuth('login');
-    notice(created?.message
-      ? `${created.message}. Delivery is queued by the server and is not confirmed on this screen.`
-      : 'Account created. The server queues a verification email; delivery is not confirmed on this screen.');
+    notice(mailDeliveryMode === 'LOCAL_CONSOLE'
+      ? 'Account created. This local run prints the verification link in the IntelliJ console or app log; it does not send email.'
+      : mailDeliveryMode === 'SMTP'
+        ? 'Account created. A verification link was queued for email. Check your inbox and spam folder; delivery is not confirmed here.'
+        : `${created?.message || 'Account created; a verification link was queued'}. Delivery mode could not be checked.`);
   } catch (error) {
     fieldErrors(element, error);
     if (error.code === 'EMAIL_EXISTS') {

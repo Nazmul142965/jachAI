@@ -9,6 +9,9 @@ final class LocalEmailSender implements EmailTransport {
     private static final Logger log = LoggerFactory.getLogger(LocalEmailSender.class);
 
     @Override
+    public Mode mode() { return Mode.LOCAL_CONSOLE; }
+
+    @Override
     public void deliver(EmailPayload payload) {
         // Development only: production uses SMTP and never logs links.
         log.info("Development {} email for {}: {}", payload.type(), payload.recipient(), payload.url());

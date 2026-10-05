@@ -17,6 +17,7 @@ class EmailTransportProfileTests {
         try (var context = context(Map.of(), "local")) {
             assertEquals(1, context.getBeansOfType(EmailTransport.class).size());
             assertInstanceOf(LocalEmailSender.class, context.getBean(EmailTransport.class));
+            assertEquals(EmailTransport.Mode.LOCAL_CONSOLE, context.getBean(EmailTransport.class).mode());
         }
     }
 
@@ -25,6 +26,7 @@ class EmailTransportProfileTests {
         try (var context = context(mailSettings(), "local")) {
             assertEquals(1, context.getBeansOfType(EmailTransport.class).size());
             assertInstanceOf(SmtpEmailSender.class, context.getBean(EmailTransport.class));
+            assertEquals(EmailTransport.Mode.SMTP, context.getBean(EmailTransport.class).mode());
         }
     }
 

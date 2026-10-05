@@ -155,6 +155,8 @@ async function main() {
 
   if (process.argv.includes('--no-workspace-only')) {
     await load('no-workspace');
+    check('no-workspace', 'registration explains that local mode does not email links',
+      /does not send email/.test(await ev(`document.querySelector('#registration-mail-mode').textContent`)));
     check('no-workspace', 'new account opens Get started without creating an organization',
       await route() === '#/start' && await ev(`!document.querySelector('#start-view').classList.contains('hidden')`));
     check('no-workspace', 'Practice is available without an organization',

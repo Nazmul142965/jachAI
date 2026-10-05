@@ -56,7 +56,8 @@
         <a class="inline-link" href="/verify-email.html">Need a new verification link?</a>
       </form>
       <form id="register-form" class="stack hidden" role="tabpanel" aria-labelledby="register-tab">
-        <h2>Create your account</h2><p class="muted">Register first, then verify your email before signing in. With SMTP configured, check your inbox and spam folder. Otherwise, local development prints the link in the IntelliJ console or <code>target/local-dev/app.&lt;port&gt;.out.log</code>.</p>
+        <h2>Create your account</h2><p class="muted">Register first, then verify your email before signing in.</p>
+        <p id="registration-mail-mode" class="muted" role="status" aria-live="polite">Checking how verification links are delivered…</p>
         <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
         <label>Email<input name="email" type="email" autocomplete="email" required></label>
         <label>Password <small>(at least 6 characters)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
