@@ -15,6 +15,7 @@ public enum RateLimitPolicy {
     REFRESH_IP(60, Duration.ofMinutes(1)),
     CERTIFICATE_IP(60, Duration.ofMinutes(1)),
     INVITE_ACTOR(30, Duration.ofHours(1)),
+    JOIN_CODE_ACCOUNT(10, Duration.ofHours(1)),
     PLATFORM_SUPPORT(5, Duration.ofHours(1)),
     AI_ACTOR(10, Duration.ofMinutes(1)),
     MESSAGE_ACTOR(30, Duration.ofMinutes(1));

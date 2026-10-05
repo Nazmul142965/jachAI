@@ -121,6 +121,39 @@ public class MembershipService {
         ensureAudit(member);
     }
 
+    MemberResponse joinWithParticipantCode(User user, Organization organization, OrganizationRole role) {
+        OrganizationRole expected = organization.type() == OrganizationType.ACADEMY
+                ? OrganizationRole.LEARNER : OrganizationRole.CANDIDATE;
+        if (role != expected || organization.ownerUserId().equals(user.id())
+                || user.disabled() || !user.emailVerified()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "JOIN_NOT_ALLOWED",
+                    "This verified account cannot join with that code");
+        }
+        Membership existing = memberships.findByUserIdAndOrganizationId(user.id(), organization.id())
+                .orElse(null);
+        if (existing != null) {
+            if (!existing.active() || existing.role() != role) throw invitationMembershipConflict();
+            ensureAudit(existing);
+            return new MemberResponse(user.id(), user.email(), user.displayName(), role);
+        }
+        Instant now = Instant.now();
+        Membership member = new Membership(UUID.randomUUID().toString(), user.id(),
+                organization.id(), role, true, now,
+                UUID.randomUUID().toString(), user.id(), now, null, false);
+        try {
+            memberships.insert(member);
+        } catch (DuplicateKeyException exception) {
+            Membership raced = memberships.findByUserIdAndOrganizationId(user.id(), organization.id())
+                    .filter(Membership::active)
+                    .filter(value -> value.role() == role)
+                    .orElseThrow(this::invitationMembershipConflict);
+            ensureAudit(raced);
+            return new MemberResponse(user.id(), user.email(), user.displayName(), role);
+        }
+        ensureAudit(member);
+        return new MemberResponse(user.id(), user.email(), user.displayName(), role);
+    }
+
     private ApiException invitationMembershipConflict() {
         return new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT",
                 "An existing membership does not match the accepted invitation");

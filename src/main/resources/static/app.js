@@ -931,6 +931,7 @@ async function showView(key) {
   }
   if (key === 'members') {
     await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
+    await loadList('#join-code-list', () => loadJoinCodes(), 'Join codes could not be loaded.');
     attachFilter('#members-list', 'Filter members by name, email, role or ID');
   }
   if (key === 'questions') {
@@ -1618,6 +1619,22 @@ function renderPageControls(selector, page, onPage) {
   previous.disabled = page.first; next.disabled = page.last;
   controls.append(previous, node('span', `Page ${page.number + 1} of ${page.totalPages}`, 'muted'), next);
   target.append(controls);
+}
+async function loadJoinCodes(pageNumber = 0) {
+  const page = await request(ownOrg(`/join-codes?page=${pageNumber}`));
+  setList('#join-code-list', (page.content || []).map((entry) => {
+    const status = entry.revokedAt ? 'Revoked' : new Date(entry.expiresAt) <= new Date() ? 'Expired' : 'Active';
+    const actions = [];
+    if (status === 'Active') actions.push(button('Revoke', async () => {
+      if (!await confirmDialog('Revoke this join code? Anyone who has it will no longer be able to join.')) return;
+      await request(ownOrg(`/join-codes/${encodeURIComponent(entry.id)}`), { method: 'DELETE' });
+      await loadJoinCodes(page.number);
+      notice('Join code revoked.');
+    }));
+    return item(`${entry.role.replaceAll('_', ' ')} · ${status}`,
+      `Expires ${new Date(entry.expiresAt).toLocaleString()} · Joined ${entry.redemptions} time(s)`, actions);
+  }), 'No join codes yet.');
+  renderPageControls('#join-code-pagination', page, loadJoinCodes);
 }
 async function loadMembers(pageNumber = 0) {
   const page = await request(ownOrg(`/members?page=${pageNumber}`));
@@ -3579,6 +3596,21 @@ function updateOnboardingIntent() {
 }
 $('#onboarding-intent').addEventListener('change', updateOnboardingIntent);
 updateOnboardingIntent();
+$('#join-code-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+  const form = event.currentTarget;
+  const code = new FormData(form).get('code').trim();
+  const joined = await request('/join-codes/accept', { method: 'POST', body: { code } });
+  form.reset();
+  await loadOrganizations();
+  notice(`Joined ${joined.name} as ${roleTitle(joined.myRole)}.`);
+}); });
+$('#create-join-code').addEventListener('click', () => run(async () => {
+  const created = await request(ownOrg('/join-codes'), { method: 'POST' });
+  const output = $('#join-code-once');
+  output.textContent = `Share privately: ${created.code} · Expires ${new Date(created.expiresAt).toLocaleString()}. This code is shown only once.`;
+  output.classList.remove('hidden');
+  await loadJoinCodes();
+}));
 $('#create-org-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   await request('/organizations', { method: 'POST', body: { name: form.get('name'), type: form.get('type') } });
