@@ -1,9 +1,10 @@
 // Role-scoped /api/v1 fixtures injected into the page BEFORE app.js runs.
 // Every payload is shaped from the real Java records; nothing here is a live backend.
-// Usage: installScript({ role: 'learner' | 'academy-staff' | 'talent-recruiter' | 'platform-admin',
+// Usage: installScript({ role: 'no-workspace' | 'learner' | 'academy-staff' | 'talent-recruiter' | 'platform-admin',
 //                       storage: 'ok' | 'warn' | 'unavailable' | 'forbidden' })
 
 const ROLES = {
+  'no-workspace': { userId: 'u-new', org: null, platformAdmin: false },
   learner: { userId: 'u-learner', org: { id: 'org-a', name: 'Demo Academy', type: 'ACADEMY', myRole: 'LEARNER', owner: false }, platformAdmin: false },
   'academy-staff': { userId: 'u-admin', org: { id: 'org-a', name: 'Demo Academy', type: 'ACADEMY', myRole: 'ORG_ADMIN', owner: true }, platformAdmin: false },
   'talent-recruiter': { userId: 'u-rec', org: { id: 'org-t', name: 'Demo Talent', type: 'TALENT', myRole: 'RECRUITER', owner: false }, platformAdmin: false },
@@ -54,7 +55,7 @@ const SOURCE = String.raw`(() => {
   const candidate = { candidateUserId: 'u-cand', assignmentId: 'asg-c1', attemptId: 'att-c1', percentage: 70,
     passed: true, submittedAt: new Date().toISOString(), decision: 'HOLD', reviewerNote: '' };
   const member = { userId: 'u-learner', role: 'LEARNER', displayName: 'Learner One', email: 'learner@example.com', active: true, owner: false };
-  const caller = { userId: ROLE.userId, role: ROLE.org.myRole, displayName: 'Admin User', email: 'admin@example.com', active: true, owner: ROLE.org.owner };
+  const caller = { userId: ROLE.userId, role: ROLE.org?.myRole || 'LEARNER', displayName: 'Admin User', email: 'admin@example.com', active: true, owner: ROLE.org?.owner || false };
   const course = { id: 'course-1', name: 'Java Fundamentals', description: 'Core Java for beginners', createdAt: new Date().toISOString() };
   const batch = { id: 'batch-1', courseId: 'course-1', name: 'Batch A',
     startsAt: new Date(Date.now() - 86400000).toISOString(), endsAt: new Date(Date.now() + 2592000000).toISOString(),
@@ -96,7 +97,7 @@ const SOURCE = String.raw`(() => {
   const demoOrder = { id: 'order-1', provider: 'SSLCOMMERZ', status: 'VERIFIED', amountBdt: 100,
     createdAt: new Date(Date.now() - 7200000).toISOString(),
     verifiedAt: new Date(Date.now() - 3600000).toISOString(), appliedAt: null };
-  const organizations = [ROLE.org];
+  const organizations = ROLE.org ? [ROLE.org] : [];
 
   window.__calls = [];
   let practiceUsed = 0;
@@ -107,7 +108,7 @@ const SOURCE = String.raw`(() => {
     const full = url.replace(location.origin, '');
     const path = full.split('?')[0];
     window.__calls.push(method + ' ' + full);
-    const org = '/api/v1/organizations/' + ROLE.org.id;
+    const org = '/api/v1/organizations/' + (ROLE.org?.id || 'none');
 
     if (path === '/api/v1/auth/login') return json({ accessToken: 'fixture-access', refreshToken: 'fixture-refresh' });
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });

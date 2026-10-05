@@ -3715,6 +3715,7 @@ function renderPracticeQuestion() {
   const fieldset = $('#practice-options');
   fieldset.replaceChildren();
   const legend = node('legend', question?.prompt || 'No practice questions are available yet.');
+  legend.id = 'practice-prompt';
   fieldset.append(legend);
   for (const option of question?.options || []) {
     const label = node('label', '', 'practice-option');

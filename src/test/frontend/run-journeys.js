@@ -153,6 +153,24 @@ async function main() {
     await shot(`overview-${role}${storage === 'ok' ? '' : `-${storage}`}`);
   }
 
+  if (process.argv.includes('--no-workspace-only')) {
+    await load('no-workspace');
+    check('no-workspace', 'new account opens Get started without creating an organization',
+      await route() === '#/start' && await ev(`!document.querySelector('#start-view').classList.contains('hidden')`));
+    check('no-workspace', 'Practice is available without an organization',
+      await ev(`[...document.querySelectorAll('#workspace-nav button')].some((b) => b.textContent === 'Practice')`));
+    await view('Practice'); await wait(450);
+    check('no-workspace', 'practice question and allowance load without an organization',
+      await route() === '#/practice'
+      && /Which statement about a Java record/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
+      && /5 of 5/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+    check('no-workspace', 'no uncaught JavaScript exceptions', page.errors.length === 0,
+      page.errors.slice(0, 2).join(' | '));
+    page.close(); browser.child.kill(); await server.close();
+    console.log(`${all.length - failures}/${all.length} focused checks passed`);
+    process.exit(failures ? 1 : 0);
+  }
+
   // ---------------------------------------------------------------- learner journey
   await load('learner');
   const journey = 'learner';
