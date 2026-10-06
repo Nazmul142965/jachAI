@@ -166,8 +166,17 @@ async function main() {
     await view('Practice'); await wait(450);
     check('no-workspace', 'practice question and allowance load without an organization',
       await route() === '#/practice'
-      && /Which statement about a Java record/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
-      && /5 of 5/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+      && /Create a question above/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
+      && await ev(`document.querySelector('#practice-question').options.length > 1`)
+      && /20 answers and 20 new AI questions/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+    await ev(`(() => { const form = document.querySelector('#practice-generate-form');
+      form.querySelector('[name=topic]').value = 'Spring transactions';
+      form.querySelector('[name=difficulty]').value = 'INTERMEDIATE';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); })()`);
+    await wait(450);
+    check('no-workspace', 'personal topic generates a new selectable question',
+      /Spring transactions/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
+      && /19 new AI questions/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
     check('no-workspace', 'no uncaught JavaScript exceptions', page.errors.length === 0,
       page.errors.slice(0, 2).join(' | '));
     await page.send('Page.navigate', { url: `${server.url}/verify-email.html` }); await wait(750);

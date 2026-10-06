@@ -13,6 +13,7 @@ import com.jachai.auth.repository.UserRepository;
 import com.jachai.practice.model.PracticeAnswer;
 import com.jachai.practice.model.PracticeUsage;
 import com.jachai.practice.repository.PracticeAnswerRepository;
+import com.jachai.practice.repository.PersonalPracticeQuestionRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import java.util.Optional;
@@ -23,22 +24,27 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 class PracticeServiceTests {
     @Mock UserRepository users;
     @Mock PracticeAnswerRepository answers;
+    @Mock PersonalPracticeQuestionRepository personalQuestions;
     @Mock MongoTemplate mongo;
     PracticeService service;
 
     @BeforeEach
     void setUp() {
-        service = new PracticeService(users, new PracticeCatalog(), answers, mongo);
+        service = new PracticeService(users, new PracticeCatalog(personalQuestions), answers, mongo);
     }
 
     @Test
     void publicQuestionsExcludeAnswerKeysAndExplanations() {
         when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        when(personalQuestions.findByUserId(org.mockito.ArgumentMatchers.eq("learner"), any(Pageable.class)))
+                .thenReturn(Page.empty());
         var questions = service.questions("learner");
         assertFalse(questions.isEmpty());
         assertEquals("java-record", questions.getFirst().id());

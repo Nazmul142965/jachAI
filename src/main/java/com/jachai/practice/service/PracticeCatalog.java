@@ -1,10 +1,18 @@
 package com.jachai.practice.service;
 
+import com.jachai.practice.model.PersonalPracticeQuestion;
+import com.jachai.practice.repository.PersonalPracticeQuestionRepository;
 import java.util.List;
+import java.util.ArrayList;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class PracticeCatalog {
+    private final PersonalPracticeQuestionRepository personalQuestions;
     public record Option(String id, String text) { }
     public record Question(String id, String topic, String prompt, List<Option> options,
                            String correctOptionId, String explanation) {
@@ -39,8 +47,26 @@ public class PracticeCatalog {
                             new Option("c", "Documents never expire")), "a",
                     "A unique index rejects duplicate indexed key values."));
 
-    public List<QuestionView> questions() { return QUESTIONS.stream().map(Question::publicView).toList(); }
-    public Question find(String id) {
-        return QUESTIONS.stream().filter(question -> question.id().equals(id)).findFirst().orElse(null);
+    public List<QuestionView> questions(String userId) {
+        List<QuestionView> visible = new ArrayList<>();
+        personalQuestions.findByUserId(userId, PageRequest.of(0, 100, Sort.by(Sort.Direction.DESC, "createdAt")))
+                .forEach(question -> {
+                    if (question.expiresAt().isAfter(java.time.Instant.now()))
+                        visible.add(fromPersonal(question).publicView());
+                });
+        visible.addAll(QUESTIONS.stream().map(Question::publicView).toList());
+        return List.copyOf(visible);
+    }
+    public Question find(String userId, String id) {
+        Question builtIn = QUESTIONS.stream().filter(question -> question.id().equals(id)).findFirst().orElse(null);
+        if (builtIn != null) return builtIn;
+        return personalQuestions.findByIdAndUserId(id, userId)
+                .filter(question -> question.expiresAt().isAfter(java.time.Instant.now()))
+                .map(PracticeCatalog::fromPersonal).orElse(null);
+    }
+
+    private static Question fromPersonal(PersonalPracticeQuestion question) {
+        return new Question(question.id(), question.topic(), question.prompt(), question.options(),
+                question.correctOptionId(), question.explanation());
     }
 }

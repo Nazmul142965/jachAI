@@ -101,6 +101,8 @@ const SOURCE = String.raw`(() => {
 
   window.__calls = [];
   let practiceUsed = 0;
+  let practiceGenerated = 0;
+  const generatedQuestions = [];
   const practiceAnswers = [];
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
@@ -122,19 +124,30 @@ const SOURCE = String.raw`(() => {
       return json(created, 201);
     }
     if (path === '/api/v1/organizations') return json(organizations);
-    if (path === '/api/v1/practice/questions') return json([{ id: 'java-record', topic: 'Java',
+    if (path === '/api/v1/practice/questions') return json([...generatedQuestions, { id: 'java-record', topic: 'Java',
       prompt: 'Which statement about a Java record is correct?', options: [
         { id: 'a', text: 'It cannot implement interfaces' },
         { id: 'b', text: 'Its components generate accessors and a canonical constructor' },
         { id: 'c', text: 'Its components are mutable by default' }] }]);
+    if (path === '/api/v1/practice/questions/generate' && method === 'POST') {
+      if (practiceGenerated >= 20) return error(429, 'PRACTICE_AI_LIMIT_REACHED', 'Daily generation limit reached');
+      const body = JSON.parse(init.body);
+      const question = { id: 'pg-' + (++practiceGenerated), topic: body.topic,
+        prompt: 'Which ' + body.difficulty.toLowerCase() + ' concept matters in ' + body.topic + '?', options: [
+          { id: 'a', text: 'A relevant concept' }, { id: 'b', text: 'An unrelated concept' },
+          { id: 'c', text: 'A third concept' }, { id: 'd', text: 'A fourth concept' }] };
+      generatedQuestions.unshift(question);
+      return json(question, 201);
+    }
     if (path === '/api/v1/practice/usage') return json({ utcDay: '2026-10-05', used: practiceUsed,
-      limit: 5, remaining: 5 - practiceUsed });
+      limit: 20, remaining: 20 - practiceUsed, generated: practiceGenerated,
+      generationLimit: 20, generationRemaining: 20 - practiceGenerated });
     if (path === '/api/v1/practice/answers/mine') return json(page(practiceAnswers));
     if (path === '/api/v1/practice/answers' && method === 'POST') {
       const body = JSON.parse(init.body);
       const existing = practiceAnswers.find((answer) => answer.id === ROLE.userId + ':' + body.requestId);
       if (existing) return json({ ...existing });
-      if (practiceUsed >= 5) return error(429, 'PRACTICE_LIMIT_REACHED', 'Daily limit reached');
+      if (practiceUsed >= 20) return error(429, 'PRACTICE_LIMIT_REACHED', 'Daily limit reached');
       practiceUsed += 1;
       const answer = { id: ROLE.userId + ':' + body.requestId, questionId: body.questionId,
         selectedOptionId: body.optionId, correctOptionId: 'b', correct: body.optionId === 'b',

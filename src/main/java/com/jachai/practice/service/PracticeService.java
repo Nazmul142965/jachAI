@@ -28,19 +28,20 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class PracticeService {
-    public static final int DAILY_FREE_LIMIT = 5;
+    public static final int DAILY_FREE_LIMIT = 20;
     private final UserRepository users;
     private final PracticeCatalog catalog;
     private final PracticeAnswerRepository answers;
     private final MongoTemplate mongo;
 
-    public record Usage(String utcDay, int used, int limit, int remaining) { }
+    public record Usage(String utcDay, int used, int limit, int remaining,
+                        int generated, int generationLimit, int generationRemaining) { }
     public record Result(String questionId, String selectedOptionId, String correctOptionId,
                          boolean correct, String explanation, Instant answeredAt) { }
 
     public List<PracticeCatalog.QuestionView> questions(String userId) {
         requireUser(userId);
-        return catalog.questions();
+        return catalog.questions(userId);
     }
 
     public Usage usage(String userId) {
@@ -48,7 +49,9 @@ public class PracticeService {
         String day = LocalDate.now(ZoneOffset.UTC).toString();
         PracticeUsage bucket = mongo.findById(userId + ":" + day, PracticeUsage.class);
         int used = bucket == null ? 0 : bucket.used();
-        return new Usage(day, used, DAILY_FREE_LIMIT, Math.max(0, DAILY_FREE_LIMIT - used));
+        int generated = bucket == null ? 0 : bucket.generated();
+        return new Usage(day, used, DAILY_FREE_LIMIT, Math.max(0, DAILY_FREE_LIMIT - used),
+                generated, 20, Math.max(0, 20 - generated));
     }
 
     public Page<PracticeAnswer> history(String userId, int page) {
@@ -58,7 +61,7 @@ public class PracticeService {
 
     public Result submit(String userId, UUID requestId, String questionId, String optionId) {
         requireUser(userId);
-        PracticeCatalog.Question question = catalog.find(questionId);
+        PracticeCatalog.Question question = catalog.find(userId, questionId);
         if (question == null || question.options().stream().noneMatch(option -> option.id().equals(optionId))) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PRACTICE_ANSWER", "Choose a listed question and option");
         }
@@ -128,6 +131,6 @@ public class PracticeService {
 
     private ApiException quotaExceeded() {
         return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PRACTICE_LIMIT_REACHED",
-                "Today's five free practice answers are used. Try again tomorrow (UTC).");
+                "Today's twenty free practice answers are used. Try again tomorrow (UTC).");
     }
 }

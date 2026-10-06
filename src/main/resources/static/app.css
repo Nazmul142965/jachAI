@@ -1267,6 +1267,10 @@ a:focus-visible,
 #journey-panel { border-top: 4px solid var(--accent); }
 .practice-layout { grid-template-columns: minmax(0, 1.8fr) minmax(270px, .85fr); gap: var(--sp-5); }
 .practice-main { border-top: 4px solid var(--brand); gap: var(--sp-5); }
+.practice-generator { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(130px, .6fr); gap: var(--sp-3); padding: var(--sp-5); border-radius: var(--r-md); background: var(--surface-sunk); }
+.practice-generator-focus { grid-column: 1 / -1; }
+.practice-generator .button { justify-self: start; }
+#practice-generation-status { margin: calc(var(--sp-3) * -1) 0 0; font-size: var(--text-sm); }
 .practice-main .section-heading h2 { font-size: clamp(25px, 2.4vw, 33px); }
 .practice-main .section-heading .muted { max-width: 62ch; }
 .practice-main legend { font-size: clamp(19px, 2vw, 25px); }
@@ -1292,4 +1296,6 @@ a:focus-visible,
   .panel { padding: var(--sp-5); }
   .start-actions { grid-template-columns: 1fr; }
   .start-action { min-height: 125px; }
+  .practice-generator { grid-template-columns: 1fr; }
+  .practice-generator-focus { grid-column: auto; }
 }

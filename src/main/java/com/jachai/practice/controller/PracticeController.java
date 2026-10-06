@@ -2,6 +2,7 @@ package com.jachai.practice.controller;
 
 import com.jachai.practice.service.PracticeCatalog;
 import com.jachai.practice.service.PracticeService;
+import com.jachai.practice.service.PersonalPracticeGenerationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/practice")
 public class PracticeController {
     private final PracticeService practice;
+    private final PersonalPracticeGenerationService generation;
 
     public record AnswerRequest(@NotNull UUID requestId, @NotBlank String questionId,
                                 @NotBlank String optionId) { }
@@ -38,6 +40,12 @@ public class PracticeController {
     @GetMapping("/questions")
     public List<PracticeCatalog.QuestionView> questions(@AuthenticationPrincipal Jwt jwt) {
         return practice.questions(jwt.getSubject());
+    }
+
+    @PostMapping("/questions/generate")
+    public PracticeCatalog.QuestionView generate(@AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody PersonalPracticeGenerationService.GenerateRequest request) {
+        return generation.generate(jwt.getSubject(), request);
     }
 
     @GetMapping("/usage")

@@ -94,9 +94,9 @@
         <h2 id="onboarding-title">Make this space yours.</h2>
         <p class="muted">Start practicing on your own, join a team with a code, or build a private assessment workspace. Your account can do more than one.</p>
         <div class="start-actions" aria-label="Ways to begin">
-          <button id="start-practice" class="start-action" type="button"><span class="start-action-number">01 / PERSONAL</span><strong>Practice a skill</strong><span>Answer a question and see the explanation immediately.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
-          <button id="start-join" class="start-action" type="button"><span class="start-action-number">02 / PARTICIPANT</span><strong>Join a workspace</strong><span>Use an invitation or organizer-issued code.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
-          <button id="start-organize" class="start-action" type="button"><span class="start-action-number">03 / ORGANIZER</span><strong>Run assessments</strong><span>Create an Academy or Talent workspace.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-practice" class="start-action" type="button"><span class="start-action-number">Your own progress</span><strong>Practice a skill</strong><span>Pick a topic, create a question, and learn from the explanation.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-join" class="start-action" type="button"><span class="start-action-number">Your invitation</span><strong>Join a workspace</strong><span>Use an invitation or organizer-issued code.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-organize" class="start-action" type="button"><span class="start-action-number">Your team</span><strong>Run assessments</strong><span>Create an Academy or Talent workspace.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
         </div>
         <div class="start-details">
         <h3>Find your exact path</h3>
@@ -137,16 +137,23 @@
       <section id="practice-view" class="view hidden" aria-labelledby="practice-heading">
         <div class="practice-layout">
           <div class="practice-main card panel">
-            <div class="section-heading"><div><h2 id="practice-heading">Practice on your own</h2><p class="muted">A short technical question, instant feedback, and a reason you can learn from. This question bank is separate from private workspace assessments.</p></div></div>
+            <div class="section-heading"><div><h2 id="practice-heading">Practice what matters to you</h2><p class="muted">Pick a topic and difficulty. A new question is created just for your account, separate from any private assessment.</p></div></div>
             <div class="practice-context"><span id="practice-usage" role="status" aria-live="polite">Checking today's free practice…</span><span>Resets at 00:00 UTC</span></div>
-            <label for="practice-question">Choose a question</label>
+            <form id="practice-generate-form" class="practice-generator">
+              <label>Topic<input name="topic" maxlength="80" required placeholder="e.g. Spring transactions"></label>
+              <label>Level<select name="difficulty"><option value="BEGINNER">Beginner</option><option value="INTERMEDIATE">Intermediate</option><option value="ADVANCED">Advanced</option></select></label>
+              <label class="practice-generator-focus">Optional focus<input name="brief" maxlength="400" placeholder="e.g. rollback rules and exceptions"></label>
+              <button id="practice-generate" class="button secondary" type="submit">Create a question</button>
+            </form>
+            <p id="practice-generation-status" class="muted" role="status" aria-live="polite">AI questions need a configured provider. If unavailable, use a starter question below.</p>
+            <label for="practice-question">Your questions and starter examples</label>
             <select id="practice-question"></select>
             <form id="practice-answer-form" class="stack">
               <fieldset id="practice-options"><legend id="practice-prompt">Select a question to begin.</legend></fieldset>
               <button id="practice-submit" class="button primary" type="submit">Check answer</button>
             </form>
             <div id="practice-result" class="practice-feedback hidden" role="status" aria-live="polite"></div>
-            <p class="muted">Five free answers per day. Personal paid plans are not available yet; no payment is collected here.</p>
+            <p class="muted">Free accounts can create and answer up to 20 questions a day. AI generation also has a platform-wide safety cap. Personal paid plans are not available yet; no payment is collected here.</p>
           </div>
           <aside class="card panel practice-history" aria-label="Practice history"><h2>Your recent answers</h2><p class="muted">Your practice is private to this account and kept for 90 days.</p><div id="practice-history" class="item-list"></div></aside>
         </div>

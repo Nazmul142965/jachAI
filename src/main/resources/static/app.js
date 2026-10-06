@@ -3717,14 +3717,19 @@ async function loadPractice() {
   state.practiceQuestions = questions;
   const select = $('#practice-question');
   const previous = select.value;
-  select.replaceChildren(...questions.map((question) => {
+  const placeholder = node('option', 'Choose a question');
+  placeholder.value = '';
+  select.replaceChildren(placeholder, ...questions.map((question) => {
     const option = node('option', `${question.topic} — ${question.prompt}`);
     option.value = question.id;
     return option;
   }));
   if (questions.some((question) => question.id === previous)) select.value = previous;
+  else select.value = '';
   state.practiceRemaining = usage.remaining;
-  $('#practice-usage').textContent = `${usage.remaining} of ${usage.limit} free answers left today`;
+  state.practiceGenerationRemaining = usage.generationRemaining;
+  $('#practice-usage').textContent = `${usage.remaining} answers and ${usage.generationRemaining} new AI questions left today`;
+  $('#practice-generate').disabled = usage.generationRemaining === 0;
   $('#practice-submit').disabled = usage.remaining === 0 || questions.length === 0;
   const rows = (history.content || []).map((answer) => item(
     state.practiceQuestions.find((question) => question.id === answer.questionId)?.prompt || answer.questionId,
@@ -3737,7 +3742,7 @@ function renderPracticeQuestion() {
   const question = state.practiceQuestions.find((entry) => entry.id === $('#practice-question').value);
   const fieldset = $('#practice-options');
   fieldset.replaceChildren();
-  const legend = node('legend', question?.prompt || 'No practice questions are available yet.');
+  const legend = node('legend', question?.prompt || 'Create a question above, or choose a starter example to begin.');
   legend.id = 'practice-prompt';
   fieldset.append(legend);
   for (const option of question?.options || []) {
@@ -3754,6 +3759,41 @@ function renderPracticeQuestion() {
 }
 
 $('#practice-question').addEventListener('change', renderPracticeQuestion);
+$('#practice-generate-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(async () => {
+    const form = event.currentTarget;
+    const button = $('#practice-generate');
+    button.disabled = true;
+    $('#practice-generation-status').textContent = 'Creating your question…';
+    try {
+      const data = Object.fromEntries(new FormData(form));
+      const question = await request('/practice/questions/generate', { method: 'POST', body: data });
+      const [questions, usage] = await Promise.all([
+        request('/practice/questions'), request('/practice/usage')
+      ]);
+      state.practiceQuestions = questions;
+      const select = $('#practice-question');
+      select.replaceChildren(...questions.map((entry) => {
+        const option = node('option', `${entry.topic} — ${entry.prompt}`);
+        option.value = entry.id;
+        return option;
+      }));
+      select.value = question.id;
+      renderPracticeQuestion();
+      state.practiceGenerationRemaining = usage.generationRemaining;
+      $('#practice-usage').textContent = `${usage.remaining} answers and ${usage.generationRemaining} new AI questions left today`;
+      $('#practice-generation-status').textContent = 'New question ready. Choose an answer below.';
+      button.disabled = usage.generationRemaining === 0;
+    } catch (error) {
+      $('#practice-generation-status').textContent = error.code === 'AI_UNAVAILABLE'
+        ? 'AI is unavailable right now. Your allowance was not used; try a starter question.'
+        : 'Question creation failed. Your allowance was not used; try again.';
+      button.disabled = false;
+      throw error;
+    }
+  });
+});
 $('#practice-answer-form').addEventListener('submit', (event) => {
   event.preventDefault();
   run(async () => {
@@ -3778,7 +3818,7 @@ $('#practice-answer-form').addEventListener('submit', (event) => {
       if (refreshed[0].status === 'fulfilled') {
         const usage = refreshed[0].value;
         state.practiceRemaining = usage.remaining;
-        $('#practice-usage').textContent = `${usage.remaining} of ${usage.limit} free answers left today`;
+        $('#practice-usage').textContent = `${usage.remaining} answers and ${usage.generationRemaining} new AI questions left today`;
       } else {
         state.practiceRemaining = Math.max(0, state.practiceRemaining - 1);
         $('#practice-usage').textContent = 'Answer saved. Refresh Practice to check today’s remaining limit.';

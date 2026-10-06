@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jachai.practice.model.PracticeAnswer;
 import com.jachai.practice.service.PracticeService;
+import com.jachai.practice.service.PersonalPracticeGenerationService;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,8 @@ class PracticeControllerTests {
                 "learner:private-request", "learner", "java-record", "b", "b", true,
                 "Explanation", Instant.now(), Instant.now().plusSeconds(3600)))));
 
-        var response = new PracticeController(service).history(jwt, 0);
+        var response = new PracticeController(service,
+                org.mockito.Mockito.mock(PersonalPracticeGenerationService.class)).history(jwt, 0);
         String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(response);
         assertEquals(1, response.content().size());
         assertFalse(json.contains("learner:private-request"));
