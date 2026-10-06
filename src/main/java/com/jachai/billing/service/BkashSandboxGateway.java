@@ -48,7 +48,8 @@ public class BkashSandboxGateway {
 
     public boolean configured() {
         return !appKey.isBlank() && !appSecret.isBlank()
-                && !username.isBlank() && !password.isBlank();
+                && !username.isBlank() && !password.isBlank()
+                && SandboxCallbackOrigin.valid(publicBaseUrl);
     }
 
     public CheckoutSession start(PaymentOrder order) {
@@ -148,21 +149,15 @@ public class BkashSandboxGateway {
     }
 
     private String callbackBase() {
-        try {
-            URI uri = URI.create(publicBaseUrl);
-            if (uri.getHost() == null || !("https".equals(uri.getScheme())
-                    || "http".equals(uri.getScheme()) && "localhost".equals(uri.getHost()))) {
-                throw providerFailure();
-            }
-            return publicBaseUrl.replaceAll("/+$", "");
-        } catch (IllegalArgumentException exception) {
-            throw providerFailure();
-        }
+        return SandboxCallbackOrigin.require(publicBaseUrl);
     }
 
     private void requireConfigured() {
-        if (!configured()) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
-                "BILLING_UNAVAILABLE", "bKash sandbox credentials are not configured");
+        if (appKey.isBlank() || appSecret.isBlank() || username.isBlank() || password.isBlank()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "BILLING_UNAVAILABLE", "bKash sandbox credentials are not configured");
+        }
+        SandboxCallbackOrigin.require(publicBaseUrl);
     }
 
     private static boolean matchesAmount(JsonNode node, BigDecimal expected) {

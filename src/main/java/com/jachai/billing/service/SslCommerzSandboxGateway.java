@@ -42,7 +42,8 @@ public class SslCommerzSandboxGateway {
     }
 
     public boolean configured() {
-        return !storeId.isBlank() && !storePassword.isBlank();
+        return !storeId.isBlank() && !storePassword.isBlank()
+                && SandboxCallbackOrigin.valid(publicBaseUrl);
     }
 
     public CheckoutSession start(PaymentOrder order, User buyer) {
@@ -183,23 +184,15 @@ public class SslCommerzSandboxGateway {
     }
 
     private void requireConfigured() {
-        if (!configured()) {
+        if (storeId.isBlank() || storePassword.isBlank()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "BILLING_UNAVAILABLE",
                     "SSLCOMMERZ sandbox credentials are not configured");
         }
+        SandboxCallbackOrigin.require(publicBaseUrl);
     }
 
     private String validatedPublicBase() {
-        try {
-            URI uri = URI.create(publicBaseUrl);
-            if (!("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())
-                    && "localhost".equals(uri.getHost())) || uri.getHost() == null) {
-                throw providerFailure();
-            }
-            return publicBaseUrl.replaceAll("/+$", "");
-        } catch (IllegalArgumentException exception) {
-            throw providerFailure();
-        }
+        return SandboxCallbackOrigin.require(publicBaseUrl);
     }
 
     private static String truncate(String value, int max) {

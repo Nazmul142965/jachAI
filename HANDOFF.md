@@ -2,6 +2,13 @@
 
 ## Current continuation (2026-10-06)
 
+Payment checkpoint: both sandbox adapters now accept the local launcher's
+`http://127.0.0.1:<port>` as a browser callback origin, while rejecting
+non-loopback HTTP and malformed origin URLs. Availability flags also require
+a valid callback origin. Focused origin and gateway tests passed 10/10. No
+merchant credentials are present in this shell, so no real sandbox checkout,
+IPN, or plan activation was exercised; do not claim payment is live yet.
+
 At `5314dbc`, guarded demo sign-in now seeds one usable Academy and one Talent
 assessment journey through the existing question, publish, assignment, and
 campaign services (`e46412b`), without direct writes to those business
