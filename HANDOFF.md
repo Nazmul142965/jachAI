@@ -11,6 +11,12 @@ against the real backend have not been run.
 Do not merge stale frontend worktrees or put demo credentials in the public
 frontend. `README.md` documents `scripts/start-local.ps1 -Demo`.
 
+AI practice diagnostics now distinguish known provider HTTP categories from
+personal 20/day and platform-wide caps; see `PRODUCT_UI_HANDOFF.md`. Provider
+quota balance is not available to this app, and no live Gemini/Groq call has
+been verified. Do not claim an `AI_PROVIDER_RATE_LIMIT` response proves which
+provider quota window was exhausted.
+
 Updated: 2026-10-04. This file is a living checkpoint, not a claim that the project is finished. Inspect the worktree and `ARCHITECTURE.md` before relying on any status below.
 
 Ownership checkpoint (2026-10-04): `7a09f25` prevents a second owner transfer from overwriting recovery metadata when the preceding audit insert has not succeeded. `OrganizationServiceTests` passed 7/7. A dedicated opt-in test then passed 1/1 against local MongoDB `jachai_it_ownership_20261004`: two sequential transfers, simulated loss and repair of the first audit event, history visibility to the new owner, and old-owner transfer denial. The test is committed with this checkpoint. This does not verify Atlas, real concurrent transfers, or the browser flow.

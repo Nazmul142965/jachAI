@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.dao.DuplicateKeyException;
 
 @ExtendWith(MockitoExtension.class)
 class PersonalPracticeGenerationServiceTests {
@@ -61,6 +62,20 @@ class PersonalPracticeGenerationServiceTests {
         assertThrows(ApiException.class, () -> service().generate("learner",
                 new PersonalPracticeGenerationService.GenerateRequest("Java", "BEGINNER", "")));
         org.mockito.Mockito.verifyNoInteractions(questions);
+    }
+
+    @Test
+    void globalCapacityIsNotReportedAsPersonalLimit() {
+        when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        when(mongo.insert(any(PracticeUsage.class))).thenAnswer(call -> {
+            PracticeUsage bucket = call.getArgument(0);
+            if (bucket.id().startsWith("personal-ai:global:")) throw new DuplicateKeyException("existing bucket");
+            return bucket;
+        });
+        ApiException error = assertThrows(ApiException.class, () -> service().generate("learner",
+                new PersonalPracticeGenerationService.GenerateRequest("Java", "BEGINNER", "")));
+        assertEquals("PRACTICE_AI_PLATFORM_CAPACITY", error.code());
+        org.mockito.Mockito.verifyNoInteractions(ai);
     }
 
     private PersonalPracticeGenerationService service() {

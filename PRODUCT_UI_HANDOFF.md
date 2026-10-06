@@ -151,3 +151,19 @@ an invented zero. The broad explore actions remain secondary.
 
 This is a browser-facing improvement, not a new billing or assignment rule.
 The static fixture is not evidence of live MongoDB or AI behavior.
+
+## AI failure meaning (2026-10-06)
+
+`SpringAiService` now maps known provider HTTP failures to separate safe error
+codes: rate limit (429), provider account billing (402), key/access (401/403),
+model/request configuration (400/404), and timeout/5xx. Logs include provider,
+use case, category and exception class only—not the provider response text or
+API key. Unknown failures remain `AI_UNAVAILABLE`. No provider-specific quota
+balance is inferred from these statuses. Practice keeps its personal 20/day
+generation counter separate from the platform-wide safety cap; a failed
+generation refunds both reservations. The UI reports which boundary stopped
+the request and continues showing the personal used/remaining allowance.
+Focused unit tests cover 429, 401 and the platform cap; live Gemini/Groq calls
+are still unverified. Official status semantics:
+<https://ai.google.dev/gemini-api/docs/troubleshooting> and
+<https://console.groq.com/docs/errors>.

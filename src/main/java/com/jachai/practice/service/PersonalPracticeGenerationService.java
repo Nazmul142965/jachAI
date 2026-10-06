@@ -79,9 +79,9 @@ public class PersonalPracticeGenerationService {
         LocalDate day = LocalDate.now(ZoneOffset.UTC);
         String userBucket = userId + ":" + day;
         String globalBucket = "personal-ai:global:" + day;
-        reserve(userBucket, userId, day, FREE_DAILY_GENERATIONS);
+        reserve(userBucket, userId, day, FREE_DAILY_GENERATIONS, false);
         try {
-            reserve(globalBucket, "platform", day, globalDailyLimit);
+            reserve(globalBucket, "platform", day, globalDailyLimit, true);
         } catch (RuntimeException exception) {
             refund(userBucket);
             throw exception;
@@ -126,7 +126,7 @@ public class PersonalPracticeGenerationService {
         return generated;
     }
 
-    private void reserve(String bucketId, String owner, LocalDate day, int limit) {
+    private void reserve(String bucketId, String owner, LocalDate day, int limit, boolean platform) {
         if (limit < 1) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PRACTICE_AI_UNAVAILABLE",
                 "Practice AI is not available on this deployment");
         // Older practice_usage buckets predate the generated field; $inc creates it on first generation.
@@ -142,7 +142,9 @@ public class PersonalPracticeGenerationService {
             reserved = mongo.findAndModify(available, new Update().inc("generated", 1),
                     FindAndModifyOptions.options().returnNew(true), PracticeUsage.class);
             if (reserved == null) throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,
-                    "PRACTICE_AI_LIMIT_REACHED", "Practice AI generation limit reached for today (UTC)");
+                    platform ? "PRACTICE_AI_PLATFORM_CAPACITY" : "PRACTICE_AI_LIMIT_REACHED",
+                    platform ? "Platform AI safety capacity reached for today (UTC); your personal allowance was not used"
+                            : "Your personal practice AI generation limit is reached for today (UTC)");
         }
     }
 

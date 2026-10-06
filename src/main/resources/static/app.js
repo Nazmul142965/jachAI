@@ -187,7 +187,19 @@ function explainAiFailure(error) {
     case 'AI_QUOTA_UNAVAILABLE':
       return 'AI is unavailable because the quota service (Redis) cannot be reached. This deployment fails closed instead of skipping the quota.';
     case 'AI_UNAVAILABLE':
-      return 'No AI provider is configured, or the configured provider could not be reached. AI drafting is an optional server setting (Gemini or local Ollama); write the question manually meanwhile.';
+      return 'The AI provider could not complete the request. The operator can check the sanitized server error category; write the question manually meanwhile.';
+    case 'AI_NOT_CONFIGURED':
+      return 'No AI provider is enabled on this deployment. Write the question manually or ask the operator to configure one.';
+    case 'AI_PROVIDER_RATE_LIMIT':
+      return 'The provider is limiting requests. This is not your personal practice limit; try later.';
+    case 'AI_PROVIDER_AUTH':
+      return 'The AI provider key or its permissions need operator attention. Trying again will not fix the account configuration.';
+    case 'AI_PROVIDER_BILLING':
+      return 'The AI provider account needs billing attention from the operator. This is not your personal allowance.';
+    case 'AI_PROVIDER_CONFIGURATION':
+      return 'The selected AI model or request configuration needs operator attention.';
+    case 'AI_PROVIDER_UNAVAILABLE':
+      return 'The AI provider timed out or is unavailable. Try again later.';
     case 'AI_INVALID_OUTPUT':
       return 'The AI provider returned content JachAI could not use. Try again, or write the question manually.';
     case 'AI_QUESTION_TYPE_UNSUPPORTED':
@@ -4140,10 +4152,17 @@ $('#practice-generate-form').addEventListener('submit', (event) => {
         button.disabled = true;
       }
     } catch (error) {
-      const providerFailure = error.code === 'AI_UNAVAILABLE';
-      setPracticeGenerationState('error', providerFailure ? 'AI provider could not create this question' : 'Question creation failed',
-        providerFailure ? 'This does not mean your personal daily limit is used. The provider may be unavailable, rate-limited or misconfigured. Try later or answer an existing question.'
-          : 'Check the error above. If generation failed, your allowance was not used.');
+      const feedback = {
+        AI_NOT_CONFIGURED: ['AI is not enabled here', 'Ask the operator to configure a provider. Your personal allowance was not used.'],
+        AI_PROVIDER_RATE_LIMIT: ['AI provider limit reached', 'This is not your personal 20-question limit. Try later or answer an existing question.'],
+        AI_PROVIDER_AUTH: ['AI provider access needs attention', 'The operator needs to check the key or permissions. Your personal allowance was not used.'],
+        AI_PROVIDER_BILLING: ['AI provider account needs attention', 'The operator needs to check provider billing. Your personal allowance was not used.'],
+        AI_PROVIDER_CONFIGURATION: ['AI model setup needs attention', 'The operator needs to check the selected model and request settings.'],
+        AI_PROVIDER_UNAVAILABLE: ['AI provider did not respond', 'Try again later. Your personal allowance was not used.'],
+        PRACTICE_AI_PLATFORM_CAPACITY: ['Today’s platform AI capacity is used', 'Your personal allowance was not used. Existing practice questions are still available.'],
+        PRACTICE_AI_LIMIT_REACHED: ['Your 20 AI questions are used today', 'Your personal generation allowance resets at 00:00 UTC. You can answer existing questions.']
+      }[error.code] || ['Question creation failed', 'Check the error above, or answer an existing question.'];
+      setPracticeGenerationState('error', feedback[0], feedback[1]);
       button.disabled = false;
       throw error;
     } finally {

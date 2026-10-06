@@ -30,7 +30,7 @@ class SpringAiServiceTests {
         ApiException error = assertThrows(ApiException.class,
                 () -> service.generate(AiUseCase.TUTOR, "system", "question"));
 
-        assertEquals("AI_UNAVAILABLE", error.code());
+        assertEquals("AI_NOT_CONFIGURED", error.code());
         verifyNoInteractions(gemini, ollama);
     }
 
@@ -40,7 +40,7 @@ class SpringAiServiceTests {
                 .withProperty("app.ai.tutor-provider", "groq");
         var service = new SpringAiService(gemini, ollama, groq, environment);
 
-        assertEquals("AI_UNAVAILABLE", assertThrows(ApiException.class,
+        assertEquals("AI_NOT_CONFIGURED", assertThrows(ApiException.class,
                 () -> service.generate(AiUseCase.QUESTION_DRAFT, "system", "brief")).code());
         verifyNoInteractions(gemini, ollama, groq);
     }
@@ -56,5 +56,30 @@ class SpringAiServiceTests {
 
         assertEquals("AI_UNAVAILABLE", error.code());
         verifyNoInteractions(gemini, ollama);
+    }
+
+    @Test
+    void provider429IsNotReportedAsPersonalPracticeQuota() {
+        var environment = new MockEnvironment().withProperty("spring.ai.model.chat", "google-genai");
+        when(gemini.getIfAvailable()).thenThrow(
+                new com.google.genai.errors.ClientException(429, "RESOURCE_EXHAUSTED", "private provider detail"));
+        ApiException error = assertThrows(ApiException.class,
+                () -> new SpringAiService(gemini, ollama, groq, environment)
+                        .generate(AiUseCase.QUESTION_DRAFT, "system", "question"));
+        assertEquals("AI_PROVIDER_RATE_LIMIT", error.code());
+        org.junit.jupiter.api.Assertions.assertFalse(error.getMessage().contains("private provider detail"));
+    }
+
+    @Test
+    void providerAuthErrorKeepsProviderDetailPrivate() {
+        var environment = new MockEnvironment().withProperty("app.ai.tutor-provider", "groq");
+        when(groq.getIfAvailable()).thenThrow(org.springframework.web.client.HttpClientErrorException.create(
+                org.springframework.http.HttpStatus.UNAUTHORIZED, "Unauthorized",
+                org.springframework.http.HttpHeaders.EMPTY, "private key detail".getBytes(), null));
+        ApiException error = assertThrows(ApiException.class,
+                () -> new SpringAiService(gemini, ollama, groq, environment)
+                        .generate(AiUseCase.TUTOR, "system", "question"));
+        assertEquals("AI_PROVIDER_AUTH", error.code());
+        org.junit.jupiter.api.Assertions.assertFalse(error.getMessage().contains("private key detail"));
     }
 }
