@@ -153,6 +153,27 @@ async function main() {
     await shot(`overview-${role}${storage === 'ok' ? '' : `-${storage}`}`);
   }
 
+  if (process.argv.includes('--home-race-only')) {
+    await load('learner');
+    await ev(`(() => { const original = window.fetch;
+      window.fetch = (url, init) => String(url).includes('/organizations/org-a/assignments/mine')
+        ? new Promise((resolve) => setTimeout(() => resolve(original(url, init)), 1800))
+        : original(url, init);
+      return true; })()`);
+    await view('My dashboard'); await wait(60);
+    await view('Your workspaces'); await wait(150);
+    await ev(`(() => { const form = document.querySelector('#workspace-create-org-form');
+      form.elements.name.value = 'New Academy';
+      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); return true; })()`);
+    await wait(500); await view('My dashboard'); await wait(2200);
+    check('home-race', 'late previous-workspace response cannot replace current home',
+      await ev(`document.querySelector('#home-role').textContent.includes('New Academy')
+        && !document.querySelector('#home-work-list').textContent.includes('Java Basics')`));
+    console.log(`${all.length - failures}/${all.length} focused checks passed`);
+    page.close(); browser.child.kill(); await server.close();
+    process.exit(failures ? 1 : 0);
+  }
+
   if (process.argv.includes('--demo-only')) {
     await page.send('Page.addScriptToEvaluateOnNewDocument', {
       source: installScript({ role: 'learner', demo: true }) });

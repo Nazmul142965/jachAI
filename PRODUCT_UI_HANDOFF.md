@@ -172,3 +172,13 @@ The same pass found and fixed an API/UI field mismatch: `PracticeService.Usage`
 returns `limit` for answer checks, not `dailyLimit`. Both the Practice usage
 sentence and Account usage progress now read `limit`. The focused learner
 browser journey passed 48/48 checks against a fixture shaped like that record.
+
+## Workspace-switch response isolation (2026-10-06)
+
+Account-home reads are asynchronous. A load token now invalidates pending home
+responses on workspace switch, sign-out, or a newer home load. The renderer
+also checks the original access token, organization ID and active view before
+using any settled result. A focused browser fixture delayed an Academy learner
+assignment response, switched to a new Academy owner workspace, and confirmed
+the old assignment could not overwrite the new home. The backend still owns
+tenant authorization; this is an additional UI correctness boundary.

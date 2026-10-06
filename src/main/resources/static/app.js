@@ -21,7 +21,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   versionsAssessment: null, versionsToken: 0,
   orderDetailId: null, orderDetailToken: 0,
   practiceQuestions: [], practiceAnswers: [], practiceRequestId: null, practiceRemaining: 0,
-  homeAction: null, profile: null,
+  homeAction: null, homeLoadToken: 0, profile: null,
   view: 'overview' };
 const views = ['start', 'account', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
@@ -265,6 +265,7 @@ function showSignedOut() {
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
   state.practiceQuestions = []; state.practiceAnswers = []; state.practiceRequestId = null;
   state.practiceRemaining = 0; state.practiceGenerationRemaining = 0; state.homeAction = null;
+  state.homeLoadToken++;
   state.profile = null;
   state.tutorHistory.clear();
   state.activeReviewAttemptId = null;
@@ -393,6 +394,7 @@ async function loadOrganizations(preferredId = state.organization?.id) {
   await setOrganization();
 }
 async function setOrganization() {
+  state.homeLoadToken++;
   state.selectedQuestionIds.clear();
   state.editingAssessment = null;
   state.editingQuestion = null;
@@ -533,6 +535,8 @@ async function setOrganization() {
 // The account home is not tied to one tenant. Personal practice stays private;
 // workspace assignments and staff work remain inside their own organization.
 async function loadHome() {
+  const loadToken = ++state.homeLoadToken;
+  const accessToken = state.accessToken;
   const role = state.organization?.myRole;
   const participant = role === 'LEARNER' || role === 'CANDIDATE';
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
@@ -561,6 +565,8 @@ async function loadHome() {
       : Promise.resolve(null)
   ];
   const [usageResult, answersResult, questionsResult, assignmentsResult, reviewResult, areaResult] = await Promise.allSettled(requests);
+  if (loadToken !== state.homeLoadToken || accessToken !== state.accessToken
+      || state.organization?.id !== organization?.id || state.view !== 'start') return;
   const usage = usageResult.status === 'fulfilled' ? usageResult.value : null;
   const answers = answersResult.status === 'fulfilled' ? rowsOf(answersResult.value) : [];
   const questions = questionsResult.status === 'fulfilled' ? questionsResult.value : [];
