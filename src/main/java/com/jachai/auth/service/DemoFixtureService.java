@@ -75,7 +75,9 @@ public class DemoFixtureService {
         CreateAssignmentRequest invitation = new CreateAssignmentRequest(participant, 2,
                 now.minus(1, ChronoUnit.DAYS), now.plus(90, ChronoUnit.DAYS));
         if (talent) {
-            HiringCampaign campaign = find(org, "title", "Backend engineer — demo campaign", HiringCampaign.class);
+            HiringCampaign campaign = mongo.findOne(Query.query(Criteria.where("organizationId").is(org)
+                    .and("title").is("Backend engineer — demo campaign").and("open").is(true)),
+                    HiringCampaign.class);
             if (campaign == null) {
                 String campaignId = campaigns.create(author, org,
                         new CreateCampaignRequest("Backend engineer — demo campaign", assessment.id())).id();

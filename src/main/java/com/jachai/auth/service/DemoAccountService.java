@@ -12,6 +12,7 @@ import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 /** Disposable local demo identities; no passwords or public credentials are stored. */
 @Service
 @Profile("demo & !prod")
+@Slf4j
 public class DemoAccountService {
     public record DemoAccount(String key, String label, String role, String workspace) { }
 
@@ -85,7 +87,12 @@ public class DemoAccountService {
         if (!user.emailVerified() || user.disabled() || !user.email().endsWith("@demo.jachai.invalid")) {
             throw new ApiException(HttpStatus.CONFLICT, "DEMO_ACCOUNT_CHANGED", "Demo account changed; use a fresh demo database");
         }
-        fixtures.seed();
+        try {
+            fixtures.seed();
+        } catch (RuntimeException exception) {
+            // Disposable example data must never lock users out of their demo accounts.
+            log.warn("Demo example setup incomplete: {}", exception.getClass().getSimpleName());
+        }
         return auth.issueSession(user);
     }
 

@@ -13,6 +13,9 @@ serving the same `target/classes` caused a transient `EmailLinkGuard$1`
 current build, and a complete app restart is required. Do not run Maven
 against this checkout's `target/` while an app process is running; use an
 isolated worktree/build output for concurrent verification.
+The next demo hardening slice ensures a failed fixture does not block sign-in
+and a closed sample campaign is not reused. Focused demo tests passed; this
+behavior still needs a live disposable database walkthrough.
 
 Main includes role-specific account-home work rows (`d8207ce`). The local-demo
 slice adds six passwordless role shortcuts, guarded by the `demo` profile,

@@ -252,6 +252,9 @@ The first successful sign-in also creates an approved question, published
 assessment, and participant invitation in each workspace through the normal
 question, assessment, assignment, and campaign services. Subsequent sign-ins
 reuse those examples instead of consuming more entitlement units.
+If example creation fails (for example, a free-plan quota is exhausted), the
+demo sign-in still succeeds; a disposable fixture must not become an account
+lockout. A closed sample campaign is not reused for a new candidate invite.
 Their role permissions are real inside the demo database, but the shortcut is
 not a production authentication method. No demo credentials are embedded in
 HTML, JavaScript, source or logs. Demo accounts cannot change/reset passwords
