@@ -6,7 +6,8 @@ follows so the next change looks like it was written by the same hand.
 
 `ARCHITECTURE.md` is the product specification and wins over this file on
 anything about behaviour, permissions or data. This file only covers how the
-frontend is put together.
+frontend is put together. Read `PRODUCT_UI_HANDOFF.md` for the current
+account-home/practice work and remaining product decisions.
 
 ---
 
@@ -63,9 +64,11 @@ inline no-flash script sits between them; see §6.
 
 ## 3. The design language
 
-Forest green on a faintly green-cast neutral, with lime reserved for
-emphasis. Generous radii, tinted shadows (never neutral grey), tight letter
-spacing on headings and normal tracking on body text.
+Electric aqua on an off-white canvas in light mode, deep navy surfaces in
+dark mode. Green is reserved for verified/passed states; it is not a brand
+accent. Headings use tighter letter spacing than body text. The account home
+and practice question rail give different tasks different visual weights;
+avoid reducing every task to the same card.
 
 ### Tokens you will actually use
 
@@ -85,7 +88,7 @@ unreadable in dark mode.
 | `--ink` / `--ink-soft` / `--muted` | primary text, secondary text, supporting text |
 | `--brand` / `--brand-hover` / `--brand-ink` | filled brand surfaces, their hover, brand-coloured text |
 | `--on-brand` | text on a `--brand` fill. **Never `#fff`** — it is dark in dark mode |
-| `--accent` | lime. Sparingly: the brand mark, one badge, a gradient stop |
+| `--accent` | secondary accent; use sparingly, never as a substitute for the passed/verified green |
 | `--success-* --warn-* --danger-* --info-*` | status surfaces and their text |
 
 **Spacing** is `--sp-1` (4px) through `--sp-11` (80px) on a 4px base. Use the
@@ -196,16 +199,17 @@ distinct products. Groups with no visible items are not rendered at all.
 
 | Group | Item | Visible to |
 | --- | --- | --- |
-| — | Overview | everyone |
-| Assessment engine | Members | `ORG_ADMIN` |
-| | Question bank, Assessments | `ORG_ADMIN` `INSTRUCTOR` `RECRUITER` |
-| Academy *(Academy orgs only)* | Courses & batches / My batches | `ORG_ADMIN` `INSTRUCTOR` `LEARNER` |
-| | Batch workspace | `ORG_ADMIN` `INSTRUCTOR` |
-| | Messages | `INSTRUCTOR` `LEARNER` |
+| My account | My dashboard, Practice, Your workspaces | every signed-in account; Your workspaces appears with an active organization |
+| Workspace | Overview | accounts with an active organization |
+| Assessment engine | Assessment Studio | `ORG_ADMIN`, `INSTRUCTOR`, `RECRUITER` |
+| | Members | `ORG_ADMIN` |
+| Academy *(Academy orgs only)* | Academy Workspace / My batches | `ORG_ADMIN`, `INSTRUCTOR`, `LEARNER` |
+| | Messages | `INSTRUCTOR`, `LEARNER` |
 | | Certificates | `LEARNER` |
-| Talent *(Talent orgs only)* | Hiring campaigns, Campaign workspace | `ORG_ADMIN` `INSTRUCTOR` `RECRUITER` |
-| My work | My assessments, Assessment detail | `LEARNER` `CANDIDATE` |
-| Administration | Platform | verified platform admins |
+| Talent *(Talent orgs only)* | Talent Campaigns | Talent staff |
+| My work | My Assessments | `LEARNER`, `CANDIDATE` |
+| Administration | Billing | `ORG_ADMIN` |
+| | Platform Operations | verified platform admins |
 
 The learner-facing label changes with the role: staff see **Courses &
 batches**, a learner sees **My batches**. Same view, different entry point.
@@ -215,7 +219,18 @@ in the UI may suggest that the menu is the permission.
 
 ### 4.4 The views
 
-Thirteen, in nav order. "Sections" are the `h2` blocks inside the view.
+The view list is defined by `views` and `SCREENS` at the top of `app.js`.
+Screens can contain several views as tabs; do not count sidebar items as
+individual pages. The newer account-level views are:
+
+| View | Purpose | Data dependency |
+| --- | --- | --- |
+| `start` | Universal account dashboard, a next action and entry points into personal practice or workspaces | personal practice usage, first page of answer history, question list; first page of assignments for a learner/candidate in an active workspace |
+| `practice` | Personal question creation, question rail, answering and recent history | `/practice/questions`, `/practice/usage`, `/practice/answers/mine`; generation and answer POSTs |
+| `workspace-access` | Join by participant code, list existing memberships, create another workspace | organization and join-code APIs |
+
+The following older descriptions are retained as a map of major workspace
+areas; the current markup and `SCREENS` are authoritative for exact tabs.
 
 | View | For | Sections |
 | --- | --- | --- |
