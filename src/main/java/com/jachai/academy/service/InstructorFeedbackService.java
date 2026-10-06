@@ -22,6 +22,9 @@ import com.jachai.shared.audit.AuditAction;
 import com.jachai.shared.audit.AuditEvent;
 import com.jachai.shared.audit.AuditEventRepository;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,7 +84,7 @@ public class InstructorFeedbackService {
                         now, now, null, null)
                 : existing.revise(actorId, summary, nextSteps, now);
         try {
-            return FeedbackView.from(existing == null ? feedback.insert(next) : feedback.save(next));
+            return view(existing == null ? feedback.insert(next) : feedback.save(next));
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Feedback changed concurrently; reload it");
         }
@@ -95,7 +98,7 @@ public class InstructorFeedbackService {
         if (current.status() == FeedbackStatus.PUBLISHED) {
             ensurePublishedAudit(current);
             queuePublishedEmail(current);
-            return FeedbackView.from(current);
+            return view(current);
         }
         boolean released = attempt.percentage() != null && (attempt.resultReleasedAt() != null
                 || versions.get(organizationId, attempt.assessmentVersionId()).resultReleasePolicy()
@@ -108,7 +111,7 @@ public class InstructorFeedbackService {
             InstructorFeedback published = feedback.save(current.publish(actorId, Instant.now()));
             ensurePublishedAudit(published);
             queuePublishedEmail(published);
-            return FeedbackView.from(published);
+            return view(published);
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Feedback changed concurrently; reload it");
         }
@@ -121,10 +124,43 @@ public class InstructorFeedbackService {
         }
         feedback.findByOrganizationIdAndAttemptId(organizationId, attemptId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Feedback not found"));
-        return auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+        var history = auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
                 organizationId, "FEEDBACK", attemptId,
-                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")))
-                .map(FeedbackAuditView::from);
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")));
+        Map<String, String> actors = displayNames(history.getContent().stream()
+                .map(AuditEvent::actorUserId).toList());
+        return history.map(event ->
+                FeedbackAuditView.from(event, actors.get(event.actorUserId())));
+    }
+
+    /**
+     * Builds the view with the learner and the author named.
+     *
+     * <p>Every caller goes through here so no path can return feedback that identifies people only
+     * by id. The two ids are usually different accounts and sometimes the same one, so they are
+     * resolved in a single lookup either way.
+     */
+    private FeedbackView view(InstructorFeedback item) {
+        Map<String, String> names = displayNames(List.of(item.learnerUserId(), item.authorUserId()));
+        return FeedbackView.from(item, names.get(item.learnerUserId()),
+                names.get(item.authorUserId()));
+    }
+
+    /**
+     * Resolves display names for a set of accounts in one call.
+     *
+     * <p>A name can be absent — the account may have been removed — and the map simply has no
+     * entry for it. Callers keep the id, so the record still identifies someone.
+     */
+    private Map<String, String> displayNames(List<String> userIds) {
+        if (userIds.isEmpty()) return Map.of();
+        Map<String, String> names = new HashMap<>();
+        users.findAllById(userIds).forEach(user -> {
+            if (user.displayName() != null && !user.displayName().isBlank()) {
+                names.put(user.id(), user.displayName());
+            }
+        });
+        return names;
     }
 
     private void ensurePublishedAudit(InstructorFeedback published) {
@@ -156,7 +192,7 @@ public class InstructorFeedbackService {
 
     public FeedbackView staffView(String actorId, String organizationId, String attemptId) {
         requireAcademyStaff(actorId, organizationId);
-        return FeedbackView.from(feedback.findByOrganizationIdAndAttemptId(organizationId, attemptId)
+        return view(feedback.findByOrganizationIdAndAttemptId(organizationId, attemptId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Feedback not found")));
     }
 
@@ -171,7 +207,7 @@ public class InstructorFeedbackService {
                         organizationId, attemptId, learnerId)
                 .filter(item -> item.status() == FeedbackStatus.PUBLISHED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Feedback not found"));
-        return FeedbackView.from(found);
+        return view(found);
     }
 
     private Attempt submittedAttempt(String organizationId, String attemptId) {

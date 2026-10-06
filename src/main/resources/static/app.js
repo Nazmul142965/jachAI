@@ -2853,7 +2853,11 @@ function renderResult(result, target = '#result-panel') {
         const box = node('div', '', 'result-box');
         box.append(node('h3', 'Instructor feedback'));
         if (feedback) {
-          box.append(node('p', feedback.summary), node('h4', 'Next steps'), node('p', feedback.nextSteps));
+          // Who wrote it matters as much as what it says: a learner acts on feedback
+          // differently depending on whether their instructor or an administrator left it.
+          const author = (feedback.authorDisplayName || '').trim();
+          box.append(node('p', author ? `From ${author}` : 'From your instructor', 'muted'),
+            node('p', feedback.summary), node('h4', 'Next steps'), node('p', feedback.nextSteps));
         } else {
           box.append(node('p', 'Your instructor has not published feedback for this attempt yet.'));
         }
@@ -4616,7 +4620,7 @@ async function loadFeedbackAudit(attemptId, pageNumber) {
   if (state.organization?.id !== orgId || $('#feedback-form').elements.attemptId.value.trim() !== attemptId) return;
   setList('#feedback-audit-list', (page.content || []).map((event) => item(
     event.action.replaceAll('_', ' '),
-    `By ${event.actorUserId} · ${when(event.occurredAt)}`)),
+    `By ${actorName(event)} · ${actorIdNote(event)} · ${when(event.occurredAt)}`)),
   'No published feedback event recorded for this attempt.');
   renderPageControls('#feedback-audit-pagination', page,
     (nextPage) => loadFeedbackAudit(attemptId, nextPage));

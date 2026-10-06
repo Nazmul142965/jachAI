@@ -1,6 +1,7 @@
 package com.jachai.academy.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -243,6 +244,43 @@ class InstructorFeedbackServiceTests {
         return new InstructorFeedback("f1", "academy-a", "a1", "learner", "teacher",
                 "Good work", "Practice more", FeedbackStatus.DRAFT,
                 Instant.now(), Instant.now(), null, 0L);
+    }
+
+    @Test
+    void learnerFeedbackNamesTheInstructorWhoWroteIt() {
+        academy();
+        when(attempts.findByIdAndOrganizationIdAndUserId("a1", "academy-a", "learner"))
+                .thenReturn(Optional.of(attempt(Instant.now())));
+        when(feedback.findByOrganizationIdAndAttemptIdAndLearnerUserId("academy-a", "a1", "learner"))
+                .thenReturn(Optional.of(draft().publish("teacher", Instant.now())));
+        when(users.findAllById(List.of("learner", "teacher"))).thenReturn(List.of(
+                new User("learner", "learner@example.com", "Lina Learner", "hash", true, false,
+                        0, Instant.now()),
+                new User("teacher", "teacher@example.com", "Tariq Teacher", "hash", true, false,
+                        0, Instant.now())));
+
+        var view = service.learnerView("learner", "academy-a", "a1");
+
+        assertEquals("Tariq Teacher", view.authorDisplayName());
+        assertEquals("Lina Learner", view.learnerDisplayName());
+        assertEquals("teacher", view.authorUserId());
+    }
+
+    @Test
+    void feedbackLeavesNamesNullWhenTheAccountsNoLongerResolve() {
+        academy();
+        when(attempts.findByIdAndOrganizationIdAndUserId("a1", "academy-a", "learner"))
+                .thenReturn(Optional.of(attempt(Instant.now())));
+        when(feedback.findByOrganizationIdAndAttemptIdAndLearnerUserId("academy-a", "a1", "learner"))
+                .thenReturn(Optional.of(draft().publish("teacher", Instant.now())));
+        when(users.findAllById(List.of("learner", "teacher"))).thenReturn(List.of());
+
+        var view = service.learnerView("learner", "academy-a", "a1");
+
+        // The instructor's account is gone. The feedback must still be readable, and must still
+        // say which account wrote it.
+        assertNull(view.authorDisplayName());
+        assertEquals("teacher", view.authorUserId());
     }
 
     private AssessmentVersion version(ResultReleasePolicy policy) {
