@@ -1,5 +1,9 @@
 # JachAI working handoff
 
+Parallel assignment boundaries and paste-ready prompts are in
+`AGENT_WORKSTREAMS.md`. Assign one writer per lane and integrate reviewed
+commits only after branch handoff; this file is not a completion claim.
+
 ## Current continuation (2026-10-06)
 
 Payment checkpoint: both sandbox adapters now accept the local launcher's
