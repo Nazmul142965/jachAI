@@ -39,15 +39,17 @@ public class DemoAccountService {
     private final OrganizationRepository organizations;
     private final MembershipRepository memberships;
     private final AuthService auth;
+    private final DemoFixtureService fixtures;
 
     public DemoAccountService(MongoTemplate mongo, UserRepository users,
                               OrganizationRepository organizations, MembershipRepository memberships,
-                              AuthService auth) {
+                              AuthService auth, DemoFixtureService fixtures) {
         this.mongo = mongo;
         this.users = users;
         this.organizations = organizations;
         this.memberships = memberships;
         this.auth = auth;
+        this.fixtures = fixtures;
     }
 
     public List<DemoAccount> accounts() {
@@ -83,6 +85,7 @@ public class DemoAccountService {
         if (!user.emailVerified() || user.disabled() || !user.email().endsWith("@demo.jachai.invalid")) {
             throw new ApiException(HttpStatus.CONFLICT, "DEMO_ACCOUNT_CHANGED", "Demo account changed; use a fresh demo database");
         }
+        fixtures.seed();
         return auth.issueSession(user);
     }
 

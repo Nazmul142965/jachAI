@@ -17,7 +17,7 @@ class DemoAccountServiceTests {
     private final MongoTemplate mongo = mock(MongoTemplate.class);
     private final DemoAccountService service = new DemoAccountService(mongo,
             mock(UserRepository.class), mock(OrganizationRepository.class),
-            mock(MembershipRepository.class), mock(AuthService.class));
+            mock(MembershipRepository.class), mock(AuthService.class), mock(DemoFixtureService.class));
 
     @Test
     void refusesToExposeRolesAgainstNormalDatabase() {
