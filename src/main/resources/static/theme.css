@@ -154,13 +154,13 @@
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
   --font: var(--font-sans);
 
-  --text-2xs:  10.5px;
-  --text-xs:   11.5px;
-  --text-sm:   12px;
-  --text-md:   13px;
-  --text-base: 14px;
-  --text-lg:   16px;
-  --text-xl:   19px;
+  --text-2xs:  11px;
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-md:   14px;
+  --text-base: 15px;
+  --text-lg:   17px;
+  --text-xl:   21px;
   --text-2xl:  clamp(22px, 2.2vw, 27px);
   --text-3xl:  clamp(25px, 2.6vw, 34px);
   --text-display: clamp(40px, 5.4vw, 68px);

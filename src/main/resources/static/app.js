@@ -3822,6 +3822,17 @@ function updateOnboardingIntent() {
   if (intent === 'recruiter') $('#create-org-form [name="type"]').value = 'TALENT';
 }
 $('#onboarding-intent').addEventListener('change', updateOnboardingIntent);
+$('#start-practice').addEventListener('click', () => run(() => showScreen('practice')));
+$('#start-join').addEventListener('click', () => {
+  $('#onboarding-intent').value = 'learner';
+  updateOnboardingIntent();
+  $('#onboarding-join').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+$('#start-organize').addEventListener('click', () => {
+  $('#onboarding-intent').value = 'owner';
+  updateOnboardingIntent();
+  $('#onboarding-create').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 $('#onboarding-open-practice').addEventListener('click', () => run(() => showScreen('practice')));
 updateOnboardingIntent();
 for (const form of [$('#join-code-form'), $('#workspace-join-code-form')]) {

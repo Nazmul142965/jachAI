@@ -91,8 +91,16 @@
 
       <section id="start-view" class="view card panel hidden" aria-labelledby="onboarding-title">
         <p class="eyebrow">First steps</p>
-        <h2 id="onboarding-title">What are you here to do?</h2>
-        <p class="muted">Choose a path to see the next step. This choice does not grant a role; a workspace owner controls access.</p>
+        <h2 id="onboarding-title">Make this space yours.</h2>
+        <p class="muted">Start practicing on your own, join a team with a code, or build a private assessment workspace. Your account can do more than one.</p>
+        <div class="start-actions" aria-label="Ways to begin">
+          <button id="start-practice" class="start-action" type="button"><span class="start-action-number">01 / PERSONAL</span><strong>Practice a skill</strong><span>Answer a question and see the explanation immediately.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-join" class="start-action" type="button"><span class="start-action-number">02 / PARTICIPANT</span><strong>Join a workspace</strong><span>Use an invitation or organizer-issued code.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-organize" class="start-action" type="button"><span class="start-action-number">03 / ORGANIZER</span><strong>Run assessments</strong><span>Create an Academy or Talent workspace.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+        </div>
+        <div class="start-details">
+        <h3>Find your exact path</h3>
+        <p class="muted">Choose a role for tailored guidance. This does not assign permissions; access comes from an invitation or a workspace you own.</p>
         <label class="onboarding-choice">I am here as
           <select id="onboarding-intent">
             <option value="">Choose your path</option>
@@ -122,6 +130,7 @@
               <button class="button primary" type="submit">Create workspace</button>
             </form>
           </div>
+        </div>
         </div>
       </section>
 
