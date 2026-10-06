@@ -48,8 +48,10 @@ public class GoogleIdTokenVerifier {
         String issuer = token.getIssuer() == null ? "" : token.getIssuer().toString();
         String subject = token.getSubject();
         String email = token.getClaimAsString("email");
+        String authorizedParty = token.getClaimAsString("azp");
         if (!("https://accounts.google.com".equals(issuer) || "accounts.google.com".equals(issuer))
-                || !token.getAudience().contains(clientId)
+                || token.getAudience().size() != 1 || !clientId.equals(token.getAudience().get(0))
+                || authorizedParty != null && !clientId.equals(authorizedParty)
                 || subject == null || subject.isBlank()
                 || email == null || email.isBlank()
                 || !Boolean.TRUE.equals(token.getClaim("email_verified"))) {
