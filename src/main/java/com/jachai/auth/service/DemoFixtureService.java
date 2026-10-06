@@ -22,6 +22,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Profile("demo & !prod")
 @RequiredArgsConstructor
+@Slf4j
 public class DemoFixtureService {
     private final MongoTemplate mongo;
     private final QuestionService questions;
@@ -40,12 +42,21 @@ public class DemoFixtureService {
     private final TalentCampaignService campaigns;
 
     public void seed() {
-        seedAssessment("demo-org-academy", "demo-account-instructor", "demo-account-learner",
+        seedSafely("demo-org-academy", "demo-account-instructor", "demo-account-learner",
                 "Which annotation marks a Spring class as a REST controller?",
                 "Spring Boot foundations — demo assessment", false);
-        seedAssessment("demo-org-talent", "demo-account-recruiter", "demo-account-candidate",
+        seedSafely("demo-org-talent", "demo-account-recruiter", "demo-account-candidate",
                 "Which HTTP method is normally used to replace a resource?",
                 "Backend engineer — demo assessment", true);
+    }
+
+    private void seedSafely(String org, String author, String participant, String prompt,
+                            String title, boolean talent) {
+        try {
+            seedAssessment(org, author, participant, prompt, title, talent);
+        } catch (RuntimeException exception) {
+            log.warn("Demo example setup incomplete for {}: {}", org, exception.getClass().getSimpleName());
+        }
     }
 
     private void seedAssessment(String org, String author, String participant, String prompt,

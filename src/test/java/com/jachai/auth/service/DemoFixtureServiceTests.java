@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -80,5 +81,31 @@ class DemoFixtureServiceTests {
         verify(assignments, never()).assign(any(), any(), any(), any());
         verify(campaigns, never()).invite(any(), any(), any(), any());
         verify(questions, never()).create(any(), any(), any());
+    }
+
+    @Test
+    void academySetupFailureDoesNotSkipTalentSetup() {
+        Question talentQuestion = mock(Question.class);
+        when(talentQuestion.id()).thenReturn("talent-q");
+        when(talentQuestion.status()).thenReturn(QuestionStatus.APPROVED);
+        when(questions.create(any(), any(), any()))
+                .thenThrow(new IllegalStateException("academy unavailable"))
+                .thenReturn(talentQuestion);
+        Assessment talentAssessment = mock(Assessment.class);
+        when(talentAssessment.id()).thenReturn("talent-a");
+        when(talentAssessment.status()).thenReturn(AssessmentStatus.PUBLISHED);
+        when(assessments.create(any(), any(), any())).thenReturn(talentAssessment);
+        CampaignView campaign = mock(CampaignView.class);
+        when(campaign.id()).thenReturn("talent-c");
+        when(campaigns.create(any(), any(), any())).thenReturn(campaign);
+        HiringCampaign storedCampaign = mock(HiringCampaign.class);
+        when(storedCampaign.id()).thenReturn("talent-c");
+        when(mongo.findById("talent-c", HiringCampaign.class)).thenReturn(storedCampaign);
+
+        service.seed();
+
+        verify(questions, times(2)).create(any(), any(), any());
+        verify(campaigns).invite(eq("demo-account-recruiter"), eq("demo-org-talent"),
+                eq("talent-c"), any());
     }
 }
