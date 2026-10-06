@@ -993,7 +993,7 @@ async function loadGlance(role, academy, staff, participant) {
     }
     if (participant) {
       count('/assignments/mine?page=0', 'Assignments', 'attempts');
-      if (academy && role === 'LEARNER') count('/certificates?page=0', 'Certificates', 'certificates');
+      if (academy && role === 'LEARNER') count('/certificates/mine?page=0', 'Certificates', 'certificates');
     }
     if (['INSTRUCTOR', 'LEARNER'].includes(role)) {
       count('/messaging/conversations?page=0', 'Conversations', 'messages');
@@ -1076,7 +1076,7 @@ async function loadActivity(role, academy, staff, participant) {
     const entries = [];
 
     if (participant) {
-      const certificates = academy && role === 'LEARNER' ? await maybe('/certificates?page=0') : null;
+      const certificates = academy && role === 'LEARNER' ? await maybe('/certificates/mine?page=0') : null;
       for (const certificate of rowsOf(certificates).slice(0, 3)) {
         entries.push(item(`Certificate ${certificate.verificationCode || certificate.id}`,
           `${certificate.status || 'ISSUED'} · issued ${relative(certificate.issuedAt)}`,

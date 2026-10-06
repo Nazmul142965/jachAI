@@ -870,7 +870,11 @@ a:focus-visible,
   .hero h1 { font-size: 46px; }
   .hero-points { margin-top: var(--sp-5); }
 
-  .workspace { grid-template-columns: 1fr; }
+  /* minmax(0, …), not a bare 1fr. A bare 1fr is minmax(auto, 1fr), so any item
+     with a wide min-content size pushes the track past the viewport and the whole
+     page scrolls sideways — measured at 322px inside a 320px viewport. The
+     desktop rule above already guards this; the override dropped the guard. */
+  .workspace { grid-template-columns: minmax(0, 1fr); }
   .sidebar {
     position: static;
     max-height: none;
