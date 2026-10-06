@@ -88,9 +88,11 @@ Checks performed for this slice:
 - `git diff --check` passed.
 - `node src/test/frontend/run-journeys.js` was attempted, but the local
   headless browser never reported a journey result after starting the static
-  server; the run was interrupted. Treat browser verification as **pending**,
-  not passing. Investigate the local Chrome/DevTools launch separately rather
-  than repeatedly rerunning the entire suite.
+  server. A second focused `--no-workspace-only` run behaved the same way.
+  Both runs were interrupted. Treat browser verification as **pending**, not
+  passing. Investigate the local Chrome/DevTools launch separately rather
+  than repeatedly rerunning the entire suite. The no-workspace and learner
+  fixture assertions were updated for the new dashboard and question rail.
 
 The normal commands for a later verifier are:
 

@@ -157,8 +157,11 @@ async function main() {
     await load('no-workspace');
     check('no-workspace', 'registration explains that local mode does not email links',
       /does not send email/.test(await ev(`document.querySelector('#registration-mail-mode').textContent`)));
-    check('no-workspace', 'new account opens Get started without creating an organization',
+    check('no-workspace', 'new account opens My dashboard without creating an organization',
       await route() === '#/start' && await ev(`!document.querySelector('#start-view').classList.contains('hidden')`));
+    check('no-workspace', 'dashboard recommends a real next action',
+      await ev(`!document.querySelector('#home-next-action').disabled
+        && document.querySelector('#home-next-detail').textContent.length > 20`));
     check('no-workspace', 'Practice is available without an organization',
       await ev(`[...document.querySelectorAll('#workspace-nav button')].some((b) => b.textContent === 'Practice')`));
     check('no-workspace', 'empty organization has no phantom role badge',
@@ -168,6 +171,7 @@ async function main() {
       await route() === '#/practice'
       && /Create a question above/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
       && await ev(`document.querySelector('#practice-question').options.length > 1`)
+      && await ev(`document.querySelectorAll('#practice-question-list button').length > 1`)
       && /20 answers and 20 new AI questions/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
     await ev(`(() => { const form = document.querySelector('#practice-generate-form');
       form.querySelector('[name=topic]').value = 'Spring transactions';
@@ -176,6 +180,7 @@ async function main() {
     await wait(450);
     check('no-workspace', 'personal topic generates a new selectable question',
       /Spring transactions/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
+      && /Question ready/.test(await ev(`document.querySelector('#practice-generation-status').textContent`))
       && /19 new AI questions/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
     check('no-workspace', 'no uncaught JavaScript exceptions', page.errors.length === 0,
       page.errors.slice(0, 2).join(' | '));
@@ -202,12 +207,13 @@ async function main() {
   const journey = 'learner';
   const nav = await ev(`[...document.querySelectorAll('#workspace-nav button')].map((b) => b.textContent)`);
   check(journey, 'sign-in reaches the workspace shell', await ev(`!document.querySelector('#app').classList.contains('hidden')`));
-  check(journey, 'learner lands on their own assignments', await route() === '#/my-assessments/attempts', await route());
+  check(journey, 'learner lands on account dashboard with assessments one click away',
+    await route() === '#/start' && nav.includes('My Assessments'), await route());
   check(journey, 'nav is learner-scoped',
     nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
     nav.join(', '));
   check(journey, 'nav lists screens, not every view',
-    nav.length <= 7 && !nav.includes('Batch workspace'), nav.join(', '));
+    nav.length <= 8 && !nav.includes('Batch workspace'), nav.join(', '));
   check(journey, 'account-level Practice is reachable', nav.includes('Practice'), nav.join(', '));
   await view('Practice'); await wait(450);
   check(journey, 'Practice shows a private question without its answer key',
