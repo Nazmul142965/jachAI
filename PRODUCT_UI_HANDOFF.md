@@ -36,6 +36,11 @@ unanswered. Generation has visible busy/success/failure states. A successful
 POST displays the returned question immediately, even if the subsequent list
 or usage refresh fails. Unknown usage disables further generation until the
 user reopens Practice, rather than guessing the remaining allowance.
+On first open, the first returned question is selected automatically; the
+large empty fieldset prompt was removed. If the question list really cannot
+load, the answer form is hidden and a small retry panel is shown instead.
+The desktop workspace background continues the sidebar surface through the
+full page height, and Practice has less trailing space below its panels.
 
 ## Existing API dependencies and limits
 
@@ -110,3 +115,26 @@ The browser fixture runner uses a static server and mocked API responses;
 passing it is not proof that MongoDB, SMTP, an AI provider or payments work.
 Record actual results in the commit message/handoff after the run. A live
 authenticated browser pass is still required before production.
+
+## Account and practice follow-up (2026-10-06)
+
+- `GET /api/v1/auth/me` returns email, display name, verification and sign-in
+  method flags, and account creation time; never returns password hashes.
+- `PATCH /api/v1/auth/me` changes only the display name.
+- `POST /api/v1/auth/change-password` requires the current password, changes
+  the hash, increments `securityVersion`, and revokes refresh sessions. The UI
+  signs out after success. Google-only accounts use the password-reset link.
+- The Account screen is available even without an organization. It shows the
+  personal free practice allowance and, for organization admins, the workspace
+  tier. Personal paid plans are not implemented; the UI does not offer payment.
+- Practice shows both used and remaining daily allowances. A provider failure
+  is **not** evidence that the user used their allowance or that the provider
+  exhausted its quota. Without the provider response/log, distinguish neither.
+- The first practice question is selected automatically; a retry panel is
+  shown only when no questions can be loaded. The sidebar background continues
+  to the bottom of the desktop workspace, and generation has a visible active
+  state without claiming an estimated completion time.
+- Verification for this follow-up: `AuthServiceTests` passed with Java 21;
+  `node --check src/main/resources/static/app.js` passed; the focused
+  `--no-workspace-only` browser fixture passed 12/12 checks. Live SMTP, MongoDB,
+  and AI provider behavior were not tested in this slice.

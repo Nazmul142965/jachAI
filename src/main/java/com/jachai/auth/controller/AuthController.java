@@ -24,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -62,6 +63,28 @@ public class AuthController {
     public record ResetPasswordRequest(@NotBlank String token,
                                        @NotBlank @Size(min = 6, max = 128) String newPassword) { }
     public record GoogleCredentialRequest(@NotBlank @Size(max = 8192) String credential) { }
+    public record UpdateProfileRequest(@NotBlank @Size(min = 2, max = 80) String displayName) { }
+    public record ChangePasswordRequest(@NotBlank String currentPassword,
+                                        @NotBlank @Size(min = 6, max = 128) String newPassword) { }
+
+    @GetMapping("/me")
+    public AuthService.AccountView me(@AuthenticationPrincipal Jwt jwt) {
+        return auth.me(jwt.getSubject());
+    }
+
+    @PatchMapping("/me")
+    public AuthService.AccountView updateProfile(@AuthenticationPrincipal Jwt jwt,
+                                                  @Valid @RequestBody UpdateProfileRequest request) {
+        return auth.updateDisplayName(jwt.getSubject(), request.displayName());
+    }
+
+    @PostMapping("/change-password")
+    public Map<String, String> changePassword(@AuthenticationPrincipal Jwt jwt,
+                                               @Valid @RequestBody ChangePasswordRequest request) {
+        limits.consume(RateLimitPolicy.PASSWORD_CHANGE_ACCOUNT, jwt.getSubject());
+        auth.changePassword(jwt.getSubject(), request.currentPassword(), request.newPassword());
+        return Map.of("message", "Password changed. Sign in again on all devices");
+    }
 
     @GetMapping("/google/config")
     public Map<String, String> googleConfig() {

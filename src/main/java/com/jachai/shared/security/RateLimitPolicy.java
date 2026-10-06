@@ -11,6 +11,7 @@ public enum RateLimitPolicy {
     RESEND_ACCOUNT(3, Duration.ofHours(1)),
     RESET_IP(5, Duration.ofHours(1)),
     RESET_ACCOUNT(3, Duration.ofHours(1)),
+    PASSWORD_CHANGE_ACCOUNT(5, Duration.ofHours(1)),
     VERIFY_IP(30, Duration.ofMinutes(1)),
     REFRESH_IP(60, Duration.ofMinutes(1)),
     CERTIFICATE_IP(60, Duration.ofMinutes(1)),

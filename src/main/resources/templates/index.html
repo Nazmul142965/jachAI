@@ -78,7 +78,7 @@
       <div id="sidebar-foot" class="sidebar-foot">Your work is saved to your organization's workspace.</div>
     </aside>
     <div class="content">
-      <div class="page-head"><div><p class="eyebrow">JachAI workspace</p><h1 id="page-title">Overview</h1><p id="page-subtitle" class="muted"></p></div><span id="busy" class="pill hidden" role="status" aria-live="polite"></span></div>
+      <div class="page-head"><div><p class="eyebrow">JachAI workspace</p><h1 id="page-title">Overview</h1><p id="page-subtitle" class="muted"></p><p id="page-role-context" class="page-role-context"></p></div><span id="busy" class="pill hidden" role="status" aria-live="polite"></span></div>
       <div id="screen-tabs" class="tabs hidden" role="tablist" aria-label="Section"></div>
 
       <section id="workspace-access-view" class="view hidden" aria-labelledby="workspace-access-heading">
@@ -92,13 +92,16 @@
       <section id="start-view" class="view card panel hidden" aria-labelledby="onboarding-title">
         <p class="eyebrow">Your account</p>
         <h2 id="onboarding-title">Your next step starts here.</h2>
-        <p class="muted">Practice for yourself, complete an assessment you've been invited to, or manage an Academy or Talent workspace. One account can do all three.</p>
+        <p id="home-role" class="home-role" role="status">Checking your workspace role…</p>
+        <p id="home-intro" class="muted">Practice for yourself, complete an assessment you've been invited to, or manage an Academy or Talent workspace. One account can do all three.</p>
+        <button id="home-account-action" class="button quiet small" type="button">View profile, password and plan</button>
         <div class="home-next" aria-labelledby="home-next-title">
           <div><p class="home-kicker">Recommended next</p><h3 id="home-next-title">Checking your recent work…</h3><p id="home-next-detail" class="muted" role="status" aria-live="polite">Your personal practice and workspace access are loading.</p></div>
           <button id="home-next-action" class="button primary" type="button" disabled>Continue</button>
         </div>
         <div id="home-context" class="home-context" aria-label="Your account at a glance"></div>
-        <div class="start-actions" aria-label="Ways to begin">
+        <h3 id="home-explore-title" class="home-explore-title">More you can do</h3>
+        <div class="start-actions" aria-label="More ways to use JachAI">
           <button id="start-practice" class="start-action" type="button"><span class="start-action-number">Your own progress</span><strong>Practice a skill</strong><span>Pick a topic, create a question, and learn from the explanation.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
           <button id="start-join" class="start-action" type="button"><span class="start-action-number">Your invitation</span><strong>Join a workspace</strong><span>Use an invitation or organizer-issued code.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
           <button id="start-organize" class="start-action" type="button"><span class="start-action-number">Your team</span><strong>Run assessments</strong><span>Create an Academy or Talent workspace.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
@@ -139,6 +142,14 @@
         </details>
       </section>
 
+      <section id="account-view" class="view hidden" aria-label="Profile and account settings">
+        <div class="account-grid">
+          <div class="card panel"><h2>Your profile</h2><p class="muted">This identity follows you across personal practice and every workspace. Your role is set separately in each workspace.</p><div id="account-identity" class="account-identity" role="status">Loading profile…</div><form id="account-profile-form" class="stack"><label>Display name<input name="displayName" minlength="2" maxlength="80" autocomplete="name" required></label><button class="button secondary" type="submit">Save display name</button></form></div>
+          <div class="card panel"><h2>Sign-in and security</h2><p id="account-login-method" class="muted">Checking sign-in methods…</p><form id="account-password-form" class="stack"><label>Current password<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>New password <small>(at least 6 characters)</small><input name="newPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><button class="button secondary" type="submit">Change password</button></form><p class="muted">Forgot your current password, or signed up with Google? <a href="/reset-password.html">Request a password reset link</a>.</p></div>
+          <div class="card panel account-plan"><h2>Plan and usage</h2><div id="account-plan" role="status">Loading your current allowance…</div></div>
+        </div>
+      </section>
+
       <section id="practice-view" class="view hidden" aria-labelledby="practice-heading">
         <div class="practice-layout">
           <div class="practice-main card panel">
@@ -150,9 +161,14 @@
               <label class="practice-generator-focus">Optional focus<input name="brief" maxlength="400" placeholder="e.g. rollback rules and exceptions"></label>
               <button id="practice-generate" class="button secondary" type="submit">Create a question</button>
             </form>
-            <div id="practice-generation-status" class="practice-generation-status" role="status" aria-live="polite">AI questions need a configured provider. If unavailable, use a starter question below.</div>
+            <div id="practice-generation-status" class="practice-generation-status">
+              <span class="practice-generation-visual" aria-hidden="true"><span></span><span></span><span></span></span>
+              <div class="practice-generation-copy"><strong id="practice-generation-message" role="status" aria-live="polite">Ready when you are</strong><p id="practice-generation-detail">Choose a topic above, or answer a question already in your list.</p></div>
+              <button id="practice-browse" class="button quiet small hidden" type="button">Browse existing questions</button>
+            </div>
             <label class="sr-only" for="practice-question">Selected question</label>
             <select id="practice-question" class="sr-only" tabindex="-1" aria-hidden="true"></select>
+            <div id="practice-empty" class="practice-empty hidden" role="status"><h3>Questions could not be loaded</h3><p>Try loading Practice again. You can still create a question if today's allowance is available.</p><button id="practice-retry" class="button secondary" type="button">Reload questions</button></div>
             <form id="practice-answer-form" class="stack">
               <fieldset id="practice-options"><legend id="practice-prompt">Select a question to begin.</legend></fieldset>
               <button id="practice-submit" class="button primary" type="submit">Check answer</button>

@@ -41,6 +41,9 @@ public class AuthService {
     private final AccessRevocationService revocations;
     private final String publicBaseUrl;
 
+    public record AccountView(String email, String displayName, boolean emailVerified,
+                              boolean passwordSet, boolean googleLinked, Instant createdAt) { }
+
     public AuthService(UserRepository users, EmailVerificationTokenRepository tokens,
                        PasswordResetTokenRepository resetTokens,
                        MongoTemplate mongo, PasswordEncoder passwords, EmailSender emailSender,
@@ -108,6 +111,60 @@ public class AuthService {
             throw new ApiException(HttpStatus.FORBIDDEN, "EMAIL_UNVERIFIED", "Verify your email before signing in");
         }
         return issueSession(user);
+    }
+
+    public AccountView me(String userId) {
+        User user = activeUser(userId);
+        return new AccountView(user.email(), user.displayName(), user.emailVerified(),
+                user.passwordHash() != null, user.googleSubject() != null, user.createdAt());
+    }
+
+    public AccountView updateDisplayName(String userId, String rawName) {
+        String name = rawName == null ? "" : rawName.trim();
+        if (name.length() < 2 || name.length() > 80) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DISPLAY_NAME",
+                    "Display name must be between 2 and 80 characters");
+        }
+        activeUser(userId);
+        UpdateResult result = mongo.updateFirst(Query.query(Criteria.where("_id").is(userId)
+                        .and("emailVerified").is(true).and("disabled").is(false)),
+                new Update().set("displayName", name), User.class);
+        if (result.getMatchedCount() != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "ACCOUNT_CHANGED", "Account changed; reload and try again");
+        }
+        return me(userId);
+    }
+
+    public void changePassword(String userId, String currentPassword, String newPassword) {
+        User user = activeUser(userId);
+        if (user.passwordHash() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PASSWORD_NOT_SET",
+                    "Password sign-in is not enabled; request a password reset link to set one");
+        }
+        if (!passwords.matches(currentPassword, user.passwordHash())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "CURRENT_PASSWORD_INVALID", "Current password is incorrect");
+        }
+        if (passwords.matches(newPassword, user.passwordHash())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PASSWORD_UNCHANGED", "Choose a different password");
+        }
+        UpdateResult result = mongo.updateFirst(Query.query(Criteria.where("_id").is(user.id())
+                        .and("passwordHash").is(user.passwordHash())
+                        .and("securityVersion").is(user.securityVersion())
+                        .and("emailVerified").is(true).and("disabled").is(false)),
+                new Update().set("passwordHash", passwords.encode(newPassword))
+                        .inc("securityVersion", 1), User.class);
+        if (result.getMatchedCount() != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "ACCOUNT_CHANGED", "Account changed; reload and try again");
+        }
+        resetTokens.deleteByUserId(user.id());
+        mongo.remove(Query.query(Criteria.where("userId").is(user.id())), RefreshSession.class);
+    }
+
+    private User activeUser(String userId) {
+        return users.findById(userId)
+                .filter(user -> user.emailVerified() && !user.disabled())
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "ACCOUNT_UNAVAILABLE",
+                        "Account is unavailable"));
     }
 
     public AuthResponse refresh(String rawToken) {

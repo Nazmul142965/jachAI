@@ -167,12 +167,17 @@ async function main() {
     check('no-workspace', 'empty organization has no phantom role badge',
       await ev(`document.querySelector('#workspace-role').classList.contains('hidden')`));
     await view('Practice'); await wait(450);
+    const practiceReady = await ev(`(() => ({
+      options: document.querySelectorAll('#practice-options input[type=radio]').length,
+      emptyHidden: document.querySelector('#practice-empty').classList.contains('hidden'),
+      selectOptions: document.querySelector('#practice-question').options.length,
+      railItems: document.querySelectorAll('#practice-question-list button').length,
+      usage: document.querySelector('#practice-usage').textContent
+    }))()`);
     check('no-workspace', 'practice question and allowance load without an organization',
-      await route() === '#/practice'
-      && /Create a question above/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
-      && await ev(`document.querySelector('#practice-question').options.length > 1`)
-      && await ev(`document.querySelectorAll('#practice-question-list button').length > 1`)
-      && /20 answers and 20 new AI questions/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+      await route() === '#/practice' && practiceReady.options > 0 && practiceReady.emptyHidden
+      && practiceReady.selectOptions > 1 && practiceReady.railItems >= 1
+      && /^0\/20 AI questions creat/.test(practiceReady.usage), JSON.stringify(practiceReady));
     await ev(`(() => { const form = document.querySelector('#practice-generate-form');
       form.querySelector('[name=topic]').value = 'Spring transactions';
       form.querySelector('[name=difficulty]').value = 'INTERMEDIATE';
@@ -181,7 +186,7 @@ async function main() {
     check('no-workspace', 'personal topic generates a new selectable question',
       /Spring transactions/.test(await ev(`document.querySelector('#practice-prompt').textContent`))
       && /Question ready/.test(await ev(`document.querySelector('#practice-generation-status').textContent`))
-      && /19 new AI questions/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+      && /1\/20 AI questions created \(19 left\)/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
     check('no-workspace', 'no uncaught JavaScript exceptions', page.errors.length === 0,
       page.errors.slice(0, 2).join(' | '));
     await page.send('Page.navigate', { url: `${server.url}/verify-email.html` }); await wait(750);
@@ -213,7 +218,7 @@ async function main() {
     nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
     nav.join(', '));
   check(journey, 'nav lists screens, not every view',
-    nav.length <= 8 && !nav.includes('Batch workspace'), nav.join(', '));
+    nav.length <= 9 && !nav.includes('Batch workspace'), nav.join(', '));
   check(journey, 'account-level Practice is reachable', nav.includes('Practice'), nav.join(', '));
   await view('Practice'); await wait(450);
   check(journey, 'Practice shows a private question without its answer key',
@@ -230,7 +235,7 @@ async function main() {
     /Correct/.test(await ev(`document.querySelector('#practice-result').textContent`))
       && /Records generate/.test(await ev(`document.querySelector('#practice-result').textContent`)));
   check(journey, 'Practice shows the consumed free allowance',
-    /19 answers/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+    /1\/20 answers checked \(19 left\)/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
   await view('Overview'); await wait(350);
 
   // The signed-in overview is a command centre, not marketing copy.

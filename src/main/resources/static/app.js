@@ -21,9 +21,9 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   versionsAssessment: null, versionsToken: 0,
   orderDetailId: null, orderDetailToken: 0,
   practiceQuestions: [], practiceAnswers: [], practiceRequestId: null, practiceRemaining: 0,
-  homeAction: null,
+  homeAction: null, profile: null,
   view: 'overview' };
-const views = ['start', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+const views = ['start', 'account', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
@@ -32,6 +32,7 @@ const views = ['start', 'practice', 'overview', 'workspace-access', 'members', '
 // grouping and a route, not a new container.
 const SCREENS = {
   start: { title: 'My dashboard', subtitle: 'Your learning and work in one place', views: [['start', 'My dashboard']] },
+  account: { title: 'Profile & settings', subtitle: 'Your identity, sign-in and plan', views: [['account', 'Profile & settings']] },
   practice: { title: 'Practice', subtitle: 'Learn at your own pace', views: [['practice', 'Practice']] },
   overview: { title: 'Overview', subtitle: '', views: [['overview', 'Overview']] },
   'workspace-access': { title: 'Your workspaces', subtitle: 'Join or create another workspace',
@@ -252,6 +253,7 @@ function showSignedOut() {
   state.activeAttempt = null; state.activeConversationId = null; state.messagePage = 0;
   state.practiceQuestions = []; state.practiceAnswers = []; state.practiceRequestId = null;
   state.practiceRemaining = 0; state.practiceGenerationRemaining = 0; state.homeAction = null;
+  state.profile = null;
   state.tutorHistory.clear();
   state.activeReviewAttemptId = null;
   state.emailInvitationCampaignId = null;
@@ -429,14 +431,17 @@ async function setOrganization() {
     ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${state.organization.owner ? 'Owner / Org Admin' : roleTitle(state.organization.myRole)}`
     : '';
   $('#workspace-role').classList.toggle('hidden', !state.organization);
+  $('#page-role-context').textContent = state.organization
+    ? `Current role: ${state.organization.owner ? 'Owner / Org Admin' : roleTitle(state.organization.myRole)} in ${state.organization.name}. Roles in other workspaces may differ.`
+    : 'Personal account · No Academy or Talent role yet';
   const headerContext = document.querySelector('.topbar-note');
   if (headerContext) headerContext.textContent = state.organization
     ? `${state.organization.name} · ${state.organization.owner ? 'Owner' : roleTitle(state.organization.myRole)}`
     : 'Your personal learning space';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
-    availableScreens = ['start', 'practice', ...(state.platformAdmin ? ['platform'] : [])];
-    for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'],
+    availableScreens = ['start', 'practice', 'account', ...(state.platformAdmin ? ['platform'] : [])];
+    for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'],
       ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])]) {
       const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
       tab.addEventListener('click', () => run(() => showScreen(key)));
@@ -466,7 +471,7 @@ async function setOrganization() {
   // Talent read as related but distinct products.
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
-  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['workspace-access', 'Your workspaces']]);
+  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'], ['workspace-access', 'Your workspaces']]);
   group('Workspace', [['overview', 'Overview']]);
   group('Assessment engine', [
     ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
@@ -520,6 +525,20 @@ async function loadHome() {
   const participant = role === 'LEARNER' || role === 'CANDIDATE';
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
   const academy = state.organization?.type === 'ACADEMY';
+  const organization = state.organization;
+  $('#home-role').textContent = organization
+    ? `${academy ? 'Academy' : 'Talent'} workspace · ${organization.name} · ${organization.owner ? 'Owner / Org Admin' : roleTitle(role)}`
+    : 'Personal account · No workspace role yet';
+  $('#onboarding-title').textContent = !organization ? 'Practice now. Join a team when you are ready.'
+    : participant ? 'Your learning, in one place.' : 'Your workspace, your next decision.';
+  $('#home-intro').textContent = !organization
+    ? 'You can practice without an organization. A join code or invitation adds Academy or Talent access later.'
+    : participant
+      ? 'Your personal practice stays separate from assigned assessments and official results.'
+      : 'Your role applies only to this workspace. Personal practice and other workspaces stay separate.';
+  $('#start-view .start-details').classList.toggle('hidden', !!organization);
+  $('#start-join strong').textContent = organization ? 'Join another workspace' : 'Join a workspace';
+  $('#start-organize strong').textContent = organization ? 'Create another workspace' : 'Run assessments';
   const requests = [
     request('/practice/usage'),
     request('/practice/answers/mine?page=0'),
@@ -600,6 +619,90 @@ async function loadHome() {
   next.disabled = false;
 }
 $('#home-next-action').addEventListener('click', () => run(() => state.homeAction?.()));
+$('#home-account-action').addEventListener('click', () => run(() => showScreen('account')));
+
+async function loadAccount() {
+  const admin = state.organization?.myRole === 'ORG_ADMIN';
+  const [profileResult, usageResult, planResult] = await Promise.allSettled([
+    request('/auth/me'), request('/practice/usage'),
+    admin ? request(ownOrg('/billing/entitlements')) : Promise.resolve(null)
+  ]);
+  const identity = $('#account-identity');
+  identity.replaceChildren();
+  if (profileResult.status === 'fulfilled') {
+    const profile = profileResult.value;
+    state.profile = profile;
+    $('#account-profile-form').classList.remove('hidden');
+    identity.append(node('p', profile.displayName, 'account-name'),
+      node('p', profile.email, 'account-email'),
+      node('p', profile.emailVerified ? 'Email verified' : 'Email not verified', 'account-verification'));
+    $('#account-profile-form [name="displayName"]').value = profile.displayName;
+    $('#account-login-method').textContent = `${profile.passwordSet ? 'Password sign-in enabled' : 'No password set'}${profile.googleLinked ? ' · Google linked' : ''}.`;
+    $('#account-password-form').classList.toggle('hidden', !profile.passwordSet);
+  } else {
+    identity.append(node('p', 'Profile could not be loaded. Reopen this page to retry.', 'muted'));
+    $('#account-profile-form').classList.add('hidden');
+    $('#account-password-form').classList.add('hidden');
+    $('#account-login-method').textContent = 'Sign-in methods unavailable right now.';
+  }
+  const plan = $('#account-plan');
+  plan.replaceChildren();
+  if (usageResult.status === 'fulfilled') {
+    const usage = usageResult.value;
+    plan.append(node('h3', 'Personal practice · Free'),
+      node('p', `${usage.generated} of ${usage.generationLimit} AI questions created today (UTC)`));
+    const generated = document.createElement('progress');
+    generated.max = usage.generationLimit; generated.value = usage.generated;
+    generated.setAttribute('aria-label', 'AI questions used today');
+    plan.append(generated, node('p', `${usage.used} of ${usage.dailyLimit} answers used today (UTC)`));
+    const answered = document.createElement('progress');
+    answered.max = usage.dailyLimit; answered.value = usage.used;
+    answered.setAttribute('aria-label', 'Answers used today');
+    plan.append(answered, node('p', 'Personal paid plans are not available yet. No payment is collected for personal practice.', 'muted'));
+  } else {
+    plan.append(node('p', 'Personal practice allowance could not be loaded. Reopen this page to retry.', 'muted'));
+  }
+  if (admin) {
+    plan.append(node('h3', 'Current workspace plan'));
+    if (planResult.status === 'fulfilled') {
+      plan.append(node('p', `${state.organization.name}: ${planResult.value.tier}`),
+        button('Open billing and limits', () => showScreen('billing'), 'button secondary small'));
+    } else plan.append(node('p', 'Workspace plan could not be loaded right now.', 'muted'));
+  } else if (state.organization) {
+    plan.append(node('h3', 'Current workspace plan'),
+      node('p', 'Your organization administrator manages this plan and its billing.', 'muted'));
+  }
+}
+
+$('#account-profile-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(async () => {
+    const form = event.currentTarget;
+    const control = form.querySelector('button[type="submit"]');
+    control.disabled = true;
+    try {
+      const profile = await request('/auth/me', { method: 'PATCH', body: { displayName: new FormData(form).get('displayName') } });
+      state.profile = profile;
+      $('#account-identity .account-name').textContent = profile.displayName;
+      notice('Display name saved.');
+    } finally { control.disabled = false; }
+  });
+});
+
+$('#account-password-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(async () => {
+    const form = event.currentTarget;
+    const control = form.querySelector('button[type="submit"]');
+    control.disabled = true;
+    try {
+      await request('/auth/change-password', { method: 'POST', body: Object.fromEntries(new FormData(form)) });
+      form.reset();
+      showSignedOut();
+      notice('Password changed. Sign in again; other sessions have been revoked.');
+    } finally { control.disabled = false; }
+  });
+});
 // ===========================================================================
 // Overview — the signed-in command centre.
 //
@@ -1018,6 +1121,7 @@ async function showView(key) {
     .filter(Boolean).join(' · ');
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'start') { await loadHome(); return; }
+  if (key === 'account') { await loadAccount(); return; }
   if (key === 'practice') { await loadPractice(); return; }
   if (key === 'overview') await loadOverview();
   if (key === 'workspace-access') loadWorkspaceAccess();
@@ -3806,7 +3910,7 @@ async function loadPractice() {
     request('/practice/questions'), request('/practice/usage'), request('/practice/answers/mine?page=0')
   ]);
   if (questionsResult.status === 'fulfilled') state.practiceQuestions = questionsResult.value;
-  else $('#practice-generation-status').textContent = 'Questions could not be loaded. Reopen Practice to retry.';
+  else setPracticeGenerationState('error', 'Questions could not be loaded', 'Use Reload questions below to retry.');
   const questions = state.practiceQuestions;
   const select = $('#practice-question');
   const previous = select.value;
@@ -3818,12 +3922,12 @@ async function loadPractice() {
     return option;
   }));
   if (questions.some((question) => question.id === previous)) select.value = previous;
-  else select.value = '';
+  else select.value = questions[0]?.id || '';
   if (usageResult.status === 'fulfilled') {
     const usage = usageResult.value;
     state.practiceRemaining = usage.remaining;
     state.practiceGenerationRemaining = usage.generationRemaining;
-    $('#practice-usage').textContent = `${usage.remaining} answers and ${usage.generationRemaining} new AI questions left today`;
+    renderPracticeUsage(usage);
     $('#practice-generate').disabled = usage.generationRemaining === 0;
     $('#practice-submit').disabled = usage.remaining === 0 || questions.length === 0;
   } else {
@@ -3839,6 +3943,23 @@ async function loadPractice() {
     ? 'No practice answers yet. Choose a question to begin.' : 'Answer history could not be loaded. Reopen Practice to retry.');
   renderPracticeQuestion();
 }
+
+function setPracticeGenerationState(kind, message, detail) {
+  const panel = $('#practice-generation-status');
+  panel.className = `practice-generation-status${kind ? ` is-${kind}` : ''}`;
+  panel.setAttribute('aria-busy', kind === 'busy' ? 'true' : 'false');
+  $('#practice-generation-message').textContent = message;
+  $('#practice-generation-detail').textContent = detail;
+  $('#practice-browse').classList.toggle('hidden', kind !== 'busy');
+}
+function renderPracticeUsage(usage) {
+  $('#practice-usage').textContent = `${usage.generated}/${usage.generationLimit} AI questions created (${usage.generationRemaining} left) · ${usage.used}/${usage.dailyLimit} answers checked (${usage.remaining} left) today`;
+}
+$('#practice-browse').addEventListener('click', () => {
+  const search = $('#practice-question-filter');
+  search.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  search.focus({ preventScroll: true });
+});
 
 function renderPracticeQuestionList() {
   const list = $('#practice-question-list');
@@ -3867,9 +3988,11 @@ function renderPracticeQuestionList() {
 
 function renderPracticeQuestion() {
   const question = state.practiceQuestions.find((entry) => entry.id === $('#practice-question').value);
+  $('#practice-empty').classList.toggle('hidden', !!question);
+  $('#practice-answer-form').classList.toggle('hidden', !question);
   const fieldset = $('#practice-options');
   fieldset.replaceChildren();
-  const legend = node('legend', question?.prompt || 'Create a question above, or choose a starter example to begin.');
+  const legend = node('legend', question?.prompt || '');
   legend.id = 'practice-prompt';
   legend.tabIndex = -1;
   fieldset.append(legend);
@@ -3889,18 +4012,18 @@ function renderPracticeQuestion() {
 
 $('#practice-question').addEventListener('change', renderPracticeQuestion);
 $('#practice-question-filter').addEventListener('input', renderPracticeQuestionList);
+$('#practice-retry').addEventListener('click', () => run(loadPractice));
 $('#practice-generate-form').addEventListener('submit', (event) => {
   event.preventDefault();
   run(async () => {
     const form = event.currentTarget;
     const button = $('#practice-generate');
-    const status = $('#practice-generation-status');
     button.disabled = true;
     button.textContent = 'Creating…';
-    status.className = 'practice-generation-status is-busy';
-    status.textContent = 'Creating your question. This may take a moment; keep this page open.';
+    const data = Object.fromEntries(new FormData(form));
+    setPracticeGenerationState('busy', `Creating a ${data.difficulty.toLowerCase()} question about ${data.topic}`,
+      'You can browse and answer your existing questions while this runs.');
     try {
-      const data = Object.fromEntries(new FormData(form));
       const question = await request('/practice/questions/generate', { method: 'POST', body: data });
       state.practiceQuestions = [question, ...state.practiceQuestions.filter((entry) => entry.id !== question.id)];
       const select = $('#practice-question');
@@ -3911,8 +4034,7 @@ $('#practice-generate-form').addEventListener('submit', (event) => {
       }));
       select.value = question.id;
       renderPracticeQuestion();
-      status.className = 'practice-generation-status is-success';
-      status.textContent = 'Question ready. Choose an answer below, or pick another question from the list.';
+      setPracticeGenerationState('success', 'Question ready', 'Choose an answer below, or pick another question from the list.');
       const [questionsResult, usageResult] = await Promise.allSettled([
         request('/practice/questions'), request('/practice/usage')
       ]);
@@ -3924,17 +4046,17 @@ $('#practice-generate-form').addEventListener('submit', (event) => {
         const usage = usageResult.value;
         state.practiceGenerationRemaining = usage.generationRemaining;
         state.practiceRemaining = usage.remaining;
-        $('#practice-usage').textContent = `${usage.remaining} answers and ${usage.generationRemaining} new AI questions left today`;
+        renderPracticeUsage(usage);
         button.disabled = usage.generationRemaining === 0;
       } else {
         $('#practice-usage').textContent = 'Question created. Reopen Practice to confirm today’s remaining allowance.';
         button.disabled = true;
       }
     } catch (error) {
-      status.className = 'practice-generation-status is-error';
-      status.textContent = error.code === 'AI_UNAVAILABLE'
-        ? 'AI is unavailable right now. Your allowance was not used; try a starter question.'
-        : 'Question creation failed. Your allowance was not used; try again.';
+      const providerFailure = error.code === 'AI_UNAVAILABLE';
+      setPracticeGenerationState('error', providerFailure ? 'AI provider could not create this question' : 'Question creation failed',
+        providerFailure ? 'This does not mean your personal daily limit is used. The provider may be unavailable, rate-limited or misconfigured. Try later or answer an existing question.'
+          : 'Check the error above. If generation failed, your allowance was not used.');
       button.disabled = false;
       throw error;
     } finally {
@@ -3966,7 +4088,7 @@ $('#practice-answer-form').addEventListener('submit', (event) => {
       if (refreshed[0].status === 'fulfilled') {
         const usage = refreshed[0].value;
         state.practiceRemaining = usage.remaining;
-        $('#practice-usage').textContent = `${usage.remaining} answers and ${usage.generationRemaining} new AI questions left today`;
+        renderPracticeUsage(usage);
       } else {
         state.practiceRemaining = Math.max(0, state.practiceRemaining - 1);
         $('#practice-usage').textContent = 'Answer saved. Refresh Practice to check today’s remaining limit.';
