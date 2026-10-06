@@ -16,6 +16,7 @@ import com.jachai.question.model.Question;
 import com.jachai.question.model.QuestionStatus;
 import com.jachai.question.service.QuestionService;
 import com.jachai.talent.model.HiringCampaign;
+import com.jachai.talent.dto.CampaignView;
 import com.jachai.talent.service.TalentCampaignService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -29,6 +30,34 @@ class DemoFixtureServiceTests {
     private final TalentCampaignService campaigns = mock(TalentCampaignService.class);
     private final DemoFixtureService service = new DemoFixtureService(mongo, questions, assessments,
             assignments, campaigns);
+
+    @Test
+    void freshDemoUsesNormalPublishingAndInvitationServices() {
+        Question question = mock(Question.class);
+        when(question.id()).thenReturn("q1");
+        when(question.status()).thenReturn(QuestionStatus.DRAFT);
+        when(questions.create(any(), any(), any())).thenReturn(question);
+        Assessment assessment = mock(Assessment.class);
+        when(assessment.id()).thenReturn("a1");
+        when(assessment.status()).thenReturn(AssessmentStatus.DRAFT);
+        when(assessments.create(any(), any(), any())).thenReturn(assessment);
+        CampaignView campaignView = mock(CampaignView.class);
+        when(campaignView.id()).thenReturn("c1");
+        when(campaigns.create(any(), any(), any())).thenReturn(campaignView);
+        HiringCampaign campaign = mock(HiringCampaign.class);
+        when(campaign.id()).thenReturn("c1");
+        when(mongo.findById("c1", HiringCampaign.class)).thenReturn(campaign);
+
+        service.seed();
+
+        verify(questions).approve("demo-account-instructor", "demo-org-academy", "q1");
+        verify(questions).approve("demo-account-recruiter", "demo-org-talent", "q1");
+        verify(assessments).publish("demo-account-instructor", "demo-org-academy", "a1");
+        verify(assessments).publish("demo-account-recruiter", "demo-org-talent", "a1");
+        verify(assignments).assign(eq("demo-account-instructor"), eq("demo-org-academy"), eq("a1"), any());
+        verify(campaigns).invite(eq("demo-account-recruiter"), eq("demo-org-talent"), eq("c1"), any());
+        verify(mongo, never()).insert(any(Object.class));
+    }
 
     @Test
     void existingFixturesDoNotConsumeQuotaAgain() {
