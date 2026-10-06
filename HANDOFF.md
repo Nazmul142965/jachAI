@@ -2,6 +2,18 @@
 
 ## Current continuation (2026-10-06)
 
+At `5314dbc`, guarded demo sign-in now seeds one usable Academy and one Talent
+assessment journey through the existing question, publish, assignment, and
+campaign services (`e46412b`), without direct writes to those business
+collections. Focused fresh/repeat fixture tests passed; live Atlas seeding and
+browser sign-in are still unverified. `d53dc7a` guards the account home against
+stale responses after workspace changes. A Maven test run while IntelliJ was
+serving the same `target/classes` caused a transient `EmailLinkGuard$1`
+`NoClassDefFoundError` in the running mail worker; the class exists in the
+current build, and a complete app restart is required. Do not run Maven
+against this checkout's `target/` while an app process is running; use an
+isolated worktree/build output for concurrent verification.
+
 Main includes role-specific account-home work rows (`d8207ce`). The local-demo
 slice adds six passwordless role shortcuts, guarded by the `demo` profile,
 loopback client and `jachai_demo_*` database name; inspect the current Git
