@@ -417,9 +417,15 @@ async function setOrganization() {
   $('#conversation-panel').classList.add('hidden');
   $('#start-view').classList.add('hidden');
   $('#organization-select').classList.toggle('hidden', !state.organization);
+  $('.select-label[for="organization-select"]').classList.toggle('hidden', !state.organization);
+  $('#sidebar-context').textContent = state.organization ? 'Workspace' : 'Your account';
+  $('#sidebar-foot').textContent = state.organization
+    ? "Your work is saved to your organization's workspace."
+    : 'Practice is yours. Join an Academy or Talent workspace when you receive an invitation or code.';
   $('#workspace-role').textContent = state.organization
     ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${state.organization.owner ? 'Owner / Org Admin' : roleTitle(state.organization.myRole)}`
     : '';
+  $('#workspace-role').classList.toggle('hidden', !state.organization);
   const headerContext = document.querySelector('.topbar-note');
   if (headerContext) headerContext.textContent = state.organization
     ? `${state.organization.name} · ${state.organization.owner ? 'Owner' : roleTitle(state.organization.myRole)}`

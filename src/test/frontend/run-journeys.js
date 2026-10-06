@@ -161,6 +161,8 @@ async function main() {
       await route() === '#/start' && await ev(`!document.querySelector('#start-view').classList.contains('hidden')`));
     check('no-workspace', 'Practice is available without an organization',
       await ev(`[...document.querySelectorAll('#workspace-nav button')].some((b) => b.textContent === 'Practice')`));
+    check('no-workspace', 'empty organization has no phantom role badge',
+      await ev(`document.querySelector('#workspace-role').classList.contains('hidden')`));
     await view('Practice'); await wait(450);
     check('no-workspace', 'practice question and allowance load without an organization',
       await route() === '#/practice'
@@ -168,6 +170,9 @@ async function main() {
       && /5 of 5/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
     check('no-workspace', 'no uncaught JavaScript exceptions', page.errors.length === 0,
       page.errors.slice(0, 2).join(' | '));
+    await page.send('Page.navigate', { url: `${server.url}/verify-email.html` }); await wait(750);
+    check('public-page', 'short verification page keeps footer at viewport bottom',
+      await ev(`document.querySelector('.footer').getBoundingClientRect().bottom >= window.innerHeight - 1`));
     page.close(); browser.child.kill(); await server.close();
     console.log(`${all.length - failures}/${all.length} focused checks passed`);
     process.exit(failures ? 1 : 0);
