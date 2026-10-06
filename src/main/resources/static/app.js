@@ -567,6 +567,8 @@ async function loadHome() {
     ? `${answers.length} recent practice answer${answers.length === 1 ? '' : 's'} shown`
     : 'No practice answers yet', 'home-fact'));
   if (staff && pendingReviews !== null) context.append(node('p', `${pendingReviews} review${pendingReviews === 1 ? '' : 's'} waiting in this workspace`, 'home-fact'));
+  renderHomeWork({ organization, participant, staff, academy, assignmentsResult, reviewResult,
+    areaResult, assignments, pendingReviews, areaCount, questionsResult, questions });
 
   let title = 'Start with a skill you want to strengthen';
   let detail = 'Choose a topic or try a starter question. Personal practice never changes an official assessment result.';
@@ -617,6 +619,74 @@ async function loadHome() {
   const next = $('#home-next-action');
   next.textContent = label;
   next.disabled = false;
+}
+function homeWorkRow(title, detail, status, actionLabel, action) {
+  const row = node('div', '', 'home-work-row');
+  const copy = node('div', '', 'home-work-copy');
+  copy.append(node('strong', title), node('p', detail, 'muted'));
+  row.append(copy, node('span', status, 'home-work-status'),
+    button(actionLabel, action, 'button secondary small home-work-action'));
+  return row;
+}
+function renderHomeWork({ organization, participant, staff, academy, assignmentsResult, reviewResult,
+  areaResult, assignments, pendingReviews, areaCount, questionsResult, questions }) {
+  const list = $('#home-work-list');
+  const description = $('#home-work-description');
+  const rows = [];
+  if (participant) {
+    description.textContent = `Assignments in ${organization.name}. Personal practice is separate.`;
+    if (assignmentsResult.status !== 'fulfilled') {
+      rows.push(node('p', 'Assignments could not be loaded. Open My assessments to retry.', 'home-work-empty'));
+    } else {
+      for (const assignment of assignments.slice(0, 3)) {
+        const from = Date.parse(assignment.availableFrom);
+        const until = Date.parse(assignment.availableUntil);
+        const now = Date.now();
+        const status = now < from ? 'Upcoming' : now >= until ? 'Closed' : 'Available';
+        const detail = Number.isFinite(until)
+          ? `${status === 'Upcoming' ? 'Opens' : status === 'Closed' ? 'Closed' : 'Closes'} ${new Date(status === 'Upcoming' ? from : until).toLocaleString()}${assignment.durationMinutes ? ` · ${assignment.durationMinutes} min` : ''}`
+          : 'Open to see assessment instructions and availability';
+        rows.push(homeWorkRow(assignment.assessmentTitle || 'Assigned assessment', detail,
+          status, 'Open assessment', () => openAssessmentDetail(assignment)));
+      }
+      if (!assignments.length) rows.push(node('p', 'No assignments in this workspace yet. An organizer can invite you; personal practice is ready now.', 'home-work-empty'));
+    }
+  } else if (staff) {
+    description.textContent = `Items needing attention in ${organization.name}.`;
+    if (reviewResult.status === 'fulfilled') {
+      for (const review of rowsOf(reviewResult.value).slice(0, 3)) {
+        const grading = review.percentage == null;
+        rows.push(homeWorkRow(review.assessmentTitle || 'Assessment result',
+          `${grading ? 'Manual grading needed' : 'Ready for release'} · Submitted ${relative(review.submittedAt)}`,
+          grading ? 'Grade' : 'Release', 'Open review', async () => {
+            await showScreen('assessment-studio', 'review');
+            await showStaffReview(review.attemptId);
+          }));
+      }
+    } else rows.push(node('p', 'The review queue could not be loaded. Open Assessment Studio to retry.', 'home-work-empty'));
+    if (academy && areaResult.status === 'fulfilled' && areaCount > 0) {
+      rows.push(homeWorkRow('Draft questions', `${areaCount} awaiting review in this workspace`,
+        'Draft', 'Open question bank', () => showScreen('assessment-studio', 'questions')));
+    }
+    if (!academy && areaResult.status === 'fulfilled' && areaCount > 0) {
+      rows.push(homeWorkRow('Hiring campaigns', `${areaCount} campaign${areaCount === 1 ? '' : 's'} in this workspace`,
+        'Active work', 'Open campaigns', () => showScreen('talent')));
+    }
+    if (reviewResult.status === 'fulfilled' && pendingReviews === 0 && rows.length === 0) {
+      rows.push(node('p', academy ? 'Nothing awaits review. You can build an assessment or invite learners.'
+        : 'Nothing awaits review. Open your campaigns to invite candidates.', 'home-work-empty'));
+    }
+  } else {
+    description.textContent = 'Your private practice is ready; no workspace is required.';
+    if (questionsResult.status === 'fulfilled' && questions.length) {
+      rows.push(homeWorkRow('Continue personal practice', `${questions.length} question${questions.length === 1 ? '' : 's'} available to this account`,
+        'Ready', 'Open practice', () => showScreen('practice')));
+    } else if (questionsResult.status !== 'fulfilled') {
+      rows.push(node('p', 'Practice history could not be loaded. Open Practice to retry.', 'home-work-empty'));
+    } else rows.push(homeWorkRow('Start personal practice', 'Choose a topic or try a starter question.',
+      'Ready', 'Open practice', () => showScreen('practice')));
+  }
+  list.replaceChildren(...rows);
 }
 $('#home-next-action').addEventListener('click', () => run(() => state.homeAction?.()));
 $('#home-account-action').addEventListener('click', () => run(() => showScreen('account')));

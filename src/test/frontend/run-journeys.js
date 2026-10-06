@@ -162,6 +162,9 @@ async function main() {
     check('no-workspace', 'dashboard recommends a real next action',
       await ev(`!document.querySelector('#home-next-action').disabled
         && document.querySelector('#home-next-detail').textContent.length > 20`));
+    check('no-workspace', 'dashboard offers real personal practice without a workspace',
+      await ev(`document.querySelector('#home-work-list').textContent.includes('personal practice')
+        && document.querySelector('#home-work-list button').textContent === 'Open practice'`));
     check('no-workspace', 'Practice is available without an organization',
       await ev(`[...document.querySelectorAll('#workspace-nav button')].some((b) => b.textContent === 'Practice')`));
     check('no-workspace', 'empty organization has no phantom role badge',
@@ -214,6 +217,9 @@ async function main() {
   check(journey, 'sign-in reaches the workspace shell', await ev(`!document.querySelector('#app').classList.contains('hidden')`));
   check(journey, 'learner lands on account dashboard with assessments one click away',
     await route() === '#/start' && nav.includes('My Assessments'), await route());
+  check(journey, 'learner dashboard shows assigned work with a direct action',
+    await ev(`document.querySelector('#home-work-list').textContent.includes('Open assessment')
+      && document.querySelector('#home-work-list').textContent.includes('Java')`));
   check(journey, 'nav is learner-scoped',
     nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
     nav.join(', '));
@@ -235,7 +241,7 @@ async function main() {
     /Correct/.test(await ev(`document.querySelector('#practice-result').textContent`))
       && /Records generate/.test(await ev(`document.querySelector('#practice-result').textContent`)));
   check(journey, 'Practice shows the consumed free allowance',
-    /1\/20 answers checked \(19 left\)/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+    await ev(`document.querySelector('#practice-usage').textContent.includes('1/20 answers checked (19 left)')`));
   await view('Overview'); await wait(350);
 
   // The signed-in overview is a command centre, not marketing copy.

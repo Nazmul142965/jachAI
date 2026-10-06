@@ -1250,6 +1250,18 @@ a:focus-visible,
 .home-kicker { margin: 0 0 var(--sp-2); color: var(--brand-ink); font-size: var(--text-sm); font-weight: var(--weight-bold); }
 .home-context { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-4); }
 .home-fact { margin: 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: var(--text-sm); }
+.home-work { margin-top: var(--sp-6); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
+.home-work-heading { display: flex; justify-content: space-between; align-items: end; gap: var(--sp-4); margin-bottom: var(--sp-3); }
+.home-work-heading h3 { margin: 0; font-size: var(--text-xl); }
+.home-work-heading p { margin: var(--sp-2) 0 0; }
+.home-work-list { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.home-work-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--sp-4); min-height: 86px; padding: var(--sp-3) 0; border-bottom: 1px solid var(--line); }
+.home-work-copy { min-width: 0; }
+.home-work-copy strong { display: block; color: var(--ink); font-size: var(--text-md); }
+.home-work-copy p { margin: 4px 0 0; line-height: var(--leading-snug); }
+.home-work-status { color: var(--ink-soft); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.home-work-empty { margin: 0; padding: var(--sp-5) 0; color: var(--muted); border-bottom: 1px solid var(--line); }
+.home-work-action { white-space: nowrap; }
 .start-details summary { cursor: pointer; color: var(--brand-ink); font-weight: var(--weight-bold); }
 .start-details summary:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 .start-details[open] summary { margin-bottom: var(--sp-5); }
@@ -1339,6 +1351,9 @@ a:focus-visible,
   .sidebar { min-height: 0; }
 }
 @media (max-width: 600px) {
+  .home-work-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .home-work-copy { grid-column: 1 / -1; }
+  .home-work-action { justify-self: end; }
   .auth-layout { padding: var(--sp-7) var(--sp-4); }
   .hero h1 { font-size: clamp(39px, 11vw, 52px); }
   .hero-points { flex-wrap: wrap; }

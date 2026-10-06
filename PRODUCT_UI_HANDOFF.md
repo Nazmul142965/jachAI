@@ -138,3 +138,16 @@ authenticated browser pass is still required before production.
   `node --check src/main/resources/static/app.js` passed; the focused
   `--no-workspace-only` browser fixture passed 12/12 checks. Live SMTP, MongoDB,
   and AI provider behavior were not tested in this slice.
+
+## Role-specific home work list (2026-10-06)
+
+The signed-in home now uses the same tenant-scoped reads already used by its
+recommended action. Learners and candidates see up to three real assignments,
+each with an availability state and a link to its assessment detail. Academy
+staff see pending review items and draft questions; Talent staff see pending
+reviews and campaigns. A personal account without a workspace sees a direct
+practice entry. Failed reads say the work cannot be loaded, rather than showing
+an invented zero. The broad explore actions remain secondary.
+
+This is a browser-facing improvement, not a new billing or assignment rule.
+The static fixture is not evidence of live MongoDB or AI behavior.
