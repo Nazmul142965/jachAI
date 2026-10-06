@@ -289,15 +289,13 @@ what it is → when it opens → what they have done → the result.
 `.metrics` of counts first, then panels that each name one deliberate action.
 Every action states what it does and what it cannot do before it runs.
 
-### 4.6 Not built yet
+### 4.6 Later additions (current on `main`)
 
-Three endpoints have no UI. Everything else the API exposes is reachable.
-
-| Endpoint | Belongs in | Shape |
-| --- | --- | --- |
-| `GET …/assessments/{id}/versions` | `assessments`, opened from a published row | Pattern A. What each published version froze: version number, question count, duration, pass mark, published date |
-| `GET`/`POST` `…/billing/entitlements/usage-reconciliation` | a billing panel in `overview`, for `ORG_ADMIN` | Pattern D. The tenant-scoped counterpart of the platform repair. Must not claim a repair the server did not confirm |
-| `GET …/billing/orders/{id}` | `overview` billing, from an order row | Pattern C, in a subpanel under the row |
+The version-history panel, tenant usage-reconciliation panel, and billing
+order-detail panel have all been added. `app.js` calls their APIs and the
+fixture journeys exercise their main states. The current shell also includes
+account settings, personal practice, and a role-specific home work list. None
+of these fixture checks proves a live MongoDB, SMTP, AI or payment journey.
 
 Before adding to this list, check the call is really absent. `app.js` builds
 some paths from a ternary — `/assessments/{id}/${draft ? 'draft' : 'versions'}`
@@ -461,7 +459,8 @@ checked by hand — in both themes, at 320px, 375px and desktop.
 
 ## 10. API coverage
 
-The frontend calls ~93 of the 101 real API endpoints. Regenerate this by
+The old count of ~93 of 101 endpoints is historical and no longer accurate;
+new account, demo and other APIs have since been added. Regenerate coverage by
 listing `@*Mapping` annotations across `src/main/java/**/*Controller.java`
 and matching them against path literals in `app.js`, remembering that
 `ownOrg()` prefixes `/organizations/{id}` so a literal is a **suffix** of the
@@ -475,13 +474,9 @@ Deliberately not called from the workspace:
 - The four `AuthController` reset/verify endpoints — called by
   `reset-password.html` and `verify-email.html`, not `app.js`.
 
-Known uncovered, with no UI yet — three endpoints:
-
-| Endpoint | Would belong in |
-| --- | --- |
-| `GET …/assessments/{id}/versions` | the Assessments view |
-| `GET`/`POST` `…/billing/entitlements/usage-reconciliation` | an org-admin billing panel |
-| `GET …/billing/orders/{id}` | order detail from the billing list |
+Do not assign the former three “uncovered” endpoints as new frontend work:
+`app.js` already calls assessment version history, tenant usage reconciliation
+GET/POST, and billing order detail. New gaps require a fresh source audit.
 
 A sweep will over-report. `POST …/assessments/{id}/versions`, `PUT
 …/assessments/{id}/draft` and the batch `/analytics` and `/progress`

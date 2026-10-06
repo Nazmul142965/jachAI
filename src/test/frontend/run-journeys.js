@@ -258,6 +258,10 @@ async function main() {
       && /Records generate/.test(await ev(`document.querySelector('#practice-result').textContent`)));
   check(journey, 'Practice shows the consumed free allowance',
     await ev(`document.querySelector('#practice-usage').textContent.includes('1/20 answers checked (19 left)')`));
+  await view('Profile & settings'); await wait(450);
+  check(journey, 'account usage uses the API limit field',
+    await ev(`document.querySelector('#account-plan').textContent.includes('1 of 20 answers used')
+      && document.querySelectorAll('#account-plan progress')[1].max === 20`));
   await view('Overview'); await wait(350);
 
   // The signed-in overview is a command centre, not marketing copy.
@@ -382,6 +386,12 @@ async function main() {
   check(journey, 'no link points at the unrouted certificate page',
     await ev(`!document.querySelector('a[href="/certificate.html"]')`));
   await shotBoth('overview-learner');
+
+  if (process.argv.includes('--learner-only')) {
+    console.log(`${all.length - failures}/${all.length} focused checks passed`);
+    page.close(); browser.child.kill(); await server.close();
+    process.exit(failures ? 1 : 0);
+  }
 
   // ---------------------------------------------------------------- academy staff journey
   await load('academy-staff');

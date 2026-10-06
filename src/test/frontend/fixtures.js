@@ -121,6 +121,8 @@ const SOURCE = String.raw`(() => {
     if (path === '/api/v1/demo/login/learner' && DEMO && method === 'POST')
       return json({ accessToken: 'fixture-access', refreshToken: 'fixture-refresh' });
     if (path === '/api/v1/auth/email-delivery-mode') return json({ mode: 'LOCAL_CONSOLE' });
+    if (path === '/api/v1/auth/me') return json({ email: 'learner@example.com', displayName: 'Learner One',
+      emailVerified: true, passwordSet: true, googleLinked: false, createdAt: new Date().toISOString() });
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });
     if (path === '/api/v1/platform/me') return json({ userId: ROLE.userId, platformAdmin: ROLE.platformAdmin });
     if (path === '/api/v1/organizations' && method === 'POST') {

@@ -167,3 +167,8 @@ Focused unit tests cover 429, 401 and the platform cap; live Gemini/Groq calls
 are still unverified. Official status semantics:
 <https://ai.google.dev/gemini-api/docs/troubleshooting> and
 <https://console.groq.com/docs/errors>.
+
+The same pass found and fixed an API/UI field mismatch: `PracticeService.Usage`
+returns `limit` for answer checks, not `dailyLimit`. Both the Practice usage
+sentence and Account usage progress now read `limit`. The focused learner
+browser journey passed 48/48 checks against a fixture shaped like that record.

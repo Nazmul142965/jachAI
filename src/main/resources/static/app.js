@@ -736,9 +736,9 @@ async function loadAccount() {
     const generated = document.createElement('progress');
     generated.max = usage.generationLimit; generated.value = usage.generated;
     generated.setAttribute('aria-label', 'AI questions used today');
-    plan.append(generated, node('p', `${usage.used} of ${usage.dailyLimit} answers used today (UTC)`));
+    plan.append(generated, node('p', `${usage.used} of ${usage.limit} answers used today (UTC)`));
     const answered = document.createElement('progress');
-    answered.max = usage.dailyLimit; answered.value = usage.used;
+    answered.max = usage.limit; answered.value = usage.used;
     answered.setAttribute('aria-label', 'Answers used today');
     plan.append(answered, node('p', 'Personal paid plans are not available yet. No payment is collected for personal practice.', 'muted'));
   } else {
@@ -4052,7 +4052,7 @@ function setPracticeGenerationState(kind, message, detail) {
   $('#practice-browse').classList.toggle('hidden', kind !== 'busy');
 }
 function renderPracticeUsage(usage) {
-  $('#practice-usage').textContent = `${usage.generated}/${usage.generationLimit} AI questions created (${usage.generationRemaining} left) · ${usage.used}/${usage.dailyLimit} answers checked (${usage.remaining} left) today`;
+  $('#practice-usage').textContent = `${usage.generated}/${usage.generationLimit} AI questions created (${usage.generationRemaining} left) · ${usage.used}/${usage.limit} answers checked (${usage.remaining} left) today`;
 }
 $('#practice-browse').addEventListener('click', () => {
   const search = $('#practice-question-filter');
