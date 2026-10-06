@@ -3618,12 +3618,11 @@ for (const tab of [$('#login-tab'), $('#register-tab')]) {
   });
 }
 async function setupGoogleSignIn() {
+  const area = $('#google-login-area');
+  area.classList.remove('hidden');
   const config = await request('/auth/google/config', { auth: false });
   if (!config?.clientId) {
-    // Honest unavailable state: never advertise a sign-in method this deployment cannot offer.
-    const area = $('#google-login-area');
-    area.replaceChildren(node('p', 'Google sign-in is not configured on this deployment. Use email and password instead.', 'muted'));
-    area.classList.remove('hidden');
+    area.replaceChildren(node('p', 'Google sign-in needs a Google Web client ID. The app operator must set GOOGLE_CLIENT_ID and restart; email sign-in remains available.', 'muted'));
     return;
   }
   const script = document.createElement('script');
@@ -3641,13 +3640,18 @@ async function setupGoogleSignIn() {
       await signedIn(tokens);
     }
   }) });
+  area.querySelector('.muted').textContent = 'Or continue with your Google account';
   for (const [selector, area] of [['#google-login-button', '#google-login-area'],
     ['#google-link-button', '#google-link-area']]) {
     window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with' });
     $(area).classList.remove('hidden');
   }
 }
-setupGoogleSignIn().catch(() => { /* optional provider: an unreachable config must not block sign-in */ });
+setupGoogleSignIn().catch(() => {
+  const area = $('#google-login-area');
+  area.replaceChildren(node('p', 'Google sign-in could not load. Check your connection or browser settings, then refresh. Email sign-in still works.', 'muted'));
+  area.classList.remove('hidden');
+});
 let mailDeliveryMode = 'UNKNOWN';
 request('/auth/email-delivery-mode', { auth: false }).then((config) => {
   mailDeliveryMode = config?.mode || 'UNKNOWN';
