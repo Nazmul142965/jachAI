@@ -53,7 +53,13 @@ import com.jachai.platform.service.PlatformOperationsService;
 import com.jachai.platform.service.PlatformStorageService;
 import com.jachai.platform.service.PlatformPlanService;
 import com.jachai.platform.service.PlatformSupportAccessService;
+import com.jachai.academy.service.CertificateDesignService;
 import com.jachai.auth.repository.UserRepository;
+import com.jachai.practice.service.PersonalPracticeGenerationService;
+import com.jachai.practice.service.PracticeCatalog;
+import com.jachai.practice.service.PracticeService;
+import com.jachai.mail.service.QueuedEmailSender;
+import com.jachai.organization.service.WorkspaceJoinCodeService;
 import com.jachai.auth.service.AccessRevocationService;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
@@ -89,6 +95,15 @@ class JachAiApplicationTests {
     @MockitoBean QuestionDraftService questionDraftService;
     @MockitoBean TutorService tutorService;
     @MockitoBean CertificateService certificateService;
+    // Without this the context builds the real service, which needs a Mongo repository that this
+    // test deliberately does not start, and all 28 tests fail on context load rather than on
+    // anything they assert.
+    @MockitoBean CertificateDesignService certificateDesignService;
+    @MockitoBean WorkspaceJoinCodeService workspaceJoinCodeService;
+    @MockitoBean PracticeService practiceService;
+    @MockitoBean PracticeCatalog practiceCatalog;
+    @MockitoBean PersonalPracticeGenerationService personalPracticeGenerationService;
+    @MockitoBean QueuedEmailSender queuedEmailSender;
     @MockitoBean InstructorFeedbackService instructorFeedbackService;
     @MockitoBean AcademyCatalogService academyCatalogService;
     @MockitoBean BatchAssessmentService batchAssessmentService;
