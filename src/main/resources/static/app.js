@@ -2292,7 +2292,7 @@ async function loadManualGradeAudit(attemptId, pageNumber = 0) {
   if (state.activeReviewAttemptId !== attemptId) return;
   setList('#manual-grade-audit', (page.content || []).map((entry) => item(
     `Question ${entry.questionId} · ${entry.correct ? 'Correct' : 'Incorrect'}`,
-    `Graded by ${entry.actorUserId} · ${new Date(entry.gradedAt).toLocaleString()}`)),
+    `Graded by ${actorName(entry)} · ${actorIdNote(entry)} · ${new Date(entry.gradedAt).toLocaleString()}`)),
   'No answers graded yet.');
   renderPageControls('#manual-grade-audit-pagination', page,
     (nextPage) => loadManualGradeAudit(attemptId, nextPage));
@@ -2513,7 +2513,7 @@ async function loadReviewAudit(campaignId, candidateId, pageNumber, target) {
   const page = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/candidates/${encodeURIComponent(candidateId)}/review/audit?page=${pageNumber}`));
   const rows = (page.content || []).map((entry) => item(
     `${entry.decision.replaceAll('_', ' ')} · ${new Date(entry.occurredAt).toLocaleString()}`,
-    `Reviewer ID: ${entry.actorUserId} · Attempt ID: ${entry.attemptId} · ${entry.note || 'No note'}`));
+    `Reviewer ${actorName(entry)} · ${actorIdNote(entry)} · Attempt ID: ${entry.attemptId} · ${entry.note || 'No note'}`));
   target.replaceChildren(...(rows.length ? rows : [node('p', 'No review history yet.', 'muted')]));
   const controls = node('div', '', 'form-row');
   const previous = button('Previous', () => run(() => loadReviewAudit(campaignId, candidateId, page.number - 1, target)));
@@ -3195,6 +3195,19 @@ async function loadAcademyBatches(pageNumber = 0) {
 // removed, or the lookup may have found nothing — so the id remains the
 // fallback and is always shown somewhere. A name alone is not enough to act
 // on: two learners can share one, and staff forms take the id.
+// Audit rows name the person who acted. The audit APIs send actorDisplayName
+// beside actorUserId, and it can be absent because a record outlives the account
+// that wrote it, so the id stays the fallback and is always shown somewhere: an
+// audit trail that cannot be tied back to an exact account is not an audit trail.
+function actorName(entry) {
+  const name = (entry.actorDisplayName || '').trim();
+  return name || `User ${entry.actorUserId}`;
+}
+function actorIdNote(entry) {
+  return (entry.actorDisplayName || '').trim()
+    ? `ID ${entry.actorUserId}`
+    : 'Display name unavailable for this account';
+}
 // Staff grading screens name the participant. The review APIs send
 // participantDisplayName beside participantUserId, and it can be absent when the
 // account no longer resolves, so the id stays the fallback and is always shown
@@ -3691,7 +3704,7 @@ async function loadCampaignCandidateHistory(candidate, token, pageNumber = 0) {
   if (campaignWorkspaceStale(token)) return;
   setList('#talent-campaign-history', (page.content || []).map((entry) => item(
     `${entry.decision.replaceAll('_', ' ')} · ${new Date(entry.occurredAt).toLocaleString()}`,
-    `Reviewer ${entry.actorUserId} · Attempt ${entry.attemptId || 'not recorded'} · ${entry.note || 'No note'}`)),
+    `Reviewer ${actorName(entry)} · ${actorIdNote(entry)} · Attempt ${entry.attemptId || 'not recorded'} · ${entry.note || 'No note'}`)),
   'No review has been recorded for this candidate yet.');
   renderPageControls('#talent-campaign-history-pagination', page,
     (nextPage) => run(() => loadCampaignCandidateHistory(candidate, token, nextPage)));

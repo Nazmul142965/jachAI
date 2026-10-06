@@ -355,4 +355,54 @@ class TalentCampaignServiceTests {
         verify(access).requireRole("recruiter", "org-a", OrganizationRole.ORG_ADMIN,
                 OrganizationRole.RECRUITER);
     }
+
+    @Test
+    void reviewAuditNamesTheReviewerAndKeepsTheIdBesideIt() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(talent()));
+        when(campaigns.findByIdAndOrganizationId("campaign", "org-a"))
+                .thenReturn(Optional.of(campaign(true)));
+        when(assignments.existsByOrganizationIdAndCampaignIdAndAssignedUserId(
+                "org-a", "campaign", "candidate")).thenReturn(true);
+        AuditEvent event = new AuditEvent("event", "org-a", "recruiter", AuditAction.TALENT_REVIEW_SAVED,
+                "TALENT_REVIEW", "campaign:candidate", Instant.now(),
+                Map.of("attemptId", "attempt-2", "decision", "SHORTLISTED", "note", "Strong Java"));
+        PageRequest page = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "occurredAt"));
+        when(auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+                "org-a", "TALENT_REVIEW", "campaign:candidate", page))
+                .thenReturn(new PageImpl<>(List.of(event), page, 1));
+        when(users.findAllById(List.of("recruiter"))).thenReturn(List.of(new User(
+                "recruiter", "recruiter@example.com", "Rafi Recruiter", "hash", true, false,
+                0, Instant.now())));
+
+        var row = service().audit("recruiter", "org-a", "campaign", "candidate", 0)
+                .getContent().getFirst();
+
+        assertEquals("Rafi Recruiter", row.actorDisplayName());
+        assertEquals("recruiter", row.actorUserId());
+    }
+
+    @Test
+    void reviewAuditLeavesTheNameNullWhenTheAccountNoLongerResolves() {
+        when(organizations.findById("org-a")).thenReturn(Optional.of(talent()));
+        when(campaigns.findByIdAndOrganizationId("campaign", "org-a"))
+                .thenReturn(Optional.of(campaign(true)));
+        when(assignments.existsByOrganizationIdAndCampaignIdAndAssignedUserId(
+                "org-a", "campaign", "candidate")).thenReturn(true);
+        AuditEvent event = new AuditEvent("event", "org-a", "departed", AuditAction.TALENT_REVIEW_SAVED,
+                "TALENT_REVIEW", "campaign:candidate", Instant.now(),
+                Map.of("attemptId", "attempt-2", "decision", "SHORTLISTED", "note", "Strong Java"));
+        PageRequest page = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "occurredAt"));
+        when(auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+                "org-a", "TALENT_REVIEW", "campaign:candidate", page))
+                .thenReturn(new PageImpl<>(List.of(event), page, 1));
+        when(users.findAllById(List.of("departed"))).thenReturn(List.of());
+
+        var row = service().audit("recruiter", "org-a", "campaign", "candidate", 0)
+                .getContent().getFirst();
+
+        // The account is gone, so the history cannot name the reviewer. It must still say which
+        // account decided, or the record stops being an audit trail.
+        assertNull(row.actorDisplayName());
+        assertEquals("departed", row.actorUserId());
+    }
 }

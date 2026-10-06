@@ -375,10 +375,14 @@ public class AttemptService {
         Attempt attempt = attempts.findByIdAndOrganizationId(attemptId, organizationId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attempt not found"));
         ensureGradeAudits(attempt);
-        return auditEvents.findByOrganizationIdAndTargetTypeAndTargetIdAndAction(
+        var history = auditEvents.findByOrganizationIdAndTargetTypeAndTargetIdAndAction(
                 organizationId, "ATTEMPT", attemptId, AuditAction.MANUAL_ANSWER_GRADED,
-                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")))
-                .map(ManualGradeAuditView::from);
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")));
+        // The same reuse as pendingReview: one lookup for the page, ids already tenant-scoped.
+        Map<String, String> graders = displayNames(history.getContent().stream()
+                .map(AuditEvent::actorUserId).toList());
+        return history.map(event ->
+                ManualGradeAuditView.from(event, graders.get(event.actorUserId())));
     }
 
     private void ensureGradeAudits(Attempt attempt) {

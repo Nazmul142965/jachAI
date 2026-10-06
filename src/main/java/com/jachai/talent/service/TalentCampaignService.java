@@ -210,10 +210,31 @@ public class TalentCampaignService {
         if (page < 0 || page > 500) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Page must be between 0 and 500");
         }
-        return auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
+        var history = auditEvents.findByOrganizationIdAndTargetTypeAndTargetId(
                 organizationId, "TALENT_REVIEW", campaignId + ":" + candidateId,
-                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")))
-                .map(ReviewAuditView::from);
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "occurredAt")));
+        // One lookup for the page rather than one per row. Several rows are usually the same
+        // reviewer, so this is also fewer queries than it looks.
+        Map<String, String> reviewers = reviewerNames(history.getContent().stream()
+                .map(AuditEvent::actorUserId).toList());
+        return history.map(event -> ReviewAuditView.from(event, reviewers.get(event.actorUserId())));
+    }
+
+    /**
+     * Resolves reviewer display names for a page of audit rows.
+     *
+     * <p>A name can be absent, because an audit row outlives the account that wrote it. The map
+     * then has no entry and the caller keeps the id, so the row still says who decided.
+     */
+    private Map<String, String> reviewerNames(List<String> actorIds) {
+        if (actorIds.isEmpty()) return Map.of();
+        Map<String, String> names = new HashMap<>();
+        users.findAllById(actorIds).forEach(user -> {
+            if (user.displayName() != null && !user.displayName().isBlank()) {
+                names.put(user.id(), user.displayName());
+            }
+        });
+        return names;
     }
 
     private void ensureReviewAudit(ReviewDecision decision) {
