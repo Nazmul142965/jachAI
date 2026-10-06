@@ -24,7 +24,9 @@ official score or certificate. An organizer's work remains tenant-scoped.
 The new account home is a stable entry point for all users. For a participant,
 it points to assigned assessments when the first page has assignments;
 otherwise it suggests a recently missed practice topic when the matching
-question is still in the question list. Staff get a link to their existing
+question is still in the question list. Staff next actions are based on the
+current workspace's pending review count, Academy draft questions, or a Talent
+workspace with no campaign; when none applies, they go to the existing
 workspace overview. A missing API response is shown as unavailable, not zero.
 
 The Practice screen shows a searchable question rail beside the active
@@ -47,7 +49,10 @@ user reopens Practice, rather than guessing the remaining allowance.
   active Academy learner or Talent candidate; the home says only that
   assignments exist and sends the user to My Assessments for the real window
   and attempt state.
-- Staff action prioritization remains in the existing tenant-scoped Overview.
+- Staff home recommendations use tenant-scoped `GET /attempts/review/pending`,
+  Academy `GET /questions?status=DRAFT`, or Talent `GET /talent/campaigns`.
+  The existing Overview remains the detailed staff work queue. If a request
+  fails, the home does not mistake it for a zero count.
 
 ## Research-informed next slices, not implemented here
 

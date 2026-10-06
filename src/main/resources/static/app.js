@@ -518,17 +518,24 @@ async function setOrganization() {
 async function loadHome() {
   const role = state.organization?.myRole;
   const participant = role === 'LEARNER' || role === 'CANDIDATE';
+  const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
+  const academy = state.organization?.type === 'ACADEMY';
   const requests = [
     request('/practice/usage'),
     request('/practice/answers/mine?page=0'),
     request('/practice/questions'),
-    participant ? request(ownOrg('/assignments/mine?page=0')) : Promise.resolve(null)
+    participant ? request(ownOrg('/assignments/mine?page=0')) : Promise.resolve(null),
+    staff ? request(ownOrg('/attempts/review/pending?page=0')) : Promise.resolve(null),
+    staff ? request(ownOrg(academy ? '/questions?status=DRAFT&page=0' : '/talent/campaigns?page=0'))
+      : Promise.resolve(null)
   ];
-  const [usageResult, answersResult, questionsResult, assignmentsResult] = await Promise.allSettled(requests);
+  const [usageResult, answersResult, questionsResult, assignmentsResult, reviewResult, areaResult] = await Promise.allSettled(requests);
   const usage = usageResult.status === 'fulfilled' ? usageResult.value : null;
   const answers = answersResult.status === 'fulfilled' ? rowsOf(answersResult.value) : [];
   const questions = questionsResult.status === 'fulfilled' ? questionsResult.value : [];
   const assignments = assignmentsResult.status === 'fulfilled' ? rowsOf(assignmentsResult.value) : [];
+  const pendingReviews = reviewResult.status === 'fulfilled' ? totalOf(reviewResult.value, 0) : null;
+  const areaCount = areaResult.status === 'fulfilled' ? totalOf(areaResult.value, 0) : null;
   const context = $('#home-context');
   context.replaceChildren();
   context.append(node('p', usage
@@ -540,6 +547,7 @@ async function loadHome() {
   if (answersResult.status === 'fulfilled') context.append(node('p', answers.length
     ? `${answers.length} recent practice answer${answers.length === 1 ? '' : 's'} shown`
     : 'No practice answers yet', 'home-fact'));
+  if (staff && pendingReviews !== null) context.append(node('p', `${pendingReviews} review${pendingReviews === 1 ? '' : 's'} waiting in this workspace`, 'home-fact'));
 
   let title = 'Start with a skill you want to strengthen';
   let detail = 'Choose a topic or try a starter question. Personal practice never changes an official assessment result.';
@@ -563,6 +571,21 @@ async function loadHome() {
     detail = `You have ${assignments.length} assignment${assignments.length === 1 ? '' : 's'} on the first page of this workspace. Open them to check availability and progress.`;
     label = 'My assessments';
     action = () => showScreen('my-assessments');
+  } else if (staff && pendingReviews > 0) {
+    title = `Review ${pendingReviews} submitted attempt${pendingReviews === 1 ? '' : 's'}`;
+    detail = 'Manual grading and result release belong to your current workspace, not your personal practice.';
+    label = 'Review attempts';
+    action = () => showScreen('assessment-studio', 'review');
+  } else if (staff && academy && areaCount > 0) {
+    title = `Review ${areaCount} draft question${areaCount === 1 ? '' : 's'}`;
+    detail = 'Approve suitable questions before they can be used in a published Academy assessment.';
+    label = 'Open question bank';
+    action = () => showScreen('assessment-studio', 'questions');
+  } else if (staff && !academy && areaCount === 0) {
+    title = 'Start your first hiring campaign';
+    detail = 'A campaign connects a published assessment to candidate invitations and review.';
+    label = 'Open campaigns';
+    action = () => showScreen('talent');
   } else if (state.organization && !participant) {
     title = state.organization.type === 'ACADEMY' ? 'Move your Academy forward' : 'Move your hiring campaign forward';
     detail = 'Open the workspace overview for work that needs your attention and direct links to the next step.';
