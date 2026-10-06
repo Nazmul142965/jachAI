@@ -1294,6 +1294,8 @@ a:focus-visible,
   .auth-card { padding: var(--sp-5); }
   .content { padding: var(--sp-6) var(--sp-4) var(--sp-8); }
   .panel { padding: var(--sp-5); }
+  #screen-tabs { flex-wrap: wrap; }
+  #screen-tabs .tab { flex: 1 1 140px; min-width: 0; white-space: normal; }
   .start-actions { grid-template-columns: 1fr; }
   .start-action { min-height: 125px; }
   .practice-generator { grid-template-columns: 1fr; }

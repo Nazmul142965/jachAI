@@ -507,7 +507,7 @@ async function setOrganization() {
   if (route && availableScreens.includes(route.screenKey)) {
     await showScreen(route.screenKey, route.viewKey);
   } else {
-    await showView('overview');
+    await showScreen(['LEARNER', 'CANDIDATE'].includes(role) ? 'my-assessments' : 'overview');
   }
 }
 // ===========================================================================

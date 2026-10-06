@@ -192,6 +192,7 @@ async function main() {
   const journey = 'learner';
   const nav = await ev(`[...document.querySelectorAll('#workspace-nav button')].map((b) => b.textContent)`);
   check(journey, 'sign-in reaches the workspace shell', await ev(`!document.querySelector('#app').classList.contains('hidden')`));
+  check(journey, 'learner lands on their own assignments', await route() === '#/my-assessments/attempts', await route());
   check(journey, 'nav is learner-scoped',
     nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
     nav.join(', '));
@@ -203,6 +204,8 @@ async function main() {
     /Which statement about a Java record/.test(await ev(`document.querySelector('#practice-view').textContent`))
       && !(await ev(`document.querySelector('#practice-view').textContent`)).includes('Records generate component accessors and a canonical constructor.'),
     await route());
+  await ev(`(() => { const select = document.querySelector('#practice-question');
+    select.value = 'java-record'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   await ev(`(() => { const answer = document.querySelector('#practice-options input[value="b"]');
     answer.checked = true; document.querySelector('#practice-answer-form').dispatchEvent(
       new Event('submit', { cancelable: true, bubbles: true })); })()`);
@@ -211,7 +214,7 @@ async function main() {
     /Correct/.test(await ev(`document.querySelector('#practice-result').textContent`))
       && /Records generate/.test(await ev(`document.querySelector('#practice-result').textContent`)));
   check(journey, 'Practice shows the consumed free allowance',
-    /4 of 5/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
+    /19 answers/.test(await ev(`document.querySelector('#practice-usage').textContent`)));
   await view('Overview'); await wait(350);
 
   // The signed-in overview is a command centre, not marketing copy.
@@ -632,8 +635,10 @@ async function main() {
     ['Academy Workspace', 'academy'], ['Billing', 'billing'], ['Members', 'members']]) {
     if (!await view(label)) continue;
     await wait(1100);
-    const wide = await ev(`document.documentElement.scrollWidth > window.innerWidth + 1`);
-    check(mobile, `${label} does not overflow at 375px`, !wide);
+    const widthCheck = await ev(`(() => ({ wide: document.documentElement.scrollWidth > window.innerWidth + 1,
+      offenders: [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
+        .slice(0, 4).map((el) => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + '.' + el.className) }))()`);
+    check(mobile, `${label} does not overflow at 375px`, !widthCheck.wide, widthCheck.offenders.join(', '));
     await shot(`mobile-${name}`);
   }
   await page.send('Emulation.clearDeviceMetricsOverride');
