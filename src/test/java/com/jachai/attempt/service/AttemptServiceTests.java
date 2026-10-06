@@ -650,6 +650,46 @@ class AttemptServiceTests {
     }
 
     @Test
+    void pendingReviewNamesTheParticipantAndKeepsTheIdBesideIt() {
+        Instant now = Instant.now();
+        Attempt pending = new Attempt("attempt", "org-a", "assignment", "assessment:1", "learner", 1,
+                now.minusSeconds(120), now.minusSeconds(60), AttemptStatus.SUBMITTED,
+                Map.of("q1", Set.of("a")), now, 100, true, null, 1L);
+        PageRequest pageRequest = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "submittedAt"));
+        when(attempts.findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
+                "org-a", AttemptStatus.SUBMITTED, pageRequest))
+                .thenReturn(new PageImpl<>(List.of(pending), pageRequest, 1));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+        when(users.findAllById(List.of("learner"))).thenReturn(List.of(
+                new User("learner", "learner@example.com", "Learner One", "hash", true, false, 0, now)));
+
+        var row = service().pendingReview("teacher", "org-a", 0).getContent().getFirst();
+
+        assertEquals("Learner One", row.participantDisplayName());
+        assertEquals("learner", row.participantUserId(),
+                "the id stays, because two participants can share a name and the forms take an id");
+    }
+
+    @Test
+    void pendingReviewLeavesTheNameNullWhenTheAccountNoLongerResolves() {
+        Instant now = Instant.now();
+        Attempt pending = new Attempt("attempt", "org-a", "assignment", "assessment:1", "gone", 1,
+                now.minusSeconds(120), now.minusSeconds(60), AttemptStatus.SUBMITTED,
+                Map.of("q1", Set.of("a")), now, 100, true, null, 1L);
+        PageRequest pageRequest = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "submittedAt"));
+        when(attempts.findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
+                "org-a", AttemptStatus.SUBMITTED, pageRequest))
+                .thenReturn(new PageImpl<>(List.of(pending), pageRequest, 1));
+        when(versions.get("org-a", "assessment:1")).thenReturn(version(ResultReleasePolicy.MANUAL));
+        when(users.findAllById(List.of("gone"))).thenReturn(List.of());
+
+        var row = service().pendingReview("teacher", "org-a", 0).getContent().getFirst();
+
+        assertNull(row.participantDisplayName(), "a missing account must not invent a name");
+        assertEquals("gone", row.participantUserId(), "the row must still identify someone");
+    }
+
+    @Test
     void pendingReviewRejectsUnboundedPageNumbers() {
         ApiException error = assertThrows(ApiException.class,
                 () -> service().pendingReview("teacher", "org-a", 501));

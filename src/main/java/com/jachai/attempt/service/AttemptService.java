@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -245,19 +246,41 @@ public class AttemptService {
         }
     }
 
+    /**
+     * Resolves display names for a set of participants in one call.
+     *
+     * <p>A name can be absent — the account may have been removed — and the map simply has no
+     * entry for it. Callers keep the user id, so a row without a name still identifies someone.
+     */
+    private Map<String, String> displayNames(List<String> userIds) {
+        if (userIds.isEmpty()) return Map.of();
+        Map<String, String> names = new HashMap<>();
+        users.findAllById(userIds).forEach(user -> {
+            if (user.displayName() != null && !user.displayName().isBlank()) {
+                names.put(user.id(), user.displayName());
+            }
+        });
+        return names;
+    }
+
     public Page<ReviewAttemptView> pendingReview(String actorId, String organizationId, int page) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN,
                 OrganizationRole.INSTRUCTOR, OrganizationRole.RECRUITER);
         if (page < 0 || page > 500) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAGE", "Page must be between 0 and 500");
         }
-        return attempts.findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
-                        organizationId, AttemptStatus.SUBMITTED,
-                        PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "submittedAt")))
-                .map(attempt -> new ReviewAttemptView(attempt.id(), attempt.assignmentId(),
-                        attempt.userId(), version(organizationId, attempt.assessmentVersionId()).title(),
-                        attempt.attemptNumber(), attempt.percentage(), attempt.passed(),
-                        attempt.submittedAt()));
+        var queue = attempts.findByOrganizationIdAndStatusAndResultReleasedAtIsNull(
+                organizationId, AttemptStatus.SUBMITTED,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "submittedAt")));
+        // One lookup for the whole page rather than one per row. The ids come from attempts
+        // already scoped to this organization, so no account outside the tenant is reachable.
+        Map<String, String> names = displayNames(queue.getContent().stream()
+                .map(Attempt::userId).toList());
+        return queue.map(attempt -> new ReviewAttemptView(attempt.id(), attempt.assignmentId(),
+                attempt.userId(), names.get(attempt.userId()),
+                version(organizationId, attempt.assessmentVersionId()).title(),
+                attempt.attemptNumber(), attempt.percentage(), attempt.passed(),
+                attempt.submittedAt()));
     }
 
     public StaffAttemptReviewView staffReview(String actorId, String organizationId, String attemptId) {
@@ -292,6 +315,7 @@ public class AttemptService {
                             grade == null ? null : grade.gradedAt());
                 }).toList();
         return new StaffAttemptReviewView(attempt.id(), attempt.assignmentId(), attempt.userId(),
+                displayNames(List.of(attempt.userId())).get(attempt.userId()),
                 version.title(), attempt.attemptNumber(), attempt.submittedAt(),
                 attempt.percentage(), attempt.passed(), attempt.resultReleasedAt(), questions);
     }

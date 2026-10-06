@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 public record StaffAttemptReviewView(String attemptId, String assignmentId, String participantUserId,
+                                    String participantDisplayName,
                                      String assessmentTitle, int attemptNumber, Instant submittedAt,
                                      Integer percentage, Boolean passed, Instant resultReleasedAt,
                                      List<QuestionReview> questions) {

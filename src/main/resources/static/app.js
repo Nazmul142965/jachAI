@@ -933,7 +933,7 @@ async function loadFocus(role, academy, staff, participant) {
       for (const review of rowsOf(pending).slice(0, 4)) {
         entries.push(focusRow(
           `${review.assessmentTitle || 'Attempt'} — attempt ${review.attemptNumber}`,
-          `${review.participantUserId} · scored ${review.percentage}% · submitted ${relative(review.submittedAt)}`,
+          `${participantName(review)} · ${participantIdNote(review)} · scored ${review.percentage}% · submitted ${relative(review.submittedAt)}`,
           'Review & release', () => showView('review'),
           [review.passed ? 'Passed' : 'Did not pass', review.passed ? 'ok' : 'danger']));
       }
@@ -2239,8 +2239,8 @@ async function loadReviewQueue(pageNumber) {
       });
       actions.push(release);
     }
-    return item(attempt.assessmentTitle,
-      `Participant ID: ${attempt.participantUserId} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
+    return item(`${attempt.assessmentTitle} — ${participantName(attempt)}`,
+      `${participantIdNote(attempt)} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
       actions);
   });
   setList('#review-queue', rows, 'No results are waiting for release.');
@@ -2262,7 +2262,7 @@ async function showStaffReview(attemptId) {
     $('#feedback-audit-pagination')?.replaceChildren();
   }
   $('#feedback-form').elements.attemptId.value = review.attemptId;
-  $('#attempt-review-summary').textContent = `${review.assessmentTitle} · Participant ${review.participantUserId} · ${review.percentage == null ? 'Score pending' : `${review.percentage}% · ${review.passed ? 'Passed' : 'Not passed'}`} · ${review.resultReleasedAt ? 'Released' : 'Not released'}`;
+  $('#attempt-review-summary').textContent = `${review.assessmentTitle} · ${participantName(review)} · ${participantIdNote(review)} · ${review.percentage == null ? 'Score pending' : `${review.percentage}% · ${review.passed ? 'Passed' : 'Not passed'}`} · ${review.resultReleasedAt ? 'Released' : 'Not released'}`;
   const answerText = (question, ids) => {
     const selected = question.options.filter((option) => (ids || []).includes(option.id))
       .map((option) => `${option.id}: ${option.text}`);
@@ -3195,6 +3195,19 @@ async function loadAcademyBatches(pageNumber = 0) {
 // removed, or the lookup may have found nothing — so the id remains the
 // fallback and is always shown somewhere. A name alone is not enough to act
 // on: two learners can share one, and staff forms take the id.
+// Staff grading screens name the participant. The review APIs send
+// participantDisplayName beside participantUserId, and it can be absent when the
+// account no longer resolves, so the id stays the fallback and is always shown
+// somewhere: two people can share a name, and the forms here take an id.
+function participantName(row) {
+  const name = (row.participantDisplayName || '').trim();
+  return name || `Participant ${row.participantUserId}`;
+}
+function participantIdNote(row) {
+  return (row.participantDisplayName || '').trim()
+    ? `ID ${row.participantUserId}`
+    : 'Display name unavailable for this account';
+}
 function learnerName(row) {
   const name = (row.learnerDisplayName || '').trim();
   return name || `Learner ${row.learnerUserId}`;
