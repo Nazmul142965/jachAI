@@ -30,6 +30,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/resend-verification", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh", "/api/v1/auth/request-password-reset",
                                 "/api/v1/auth/reset-password", "/api/v1/public/certificates/*",
+                                "/api/v1/demo/accounts", "/api/v1/demo/login/*",
                                 "/certificates/*",
                                 "/academy.html", "/talent.html", "/plans.html", "/how.html",
                                 "/api/v1/billing/sslcommerz/ipn",

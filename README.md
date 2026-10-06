@@ -33,6 +33,24 @@ Not yet complete: live browser verification of the narrow audited support-access
 
 ## Run locally
 
+For a disposable role walkthrough, run
+`powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -Demo`.
+It uses port 8093 by default. Alternatively, run with the explicit `demo` profile and
+your private `MONGODB_URI` and `JWT_SECRET`. The profile binds to `127.0.0.1`
+and uses Atlas database `jachai_demo_local` by default. If overriding it with
+`DEMO_MONGODB_DATABASE`, the name **must** start with `jachai_demo_`; the demo
+endpoints refuse any other database. Do not combine `demo` with `prod` or use a
+production URI. On the sign-in page, choose Academy owner, instructor, learner,
+Talent owner, recruiter, or candidate. Clicking signs in without copying a
+password. These are passwordless demo-only accounts (`@demo.jachai.invalid`),
+not real identities; password change/reset and Google linking are blocked for
+them. Ordinary registered accounts keep their normal password-change flow.
+The role accounts have real permissions within the two disposable demo
+workspaces. Demo mode disables cloud AI and SMTP delivery. It does not seed
+assessments, questions or candidates, so use the role accounts to create and
+exercise those workflows in the separate database. Demo mode is not a public
+hosted trial or a way to grant production access.
+
 On this Windows development machine, set `MONGODB_URI` in the shell, then run `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1` from the repository root. It selects JDK 21 and launches JachAI at `http://127.0.0.1:8080/`, connecting to MongoDB Atlas with the environment URI. It does not start a local MongoDB server. Logs are under ignored `target/local-dev/`. Without SMTP settings, local verification/reset links appear in the app log and must not be shared. After registering, wait a few seconds, then run `powershell -ExecutionPolicy Bypass -File .\scripts\open-local-verification.ps1 -Email you@example.com` to open your verification link without copying its token; add `-Port 8092` if that is your app port. A generated local JWT secret expires sign-ins on restart; set your own stable `JWT_SECRET` privately if sessions must survive restarts. To use a separate development database and port, pass `-Port 8092 -DatabaseName jachai_demo_20261004`; the helper never points at the production database.
 
 To test real email locally, configure `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` (and optionally `MAIL_PORT`, default 587) plus a stable 32+ byte `JWT_SECRET` privately in your shell or IntelliJ run environment; a separate stable `MAIL_JOB_ENCRYPTION_KEY` is recommended. Complete `MAIL_*` settings automatically select SMTP even when IntelliJ uses the default `local` profile. The existing `smtp` profile and `scripts/start-local.ps1 -Smtp` remain valid. Missing or partial SMTP settings fail startup rather than silently logging links. SMTP uses STARTTLS and short network timeouts. Register only an inbox you control; successful delivery must be checked in that inbox and the `email_jobs` state, not inferred from a 202 registration response. SMTP delivery is still unverified here because no provider account is configured.

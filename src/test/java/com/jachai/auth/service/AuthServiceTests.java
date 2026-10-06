@@ -78,6 +78,20 @@ class AuthServiceTests {
     }
 
     @Test
+    void demoAccountCannotChangeOrResetPassword() {
+        User demo = new User("demo-account-academy-admin", "academy-admin@demo.jachai.invalid",
+                "Academy owner", null, true, false, 0, Instant.now());
+        when(users.findById(demo.id())).thenReturn(Optional.of(demo));
+        ApiException change = assertThrows(ApiException.class,
+                () -> service.changePassword(demo.id(), "old", "new-password"));
+        assertEquals("DEMO_PASSWORD_LOCKED", change.code());
+        when(users.findByEmail(demo.email())).thenReturn(Optional.of(demo));
+        service.requestPasswordReset(demo.email());
+        verify(resetTokens, never()).deleteByUserId(demo.id());
+        verify(emailSender, never()).sendPasswordReset(any(), any(), any());
+    }
+
+    @Test
     void verificationUsesConditionalUpdateInsteadOfSavingAStaleUser() {
         User user = new User("u1", "test@example.com", "Test", "hash", false, false,
                 0, Instant.now());

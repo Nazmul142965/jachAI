@@ -2,10 +2,19 @@ param(
     [ValidateRange(1024, 65535)] [int]$Port = 8080,
     [ValidatePattern('^jachai_(dev|demo_[A-Za-z0-9_-]+|smtp_[A-Za-z0-9_-]+)$')]
     [string]$DatabaseName = 'jachai_dev',
-    [switch]$Smtp
+    [switch]$Smtp,
+    [switch]$Demo
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Demo -and $Smtp) { throw 'Demo and SMTP modes cannot be combined.' }
+if ($Demo) {
+    if (-not $PSBoundParameters.ContainsKey('Port')) { $Port = 8093 }
+    if (-not $PSBoundParameters.ContainsKey('DatabaseName')) { $DatabaseName = 'jachai_demo_local' }
+    if ($DatabaseName -notmatch '^jachai_demo_[A-Za-z0-9_-]+$') {
+        throw 'Demo mode requires a dedicated jachai_demo_* database.'
+    }
+}
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $logDir = Join-Path $projectRoot 'target\local-dev'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
@@ -32,8 +41,8 @@ function Test-LocalPort([int]$Number) {
 
 $healthUrl = "http://127.0.0.1:$Port/api/v1/health"
 if (Test-LocalPort $Port) {
-    if ($Smtp) {
-        throw "Port $Port is occupied; choose a free port for the isolated SMTP test instance."
+    if ($Smtp -or $Demo) {
+        throw "Port $Port is occupied; choose a free port for this isolated test instance."
     }
     try {
         Invoke-RestMethod -Uri $healthUrl -TimeoutSec 3 | Out-Null
@@ -58,10 +67,11 @@ if (-not (Test-Java21Home $env:JAVA_HOME)) {
     throw 'JAVA_HOME must point to JDK 21.'
 }
 $env:Path = (Join-Path $env:JAVA_HOME 'bin') + [IO.Path]::PathSeparator + $env:Path
-$env:SPRING_PROFILES_ACTIVE = if ($Smtp) { 'local,smtp' } else { 'local' }
+$env:SPRING_PROFILES_ACTIVE = if ($Demo) { 'demo' } elseif ($Smtp) { 'local,smtp' } else { 'local' }
 $env:SERVER_PORT = "$Port"
 $env:SERVER_ADDRESS = '127.0.0.1'
 $env:LOCAL_MONGODB_DATABASE = $DatabaseName
+if ($Demo) { $env:DEMO_MONGODB_DATABASE = $DatabaseName }
 # Use Atlas credentials from the process environment only.
 # Never substitute a localhost MongoDB server or put the database in the URI.
 if (-not $env:MONGODB_URI) { throw 'Set MONGODB_URI in this shell before starting JachAI.' }
@@ -88,7 +98,9 @@ for ($i = 0; $i -lt 60; $i++) {
     try {
         Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2 | Out-Null
         Write-Host "JachAI is ready at http://127.0.0.1:$Port/"
-        if ($Smtp) {
+        if ($Demo) {
+            Write-Host 'Local demo mode is active. Choose a role on the sign-in page; no password is needed.'
+        } elseif ($Smtp) {
             Write-Host 'SMTP test mode is active; verification links are sent to the registered inbox.'
         } else {
             Write-Host "Development email links appear in $(Join-Path $logDir $appLog)"

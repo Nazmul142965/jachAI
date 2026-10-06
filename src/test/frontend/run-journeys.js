@@ -153,6 +153,22 @@ async function main() {
     await shot(`overview-${role}${storage === 'ok' ? '' : `-${storage}`}`);
   }
 
+  if (process.argv.includes('--demo-only')) {
+    await page.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: installScript({ role: 'learner', demo: true }) });
+    await page.send('Page.navigate', { url: APP }); await wait(1200);
+    check('demo', 'local demo roles appear only when the endpoint is available',
+      await ev(`!document.querySelector('#demo-access').classList.contains('hidden')
+        && document.querySelectorAll('#demo-access-roles button').length === 2`));
+    await ev(`document.querySelector('#demo-access-roles button').click()`); await wait(1400);
+    check('demo', 'role shortcut signs in without typing credentials',
+      await ev(`document.querySelector('#auth').classList.contains('hidden')
+        && !document.querySelector('#app').classList.contains('hidden')`));
+    console.log(`${all.length - failures}/${all.length} focused checks passed`);
+    page.close(); browser.child.kill(); await server.close();
+    process.exit(failures ? 1 : 0);
+  }
+
   if (process.argv.includes('--no-workspace-only')) {
     await load('no-workspace');
     check('no-workspace', 'registration explains that local mode does not email links',

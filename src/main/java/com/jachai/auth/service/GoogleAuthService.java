@@ -55,9 +55,12 @@ public class GoogleAuthService {
     }
 
     public void link(String actorId, String credential) {
-        var profile = google.verify(credential);
         User user = users.findById(actorId).orElseThrow(() ->
                 new ApiException(HttpStatus.UNAUTHORIZED, "ACCOUNT_UNAVAILABLE", "Account is unavailable"));
+        if (AuthService.isDemoUser(user)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEMO_ACCOUNT_LOCKED", "Demo accounts cannot link Google");
+        }
+        var profile = google.verify(credential);
         if (user.disabled() || !user.emailVerified() || !user.email().equals(profile.email())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "GOOGLE_EMAIL_MISMATCH",
                     "Google account email must match your verified JachAI email");

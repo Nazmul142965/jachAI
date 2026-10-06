@@ -406,6 +406,11 @@ a:focus-visible,
 }
 
 .google-signin { margin-top: var(--sp-5); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
+.demo-access { margin-top: var(--sp-6); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
+.demo-access h2 { font-size: var(--text-lg); }
+.demo-access .muted { max-width: 48ch; font-size: var(--text-sm); }
+.demo-access-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.demo-role { min-height: 44px; white-space: normal; text-align: center; }
 .google-signin .muted { margin-bottom: var(--sp-3); font-size: var(--text-sm); }
 
 /* ==========================================================================

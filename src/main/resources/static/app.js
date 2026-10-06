@@ -3945,6 +3945,23 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
     throw error;
   } finally { if (control) control.disabled = false; }
 }); });
+request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
+  if (!Array.isArray(accounts) || !accounts.length) return;
+  const roles = $('#demo-access-roles');
+  roles.replaceChildren(...accounts.map((account) => {
+    const control = button(account.label, async () => {
+      control.disabled = true;
+      try {
+        const tokens = await request(`/demo/login/${encodeURIComponent(account.key)}`,
+          { method: 'POST', auth: false, retry: false });
+        await signedIn(tokens);
+      } finally { control.disabled = false; }
+    }, 'button secondary demo-role');
+    control.setAttribute('aria-label', `Sign in as ${account.label} in the ${account.workspace} demo workspace`);
+    return control;
+  }));
+  $('#demo-access').classList.remove('hidden');
+}).catch(() => { /* Non-demo profiles intentionally have no demo endpoint. */ });
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const element = event.currentTarget;
   const form = new FormData(element);

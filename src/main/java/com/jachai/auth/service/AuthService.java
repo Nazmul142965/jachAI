@@ -137,6 +137,10 @@ public class AuthService {
 
     public void changePassword(String userId, String currentPassword, String newPassword) {
         User user = activeUser(userId);
+        if (isDemoUser(user)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEMO_PASSWORD_LOCKED",
+                    "Demo accounts cannot change passwords");
+        }
         if (user.passwordHash() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PASSWORD_NOT_SET",
                     "Password sign-in is not enabled; request a password reset link to set one");
@@ -190,7 +194,7 @@ public class AuthService {
 
     public void requestPasswordReset(String email) {
         users.findByEmail(normalizeEmail(email))
-                .filter(user -> user.emailVerified() && !user.disabled())
+                .filter(user -> user.emailVerified() && !user.disabled() && !isDemoUser(user))
                 .ifPresent(user -> {
                     resetTokens.deleteByUserId(user.id());
                     String raw = TokenSecrets.generate();
@@ -210,7 +214,7 @@ public class AuthService {
         }
         User user = users.findById(token.userId()).orElseThrow(() ->
                 new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired"));
-        if (!user.emailVerified() || user.disabled()) {
+        if (!user.emailVerified() || user.disabled() || isDemoUser(user)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
         }
         UpdateResult result = mongo.updateFirst(Query.query(Criteria.where("_id").is(user.id())
@@ -231,6 +235,10 @@ public class AuthService {
                 user.id(), user.securityVersion(), Instant.now(), Instant.now().plus(REFRESH_LIFETIME)));
         return new AuthResponse(jwt.issueAccessToken(user), rawRefresh, "Bearer",
                 jwt.accessLifetimeSeconds());
+    }
+
+    public static boolean isDemoUser(User user) {
+        return user.id() != null && user.id().startsWith("demo-account-");
     }
 
     private void issueVerification(User user) {

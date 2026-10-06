@@ -240,6 +240,21 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Frontend implementation decision
 
+### Local role-demo decision (2026-10-06)
+
+The optional `demo` Spring profile is loopback-only and refuses to issue demo
+sessions unless the selected MongoDB database name starts with `jachai_demo_`.
+The sign-in page discovers six role shortcuts only while this profile is
+active: Academy owner/instructor/learner and Talent owner/recruiter/candidate.
+Clicking a shortcut lazily seeds verified, passwordless accounts and two
+disposable workspaces in that database, then issues normal JWT/refresh tokens.
+Their role permissions are real inside the demo database, but the shortcut is
+not a production authentication method. No demo credentials are embedded in
+HTML, JavaScript, source or logs. Demo accounts cannot change/reset passwords
+or link Google; regular accounts retain those workflows. The profile disables
+cloud AI and SMTP, binds to 127.0.0.1 and is never combined with `prod`.
+Live Atlas seeding and browser clicks still require a dedicated test run.
+
 - Browser HTML belongs in `src/main/resources/templates` and is served by a small Spring MVC page controller using Thymeleaf, per user preference. CSS and JavaScript belong in `src/main/resources/static`. Page controllers render only the shell and email-action pages; business data is fetched through the same `/api/v1` REST API used by external clients.
 - Paged GET routes keep the fixed 20-row page size and reject page indexes outside `0–500` before repository access. Controller parameter annotations document the bound; a shared MVC interceptor enforces it even when method validation is not configured in a particular test or deployment. This protects the small MongoDB tier from unbounded skip queries. Larger histories will need cursor pagination rather than silently lifting this limit.
 

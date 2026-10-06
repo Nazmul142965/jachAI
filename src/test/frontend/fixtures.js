@@ -18,6 +18,7 @@ const SOURCE = String.raw`(() => {
     platformAdmin: __PLATFORM__,
     storage: '__STORAGE__'
   };
+  const DEMO = __DEMO__;
   const page = (content) => ({ content, number: 0, totalPages: 1, first: true, last: true,
     totalElements: content.length, numberOfElements: content.length });
   const json = (body, status = 200) => new Response(JSON.stringify(body),
@@ -113,6 +114,12 @@ const SOURCE = String.raw`(() => {
     const org = '/api/v1/organizations/' + (ROLE.org?.id || 'none');
 
     if (path === '/api/v1/auth/login') return json({ accessToken: 'fixture-access', refreshToken: 'fixture-refresh' });
+    if (path === '/api/v1/demo/accounts') return DEMO
+      ? json([{ key: 'learner', label: 'Learner', role: 'LEARNER', workspace: 'Academy' },
+          { key: 'academy-admin', label: 'Academy owner', role: 'ORG_ADMIN', workspace: 'Academy' }])
+      : error(404, 'NOT_FOUND', 'Demo mode is not active');
+    if (path === '/api/v1/demo/login/learner' && DEMO && method === 'POST')
+      return json({ accessToken: 'fixture-access', refreshToken: 'fixture-refresh' });
     if (path === '/api/v1/auth/email-delivery-mode') return json({ mode: 'LOCAL_CONSOLE' });
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });
     if (path === '/api/v1/platform/me') return json({ userId: ROLE.userId, platformAdmin: ROLE.platformAdmin });
@@ -278,14 +285,15 @@ const SOURCE = String.raw`(() => {
   };
 })();`;
 
-function installScript({ role = 'learner', storage = 'ok' } = {}) {
+function installScript({ role = 'learner', storage = 'ok', demo = false } = {}) {
   const chosen = ROLES[role];
   if (!chosen) throw new Error(`unknown role: ${role}`);
   return SOURCE
     .replace('__USER__', chosen.userId)
     .replace('__ORG__', JSON.stringify(chosen.org))
     .replace('__PLATFORM__', String(chosen.platformAdmin))
-    .replace('__STORAGE__', storage);
+    .replace('__STORAGE__', storage)
+    .replace('__DEMO__', String(demo));
 }
 
 module.exports = { installScript, ROLES };
