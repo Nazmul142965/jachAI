@@ -182,6 +182,16 @@ async function main() {
     await page.send('Page.navigate', { url: `${server.url}/verify-email.html` }); await wait(750);
     check('public-page', 'short verification page keeps footer at viewport bottom',
       await ev(`document.querySelector('.footer').getBoundingClientRect().bottom >= window.innerHeight - 1`));
+    check('public-page', 'verification return is a visible sign-in action',
+      await ev(`(() => { const link = document.querySelector('#back-to-sign-in');
+        return link.getAttribute('href') === '/#auth' && link.getBoundingClientRect().height >= 40; })()`));
+    check('public-page', 'footer destinations are distinct navigation targets',
+      await ev(`(() => { const links = [...document.querySelectorAll('.footer nav a')];
+        return links.length === 3 && links.every((link) => link.getBoundingClientRect().height >= 40)
+          && links.some((link) => link.getAttribute('href') === '/how.html'); })()`));
+    await ev(`document.querySelector('#back-to-sign-in').click()`); await wait(350);
+    check('public-page', 'return action opens the sign-in form',
+      await ev(`location.pathname === '/' && !document.querySelector('#login-form').classList.contains('hidden')`));
     page.close(); browser.child.kill(); await server.close();
     console.log(`${all.length - failures}/${all.length} focused checks passed`);
     process.exit(failures ? 1 : 0);

@@ -47,6 +47,13 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   padding: clamp(28px, 5vw, 64px) clamp(18px, 4vw, 40px) var(--sp-10);
 }
 .page--narrow { width: min(100%, 640px); }
+.page--auth {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  padding-block: clamp(44px, 8vh, 88px);
+}
 
 .section { margin-top: var(--sp-9); }
 .section--tight { margin-top: var(--sp-7); }
@@ -128,7 +135,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .footer .inner {
   width: min(100%, var(--max));
   margin: 0 auto;
-  padding: var(--sp-6) clamp(18px, 4vw, 40px);
+  padding: var(--sp-7) clamp(18px, 4vw, 40px);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -136,9 +143,19 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   color: var(--muted);
   font-size: var(--text-md);
 }
-.footer .inner nav { margin-left: auto; display: flex; gap: var(--sp-4); flex-wrap: wrap; }
-.footer .inner a { text-decoration: none; }
-.footer .inner a:hover { text-decoration: underline; }
+.footer .inner nav { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.footer .inner a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+.footer .inner a:hover { color: var(--brand-ink); background: var(--surface-brand); }
+.footer .inner a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ==========================================================================
    5. Typography
@@ -544,6 +561,8 @@ input::placeholder { color: var(--neutral-400); }
 .form-note { margin: var(--sp-5) 0 var(--sp-4); color: var(--muted); font-size: var(--text-base); }
 
 .auth-aside { margin: var(--sp-6) 0 0; font-size: var(--text-base); }
+.auth-return { align-self: flex-start; margin-top: var(--sp-6); text-decoration: none; }
+.auth-return:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ==========================================================================
    7. Responsive
@@ -557,6 +576,10 @@ input::placeholder { color: var(--neutral-400); }
   ol.workflow li .step-number { width: 28px; height: 28px; font-size: 13px; }
   .section { margin-top: var(--sp-8); }
   .plan-card--featured .plan-badge { left: var(--sp-4); }
+  .page--auth { padding-block: var(--sp-7); }
+  .auth-return { width: 100%; }
+  .footer .inner { align-items: flex-start; }
+  .footer .inner nav { width: 100%; margin-left: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

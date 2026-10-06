@@ -24,7 +24,7 @@
     </nav>
   </header>
 
-  <main class="page page--narrow">
+  <main class="page page--narrow page--auth">
     <p class="eyebrow">Account</p>
     <h1>Email verification</h1>
 
@@ -44,13 +44,13 @@
       </section>
     </div>
 
-    <p class="auth-aside"><a href="/">Back to sign in</a></p>
+    <a id="back-to-sign-in" class="button quiet auth-return" href="/#auth">Back to sign in</a>
   </main>
 
   <footer class="footer">
     <div class="inner">
       <span>JachAI — technical assessment and skill verification.</span>
-      <nav aria-label="Footer">
+      <nav aria-label="Explore JachAI">
         <a href="/how.html">How it works</a>
         <a href="/plans.html">Plans</a>
         <a href="/#verify-code">Verify a certificate</a>
@@ -112,6 +112,7 @@
       }).then(response => {
         if (response.ok) {
           say('Your email is verified. You can now sign in.', 'ok');
+          document.getElementById('back-to-sign-in').textContent = 'Continue to sign in';
         } else {
           say('This link is invalid or has expired. Request a new verification email below.', 'error');
           showResend();
