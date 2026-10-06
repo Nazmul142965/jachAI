@@ -1,0 +1,9 @@
+# Agent 04 — Organization sandbox billing and platform operations
+
+Create a new worktree/branch from current `main`. Read `ARCHITECTURE.md`, `README.md`, `HANDOFF.md`, `DEPLOYMENT.md`, and existing billing/platform code. Own only Java packages `billing`, `platform` and their tests. Do not edit frontend, auth or organization modules; request cross-module contract changes. Preserve dirty work, no reset/force.
+
+Finish the organization payment-to-entitlement journey. Direct bKash and SSLCOMMERZ must remain **sandbox only**: no live-money hosts, real merchant credentials in code, or simulated payment treated as verified. Verify durable tenant-scoped orders; server-to-server callback checks for order/merchant reference, amount, BDT currency, completion and risk; duplicate/lost callbacks cannot credit TEAM twice; admin reconciliation; quota behavior after plan change; and buyer email queued once with honest delivery state. Review platform role/plan grants, support access, storage reporting, usage reconciliation, audit history and ambiguous TTL cases. Fix actual defects, not just add classes. Test foreign-tenant denial, races and partial-write recovery. Use official sandbox documentation for provider behavior.
+
+Sandbox merchant credentials are not currently configured. Complete safe offline/opt-in tests and mark real sandbox transactions pending; do not invent a successful live result. Commit each coherent slice; run broad suite once at end. Update `BILLING_PLATFORM_DELIVERY.md` with hashes, commands/results and exact private credential gates. Never grant TEAM from browser status or a query reference alone.
+
+When ready for a live sandbox check, tell the owner exactly which merchant account and environment variables are needed. Do not request that a secret be pasted into chat; continue independent work while waiting.
