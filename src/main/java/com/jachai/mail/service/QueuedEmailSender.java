@@ -116,6 +116,19 @@ public class QueuedEmailSender implements EmailSender {
         }
     }
 
+    @Override
+    public void sendSupportTicketNotification(String ticketId, String referenceNumber,
+                                              String recipient, String displayName,
+                                              String subject, String signInUrl, Instant expiresAt) {
+        EmailPayload payload = new EmailPayload(EmailJobType.SUPPORT_TICKET_UPDATE,
+                recipient, displayName, subject, signInUrl, expiresAt, ticketId);
+        try {
+            enqueue("support-ticket:" + ticketId + ":" + referenceNumber, payload, expiresAt);
+        } catch (DuplicateKeyException ignored) {
+            // Idempotent
+        }
+    }
+
     private void enqueue(EmailPayload payload) {
         enqueue(UUID.randomUUID().toString(), payload, Instant.now().plus(RECORD_RETENTION));
     }

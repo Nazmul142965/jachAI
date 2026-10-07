@@ -100,6 +100,7 @@ public class EmailLinkGuard {
             case FEEDBACK_PUBLISHED -> false;
             case ASSIGNMENT_REMINDER -> false;
             case BILLING_NOTICE -> false;
+            case SUPPORT_TICKET_UPDATE -> false;
         };
     }
 
