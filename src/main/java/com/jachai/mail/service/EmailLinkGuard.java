@@ -71,6 +71,8 @@ public class EmailLinkGuard {
         return switch (payload.type()) {
             case VERIFICATION -> verificationTokens.findByTokenHash(hash)
                     .filter(value -> value.expiresAt().isAfter(now))
+                    .filter(value -> value.id().equals(value.userId())
+                            || verificationTokens.findById(value.userId()).isEmpty())
                     .flatMap(value -> users.findById(value.userId()))
                     .filter(user -> !user.emailVerified() && !user.disabled()
                             && user.createdAt() != null

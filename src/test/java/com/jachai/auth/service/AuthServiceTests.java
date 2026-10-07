@@ -64,7 +64,13 @@ class AuthServiceTests {
         ArgumentCaptor<EmailVerificationToken> token = ArgumentCaptor.forClass(EmailVerificationToken.class);
         verify(tokens).save(token.capture());
         assertEquals(user.getValue().id(), token.getValue().userId());
+        assertEquals(user.getValue().id(), token.getValue().id());
         assertEquals(64, token.getValue().tokenHash().length());
+        ArgumentCaptor<Query> legacyCleanup = ArgumentCaptor.forClass(Query.class);
+        verify(mongo).remove(legacyCleanup.capture(), eq(EmailVerificationToken.class));
+        assertEquals(user.getValue().id(), legacyCleanup.getValue().getQueryObject().get("userId"));
+        assertEquals(user.getValue().id(), legacyCleanup.getValue().getQueryObject()
+                .get("_id", org.bson.Document.class).get("$ne"));
         verify(emailSender).sendVerification(eq("test@example.com"), eq("Test User"),
                 org.mockito.ArgumentMatchers.contains("verify-email.html?token="));
     }
@@ -75,6 +81,19 @@ class AuthServiceTests {
                 .thenReturn(new EmailVerificationToken("id", "hash", "user", Instant.now().minusSeconds(1)));
         ApiException error = assertThrows(ApiException.class, () -> service.verifyEmail("some-token"));
         assertEquals("INVALID_TOKEN", error.code());
+    }
+
+    @Test
+    void aLegacyVerificationLinkCannotVerifyAfterItsReplacementWasIssued() {
+        when(mongo.findAndRemove(any(Query.class), eq(EmailVerificationToken.class)))
+                .thenReturn(new EmailVerificationToken("old-random-id", "old-hash", "user",
+                        Instant.now().plusSeconds(300)));
+        when(tokens.findById("user")).thenReturn(Optional.of(new EmailVerificationToken(
+                "user", "new-hash", "user", Instant.now().plusSeconds(300))));
+
+        assertEquals("INVALID_TOKEN", assertThrows(ApiException.class,
+                () -> service.verifyEmail("old-link")).code());
+        verify(users, never()).findById(any());
     }
 
     @Test

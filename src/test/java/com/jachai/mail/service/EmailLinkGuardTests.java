@@ -92,6 +92,20 @@ class EmailLinkGuardTests {
     }
 
     @Test
+    void replacedLegacyVerificationLinkIsNotDelivered() {
+        when(verificationTokens.findByTokenHash(any())).thenReturn(Optional.of(
+                new EmailVerificationToken("old-random-id", "old-hash", "user",
+                        Instant.now().plusSeconds(3600))));
+        when(verificationTokens.findById("user")).thenReturn(Optional.of(
+                new EmailVerificationToken("user", "new-hash", "user",
+                        Instant.now().plusSeconds(3600))));
+
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.VERIFICATION,
+                "person@example.com", "Person", null,
+                "https://example.test/verify?token=old-link", Instant.now().plusSeconds(3600))));
+    }
+
+    @Test
     void resetTokenMustBelongToCurrentVerifiedRecipient() {
         when(resetTokens.findByTokenHash(any())).thenReturn(Optional.of(
                 new PasswordResetToken("id", "hash", "user", Instant.now().plusSeconds(3600))));

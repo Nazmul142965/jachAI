@@ -34,6 +34,7 @@ Updated: 2026-10-07. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Claude's additional ungraded-state, favicon/password-manager, and demo Academy cohort slices were reviewed and cherry-picked separately into `main` (`4d8905c`, `8ea7a38`, `bdb0c5e`). Focused `DemoFixtureServiceTests` and one auth HTTP regression passed on the integrated revision; this is not proof of every live demo journey. Claude's separate branch documents a manual short-answer grading/release API and browser walkthrough, but the integrated revision has not independently repeated it.
 - [x] Password-reset responses now say email was queued, not sent (`47b5946`). Validation failures now name safe fields and permitted enum choices without echoing submitted values or raw exception messages (`6fa7efa`); five focused handler tests passed.
 - [x] Workspace join-code usage now counts completed code/user redemptions rather than attempted claims (`eeef80f`). Four focused service tests passed, including failed membership writes and retry after a partial join. Legacy pre-ledger counts remain visible; MongoDB TTL and concurrent redemption behavior need live verification.
+- [x] Verification resends now replace one token document per user instead of deleting and reinserting separate tokens; legacy random-ID links are invalidated and cleaned up. Focused auth/outbox-guard tests passed. Real MongoDB simultaneous-resend behavior and SMTP delivery remain unverified.
 
 ## Next implementation and integration
 

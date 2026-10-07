@@ -89,6 +89,11 @@ public class AuthService {
         if (token == null || !token.expiresAt().isAfter(Instant.now())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Verification link is invalid or expired");
         }
+        // Older releases used a random document ID. Once a per-user token has been issued,
+        // those legacy links must no longer verify the account.
+        if (!token.id().equals(token.userId()) && tokens.findById(token.userId()).isPresent()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Verification link is invalid or expired");
+        }
         User user = users.findById(token.userId()).orElseThrow(() ->
                 new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Verification link is invalid or expired"));
         if (user.emailVerified()) return;
@@ -242,10 +247,14 @@ public class AuthService {
     }
 
     private void issueVerification(User user) {
-        tokens.deleteByUserId(user.id());
         String raw = TokenSecrets.generate();
-        tokens.save(new EmailVerificationToken(UUID.randomUUID().toString(), TokenSecrets.hash(raw),
+        // A stable ID makes simultaneous resends replace the same record. Only the last saved
+        // token can be redeemed. Delete pre-migration random-ID tokens without touching the
+        // canonical record, including when another resend replaces it concurrently.
+        tokens.save(new EmailVerificationToken(user.id(), TokenSecrets.hash(raw),
                 user.id(), Instant.now().plus(VERIFICATION_LIFETIME)));
+        mongo.remove(Query.query(Criteria.where("userId").is(user.id())
+                .and("_id").ne(user.id())), EmailVerificationToken.class);
         emailSender.sendVerification(user.email(), user.displayName(),
                 publicBaseUrl + "/verify-email.html?token=" + raw);
     }
