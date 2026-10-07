@@ -317,6 +317,54 @@ a:focus-visible,
   border-color: var(--danger-border);
 }
 
+/* -- Mobile workspace navigation ------------------------------------------
+   Below 900px the sidebar stacks above the content. With every section listed
+   it stood 699px tall on a 375x780 phone and pushed the first card to 830px,
+   so opening the app on a phone showed navigation and nothing else.
+
+   The workspace context - which organization, which role - stays visible,
+   because that is the one thing a person must not have to guess. Only the list
+   of sections collapses, behind a control that names where you are. */
+.nav-toggle {
+  display: none;
+  width: 100%;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: 11px var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+.nav-toggle:hover { border-color: var(--line-strong); }
+.nav-toggle-label { flex: 1; }
+/* A chevron drawn in CSS rather than shipped as an icon font for one glyph. */
+.nav-toggle-mark {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform .15s ease;
+}
+.nav-toggle[aria-expanded="true"] .nav-toggle-mark {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+@media (max-width: 900px) {
+  .nav-toggle { display: flex; }
+  .side-nav[data-collapsed="true"] { display: none; }
+  .side-nav { width: 100%; margin-top: var(--sp-3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-toggle-mark { transition: none; }
+}
+
 /* -- Workspace shell ------------------------------------------------------ */
 
 .workspace {

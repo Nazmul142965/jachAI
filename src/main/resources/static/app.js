@@ -514,6 +514,9 @@ async function setOrganization() {
     : [['academy', 'My batches']];
 
   availableScreens = groups.flatMap(([, items]) => items.map(([key]) => key));
+  // The sections list exists now, so the control that opens it can appear.
+  $('#nav-toggle').hidden = false;
+  setNavCollapsed(true);
   for (const [heading, items] of groups) {
     if (heading) nav.append(node('p', heading, 'nav-heading'));
     for (const [key, title] of items) {
@@ -1156,6 +1159,28 @@ async function loadWorkspaceFacts(organization, role) {
   setList('#workspace-facts', facts, '');
 }
 
+// The mobile sections menu. Collapsed is the default below 900px, where the
+// stylesheet hides the list; above it the attribute is ignored and the sidebar
+// renders as it always has, so desktop behaviour is untouched.
+function mobileNav() {
+  return { toggle: $('#nav-toggle'), nav: $('#workspace-nav') };
+}
+function setNavCollapsed(collapsed) {
+  const { toggle, nav } = mobileNav();
+  if (!toggle || !nav) return;
+  nav.dataset.collapsed = String(collapsed);
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+}
+// The control names the screen you are on, so the menu never costs you your place.
+function setNavToggleLabel(text) {
+  const label = $('.nav-toggle-label');
+  if (label) label.textContent = text || 'Menu';
+}
+$('#nav-toggle').addEventListener('click', () => {
+  const { nav } = mobileNav();
+  setNavCollapsed(nav.dataset.collapsed !== 'true');
+});
+
 // Open a screen, optionally at one of its tabs. This is what the sidebar, the
 // overview shortcuts and the URL all go through.
 async function showScreen(screenKey, viewKey) {
@@ -1211,6 +1236,9 @@ async function showView(key) {
   renderScreenTabs(screenKey, key);
   writeRoute(screenKey, key);
   const screen = SCREENS[screenKey];
+  // Choosing a section closes the menu, so the content it opened is what you see.
+  setNavToggleLabel(screen.title);
+  setNavCollapsed(true);
   const tabLabel = (screen.views.find(([id]) => id === key) || [, screen.title])[1];
   $('#page-title').textContent = screen.title;
   document.title = screen.views.length > 1
