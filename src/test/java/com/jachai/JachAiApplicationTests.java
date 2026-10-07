@@ -196,6 +196,27 @@ class JachAiApplicationTests {
     }
 
     @Test
+    void pagedApiKeepsTheFrontendContractWithoutSerializingPageImpl() throws Exception {
+        when(platformAdminService.organizations("admin", 1)).thenReturn(
+                new org.springframework.data.domain.PageImpl<>(java.util.List.of(
+                        new com.jachai.platform.dto.PlatformOrganizationView("org", "Academy",
+                                com.jachai.organization.model.OrganizationType.ACADEMY,
+                                "owner", Instant.parse("2026-10-01T00:00:00Z"))),
+                        org.springframework.data.domain.PageRequest.of(1, 1), 2));
+
+        mvc.perform(get("/api/v1/platform/organizations?page=1")
+                        .with(jwt().jwt(token -> token.subject("admin"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value("org"))
+                .andExpect(jsonPath("$.number").value(1))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.first").value(false))
+                .andExpect(jsonPath("$.last").value(true))
+                .andExpect(jsonPath("$.pageable").doesNotExist());
+    }
+
+    @Test
     void platformRoleEndpointUsesAuthenticatedActorAndRejectsOrdinaryUser() throws Exception {
         doThrow(new com.jachai.shared.error.ApiException(org.springframework.http.HttpStatus.FORBIDDEN,
                 "PLATFORM_ADMIN_REQUIRED", "Platform administrator access required"))
