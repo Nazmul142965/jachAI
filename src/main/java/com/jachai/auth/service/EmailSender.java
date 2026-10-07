@@ -17,4 +17,7 @@ public interface EmailSender {
                                    String assessmentTitle, String signInUrl, Instant availableUntil);
     void sendBillingNotice(String orderId, String recipient, String displayName,
                            String orderSummary, String signInUrl);
+    void sendSupportTicketNotification(String ticketId, String referenceNumber,
+                                       String recipient, String displayName,
+                                       String subject, String signInUrl, Instant expiresAt);
 }
