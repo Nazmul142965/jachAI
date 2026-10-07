@@ -5,6 +5,8 @@ import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.billing.dto.PaymentOptionsView;
 import com.jachai.billing.model.PaymentProvider;
 import com.jachai.billing.service.PaymentBillingService;
+import com.jachai.shared.security.RateLimitPolicy;
+import com.jachai.shared.security.RateLimitService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Max;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/organizations/{organizationId}/billing")
 public class PaymentBillingController {
     private final PaymentBillingService billing;
+    private final RateLimitService limits;
 
     public record StartOrderRequest(@NotNull PaymentProvider provider) { }
 
@@ -43,6 +46,7 @@ public class PaymentBillingController {
     public ResponseEntity<CheckoutView> start(@AuthenticationPrincipal Jwt jwt,
                                               @PathVariable String organizationId,
                                               @Valid @RequestBody StartOrderRequest request) {
+        limits.consume(RateLimitPolicy.PAYMENT_CHECKOUT_ACTOR, jwt.getSubject());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(billing.start(jwt.getSubject(), organizationId, request.provider()));
     }
@@ -65,6 +69,7 @@ public class PaymentBillingController {
     public PaymentOrderView reconcile(@AuthenticationPrincipal Jwt jwt,
                                       @PathVariable String organizationId,
                                       @PathVariable String orderId) {
+        limits.consume(RateLimitPolicy.PAYMENT_RECONCILE_ACTOR, jwt.getSubject());
         return billing.reconcile(jwt.getSubject(), organizationId, orderId);
     }
 }
