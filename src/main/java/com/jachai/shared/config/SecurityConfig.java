@@ -29,6 +29,11 @@ public class SecurityConfig {
                                 // the console of every page load, which teaches people to ignore
                                 // console errors. Permitted, these are an icon and a plain 404.
                                 "/favicon.svg", "/favicon.ico",
+                                // The React Practice pilot's bundle. A static asset exactly like
+                                // /app.js above: it is fetched by a dynamic import, which carries
+                                // no Authorization header, and it holds no secret. The data it
+                                // shows is still fetched through the authenticated API.
+                                "/pilot/practice.js",
                                 "/api/v1/health", "/actuator/health", "/actuator/health/**", "/verify-email.html", "/reset-password.html",
                                 "/api/v1/auth/register", "/api/v1/auth/verify-email",
                                 "/api/v1/auth/email-delivery-mode",
