@@ -136,7 +136,7 @@ public class AuthController {
         limits.consume(RateLimitPolicy.RESET_ACCOUNT, emailKey(request.email()));
         auth.requestPasswordReset(request.email());
         return ResponseEntity.accepted().body(Map.of("message",
-                "If the account is eligible, a reset email has been sent"));
+                "If the account is eligible, a reset email has been queued"));
     }
 
     @PostMapping("/reset-password")

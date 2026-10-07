@@ -403,6 +403,13 @@ class JachAiApplicationTests {
                         .contentType("application/json")
                         .content("{\"email\":\"not-an-email\"}"))
                 .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/api/v1/auth/request-password-reset")
+                        .contentType("application/json")
+                        .content("{\"email\":\"test@example.com\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value(
+                        "If the account is eligible, a reset email has been queued"));
     }
 
     @Test
