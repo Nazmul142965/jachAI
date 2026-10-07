@@ -103,11 +103,31 @@ Reading it from the 8080 run's own public config endpoint and passing it in the
 start command fixes it: verified non-empty, 72 characters, ending
 `.apps.googleusercontent.com`.
 
-**Caveat, unverified and not to be claimed:** whether `http://127.0.0.1:8102` is
-an authorised JavaScript origin for that client ID in Google Cloud. If it is not,
-the button will render and sign-in will fail with `origin_mismatch`. **Do not
-claim Google sign-in works until an actual sign-in succeeds.** The owner must add
-the origin in the Google Cloud console if it is missing.
+### CONFIRMED BLOCKER: 8102 is not an authorised origin
+
+This is no longer a caveat. The browser console on 8102 reports, from Google:
+
+```
+[GSI_LOGGER]: The given origin is not allowed for the given client ID.
+403 from https://accounts.google.com/...
+```
+
+So the configuration half is fixed - `/api/v1/auth/google/config` returns the ID,
+and the button renders - but **Google sign-in cannot work on 8102 until the owner
+adds the origin.** It is not a code problem and nothing in this repository can fix
+it.
+
+**What the owner must do**, in the Google Cloud console for the same OAuth 2.0
+Web client already used by the 8080 run:
+
+> APIs & Services → Credentials → that OAuth client → **Authorised JavaScript
+> origins** → add `http://127.0.0.1:8102` → Save. Changes can take a few minutes.
+
+Add `http://localhost:8102` as well if that host is ever used, since Google
+treats it as a different origin.
+
+**Do not claim Google sign-in works.** Email sign-in and the demo role buttons are
+unaffected and work normally.
 
 ## Rules carried from the owner
 
