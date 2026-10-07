@@ -382,3 +382,115 @@ Then tell me which of the three options you want. I have not started any of them
 | Production dashboard | **Untouched** |
 | Old UI files | **Untouched** |
 | `main` and the backend agent's files | **Untouched** |
+
+---
+
+# Phase 4 — Option 3 in progress
+
+You approved Option 3: improve the current UI first, then one limited React pilot
+on Practice, and decide the rest afterwards. Nothing beyond that has been started.
+
+## 4a. Current UI, improved in place
+
+| Commit | What it fixes | Verified |
+| --- | --- | --- |
+| `567fe24` | Eight empty lists now name the control that fills them | Ownership history and release queue read as written, live |
+| `5e7afed` | A phone showed navigation instead of content | Sidebar 699px → 212px, first card 830px → 390px on a 375×780 phone |
+| `5fc96ef` | Explanatory text ran to 858px, past 110 characters | Capped at 78ch |
+
+Two things I did **not** change, having checked them:
+
+- **Error states.** `loadList` already appends the server's own message and a
+  Retry button, so the short prefix is a prefix, not the whole story. My first
+  pass misread 57 of 60 messages as dead ends; most are terminal and correct. An
+  audit log with no entries needs no call to action.
+- **The remaining 52 empty messages.** Rewriting them all would be churn.
+
+## 4b. React Practice pilot
+
+**Off unless the URL carries `?pilot=practice`.** With the flag absent the bundle
+is never fetched — verified by watching `fetch` through a full sign-in and visit
+to Practice. No second dashboard, no second route, no second navigation.
+
+### Why it mounts inside the page
+
+The access token is held in a variable in `app.js` and nowhere else. A React app
+served at its own URL could not see it, and copying it into storage to work
+around that would be a security regression, not a migration. **The host hands the
+pilot a `request` function and never the token.**
+
+### Parity against the old Practice screen
+
+| # | Behaviour | Pilot | Evidence |
+| --- | --- | --- | --- |
+| 1 | Three loads tolerate partial failure | Yes | `Promise.allSettled`, each slice carries its own error |
+| 2 | Question list, searchable | Yes | 5 starter questions listed and filterable |
+| 3 | Selection survives reload, else first | Yes | effect keyed on the loaded list |
+| 4 | Generate takes topic and difficulty | Yes | plus the optional `brief` the API accepts |
+| 5 | Generation progress is explicit | Yes | spinner plus "usually 5–10 seconds", `role="status"` |
+| 6 | Quota line, both allowances | Yes | `0/20 … (20 left) · 2/20 … (18 left) today` |
+| 7 | Generate disabled at 0 remaining | Yes | plus a line saying answering still works |
+| 8 | Submit disabled at 0 remaining or no question | Yes | |
+| 9 | Answer returns verdict and explanation | Yes | "Not correct", correct option named, explanation shown |
+| 10 | History with correct / review and a time | Yes | updates after answering |
+| 11 | Reload | Yes | |
+| 12 | Usage failure pauses both actions | Yes | and says so |
+
+**Beyond parity:** the quota is shown as two meters as well as a sentence; the
+question list marks what you have already answered and how it went; a failed
+generation re-reads the allowance from the server rather than asserting nothing
+was charged.
+
+### Verified live on 8102
+
+- Five questions load; answering returns verdict, correct option and explanation.
+- The allowance moves **server-side** to `2/20 answers checked (18 left)`.
+- History and the question list both update.
+- Switching to the old screen afterwards shows the same `2/20` — same account,
+  same API, same server state.
+- Security after a full session in the pilot: nothing matching a token in
+  `localStorage`, `sessionStorage` or cookies, and no token-named global.
+- `npx tsc -b --noEmit` clean; `node --check app.js` clean.
+
+### Two mistakes worth recording
+
+1. **I wrote the API types from assumption, not from the controller.** The
+   difficulty scale is `BEGINNER|INTERMEDIATE|ADVANCED`, not `EASY|MEDIUM|HARD`;
+   generating takes no question type; a practice question is always single
+   choice; and answering carries `requestId`, an idempotency key. The server
+   answered `Request validation failed` twice before I read the Java. This is
+   precisely the bug class typing exists to prevent, and inventing the types
+   defeated it. They are now transcribed, with the three traps named in `api.ts`.
+2. **Vite's library mode does not substitute `process.env.NODE_ENV`,** so the
+   first build shipped React's development build: 1085 kB against 378 kB, 86 kB
+   gzipped.
+
+Also worth knowing for anyone testing: **Spring copies static resources at
+startup**, so a rebuilt bundle is not served until the app restarts.
+
+### Build
+
+```
+npm --prefix frontend install
+npm --prefix frontend run build      # → src/main/resources/static/pilot/practice.js
+```
+
+`node_modules`, the bundle and the TypeScript build cache are gitignored. Nothing
+needs a Node server at runtime: the output is one static file served same-origin
+by Spring.
+
+### One change outside the frontend
+
+`shared/config/SecurityConfig` permits `/pilot/practice.js`. It is a static asset
+exactly like `/app.js` beside it — fetched by a dynamic import that carries no
+`Authorization` header, holding no secret, with the data still behind the
+authenticated API. Flagged here because that package is not mine by default.
+
+## What I have not done, and am waiting on
+
+- No other screen is in React. No production route changed.
+- The old Practice screen is untouched and is still what everyone sees.
+- Nothing is merged into `main`.
+
+**The decision I need: continue screen by screen, stop here, or adjust the
+approach first.**
