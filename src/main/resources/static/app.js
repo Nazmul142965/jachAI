@@ -931,11 +931,22 @@ async function loadFocus(role, academy, staff, participant) {
     if (staff) {
       const pending = await maybe('/attempts/review/pending?page=0');
       for (const review of rowsOf(pending).slice(0, 4)) {
+        // An attempt waiting to be graded has no score and no verdict yet. Reading
+        // percentage and passed straight out printed "scored null%" and the badge
+        // "Did not pass", which tells a grader this person failed before anyone has
+        // read their answer — the one thing this screen must never say. The review
+        // queue and the Talent comparison already say "pending" and "Awaiting
+        // grading" for the same state; this row now matches them.
+        const graded = review.percentage != null;
         entries.push(focusRow(
           `${review.assessmentTitle || 'Attempt'} — attempt ${review.attemptNumber}`,
-          `${participantName(review)} · ${participantIdNote(review)} · scored ${review.percentage}% · submitted ${relative(review.submittedAt)}`,
+          `${participantName(review)} · ${participantIdNote(review)}`
+            + ` · ${graded ? `scored ${review.percentage}%` : 'not graded yet'}`
+            + ` · submitted ${relative(review.submittedAt)}`,
           'Review & release', () => showView('review'),
-          [review.passed ? 'Passed' : 'Did not pass', review.passed ? 'ok' : 'danger']));
+          graded
+            ? [review.passed ? 'Passed' : 'Did not pass', review.passed ? 'ok' : 'danger']
+            : ['Awaiting grading', 'warn']));
       }
       const drafts = academy ? await maybe('/questions?status=DRAFT&page=0') : null;
       const draftCount = totalOf(drafts, 0);
