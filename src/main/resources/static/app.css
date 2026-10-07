@@ -661,7 +661,7 @@ a:focus-visible,
 .demo-access .muted { max-width: 48ch; font-size: var(--text-sm); }
 .demo-access-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
 .demo-role { min-height: 44px; white-space: normal; text-align: center; }
-.google-signin .muted { margin-bottom: var(--sp-3); font-size: var(--text-sm); }
+.google-signin .muted { margin-bottom: var(--sp-3); font-size: var(--text-sm); text-transform: lowercase; letter-spacing: 0.05em; }
 
 /* ==========================================================================
    5. Views

@@ -4120,8 +4120,11 @@ async function setupGoogleSignIn() {
   area.querySelector('.muted').textContent = 'or';
   for (const [selector, area] of [['#google-login-button', '#google-login-area'],
     ['#google-link-button', '#google-link-area']]) {
+    const areaEl = $(area);
+    const mutedEl = areaEl.querySelector('.muted');
+    if (mutedEl && area === '#google-link-area') mutedEl.textContent = 'or';
     window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'en' });
-    $(area).classList.remove('hidden');
+    areaEl.classList.remove('hidden');
   }
 }
 setupGoogleSignIn().catch(() => {
@@ -4942,4 +4945,3 @@ $('#platform-manual-revoke-form').addEventListener('submit', (event) => {
   event.preventDefault();
   run(submitManualPlanRevoke);
 });
-
