@@ -169,7 +169,7 @@ Read connection strings and secrets from environment variables. Provide an `.env
 
 | Variable | Use |
 | --- | --- |
-| `MONGODB_URI` | MongoDB Atlas or local connection URI, including database name. |
+| `MONGODB_URI` | MongoDB Atlas connection URI and credentials, without an application database path. The local and production profiles select `jachai_dev` and `jachai_prod` separately; opt-in tests use a dedicated `MONGODB_TEST_URI` whose database name begins `jachai_it_`. |
 | `REDIS_HOST`, `REDIS_PORT` | Redis connection for local or cloud deployment; add username/password/TLS variables as required by the chosen host. |
 | `JWT_SECRET` | Strong signing secret for the selected HMAC algorithm. |
 | `PLATFORM_ADMIN_USER_IDS` | Optional comma-separated IDs of existing verified users authorized for platform metadata endpoints; empty by default. |
