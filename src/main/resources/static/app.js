@@ -1181,6 +1181,41 @@ $('#nav-toggle').addEventListener('click', () => {
   setNavCollapsed(nav.dataset.collapsed !== 'true');
 });
 
+// -- React Practice pilot ---------------------------------------------------
+// Off unless the URL carries ?pilot=practice, so the production dashboard is
+// untouched: there is no second navigation, no second route, and the module is
+// never fetched. The existing Practice screen is still what everyone else gets.
+//
+// It mounts into the existing #practice-view, inside this page, for one reason:
+// the access token lives in a variable here and nowhere else. A React app served
+// at its own URL could not see it, and copying it into storage to work around
+// that would be a security regression rather than a migration. So the pilot is
+// handed `request` and never the token.
+function pilotRequested() {
+  return new URLSearchParams(location.search).get('pilot') === 'practice';
+}
+let pilotModule = null;
+async function mountPracticePilot() {
+  const host = $('#practice-view');
+  if (!host) return false;
+  try {
+    if (!pilotModule) pilotModule = await import('/pilot/practice.js');
+  } catch (error) {
+    // The bundle is a build artefact and is not committed, so a checkout without
+    // it is normal. Say so plainly and leave the existing screen in place.
+    notice('The Practice pilot bundle is not built. Run: npm --prefix frontend run build');
+    return false;
+  }
+  host.replaceChildren();
+  host.dataset.pilot = 'practice';
+  pilotModule.mount(host, {
+    request: (path, init) => request(path, init),
+    // The pilot changes a quota the rest of the page also shows.
+    onUsageChanged: () => { void loadHome().catch(() => {}); }
+  });
+  return true;
+}
+
 // Open a screen, optionally at one of its tabs. This is what the sidebar, the
 // overview shortcuts and the URL all go through.
 async function showScreen(screenKey, viewKey) {
@@ -4085,6 +4120,9 @@ $('#organization-select').addEventListener('change', (event) => run(async () => 
   await setOrganization();
 }));
 async function loadPractice() {
+  // When the pilot is on it owns this screen entirely; the code below is what
+  // everyone else still sees, unchanged.
+  if (pilotRequested() && await mountPracticePilot()) return;
   const [questionsResult, usageResult, historyResult] = await Promise.allSettled([
     request('/practice/questions'), request('/practice/usage'), request('/practice/answers/mine?page=0')
   ]);
