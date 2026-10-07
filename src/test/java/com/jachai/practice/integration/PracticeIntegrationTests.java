@@ -52,11 +52,6 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
     @BeforeEach
     void setupServices() {
         mongo = new MongoTemplate(new SimpleMongoClientDatabaseFactory(mongoClient, databaseName));
-        // Remove stale global buckets from prior tests so no test can read or
-        // delete another test's platform-wide global counter.
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        mongo.remove(Query.query(Criteria.where("_id").is("personal-ai:global:" + today.toString())),
-                PracticeUsage.class);
         mongo.indexOps(PracticeAnswer.class).ensureIndex(
                 new Index().on("expiresAt", Sort.Direction.ASC).expire(0));
         mongo.indexOps(PracticeUsage.class).ensureIndex(
@@ -186,8 +181,9 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
         when(users.findById(userId)).thenReturn(Optional.of(verifiedUser(userId)));
         LocalDate day = LocalDate.now(ZoneOffset.UTC);
         trackDocumentId("practice_usage", userId + ":" + day.toString());
-        // Global bucket is not tracked for cleanup — it is removed in @BeforeEach
-        // to avoid deleting another test's platform-wide counter.
+        String globalBucketId = "personal-ai:global:" + day.toString();
+        mongo.remove(Query.query(Criteria.where("_id").is(globalBucketId)), PracticeUsage.class);
+        trackDocumentId("practice_usage", globalBucketId);
         when(ai.generate(any(), any(), any())).thenReturn("""
                 {"prompt":"What is a Java record?","options":[
                   {"id":"a","text":"An immutable data carrier"},{"id":"b","text":"A mutable class"},
@@ -223,6 +219,9 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
         LocalDate day = LocalDate.now(ZoneOffset.UTC);
         String dayStr = day.toString();
         trackDocumentId("practice_usage", userId + ":" + dayStr);
+        String globalBucketId = "personal-ai:global:" + dayStr;
+        mongo.remove(Query.query(Criteria.where("_id").is(globalBucketId)), PracticeUsage.class);
+        trackDocumentId("practice_usage", globalBucketId);
 
         when(ai.generate(any(), any(), any())).thenThrow(
                 new ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
