@@ -111,6 +111,17 @@ class AuthServiceTests {
     }
 
     @Test
+    void demoAccountCannotRenameTheSharedProfile() {
+        User demo = new User("demo-account-learner", "learner@demo.jachai.invalid",
+                "Learner", null, true, false, 0, Instant.now());
+        when(users.findById(demo.id())).thenReturn(Optional.of(demo));
+
+        assertEquals("DEMO_PROFILE_LOCKED", assertThrows(ApiException.class,
+                () -> service.updateDisplayName(demo.id(), "Changed name")).code());
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(User.class));
+    }
+
+    @Test
     void verificationUsesConditionalUpdateInsteadOfSavingAStaleUser() {
         User user = new User("u1", "test@example.com", "Test", "hash", false, false,
                 0, Instant.now());
@@ -202,6 +213,7 @@ class AuthServiceTests {
         ArgumentCaptor<PasswordResetToken> token = ArgumentCaptor.forClass(PasswordResetToken.class);
         verify(resetTokens).save(token.capture());
         assertEquals("u1", token.getValue().userId());
+        assertEquals("u1", token.getValue().id());
         assertEquals(64, token.getValue().tokenHash().length());
         verify(emailSender).sendPasswordReset(eq("test@example.com"), eq("Test"),
                 org.mockito.ArgumentMatchers.contains("reset-password.html?token="));
@@ -217,6 +229,19 @@ class AuthServiceTests {
 
         assertEquals("INVALID_TOKEN", error.code());
         verify(users, never()).save(any());
+    }
+
+    @Test
+    void aLegacyResetLinkCannotChangePasswordAfterReplacement() {
+        when(mongo.findAndRemove(any(Query.class), eq(PasswordResetToken.class)))
+                .thenReturn(new PasswordResetToken("old-random-id", "old-hash", "u1",
+                        Instant.now().plusSeconds(300)));
+        when(resetTokens.findById("u1")).thenReturn(Optional.of(new PasswordResetToken(
+                "u1", "new-hash", "u1", Instant.now().plusSeconds(300))));
+
+        assertEquals("INVALID_TOKEN", assertThrows(ApiException.class,
+                () -> service.resetPassword("old-link", "new-long-password-123")).code());
+        verify(users, never()).findById(any());
     }
 
     @Test

@@ -130,7 +130,11 @@ public class AuthService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DISPLAY_NAME",
                     "Display name must be between 2 and 80 characters");
         }
-        activeUser(userId);
+        User user = activeUser(userId);
+        if (isDemoUser(user)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEMO_PROFILE_LOCKED",
+                    "Demo accounts cannot change their shared profile");
+        }
         UpdateResult result = mongo.updateFirst(Query.query(Criteria.where("_id").is(userId)
                         .and("emailVerified").is(true).and("disabled").is(false)),
                 new Update().set("displayName", name), User.class);
@@ -201,10 +205,11 @@ public class AuthService {
         users.findByEmail(normalizeEmail(email))
                 .filter(user -> user.emailVerified() && !user.disabled() && !isDemoUser(user))
                 .ifPresent(user -> {
-                    resetTokens.deleteByUserId(user.id());
                     String raw = TokenSecrets.generate();
-                    resetTokens.save(new PasswordResetToken(UUID.randomUUID().toString(),
+                    resetTokens.save(new PasswordResetToken(user.id(),
                             TokenSecrets.hash(raw), user.id(), Instant.now().plus(RESET_LIFETIME)));
+                    mongo.remove(Query.query(Criteria.where("userId").is(user.id())
+                            .and("_id").ne(user.id())), PasswordResetToken.class);
                     emailSender.sendPasswordReset(user.email(), user.displayName(),
                             publicBaseUrl + "/reset-password.html?token=" + raw);
                 });
@@ -215,6 +220,9 @@ public class AuthService {
                 Query.query(Criteria.where("tokenHash").is(TokenSecrets.hash(rawToken))),
                 PasswordResetToken.class);
         if (token == null || !token.expiresAt().isAfter(Instant.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
+        }
+        if (!token.id().equals(token.userId()) && resetTokens.findById(token.userId()).isPresent()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
         }
         User user = users.findById(token.userId()).orElseThrow(() ->

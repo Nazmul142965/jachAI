@@ -35,6 +35,7 @@ Updated: 2026-10-07. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Password-reset responses now say email was queued, not sent (`47b5946`). Validation failures now name safe fields and permitted enum choices without echoing submitted values or raw exception messages (`6fa7efa`); five focused handler tests passed.
 - [x] Workspace join-code usage now counts completed code/user redemptions rather than attempted claims (`eeef80f`). Four focused service tests passed, including failed membership writes and retry after a partial join. Legacy pre-ledger counts remain visible; MongoDB TTL and concurrent redemption behavior need live verification.
 - [x] Verification resends now replace one token document per user instead of deleting and reinserting separate tokens; legacy random-ID links are invalidated and cleaned up. Focused auth/outbox-guard tests passed. An opt-in Mongo test for repeated resends and latest-link redemption compiles but has not run without `MONGODB_TEST_URI`; real simultaneous-resend behavior and SMTP delivery remain unverified.
+- [x] Password-reset requests now use the same single-current-link rule; stale pre-migration reset mail is suppressed. Shared demo accounts cannot change their display name (in addition to the existing password/Google-link restrictions). Focused auth/mail tests passed; live Mongo/SMTP behavior remains unverified.
 
 ## Next implementation and integration
 

@@ -80,6 +80,8 @@ public class EmailLinkGuard {
                             && user.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case PASSWORD_RESET -> resetTokens.findByTokenHash(hash)
                     .filter(value -> value.expiresAt().isAfter(now))
+                    .filter(value -> value.id().equals(value.userId())
+                            || resetTokens.findById(value.userId()).isEmpty())
                     .flatMap(value -> users.findById(value.userId()))
                     .filter(user -> user.emailVerified() && !user.disabled()
                             && user.email().equalsIgnoreCase(payload.recipient())).isPresent();

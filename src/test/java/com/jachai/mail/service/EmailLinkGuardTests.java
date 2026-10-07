@@ -120,6 +120,21 @@ class EmailLinkGuardTests {
     }
 
     @Test
+    void replacedLegacyResetLinkIsNotDelivered() {
+        when(resetTokens.findByTokenHash(any())).thenReturn(Optional.of(
+                new PasswordResetToken("old-random-id", "old-hash", "user",
+                        Instant.now().plusSeconds(3600))));
+        when(resetTokens.findById("user")).thenReturn(Optional.of(
+                new PasswordResetToken("user", "new-hash", "user",
+                        Instant.now().plusSeconds(3600))));
+
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.PASSWORD_RESET,
+                "person@example.com", "Person", null,
+                "https://example.test/reset-password.html?token=old-link",
+                Instant.now().plusSeconds(3600))));
+    }
+
+    @Test
     void rotatedInvitationTokenIsNotDelivered() {
         assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.ASSESSMENT_INVITATION,
                 "person@example.com", "Org", "Campaign", "https://example.test/?invitation=old",
