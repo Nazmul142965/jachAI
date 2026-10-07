@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/app.css">
   <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
@@ -49,7 +50,7 @@
       <p class="muted hint">Invited to a workspace or an assessment? Open the link from your email — signing in with that address joins you automatically.</p>
       <form id="login-form" class="stack" role="tabpanel" aria-labelledby="login-tab">
         <h2>Welcome back</h2><p class="muted">Sign in with your verified email.</p>
-        <label>Email<input name="email" type="email" autocomplete="email" required></label>
+        <label>Email<input name="email" type="email" autocomplete="username" required></label>
         <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="button primary" type="submit">Sign in</button>
         <a class="inline-link" href="/reset-password.html">Forgot your password?</a>
@@ -59,7 +60,7 @@
         <h2>Create your account</h2><p class="muted">Register first, then verify your email before signing in.</p>
         <p id="registration-mail-mode" class="muted" role="status" aria-live="polite">Checking how verification links are delivered…</p>
         <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
-        <label>Email<input name="email" type="email" autocomplete="email" required></label>
+        <label>Email<input name="email" type="email" autocomplete="username" required></label>
         <label>Password <small>(at least 6 characters)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
         <button class="button primary" type="submit">Create account</button>
         <p class="muted">Already registered? <a class="inline-link" href="/verify-email.html">Request a new verification link</a> or switch to Sign in above.</p>
@@ -154,7 +155,7 @@
       <section id="account-view" class="view hidden" aria-label="Profile and account settings">
         <div class="account-grid">
           <div class="card panel"><h2>Your profile</h2><p class="muted">This identity follows you across personal practice and every workspace. Your role is set separately in each workspace.</p><div id="account-identity" class="account-identity" role="status">Loading profile…</div><form id="account-profile-form" class="stack"><label>Display name<input name="displayName" minlength="2" maxlength="80" autocomplete="name" required></label><button class="button secondary" type="submit">Save display name</button></form></div>
-          <div class="card panel"><h2>Sign-in and security</h2><p id="account-login-method" class="muted">Checking sign-in methods…</p><form id="account-password-form" class="stack"><label>Current password<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>New password <small>(at least 6 characters)</small><input name="newPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><button class="button secondary" type="submit">Change password</button></form><p class="muted">Forgot your current password, or signed up with Google? <a href="/reset-password.html">Request a password reset link</a>.</p></div>
+          <div class="card panel"><h2>Sign-in and security</h2><p id="account-login-method" class="muted">Checking sign-in methods…</p><form id="account-password-form" class="stack"><input type="email" name="username" autocomplete="username" hidden aria-hidden="true" tabindex="-1"><label>Current password<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>New password <small>(at least 6 characters)</small><input name="newPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><button class="button secondary" type="submit">Change password</button></form><p class="muted">Forgot your current password, or signed up with Google? <a href="/reset-password.html">Request a password reset link</a>.</p></div>
           <div class="card panel account-plan"><h2>Plan and usage</h2><div id="account-plan" role="status">Loading your current allowance…</div></div>
         </div>
       </section>

@@ -23,6 +23,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/index.html", "/app.css", "/app.js", "/public.css",
                                 "/theme.css", "/theme.js",
+                                // Every page declares /favicon.svg, so a browser does not ask for
+                                // /favicon.ico. Both are permitted anyway: a bookmark, a crawler or
+                                // an older browser still asks, and answering 401 put an error in
+                                // the console of every page load, which teaches people to ignore
+                                // console errors. Permitted, these are an icon and a plain 404.
+                                "/favicon.svg", "/favicon.ico",
                                 "/api/v1/health", "/actuator/health", "/actuator/health/**", "/verify-email.html", "/reset-password.html",
                                 "/api/v1/auth/register", "/api/v1/auth/verify-email",
                                 "/api/v1/auth/email-delivery-mode",

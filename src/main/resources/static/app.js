@@ -725,6 +725,11 @@ async function loadAccount() {
       node('p', profile.email, 'account-email'),
       node('p', profile.emailVerified ? 'Email verified' : 'Email not verified', 'account-verification'));
     $('#account-profile-form [name="displayName"]').value = profile.displayName;
+    // The hidden identifier beside the password fields. A password manager needs to
+    // know which account a new password belongs to, so it carries the real email
+    // rather than sitting empty purely to satisfy the browser's warning.
+    const passwordFormUser = $('#account-password-form [name="username"]');
+    if (passwordFormUser) passwordFormUser.value = profile.email;
     $('#account-login-method').textContent = `${profile.passwordSet ? 'Password sign-in enabled' : 'No password set'}${profile.googleLinked ? ' · Google linked' : ''}.`;
     $('#account-password-form').classList.toggle('hidden', !profile.passwordSet);
   } else {
