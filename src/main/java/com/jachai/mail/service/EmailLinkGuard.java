@@ -82,9 +82,11 @@ public class EmailLinkGuard {
                     .filter(value -> value.expiresAt().isAfter(now))
                     .filter(value -> value.id().equals(value.userId())
                             || resetTokens.findById(value.userId()).isEmpty())
-                    .flatMap(value -> users.findById(value.userId()))
-                    .filter(user -> user.emailVerified() && !user.disabled()
-                            && user.email().equalsIgnoreCase(payload.recipient())).isPresent();
+                    .filter(value -> users.findById(value.userId())
+                            .filter(user -> user.emailVerified() && !user.disabled()
+                                    && value.isCurrentFor(user)
+                                    && user.email().equalsIgnoreCase(payload.recipient()))
+                            .isPresent()).isPresent();
             case ASSESSMENT_INVITATION -> invitations.findByTokenHash(hash)
                     .filter(value -> value.acceptedAt() == null && value.expiresAt().isAfter(now)
                             && value.availableUntil().isAfter(now)

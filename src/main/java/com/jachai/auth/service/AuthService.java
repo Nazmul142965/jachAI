@@ -207,7 +207,8 @@ public class AuthService {
                 .ifPresent(user -> {
                     String raw = TokenSecrets.generate();
                     resetTokens.save(new PasswordResetToken(user.id(),
-                            TokenSecrets.hash(raw), user.id(), Instant.now().plus(RESET_LIFETIME)));
+                            TokenSecrets.hash(raw), user.id(), Instant.now().plus(RESET_LIFETIME),
+                            user.securityVersion()));
                     mongo.remove(Query.query(Criteria.where("userId").is(user.id())
                             .and("_id").ne(user.id())), PasswordResetToken.class);
                     emailSender.sendPasswordReset(user.email(), user.displayName(),
@@ -227,11 +228,13 @@ public class AuthService {
         }
         User user = users.findById(token.userId()).orElseThrow(() ->
                 new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired"));
-        if (!user.emailVerified() || user.disabled() || isDemoUser(user)) {
+        if (!user.emailVerified() || user.disabled() || isDemoUser(user)
+                || !token.isCurrentFor(user)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOKEN", "Reset link is invalid or expired");
         }
         UpdateResult result = mongo.updateFirst(Query.query(Criteria.where("_id").is(user.id())
-                        .and("emailVerified").is(true).and("disabled").is(false)),
+                        .and("emailVerified").is(true).and("disabled").is(false)
+                        .and("securityVersion").is(user.securityVersion())),
                 new Update().set("passwordHash", passwords.encode(newPassword))
                         .inc("securityVersion", 1), User.class);
         if (result.getMatchedCount() != 1) {

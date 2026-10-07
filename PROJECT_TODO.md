@@ -38,6 +38,7 @@ Updated: 2026-10-07. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Password-reset requests now use the same single-current-link rule; stale pre-migration reset mail is suppressed. Shared demo accounts cannot change their display name (in addition to the existing password/Google-link restrictions). Focused auth/mail tests passed; live Mongo/SMTP behavior remains unverified.
 - [x] Workspace creation no longer deletes the organization after an ambiguous owner-membership write; the owner can refresh the workspace list, which repairs a missing owner membership without hiding the organization if repair must retry. Focused organization tests passed. Real Mongo partial-write recovery remains unverified.
 - [x] Paged API responses now use an explicit flat JSON envelope while Spring Data's stable page mode is enabled; an actual MVC response preserved the current frontend's `content`, `number`, `totalPages`, `totalElements`, `first` and `last` fields, and the `PageImpl` warning did not recur in that focused run. Full integrated frontend regression remains a later release gate.
+- [x] Password-reset links now carry the account security version and their Mongo update checks it again, so links queued before a password change cannot silently reset the new password if token cleanup failed. Focused auth/mail tests passed; real SMTP and cross-write Mongo races remain unverified.
 
 ## Next implementation and integration
 

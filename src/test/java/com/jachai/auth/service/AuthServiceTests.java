@@ -215,6 +215,7 @@ class AuthServiceTests {
         assertEquals("u1", token.getValue().userId());
         assertEquals("u1", token.getValue().id());
         assertEquals(64, token.getValue().tokenHash().length());
+        assertEquals(0, token.getValue().securityVersion());
         verify(emailSender).sendPasswordReset(eq("test@example.com"), eq("Test"),
                 org.mockito.ArgumentMatchers.contains("reset-password.html?token="));
     }
@@ -245,6 +246,19 @@ class AuthServiceTests {
     }
 
     @Test
+    void resetLinkIssuedBeforePasswordChangeCannotResetAgain() {
+        when(mongo.findAndRemove(any(Query.class), eq(PasswordResetToken.class)))
+                .thenReturn(new PasswordResetToken("u1", "hash", "u1",
+                        Instant.now().plusSeconds(300), 0));
+        when(users.findById("u1")).thenReturn(Optional.of(new User("u1", "test@example.com",
+                "Test", "changed-hash", true, false, 1, Instant.now())));
+
+        assertEquals("INVALID_TOKEN", assertThrows(ApiException.class,
+                () -> service.resetPassword("old-link", "another-password")).code());
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(User.class));
+    }
+
+    @Test
     void successfulResetChangesHashAndRevokesRefreshSessions() {
         User user = new User("u1", "test@example.com", "Test", "old-hash",
                 true, false, 0, Instant.now());
@@ -257,8 +271,10 @@ class AuthServiceTests {
 
         service.resetPassword("raw-reset", "new-long-password-123");
 
+        ArgumentCaptor<Query> guarded = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> saved = ArgumentCaptor.forClass(Update.class);
-        verify(mongo).updateFirst(any(Query.class), saved.capture(), eq(User.class));
+        verify(mongo).updateFirst(guarded.capture(), saved.capture(), eq(User.class));
+        assertEquals(0, guarded.getValue().getQueryObject().get("securityVersion"));
         assertTrue(new BCryptPasswordEncoder().matches("new-long-password-123",
                 (String) ((org.bson.Document) saved.getValue().getUpdateObject().get("$set"))
                         .get("passwordHash")));
