@@ -365,6 +365,12 @@ a:focus-visible,
   .nav-toggle-mark { transition: none; }
 }
 
+/* Explanatory text under a card heading. These ran to 858px on a desktop, which
+   is past 110 characters, and beyond roughly 80 the eye loses the line it is on
+   when it wraps. Scoped to a direct child so item metadata and flex rows, which
+   are short by nature, are untouched. */
+.card > p.muted { max-width: 78ch; }
+
 /* -- Workspace shell ------------------------------------------------------ */
 
 .workspace {
