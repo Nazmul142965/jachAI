@@ -85,21 +85,42 @@ public class PersonalPracticeGenerationService {
             refund(userBucket);
             throw exception;
         }
+        String raw;
+        Generated generated;
         try {
-            String raw = ai.generate(AiUseCase.QUESTION_DRAFT, INSTRUCTION,
+            raw = ai.generate(AiUseCase.QUESTION_DRAFT, INSTRUCTION,
                     "Topic: " + topic + "\nDifficulty: " + request.difficulty()
                             + "\nLearner focus: " + brief);
-            Generated generated = parse(raw);
-            Instant now = Instant.now();
-            PersonalPracticeQuestion saved = questions.insert(new PersonalPracticeQuestion(
-                    "pg-" + UUID.randomUUID(), userId, topic, generated.prompt(), generated.options(),
-                    generated.correctOptionId(), generated.explanation(), now,
-                    now.plusSeconds(PracticeLimits.GENERATION_RETENTION_DAYS * 24L * 60 * 60)));
-            return new PracticeCatalog.QuestionView(saved.id(), saved.topic(), saved.prompt(), saved.options());
+            generated = parse(raw);
         } catch (RuntimeException exception) {
             refund(globalBucket);
             refund(userBucket);
             throw exception;
+        }
+        Instant now = Instant.now();
+        String questionId = "pg-" + UUID.randomUUID();
+        PersonalPracticeQuestion toSave = new PersonalPracticeQuestion(
+                questionId, userId, topic, generated.prompt(), generated.options(),
+                generated.correctOptionId(), generated.explanation(), now,
+                now.plusSeconds(PracticeLimits.GENERATION_RETENTION_DAYS * 24L * 60 * 60));
+        try {
+            questions.insert(toSave);
+            return new PracticeCatalog.QuestionView(toSave.id(), topic, toSave.prompt(), toSave.options());
+        } catch (RuntimeException insertFailure) {
+            PersonalPracticeQuestion existing;
+            try {
+                existing = questions.findById(questionId).orElse(null);
+            } catch (RuntimeException readFailure) {
+                insertFailure.addSuppressed(readFailure);
+                throw insertFailure;
+            }
+            if (existing != null) {
+                return new PracticeCatalog.QuestionView(existing.id(), existing.topic(),
+                        existing.prompt(), existing.options());
+            }
+            refund(globalBucket);
+            refund(userBucket);
+            throw insertFailure;
         }
     }
 

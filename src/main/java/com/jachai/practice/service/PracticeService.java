@@ -66,14 +66,14 @@ public class PracticeService {
 
     public Result submit(String userId, UUID requestId, String questionId, String optionId) {
         requireUser(userId);
-        PracticeCatalog.Question question = catalog.find(userId, questionId);
-        if (question == null || question.options().stream().noneMatch(option -> option.id().equals(optionId))) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PRACTICE_ANSWER", "Choose a listed question and option");
-        }
         String answerId = userId + ":" + requestId;
         PracticeAnswer prior = answers.findById(answerId).orElse(null);
         if (prior != null) return replay(prior, questionId, optionId);
 
+        PracticeCatalog.Question question = catalog.find(userId, questionId);
+        if (question == null || question.options().stream().noneMatch(option -> option.id().equals(optionId))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PRACTICE_ANSWER", "Choose a listed question and option");
+        }
         Instant now = Instant.now();
         LocalDate day = LocalDate.ofInstant(now, ZoneOffset.UTC);
         String bucketId = userId + ":" + day;
@@ -84,11 +84,15 @@ public class PracticeService {
         try {
             answers.insert(answer);
             return result(answer);
-        } catch (DuplicateKeyException duplicate) {
-            refund(bucketId);
-            PracticeAnswer existing = answers.findById(answerId).orElseThrow(() -> duplicate);
-            return replay(existing, questionId, optionId);
         } catch (RuntimeException failure) {
+            PracticeAnswer existing;
+            try {
+                existing = answers.findById(answerId).orElse(null);
+            } catch (RuntimeException readFailure) {
+                failure.addSuppressed(readFailure);
+                throw failure;
+            }
+            if (existing != null) return replay(existing, questionId, optionId);
             refund(bucketId);
             throw failure;
         }

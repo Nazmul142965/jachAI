@@ -3,6 +3,7 @@ package com.jachai.practice.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -69,6 +70,70 @@ class PracticeServiceTests {
         assertEquals("b", result.correctOptionId());
         verify(mongo).insert(any(PracticeUsage.class));
         verify(answers).insert(any(PracticeAnswer.class));
+    }
+
+    @Test
+    void replayWorksAfterGeneratedQuestionExpires() {
+        when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        UUID id = UUID.randomUUID();
+        PracticeAnswer persisted = new PracticeAnswer(
+                "learner:" + id, "learner", "pg-expired", "a", "a", true,
+                "Records are transparent data carriers.", Instant.now(), Instant.now().plusSeconds(3600));
+        when(answers.findById("learner:" + id)).thenReturn(Optional.of(persisted));
+
+        // The generated question has expired — catalog.find would return null —
+        // but replay must succeed from the stored answer document.
+        var result = service.submit("learner", id, "pg-expired", "a");
+
+        assertEquals(true, result.correct());
+        assertEquals("a", result.correctOptionId());
+        verify(personalQuestions, never()).findByIdAndUserId(any(), any());
+        verify(mongo, never()).insert(any(PracticeUsage.class));
+        verify(mongo, never()).findAndModify(any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(PracticeUsage.class));
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(PracticeUsage.class));
+    }
+
+    @Test
+    void insertErrorDoesNotRefundWhenAnswerWasPersisted() {
+        when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        UUID id = UUID.randomUUID();
+        String answerId = "learner:" + id;
+        PracticeAnswer persistedFromReRead = new PracticeAnswer(
+                answerId, "learner", "java-record", "b", "b", true,
+                "Records generate component accessors and a canonical constructor.",
+                Instant.now(), Instant.now().plusSeconds(3600));
+        when(mongo.insert(any(PracticeUsage.class))).thenAnswer(call -> call.getArgument(0));
+        when(answers.findById(answerId))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(persistedFromReRead));
+        RuntimeException insertError = new IllegalStateException("network blip after insert");
+        when(answers.insert(any(PracticeAnswer.class))).thenThrow(insertError);
+
+        var result = service.submit("learner", id, "java-record", "b");
+
+        assertEquals(true, result.correct());
+        verify(mongo, never()).updateFirst(any(), any(), eq(PracticeUsage.class));
+    }
+
+    @Test
+    void insertErrorFailsClosedWhenReReadCannotEstablishOutcome() {
+        when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        UUID id = UUID.randomUUID();
+        String answerId = "learner:" + id;
+        when(mongo.insert(any(PracticeUsage.class))).thenAnswer(call -> call.getArgument(0));
+        RuntimeException readFailure = new IllegalStateException("secondary read timeout");
+        when(answers.findById(answerId))
+                .thenReturn(Optional.empty())
+                .thenThrow(readFailure);
+        RuntimeException insertError = new IllegalStateException("primary insert timeout");
+        when(answers.insert(any(PracticeAnswer.class))).thenThrow(insertError);
+
+        IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> service.submit("learner", id, "java-record", "b"));
+
+        assertEquals(insertError, thrown);
+        assertTrue(thrown.getSuppressed().length > 0);
+        verify(mongo, never()).updateFirst(any(), any(), eq(PracticeUsage.class));
     }
 
     @Test

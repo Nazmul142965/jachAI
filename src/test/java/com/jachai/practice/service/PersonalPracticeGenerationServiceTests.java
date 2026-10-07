@@ -1,10 +1,13 @@
 package com.jachai.practice.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -20,6 +23,7 @@ import com.jachai.practice.model.PracticeUsage;
 import com.jachai.practice.repository.PersonalPracticeQuestionRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -123,7 +127,7 @@ class PersonalPracticeGenerationServiceTests {
         verify(mongo).updateFirst(any(Query.class), any(Update.class), eq(PracticeUsage.class));
     }
 
-    @Test
+     @Test
     void invalidTopicIsRejectedBeforeAnyQuotaOrAiCall() {
         when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
         String tooLong = "x".repeat(81);
@@ -133,6 +137,57 @@ class PersonalPracticeGenerationServiceTests {
 
         assertEquals("INVALID_PRACTICE_BRIEF", error.code());
         verifyNoInteractions(mongo, ai, questions);
+    }
+
+    @Test
+    void insertErrorDoesNotRefundWhenQuestionWasPersisted() {
+        when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        when(mongo.insert(any(PracticeUsage.class))).thenAnswer(call -> call.getArgument(0));
+        when(ai.generate(any(), any(), any())).thenReturn("""
+                {"prompt":"What is a Java record?","options":[
+                  {"id":"a","text":"A data carrier class"},{"id":"b","text":"A mutable bean"},
+                  {"id":"c","text":"An annotation"},{"id":"d","text":"A lambda"}],
+                 "correctOptionId":"a","explanation":"Records carry immutable data."}
+                """);
+        String persistedId = "pg-already-saved";
+        PersonalPracticeQuestion persisted = new PersonalPracticeQuestion(
+                persistedId, "learner", "Java", "What is a Java record?",
+                List.of(new PracticeCatalog.Option("a", "A data carrier class")),
+                "a", "Records carry immutable data.", Instant.now(),
+                Instant.now().plusSeconds(60));
+        when(questions.findById(any())).thenReturn(Optional.of(persisted));
+        RuntimeException insertError = new IllegalStateException("primary insert timed out");
+        when(questions.insert(any(PersonalPracticeQuestion.class))).thenThrow(insertError);
+
+        PracticeCatalog.QuestionView view = service().generate("learner",
+                new PersonalPracticeGenerationService.GenerateRequest("Java", "BEGINNER", "records"));
+
+        assertNotNull(view);
+        assertEquals(persistedId, view.id());
+        verify(mongo, never()).updateFirst(any(), any(), eq(PracticeUsage.class));
+    }
+
+    @Test
+    void insertErrorFailsClosedWhenReReadCannotEstablishOutcome() {
+        when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        when(mongo.insert(any(PracticeUsage.class))).thenAnswer(call -> call.getArgument(0));
+        when(ai.generate(any(), any(), any())).thenReturn("""
+                {"prompt":"What is a Java record?","options":[
+                  {"id":"a","text":"A data carrier class"},{"id":"b","text":"A mutable bean"},
+                  {"id":"c","text":"An annotation"},{"id":"d","text":"A lambda"}],
+                 "correctOptionId":"a","explanation":"Records carry immutable data."}
+                """);
+        RuntimeException readFailure = new IllegalStateException("secondary read timeout");
+        when(questions.findById(any())).thenThrow(readFailure);
+        RuntimeException insertError = new IllegalStateException("primary insert timed out");
+        when(questions.insert(any(PersonalPracticeQuestion.class))).thenThrow(insertError);
+
+        RuntimeException thrown = assertThrows(RuntimeException.class, () -> service().generate("learner",
+                new PersonalPracticeGenerationService.GenerateRequest("Java", "BEGINNER", "records")));
+
+        assertEquals(insertError, thrown);
+        assertTrue(thrown.getSuppressed().length > 0);
+        verify(mongo, never()).updateFirst(any(), any(), eq(PracticeUsage.class));
     }
 
     private PersonalPracticeGenerationService service() {

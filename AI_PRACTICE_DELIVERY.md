@@ -56,7 +56,32 @@ The `Usage` record's generation bucket TTL was corrected from 60 days to 2 days
 
 ### 3. Focused service tests (unit, mock-based)
 
-#### `PracticeServiceTests` — 8 tests (3 new)
+### 3. Retry-safety and ambiguous-outcome fixes (correction slice)
+
+**`PracticeService.submit` reorder** — the prior-answer lookup
+(`answers.findById(answerId)`) now runs *before* `catalog.find()`. This lets
+a valid replay succeed even after a generated question has expired via TTL.
+Reuse with a different `questionId` or `optionId` still returns 409 `CONFLICT`.
+
+**Ambiguous insert outcome handling (both services)** — on any insert failure
+(`DuplicateKeyException`, `RuntimeException`, or `MongoSocketException` from a
+timeout after the write may have committed):
+
+1. Re-read by the deterministic ID (`userId:requestId` for answers,
+   `pg-<UUID>` for questions).
+2. If the record **exists** → the write likely succeeded; do **not** refund
+   quota. Return the persisted result.
+3. If the record **does not exist** → definitely not persisted; refund the
+   reservation bucket(s).
+4. If the re-read **itself fails** → fail closed without refunding (avoids
+   silently undercounting usage). The original failure propagates with the
+   read failure suppressed.
+
+`PersonalPracticeGenerationService` applies the same pattern to its question
+insert with both user and global bucket refunds. AI/parse failures (before
+any insert) still refund both buckets unconditionally.
+
+#### `PracticeServiceTests` — 11 tests (8 new)
 
 | Test | Verifies |
 |---|---|
@@ -65,11 +90,14 @@ The `Usage` record's generation bucket TTL was corrected from 60 days to 2 days
 | `replayWithDifferentChoiceDoesNotConsumeQuota` | Replay with a different choice fails with `CONFLICT` |
 | `sameRequestIdReturnsSameResultWithoutConsumingQuota` | Retry-safe: identical `requestId` returns the same `Result` and never touches Mongo |
 | `quotaExhaustedThrows429WithoutSavingAnswer` | 21st answer on a UTC day throws `PRACTICE_LIMIT_REACHED` (HTTP 429) |
-| `unexpectedInsertFailureRefundsQuotaBucket` | If `answers.insert` throws, the usage bucket is decremented |
+| `unexpectedInsertFailureRefundsQuotaBucket` | If `answers.insert` throws, the answer was NOT persisted, and the usage bucket is refunded |
+| `replayWorksAfterGeneratedQuestionExpires` | Replay succeeds when the source question has expired; `catalog.find` is never called |
+| `insertErrorDoesNotRefundWhenAnswerWasPersisted` | Insert throws but re-read finds the answer; quota is NOT refunded |
+| `insertErrorFailsClosedWhenReReadCannotEstablishOutcome` | Insert throws and re-read also throws; no refund (fail closed), original error propagates with suppressed read failure |
 | `usageReportsStatedRetentionAndCurrentAllowance` | `Usage` includes `answerRetentionDays=90` and `generationRetentionDays=30` |
 | `usageWithNoBucketReportsFullAllowanceAndRetention` | No bucket → full allowance reported |
 
-#### `PersonalPracticeGenerationServiceTests` — 6 tests (3 new)
+#### `PersonalPracticeGenerationServiceTests` — 8 tests (5 new)
 
 | Test | Verifies |
 |---|---|
@@ -79,6 +107,8 @@ The `Usage` record's generation bucket TTL was corrected from 60 days to 2 days
 | `providerAuthErrorRefundsBothBucketsAndPropagatesCategory` | `AI_PROVIDER_AUTH` from provider → both buckets refunded |
 | `globalCapExhaustionRefundsPersonalBucketAndDoesNotCallAi` | Global cap hit → personal bucket refunded, AI never invoked |
 | `invalidTopicIsRejectedBeforeAnyQuotaOrAiCall` | Topic too long → `INVALID_PRACTICE_BRIEF` before any Mongo/AI call |
+| `insertErrorDoesNotRefundWhenQuestionWasPersisted` | Insert throws but re-read finds the question; buckets are NOT refunded |
+| `insertErrorFailsClosedWhenReReadCannotEstablishOutcome` | Insert throws and re-read also throws; no refund (fail closed), original error propagates with suppressed read failure |
 
 #### `PracticeControllerTests` — 2 tests (1 new)
 
@@ -105,9 +135,36 @@ When MongoDB is available, the tests verify:
 | `generatedQuestionIsAccessibleOnlyToOwner` | Intruder cannot submit against another user's generated question (`INVALID_PRACTICE_ANSWER`); intruder has 0 answers |
 | `usageReadsRealMongoBucketState` | Usage reflects the actual Mongo bucket after submit |
 | `generationReservesQuotaAtomicallyAndPersistsQuestion` | Real Mongo: both user and global buckets incremented to 1; question saved with correct `userId` |
-| `generationFailureUnreservesBothBuckets` | AI failure → user bucket refunded to 0; no question saved |
+| `generationFailureUnreservesBothBuckets` | AI failure → both user and global buckets refunded to 0; no question saved |
 
-## Live-provider gates
+## Verification
+
+Three commits on `ai/practice-reliability`:
+
+| Hash | Summary |
+|---|---|
+| `9e624cf` | ai/practice: state retention policy, fix hardcoded generation limit, add unit tests |
+| `1c04f83` | test: add opt-in Mongo integration tests for practice workflow |
+| `ebc7367` | fix: resolve replay-after-expiry and ambiguous-insert-outcome defects |
+
+Broad test suite (all packages, Java 17):
+
+```
+[INFO] Tests run: 584, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+Integration tests are safely skipped (Mongo not configured). Live provider
+calls were **not** exercised.
+
+### Cleanup isolation note
+
+The `generationFailureUnreservesBothBuckets` integration test now asserts both
+the user bucket (`userId:day`) and the platform global bucket
+(`personal-ai:global:day`) are refunded. Each test generates a unique
+`userId` prefix and registers both bucket document IDs with
+`trackDocumentId`, so cleanup only removes the documents that test created —
+never another test's shared global bucket.
 
 - **No live provider is exercised in this slice.** All AI calls are mocked in tests.
 - To run the Mongo integration tests, set `MONGODB_TEST_URI` to a dedicated

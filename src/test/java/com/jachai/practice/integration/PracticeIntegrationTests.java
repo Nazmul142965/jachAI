@@ -224,11 +224,13 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
         assertThrows(ApiException.class, () -> generation.generate(userId,
                 new PersonalPracticeGenerationService.GenerateRequest("Java", "BEGINNER", "")));
 
-        // Both buckets should be refunded to zero (the insert reservation was consumed, then rolled back)
-        PracticeUsage bucket = mongo.findById(userId + ":" + day, PracticeUsage.class);
+        // Both buckets must be refunded to zero on AI failure
+        PracticeUsage bucket = mongo.findById(userId + ":" + day.toString(), PracticeUsage.class);
         assertNotNull(bucket);
         assertEquals(0, bucket.generated(), "User generation bucket must be refunded on AI failure");
-        // The global bucket may or may not exist as a document (the insert may have been rolled back by refund logic)
+        PracticeUsage globalBucket = mongo.findById("personal-ai:global:" + day.toString(), PracticeUsage.class);
+        assertNotNull(globalBucket);
+        assertEquals(0, globalBucket.generated(), "Global generation bucket must be refunded on AI failure");
     }
 
     private User verifiedUser(String id) {
