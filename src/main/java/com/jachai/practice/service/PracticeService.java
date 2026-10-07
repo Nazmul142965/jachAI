@@ -28,14 +28,15 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class PracticeService {
-    public static final int DAILY_FREE_LIMIT = 20;
+    public static final int DAILY_FREE_LIMIT = PracticeLimits.DAILY_FREE_ANSWERS;
     private final UserRepository users;
     private final PracticeCatalog catalog;
     private final PracticeAnswerRepository answers;
     private final MongoTemplate mongo;
 
     public record Usage(String utcDay, int used, int limit, int remaining,
-                        int generated, int generationLimit, int generationRemaining) { }
+                        int generated, int generationLimit, int generationRemaining,
+                        int answerRetentionDays, int generationRetentionDays) { }
     public record Result(String questionId, String selectedOptionId, String correctOptionId,
                          boolean correct, String explanation, Instant answeredAt) { }
 
@@ -50,8 +51,12 @@ public class PracticeService {
         PracticeUsage bucket = mongo.findById(userId + ":" + day, PracticeUsage.class);
         int used = bucket == null ? 0 : bucket.used();
         int generated = bucket == null ? 0 : bucket.generated();
-        return new Usage(day, used, DAILY_FREE_LIMIT, Math.max(0, DAILY_FREE_LIMIT - used),
-                generated, 20, Math.max(0, 20 - generated));
+        return new Usage(day, used, PracticeLimits.DAILY_FREE_ANSWERS,
+                Math.max(0, PracticeLimits.DAILY_FREE_ANSWERS - used),
+                generated, PracticeLimits.DAILY_FREE_GENERATIONS,
+                Math.max(0, PracticeLimits.DAILY_FREE_GENERATIONS - generated),
+                PracticeLimits.ANSWER_RETENTION_DAYS,
+                PracticeLimits.GENERATION_RETENTION_DAYS);
     }
 
     public Page<PracticeAnswer> history(String userId, int page) {
@@ -75,7 +80,7 @@ public class PracticeService {
         reserve(bucketId, userId, day);
         PracticeAnswer answer = new PracticeAnswer(answerId, userId, questionId, optionId,
                 question.correctOptionId(), question.correctOptionId().equals(optionId),
-                question.explanation(), now, now.plus(Duration.ofDays(90)));
+                question.explanation(), now, now.plus(Duration.ofDays(PracticeLimits.ANSWER_RETENTION_DAYS)));
         try {
             answers.insert(answer);
             return result(answer);
@@ -90,13 +95,13 @@ public class PracticeService {
     }
 
     private void reserve(String bucketId, String userId, LocalDate day) {
-        Query available = Query.query(Criteria.where("_id").is(bucketId).and("used").lt(DAILY_FREE_LIMIT));
+        Query available = Query.query(Criteria.where("_id").is(bucketId).and("used").lt(PracticeLimits.DAILY_FREE_ANSWERS));
         PracticeUsage reserved = mongo.findAndModify(available, new Update().inc("used", 1),
                 FindAndModifyOptions.options().returnNew(true), PracticeUsage.class);
         if (reserved != null) return;
         try {
             mongo.insert(new PracticeUsage(bucketId, userId, day.toString(), 1,
-                    day.plusDays(60).atStartOfDay().toInstant(ZoneOffset.UTC)));
+                    day.plusDays(2).atStartOfDay().toInstant(ZoneOffset.UTC)));
         } catch (DuplicateKeyException concurrent) {
             reserved = mongo.findAndModify(available, new Update().inc("used", 1),
                     FindAndModifyOptions.options().returnNew(true), PracticeUsage.class);
@@ -131,6 +136,6 @@ public class PracticeService {
 
     private ApiException quotaExceeded() {
         return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PRACTICE_LIMIT_REACHED",
-                "Today's twenty free practice answers are used. Try again tomorrow (UTC).");
+                "Today's " + PracticeLimits.DAILY_FREE_ANSWERS + " free practice answers are used. Try again tomorrow (UTC).");
     }
 }

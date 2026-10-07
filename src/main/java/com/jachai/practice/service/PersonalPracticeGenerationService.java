@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PersonalPracticeGenerationService {
-    private static final int FREE_DAILY_GENERATIONS = 20;
     private static final String INSTRUCTION = """
             Create exactly one original technical practice multiple-choice question.
             Return only a JSON object with prompt, options (exactly four objects with id and text),
@@ -79,7 +78,7 @@ public class PersonalPracticeGenerationService {
         LocalDate day = LocalDate.now(ZoneOffset.UTC);
         String userBucket = userId + ":" + day;
         String globalBucket = "personal-ai:global:" + day;
-        reserve(userBucket, userId, day, FREE_DAILY_GENERATIONS, false);
+        reserve(userBucket, userId, day, PracticeLimits.DAILY_FREE_GENERATIONS, false);
         try {
             reserve(globalBucket, "platform", day, globalDailyLimit, true);
         } catch (RuntimeException exception) {
@@ -95,7 +94,7 @@ public class PersonalPracticeGenerationService {
             PersonalPracticeQuestion saved = questions.insert(new PersonalPracticeQuestion(
                     "pg-" + UUID.randomUUID(), userId, topic, generated.prompt(), generated.options(),
                     generated.correctOptionId(), generated.explanation(), now,
-                    now.plusSeconds(30L * 24 * 60 * 60)));
+                    now.plusSeconds(PracticeLimits.GENERATION_RETENTION_DAYS * 24L * 60 * 60)));
             return new PracticeCatalog.QuestionView(saved.id(), saved.topic(), saved.prompt(), saved.options());
         } catch (RuntimeException exception) {
             refund(globalBucket);
