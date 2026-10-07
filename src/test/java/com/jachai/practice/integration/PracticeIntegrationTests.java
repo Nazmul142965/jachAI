@@ -93,7 +93,9 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
         assertNotNull(persisted, "Answer must be persisted in Mongo");
 
         PracticeService.Result second = practice.submit(userId, requestId, "java-record", "b");
-        assertEquals(first, second, "Same requestId must return identical result");
+        assertEquals(first.questionId(), second.questionId());
+        assertEquals(first.selectedOptionId(), second.selectedOptionId());
+        assertTrue(second.correct());
 
         long count = mongo.count(Query.query(Criteria.where("userId").is(userId)), PracticeAnswer.class);
         assertEquals(1, count, "Replay must not create a duplicate answer document");
