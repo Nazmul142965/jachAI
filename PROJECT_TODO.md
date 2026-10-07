@@ -33,6 +33,7 @@ Updated: 2026-10-07. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 - [x] Separate agent assignments and owner-only account/setup checklist are committed (`d39c962`). Agent 01's Claude branch has partial delivery; agent 02's identity scope is the current main-writer scope. Agent 03 AI/practice, 04 billing/platform, 05 runtime, and 06 final integration have not been assigned or declared complete merely because prompt files exist.
 - [x] Claude's additional ungraded-state, favicon/password-manager, and demo Academy cohort slices were reviewed and cherry-picked separately into `main` (`4d8905c`, `8ea7a38`, `bdb0c5e`). Focused `DemoFixtureServiceTests` and one auth HTTP regression passed on the integrated revision; this is not proof of every live demo journey. Claude's separate branch documents a manual short-answer grading/release API and browser walkthrough, but the integrated revision has not independently repeated it.
 - [x] Password-reset responses now say email was queued, not sent (`47b5946`). Validation failures now name safe fields and permitted enum choices without echoing submitted values or raw exception messages (`6fa7efa`); five focused handler tests passed.
+- [x] Workspace join-code usage now counts completed code/user redemptions rather than attempted claims (`eeef80f`). Four focused service tests passed, including failed membership writes and retry after a partial join. Legacy pre-ledger counts remain visible; MongoDB TTL and concurrent redemption behavior need live verification.
 
 ## Next implementation and integration
 
