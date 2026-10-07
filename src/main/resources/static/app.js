@@ -2050,7 +2050,7 @@ async function loadOwnershipAudit(pageNumber) {
   setList('#ownership-audit', (page.content || []).map((entry) => item(
     `Owner: ${entry.previousOwnerUserId} → ${entry.ownerUserId}`,
     `By ${entry.actorUserId} · ${new Date(entry.occurredAt).toLocaleString()}`)),
-  'No ownership transfers yet.');
+  'No ownership transfer has been recorded for this workspace. Transfers appear here with who made them and when.');
   renderPageControls('#ownership-audit-pagination', page, loadOwnershipAudit);
 }
 async function loadMemberAudit(userId, pageNumber, target) {
@@ -2259,7 +2259,7 @@ async function loadReviewQueue(pageNumber) {
       `${participantIdNote(attempt)} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
       actions);
   });
-  setList('#review-queue', rows, 'No results are waiting for release.');
+  setList('#review-queue', rows, 'No results are waiting for release. A submitted attempt appears here when it needs a grade, or when its assessment releases results only after staff say so.');
   $('#review-page-label').textContent = `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`;
   $('#review-prev').disabled = page.first;
   $('#review-next').disabled = page.last;
@@ -2519,7 +2519,7 @@ async function compareCandidates(campaignId, pageNumber = 0) {
     summary.append(row);
   }
   rows.unshift(summary);
-  setList('#campaign-candidates', rows, 'No candidates invited yet.');
+  setList('#campaign-candidates', rows, 'No candidates invited yet. Use “Invite a registered candidate” to add someone with an account, or send an email invitation to someone without one.');
   renderPageControls('#campaign-candidates-pagination', page,
     (nextPage) => compareCandidates(campaignId, nextPage));
   $('#campaign-candidates-panel').classList.remove('hidden');
@@ -3160,7 +3160,7 @@ async function loadMyBatches(pageNumber = 0) {
   setList('#my-batches-list', (page.content || []).map((enrollment) => item(
     `${enrollment.courseName} · ${enrollment.batchName}`,
     `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
-  'You are not enrolled in a batch yet.');
+  'You are not enrolled in a batch yet. An instructor or the workspace owner enrols you. An assessment assigned to you directly still appears under My Assessments.');
   renderPageControls('#my-batches-pagination', page, loadMyBatches);
 }
 
@@ -3168,7 +3168,7 @@ async function loadAcademyCourses(pageNumber = 0) {
   const page = await request(ownOrg(`/academy/courses?page=${pageNumber}`));
   state.academyCourses = page.content || [];
   setList('#courses-list', state.academyCourses.map((course) => item(course.name,
-    course.description || `Course ID: ${course.id}`)), 'No courses yet.');
+    course.description || `Course ID: ${course.id}`)), 'No courses yet. A course groups learners into batches, and a batch is what you distribute an assessment to. Create one with the form below.');
   renderPageControls('#courses-pagination', page, loadAcademyCourses);
   const select = $('#academy-course-select');
   const selected = select.value;
@@ -3198,7 +3198,7 @@ async function loadAcademyBatches(pageNumber = 0) {
   setList('#batches-list', batches.map((batch) => item(batch.name,
     `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`,
     [button('Open workspace', () => openBatchWorkspace(courseId, batch.id))])),
-  'No batches for this course yet.');
+  'No batches for this course yet. A batch is one run of the course — a cohort with a start and an end. Create one with the form below.');
   renderPageControls('#batches-pagination', page, loadAcademyBatches);
   const select = $('#academy-batch-select');
   const selected = select.value;
@@ -3262,7 +3262,7 @@ async function loadAcademyBatchLearners(pageNumber = 0) {
   setList('#batch-learners-list', (page.content || []).map((enrollment) => item(
     learnerName(enrollment),
     `${learnerIdNote(enrollment)} · Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
-  'No learners enrolled yet.');
+  'No learners enrolled yet. Use “Enroll a learner” below. They must already be a member of this workspace with the learner role.');
   renderPageControls('#batch-learners-pagination', page, loadAcademyBatchLearners);
 }
 
@@ -3833,7 +3833,7 @@ async function loadConversations(pageNumber = 0) {
   setList('#conversations-list', (page.content || []).map((conversation) => item(
     conversation.counterpartDisplayName,
     `Started ${new Date(conversation.createdAt).toLocaleDateString()}`,
-    [button('Open', () => openConversation(conversation))])), 'No conversations yet.');
+    [button('Open', () => openConversation(conversation))])), 'No conversations yet. Use “Open conversation” above to start one with an instructor or a learner in this workspace.');
   renderPageControls('#conversations-pagination', page, loadConversations);
 }
 
