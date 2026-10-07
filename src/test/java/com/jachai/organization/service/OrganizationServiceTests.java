@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.jachai.auth.model.User;
 import com.jachai.auth.repository.UserRepository;
+import com.jachai.organization.dto.CreateOrganizationRequest;
 import com.jachai.organization.model.Membership;
 import com.jachai.organization.model.Organization;
 import com.jachai.organization.model.OrganizationRole;
@@ -60,6 +61,28 @@ class OrganizationServiceTests {
                         OrganizationRole.ORG_ADMIN, true, Instant.now())));
         when(users.findById("admin")).thenReturn(Optional.of(new User("admin", "admin@example.com",
                 "Admin", null, true, false, 0, Instant.now())));
+    }
+
+    @Test
+    void ambiguousOwnerMembershipWriteKeepsTheWorkspaceDiscoverableAndRepairable() {
+        Organization created = organization();
+        when(users.findById("owner")).thenReturn(Optional.of(new User("owner", "owner@example.com",
+                "Owner", "hash", true, false, 0, Instant.now())));
+        when(organizations.save(any(Organization.class))).thenReturn(created);
+        doThrow(new IllegalStateException("write acknowledgement lost"))
+                .when(memberships).save(any(Membership.class));
+
+        assertEquals("WORKSPACE_CREATION_UNCERTAIN", assertThrows(ApiException.class,
+                () -> service().create("owner", new CreateOrganizationRequest("Academy", OrganizationType.ACADEMY)))
+                .code());
+        verify(organizations, never()).deleteById("org");
+
+        when(organizations.findByOwnerUserId("owner")).thenReturn(List.of(created));
+        assertEquals("org", service().listMine("owner").getFirst().id());
+        ArgumentCaptor<Membership> repair = ArgumentCaptor.forClass(Membership.class);
+        verify(memberships).insert(repair.capture());
+        assertEquals("owner", repair.getValue().userId());
+        assertEquals(OrganizationRole.ORG_ADMIN, repair.getValue().role());
     }
 
     @Test

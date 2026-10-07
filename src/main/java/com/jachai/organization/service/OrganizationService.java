@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,7 @@ import org.springframework.dao.DuplicateKeyException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrganizationService {
     private final UserRepository users;
     private final OrganizationRepository organizations;
@@ -55,8 +57,13 @@ public class OrganizationService {
             memberships.save(new Membership(UUID.randomUUID().toString(), userId, organization.id(),
                     OrganizationRole.ORG_ADMIN, true, now));
         } catch (RuntimeException exception) {
-            organizations.deleteById(organization.id());
-            throw exception;
+            // A failed acknowledgement does not prove the membership write failed. Deleting the
+            // organization here can orphan a membership that MongoDB already accepted. The owner
+            // remains able to discover the organization and repair its membership via listMine.
+            log.warn("Owner membership write for new workspace {} was uncertain: {}",
+                    organization.id(), exception.getClass().getSimpleName());
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WORKSPACE_CREATION_UNCERTAIN",
+                    "Workspace creation may have succeeded; refresh your workspaces before trying again");
         }
         return new OrganizationResponse(organization.id(), organization.name(), organization.type(),
                 OrganizationRole.ORG_ADMIN, true);
@@ -72,10 +79,27 @@ public class OrganizationService {
                             organization.ownerUserId().equals(userId))));
         }
         for (Organization organization : organizations.findByOwnerUserId(userId)) {
+            ensureOwnerMembership(organization);
             result.put(organization.id(), new OrganizationResponse(organization.id(), organization.name(),
                     organization.type(), OrganizationRole.ORG_ADMIN, true));
         }
         return new ArrayList<>(result.values());
+    }
+
+    private void ensureOwnerMembership(Organization organization) {
+        try {
+            if (memberships.findByUserIdAndOrganizationId(organization.ownerUserId(), organization.id())
+                    .isPresent()) return;
+            memberships.insert(new Membership("owner:" + organization.id(), organization.ownerUserId(),
+                    organization.id(), OrganizationRole.ORG_ADMIN, true, organization.createdAt()));
+        } catch (DuplicateKeyException raced) {
+            // Another request repaired the same owner membership after our read.
+        } catch (RuntimeException exception) {
+            // The organization record is authoritative for owner access. A failed repair must
+            // not hide an already-created workspace from its owner.
+            log.warn("Owner membership repair for workspace {} deferred: {}",
+                    organization.id(), exception.getClass().getSimpleName());
+        }
     }
 
     public void transferOwner(String actorId, String organizationId, String targetUserId) {
