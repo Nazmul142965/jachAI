@@ -1,4 +1,5 @@
 package com.jachai.auth.integration;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,6 +27,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "MONGODB_TEST_URI", matches = ".+")
 class RegistrationVerificationIntegrationTests extends BaseMongoIntegrationTest {
     @Autowired private AuthService auth;
     @Autowired private UserRepository users;

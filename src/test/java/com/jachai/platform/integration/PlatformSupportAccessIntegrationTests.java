@@ -1,4 +1,5 @@
 package com.jachai.platform.integration;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,6 +29,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "MONGODB_TEST_URI", matches = ".+")
 class PlatformSupportAccessIntegrationTests extends BaseMongoIntegrationTest {
     @Autowired private PlatformSupportAccessService support;
     @Autowired private MongoTemplate mongo;

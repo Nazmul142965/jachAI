@@ -18,6 +18,7 @@ public enum RateLimitPolicy {
     INVITE_ACTOR(30, Duration.ofHours(1)),
     JOIN_CODE_ACCOUNT(10, Duration.ofHours(1)),
     PLATFORM_SUPPORT(5, Duration.ofHours(1)),
+    SUPPORT_TICKET_CREATE(10, Duration.ofHours(1)),
     PAYMENT_CHECKOUT_ACTOR(5, Duration.ofHours(1)),
     PAYMENT_RECONCILE_ACTOR(30, Duration.ofMinutes(1)),
     AI_ACTOR(10, Duration.ofMinutes(1)),

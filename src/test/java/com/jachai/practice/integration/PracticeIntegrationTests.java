@@ -1,4 +1,5 @@
 package com.jachai.practice.integration;
+import org.junit.jupiter.api.condition.EnabledIf;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -40,7 +41,14 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.support.MongoRepositoryFactory;
 
+@EnabledIf("integrationTestsEnabled")
 class PracticeIntegrationTests extends BaseMongoIntegrationTest {
+
+    static boolean integrationTestsEnabled() {
+        String uri = System.getenv("MONGODB_TEST_URI");
+        return uri != null && !uri.isBlank();
+    }
+
     private PracticeService practice;
     private PersonalPracticeGenerationService generation;
     private MongoTemplate mongo;
