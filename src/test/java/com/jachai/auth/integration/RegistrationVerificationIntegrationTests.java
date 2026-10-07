@@ -1,7 +1,10 @@
 package com.jachai.auth.integration;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.jachai.auth.dto.RegisterRequest;
@@ -10,7 +13,9 @@ import com.jachai.auth.repository.UserRepository;
 import com.jachai.auth.service.AuthService;
 import com.jachai.auth.service.EmailSender;
 import com.jachai.billing.integration.BaseMongoIntegrationTest;
+import com.jachai.shared.error.ApiException;
 import java.net.URI;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +52,34 @@ class RegistrationVerificationIntegrationTests extends BaseMongoIntegrationTest 
 
         auth.verifyEmail(query.substring("token=".length()));
 
+        assertTrue(users.findById(userId).orElseThrow().emailVerified());
+    }
+
+    @Test
+    void resendsReplaceTheMongoTokenAndOnlyTheLatestLinkVerifies() {
+        String email = generateTestId("resend") + "@example.test";
+        auth.register(new RegisterRequest(email, "Resend Learner", "LocalSmoke-Password-123!"));
+        String userId = users.findByEmail(email).orElseThrow().id();
+        trackDocumentId("users", userId);
+        trackDocumentId("email_verification_tokens", userId);
+
+        auth.resendVerification(email);
+        auth.resendVerification(email);
+
+        ArgumentCaptor<String> urls = ArgumentCaptor.forClass(String.class);
+        verify(emailSender, times(3)).sendVerification(eq(email), eq("Resend Learner"), urls.capture());
+        List<String> links = urls.getAllValues();
+        assertEquals(1, mongo.count(Query.query(Criteria.where("userId").is(userId)),
+                EmailVerificationToken.class));
+        assertEquals(userId, mongo.findOne(Query.query(Criteria.where("userId").is(userId)),
+                EmailVerificationToken.class).id());
+        for (int i = 0; i < 2; i++) {
+            String oldToken = URI.create(links.get(i)).getRawQuery().substring("token=".length());
+            assertEquals("INVALID_TOKEN", assertThrows(ApiException.class,
+                    () -> auth.verifyEmail(oldToken)).code());
+        }
+        String latestToken = URI.create(links.get(2)).getRawQuery().substring("token=".length());
+        auth.verifyEmail(latestToken);
         assertTrue(users.findById(userId).orElseThrow().emailVerified());
     }
 }
