@@ -140,42 +140,58 @@ When MongoDB is available, the tests verify:
 
 ## Verification
 
-Three commits on `ai/practice-reliability`:
+Four commits on `ai/practice-reliability` (branched from `main` at `bba1b94`):
 
 | Hash | Summary |
 |---|---|
 | `9e624cf` | ai/practice: state retention policy, fix hardcoded generation limit, add unit tests |
 | `1c04f83` | test: add opt-in Mongo integration tests for practice workflow |
 | `5603a28` | fix: resolve replay-after-expiry and ambiguous-insert-outcome defects |
+| `103496b` | fix: separate DuplicateKeyException refund from fail-closed; global bucket isolation |
+| `8a5ae19` | fix: compare replay fields instead of whole Result record (Mongo truncates Instant to ms) |
+| `67163e8` | fix: remove unsafe @BeforeEach global bucket deletion; track per-test |
 
-Broad test suite (all packages, Java 17):
+### Broader suite (all packages, Java 17)
 
 ```
 [INFO] Tests run: 584, Failures: 0, Errors: 0, Skipped: 0
 [INFO] BUILD SUCCESS
 ```
 
-Integration tests are safely skipped (Mongo not configured). Live provider
-calls were **not** exercised.
+### Local Mongo run
 
-### Cleanup isolation note
+Set `MONGODB_TEST_URI=mongodb://localhost:27017/jachai_it_practice` and run:
 
-The `generationFailureUnreservesBothBuckets` integration test now asserts both
-the user bucket (`userId:day`) and the platform global bucket
-(`personal-ai:global:day`) are refunded. Each test generates a unique
-`userId` prefix and registers both bucket document IDs with
-`trackDocumentId`, so cleanup only removes the documents that test created —
-never another test's shared global bucket.
+```
+mvn test -Dtest="PracticeIntegrationTests"
+```
 
-- **No live provider is exercised in this slice.** All AI calls are mocked in tests.
-- To run the Mongo integration tests, set `MONGODB_TEST_URI` to a dedicated
-  `jachai_it_` database before `mvn test`.
-- To exercise a live AI provider locally, set `AI_PROVIDER=google-genai`
-  (or `ollama`) and the provider's key in your environment. **Do not paste
-  secrets into chat.**
-- A single `POST /api/v1/practice/questions/generate` with a real key is the
-  minimal live check. Review the `Gemini` / `Groq` troubleshooting docs linked
-  in `PRODUCT_UI_HANDOFF.md` before relying on a specific model.
+Result against local MongoDB:
+
+```
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.343 s
+BUILD SUCCESS
+```
+
+Integration tests are **not** skipped when `MONGODB_TEST_URI` is set. The global
+bucket (`personal-ai:global:<day>`) is no longer deleted in `@BeforeEach`; each
+test that touches it now explicitly deletes any stale document and registers the
+ID with `trackDocumentId` for `@AfterEach` cleanup, preserving isolation without
+mutating a shared platform resource.
+
+### Live-provider gate (unverified)
+
+No live AI provider call was made. To verify, run the app with
+`AI_PROVIDER=google-genai` and `GEMINI_API_KEY` in the environment (shell or
+IntelliJ run config), then:
+
+```
+POST /api/v1/practice/questions/generate
+{"topic":"Java","difficulty":"BEGINNER","brief":""}
+```
+
+Record latency and any provider error category honestly. No claims are made
+without a real call.
 
 ## What remains
 
