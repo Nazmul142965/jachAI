@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -133,7 +134,31 @@ class PracticeServiceTests {
 
         assertEquals(insertError, thrown);
         assertTrue(thrown.getSuppressed().length > 0);
-        verify(mongo, never()).updateFirst(any(), any(), eq(PracticeUsage.class));
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(PracticeUsage.class));
+    }
+
+    @Test
+    void duplicateKeyFromConcurrentRequestRefundsQuotaAndReplays() {
+        when(users.findById("learner")).thenReturn(Optional.of(verifiedUser()));
+        UUID id = UUID.randomUUID();
+        String answerId = "learner:" + id;
+        PracticeAnswer concurrentlyInserted = new PracticeAnswer(
+                answerId, "learner", "java-record", "b", "b", true,
+                "Records generate component accessors and a canonical constructor.",
+                Instant.now(), Instant.now().plusSeconds(3600));
+        when(mongo.insert(any(PracticeUsage.class))).thenAnswer(call -> call.getArgument(0));
+        when(answers.findById(answerId))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(concurrentlyInserted));
+        when(answers.insert(any(PracticeAnswer.class)))
+                .thenThrow(new DuplicateKeyException("duplicate _id"));
+
+        var result = service.submit("learner", id, "java-record", "b");
+
+        assertEquals(true, result.correct());
+        assertEquals("b", result.correctOptionId());
+        // The loser's quota was wasted on a duplicate insert — refund it.
+        verify(mongo, times(1)).updateFirst(any(Query.class), any(Update.class), eq(PracticeUsage.class));
     }
 
     @Test

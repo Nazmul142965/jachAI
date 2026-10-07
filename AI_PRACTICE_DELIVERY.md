@@ -81,7 +81,7 @@ timeout after the write may have committed):
 insert with both user and global bucket refunds. AI/parse failures (before
 any insert) still refund both buckets unconditionally.
 
-#### `PracticeServiceTests` — 11 tests (8 new)
+#### `PracticeServiceTests` — 12 tests (9 new)
 
 | Test | Verifies |
 |---|---|
@@ -90,10 +90,11 @@ any insert) still refund both buckets unconditionally.
 | `replayWithDifferentChoiceDoesNotConsumeQuota` | Replay with a different choice fails with `CONFLICT` |
 | `sameRequestIdReturnsSameResultWithoutConsumingQuota` | Retry-safe: identical `requestId` returns the same `Result` and never touches Mongo |
 | `quotaExhaustedThrows429WithoutSavingAnswer` | 21st answer on a UTC day throws `PRACTICE_LIMIT_REACHED` (HTTP 429) |
-| `unexpectedInsertFailureRefundsQuotaBucket` | If `answers.insert` throws, the answer was NOT persisted, and the usage bucket is refunded |
-| `replayWorksAfterGeneratedQuestionExpires` | Replay succeeds when the source question has expired; `catalog.find` is never called |
-| `insertErrorDoesNotRefundWhenAnswerWasPersisted` | Insert throws but re-read finds the answer; quota is NOT refunded |
-| `insertErrorFailsClosedWhenReReadCannotEstablishOutcome` | Insert throws and re-read also throws; no refund (fail closed), original error propagates with suppressed read failure |
+| `unexpectedInsertFailureRefundsQuotaBucket` | If `answers.insert` throws and re-read finds nothing, the bucket is refunded |
+| `replayWorksAfterGeneratedQuestionExpires` | Replay succeeds after TTL expiry; `catalog.find` never called |
+| `insertErrorDoesNotRefundWhenAnswerWasPersisted` | Insert error but re-read finds answer → no refund, returns result |
+| `insertErrorFailsClosedWhenReReadCannotEstablishOutcome` | Insert + re-read both fail → fail closed, no refund |
+| `duplicateKeyFromConcurrentRequestRefundsQuotaAndReplays` | Concurrent `DuplicateKeyException` loser refunds quota and replays |
 | `usageReportsStatedRetentionAndCurrentAllowance` | `Usage` includes `answerRetentionDays=90` and `generationRetentionDays=30` |
 | `usageWithNoBucketReportsFullAllowanceAndRetention` | No bucket → full allowance reported |
 
@@ -145,7 +146,7 @@ Three commits on `ai/practice-reliability`:
 |---|---|
 | `9e624cf` | ai/practice: state retention policy, fix hardcoded generation limit, add unit tests |
 | `1c04f83` | test: add opt-in Mongo integration tests for practice workflow |
-| `ebc7367` | fix: resolve replay-after-expiry and ambiguous-insert-outcome defects |
+| `5603a28` | fix: resolve replay-after-expiry and ambiguous-insert-outcome defects |
 
 Broad test suite (all packages, Java 17):
 

@@ -84,6 +84,17 @@ public class PracticeService {
         try {
             answers.insert(answer);
             return result(answer);
+        } catch (DuplicateKeyException duplicate) {
+            PracticeAnswer existing;
+            try {
+                existing = answers.findById(answerId).orElse(null);
+            } catch (RuntimeException readFailure) {
+                duplicate.addSuppressed(readFailure);
+                throw duplicate;
+            }
+            refund(bucketId);
+            if (existing != null) return replay(existing, questionId, optionId);
+            throw duplicate;
         } catch (RuntimeException failure) {
             PracticeAnswer existing;
             try {

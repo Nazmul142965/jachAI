@@ -52,6 +52,11 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
     @BeforeEach
     void setupServices() {
         mongo = new MongoTemplate(new SimpleMongoClientDatabaseFactory(mongoClient, databaseName));
+        // Remove stale global buckets from prior tests so no test can read or
+        // delete another test's platform-wide global counter.
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        mongo.remove(Query.query(Criteria.where("_id").is("personal-ai:global:" + today.toString())),
+                PracticeUsage.class);
         mongo.indexOps(PracticeAnswer.class).ensureIndex(
                 new Index().on("expiresAt", Sort.Direction.ASC).expire(0));
         mongo.indexOps(PracticeUsage.class).ensureIndex(
@@ -179,8 +184,8 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
         when(users.findById(userId)).thenReturn(Optional.of(verifiedUser(userId)));
         LocalDate day = LocalDate.now(ZoneOffset.UTC);
         trackDocumentId("practice_usage", userId + ":" + day.toString());
-        trackDocumentId("practice_usage", "personal-ai:global:" + day.toString());
-
+        // Global bucket is not tracked for cleanup — it is removed in @BeforeEach
+        // to avoid deleting another test's platform-wide counter.
         when(ai.generate(any(), any(), any())).thenReturn("""
                 {"prompt":"What is a Java record?","options":[
                   {"id":"a","text":"An immutable data carrier"},{"id":"b","text":"A mutable class"},
@@ -214,8 +219,8 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
         String userId = generateTestId("failgen");
         when(users.findById(userId)).thenReturn(Optional.of(verifiedUser(userId)));
         LocalDate day = LocalDate.now(ZoneOffset.UTC);
-        trackDocumentId("practice_usage", userId + ":" + day.toString());
-        trackDocumentId("practice_usage", "personal-ai:global:" + day.toString());
+        String dayStr = day.toString();
+        trackDocumentId("practice_usage", userId + ":" + dayStr);
 
         when(ai.generate(any(), any(), any())).thenThrow(
                 new ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
@@ -224,11 +229,10 @@ class PracticeIntegrationTests extends BaseMongoIntegrationTest {
         assertThrows(ApiException.class, () -> generation.generate(userId,
                 new PersonalPracticeGenerationService.GenerateRequest("Java", "BEGINNER", "")));
 
-        // Both buckets must be refunded to zero on AI failure
-        PracticeUsage bucket = mongo.findById(userId + ":" + day.toString(), PracticeUsage.class);
+        PracticeUsage bucket = mongo.findById(userId + ":" + dayStr, PracticeUsage.class);
         assertNotNull(bucket);
         assertEquals(0, bucket.generated(), "User generation bucket must be refunded on AI failure");
-        PracticeUsage globalBucket = mongo.findById("personal-ai:global:" + day.toString(), PracticeUsage.class);
+        PracticeUsage globalBucket = mongo.findById("personal-ai:global:" + dayStr, PracticeUsage.class);
         assertNotNull(globalBucket);
         assertEquals(0, globalBucket.generated(), "Global generation bucket must be refunded on AI failure");
     }
