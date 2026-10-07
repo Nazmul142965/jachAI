@@ -75,7 +75,6 @@ export default function Practice({ request, onUsageChanged }: Host) {
 
   const all = useMemo(() => questions.data ?? [], [questions.data]);
 
-  // Keep the current question if it survives a reload, else fall back to the first.
   useEffect(() => {
     if (!all.length) { setSelectedId(''); return; }
     setSelectedId((current) => (all.some((q) => q.id === current) ? current : all[0]!.id));
@@ -146,126 +145,36 @@ export default function Practice({ request, onUsageChanged }: Host) {
     }
   }
 
+  const quotaSpent = usage.data?.remaining === 0;
+
   return (
-    <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">Your account · private</p>
-          <h1 id="practice-heading">Practice</h1>
-          <p className="muted">
-            Questions are generated for you alone. Nothing here reaches a workspace,
-            a result or a certificate.
-          </p>
-        </div>
-      </div>
+    // No page heading here. The host already renders the screen title and
+    // subtitle above this view; the pilot printing its own produced "Practice"
+    // twice, one under the other.
+    <div className="practice-layout">
 
-      {/* Quota first: it is a real limit, and both actions below depend on it. */}
-      <div className="card panel">
-        <h2>Today</h2>
-        {usage.data && (
-          <>
-            <p className="muted">
-              {usage.data.generated}/{usage.data.generationLimit} AI questions created
-              {' '}({usage.data.generationRemaining} left)
-              {' · '}
-              {usage.data.used}/{usage.data.limit} answers checked
-              {' '}({usage.data.remaining} left) today
-            </p>
-            <div className="practice-meters">
-              <Meter label="Questions created"
-                     value={usage.data.generated} max={usage.data.generationLimit} />
-              <Meter label="Answers checked"
-                     value={usage.data.used} max={usage.data.limit} />
-            </div>
-          </>
-        )}
-        {usage.error && (
-          <p className="empty">
-            Today’s allowance could not be checked, so generating and answering are
-            paused. {usage.error}
-          </p>
-        )}
-        {!usage.data && !usage.error && (
-          <p className="muted" aria-busy="true">Checking your allowance…</p>
-        )}
-        <button className="button secondary small" type="button" onClick={() => void load()}>
-          Reload
-        </button>
-      </div>
+      {/* The work comes first. Answering is why someone opens this screen, and it
+          used to sit below the quota and the generator, 1332px down a 768px
+          screen. */}
+      <div className="practice-work">
+        <section className="card panel" aria-labelledby="practice-answer-heading">
+          <h2 id="practice-answer-heading" className="visually-hidden">Answer a question</h2>
 
-      <div className="card panel">
-        <h2>Generate a question</h2>
-        <p className="muted">
-          Pick a topic and a level. Your allowance is charged only when a question is
-          actually produced.
-        </p>
-        <form className="stack" onSubmit={generate}>
-          <div className="form-row">
-            <label>Topic
-              <input value={topic} maxLength={80} required
-                     placeholder="e.g. Spring bean scopes"
-                     onChange={(e) => setTopic(e.target.value)} />
-            </label>
-            <label>Level
-              <select value={difficulty}
-                      onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
-                {DIFFICULTIES.map((d) => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <label>What should it test? <small>(optional)</small>
-            <textarea value={brief} rows={2} maxLength={400}
-                      placeholder="Narrow it down, for example: when a prototype bean is injected into a singleton"
-                      onChange={(e) => setBrief(e.target.value)} />
-          </label>
-          <div>
-            <button className="button primary" type="submit" disabled={!canGenerate}>
-              {generating ? 'Generating…' : 'Generate question'}
-            </button>
-          </div>
-        </form>
-
-        {generating && (
-          <p className="practice-progress" role="status" aria-live="polite">
-            <span className="practice-spinner" aria-hidden="true" />
-            Writing a question on {topic.trim() || 'your topic'}. This usually takes
-            5–10 seconds.
-          </p>
-        )}
-        {generateError && (
-          <p className="empty" role="status">
-            No question was produced. {generateError} Your allowance above is the
-            server’s current figure, re-read just now.
-          </p>
-        )}
-        {usage.data?.generationRemaining === 0 && (
-          <p className="muted">
-            You have used today’s {usage.data.generationLimit} generated questions.
-            Answering existing ones still works, and the allowance resets at midnight UTC.
-          </p>
-        )}
-      </div>
-
-      <div className="practice-columns">
-        <div className="card panel">
-          <h2>Answer a question</h2>
           {questions.error && (
             <p className="empty">Your questions could not be loaded. {questions.error}</p>
           )}
           {!questions.error && !all.length && (
             <p className="empty">
-              No questions yet. Generate one above and it appears here straight away.
+              No questions yet. Generate one below and it appears here straight away.
             </p>
           )}
 
           {question && (
             <form className="stack" onSubmit={submit}>
-              <p className="eyebrow">{question.topic}</p>
+              <p className="practice-topic">{question.topic}</p>
               <p className="practice-prompt">{question.prompt}</p>
               <fieldset className="practice-options">
-                <legend className="muted">Choose one answer</legend>
+                <legend className="visually-hidden">Choose one answer</legend>
                 {question.options.map((option) => (
                   <label key={option.id}
                          className={`practice-option${chosen === option.id ? ' is-chosen' : ''}`}>
@@ -276,38 +185,130 @@ export default function Practice({ request, onUsageChanged }: Host) {
                   </label>
                 ))}
               </fieldset>
-              <div>
+              <div className="practice-actions">
                 <button className="button primary" type="submit" disabled={!canAnswer}>
                   {answering ? 'Checking…' : 'Check answer'}
                 </button>
+                {quotaSpent && (
+                  <span className="muted">
+                    Today’s answers are used up. The allowance resets at midnight UTC.
+                  </span>
+                )}
               </div>
             </form>
           )}
 
           {answerError && <p className="empty" role="status">{answerError}</p>}
           {result && (
-            <div className={`result-box ${result.correct ? 'is-correct' : 'is-incorrect'}`}
+            <div className={`practice-result ${result.correct ? 'is-correct' : 'is-incorrect'}`}
                  role="status">
-              <p><strong>{result.correct ? 'Correct' : 'Not correct'}</strong></p>
+              <p className="practice-verdict">{result.correct ? 'Correct' : 'Not correct'}</p>
               {!result.correct && question && (
-                <p className="muted">
+                <p>
                   The answer is{' '}
-                  {question.options.find((o) => o.id === result.correctOptionId)?.text
-                    ?? result.correctOptionId}.
+                  <strong>
+                    {question.options.find((o) => o.id === result.correctOptionId)?.text
+                      ?? result.correctOptionId}
+                  </strong>.
                 </p>
               )}
-              {result.explanation && <p className="muted">{result.explanation}</p>}
+              {result.explanation && <p>{result.explanation}</p>}
             </div>
           )}
-        </div>
+        </section>
 
-        <aside className="card panel" aria-label="Your practice questions">
+        <section className="card panel" aria-labelledby="practice-generate-heading">
+          <h2 id="practice-generate-heading">Generate a question</h2>
+          <p className="muted">
+            Written for you alone, on any topic. Your allowance is charged only when a
+            question is actually produced.
+          </p>
+          <form className="stack" onSubmit={generate}>
+            <div className="form-row">
+              <label>Topic
+                <input value={topic} maxLength={80} required
+                       placeholder="e.g. Spring bean scopes"
+                       onChange={(e) => setTopic(e.target.value)} />
+              </label>
+              <label>Level
+                <select value={difficulty}
+                        onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
+                  {DIFFICULTIES.map((d) => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>What should it test? <small>(optional)</small>
+              <textarea value={brief} rows={2} maxLength={400}
+                        placeholder="Narrow it down, for example: when a prototype bean is injected into a singleton"
+                        onChange={(e) => setBrief(e.target.value)} />
+            </label>
+            <div>
+              <button className="button secondary" type="submit" disabled={!canGenerate}>
+                {generating ? 'Generating…' : 'Generate question'}
+              </button>
+            </div>
+          </form>
+
+          {generating && (
+            <p className="practice-progress" role="status" aria-live="polite">
+              <span className="practice-spinner" aria-hidden="true" />
+              Writing a question on {topic.trim() || 'your topic'}. This usually takes
+              5–10 seconds.
+            </p>
+          )}
+          {generateError && (
+            <p className="empty" role="status">
+              No question was produced. {generateError} The allowance shown is the
+              server’s current figure, re-read just now.
+            </p>
+          )}
+          {usage.data?.generationRemaining === 0 && (
+            <p className="muted">
+              You have used today’s {usage.data.generationLimit} generated questions.
+              Answering existing ones still works, and the allowance resets at midnight UTC.
+            </p>
+          )}
+        </section>
+      </div>
+
+      <aside className="practice-side" aria-label="Your practice">
+        <section className="card panel">
+          <h2>Today</h2>
+          {usage.data && (
+            <div className="practice-meters">
+              <Meter label="Questions created"
+                     value={usage.data.generated} max={usage.data.generationLimit} />
+              <Meter label="Answers checked"
+                     value={usage.data.used} max={usage.data.limit} />
+            </div>
+          )}
+          {usage.error && (
+            <p className="empty">
+              Today’s allowance could not be checked, so generating and answering are
+              paused. {usage.error}
+            </p>
+          )}
+          {!usage.data && !usage.error && (
+            <p className="muted" aria-busy="true">Checking your allowance…</p>
+          )}
+          <p className="practice-private muted">
+            Private to your account. Never shown to an instructor, never scored against
+            an assessment, never on a certificate.
+          </p>
+          <button className="button secondary small" type="button" onClick={() => void load()}>
+            Reload
+          </button>
+        </section>
+
+        <section className="card panel">
           <h2>Your questions</h2>
-          <label htmlFor="pilot-question-filter">Find a question</label>
+          <label className="visually-hidden" htmlFor="pilot-question-filter">Find a question</label>
           <input id="pilot-question-filter" type="search" value={filter}
                  placeholder="Search topic or question"
                  onChange={(e) => setFilter(e.target.value)} />
-          <div className="item-list">
+          <div className="practice-picks">
             {visible.map((q) => {
               const past = answered.get(q.id);
               return (
@@ -315,13 +316,15 @@ export default function Practice({ request, onUsageChanged }: Host) {
                         className={`practice-pick${q.id === selectedId ? ' is-current' : ''}`}
                         aria-current={q.id === selectedId ? 'true' : undefined}
                         onClick={() => setSelectedId(q.id)}>
-                  <span className="practice-pick-topic">{q.topic}</span>
+                  <span className="practice-pick-topic">
+                    {q.topic}
+                    {past && (
+                      <span className={`practice-dot ${past.correct ? 'is-correct' : 'is-review'}`}
+                            title={past.correct ? 'Answered correctly' : 'Answered, review this'}
+                            aria-label={past.correct ? 'Answered correctly' : 'Answered, review this'} />
+                    )}
+                  </span>
                   <span className="practice-pick-prompt">{q.prompt}</span>
-                  {past && (
-                    <span className={`pill ${past.correct ? 'ok' : 'warn'}`}>
-                      {past.correct ? 'Answered correctly' : 'Answered, review this'}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -329,42 +332,46 @@ export default function Practice({ request, onUsageChanged }: Host) {
               <p className="empty">No question matches “{filter}”.</p>
             )}
           </div>
+        </section>
 
-          <h3>Recent answers</h3>
+        <section className="card panel">
+          <h2>Recent answers</h2>
           {history.error && (
             <p className="empty">Answer history could not be loaded. {history.error}</p>
           )}
           {history.data?.length === 0 && (
-            <p className="empty">No practice answers yet. Choose a question to begin.</p>
+            <p className="empty">No answers yet. Pick a question and check one.</p>
           )}
-          <div className="item-list">
+          <ol className="practice-history">
             {(history.data ?? []).map((a, i) => (
-              <p key={`${a.questionId}-${i}`} className="practice-history-row">
-                <span className={`pill ${a.correct ? 'ok' : 'warn'}`}>
-                  {a.correct ? 'Correct' : 'Review this'}
-                </span>
-                <span className="muted">
+              <li key={`${a.questionId}-${i}`}>
+                <span className={`practice-dot ${a.correct ? 'is-correct' : 'is-review'}`} aria-hidden="true" />
+                <span className="practice-history-text">
                   {all.find((q) => q.id === a.questionId)?.prompt ?? a.questionId}
                 </span>
-                <span className="muted">{relative(a.answeredAt)}</span>
-              </p>
+                <span className="practice-history-when muted">
+                  {a.correct ? 'Correct' : 'Review'} · {relative(a.answeredAt)}
+                </span>
+              </li>
             ))}
-          </div>
-        </aside>
-      </div>
-    </>
+          </ol>
+        </section>
+      </aside>
+    </div>
   );
 }
 
 function Meter({ label, value, max }: { label: string; value: number; max: number }) {
   const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  const left = Math.max(0, max - value);
   return (
     <div className="practice-meter">
-      <span className="muted">{label}</span>
-      <div className="bar" role="img" aria-label={`${value} of ${max} used`}>
+      <span className="practice-meter-label">{label}</span>
+      <span className="practice-meter-value">{left} left</span>
+      <div className="bar" role="img" aria-label={`${value} of ${max} used, ${left} left`}>
         <div className="bar-fill" style={{ width: `${percent}%` }} />
       </div>
-      <span className="muted">{value} of {max}</span>
+      <span className="practice-meter-foot muted">{value} of {max} used</span>
     </div>
   );
 }

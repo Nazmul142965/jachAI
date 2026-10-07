@@ -1206,7 +1206,10 @@ async function mountPracticePilot() {
     notice('The Practice pilot bundle is not built. Run: npm --prefix frontend run build');
     return false;
   }
-  host.replaceChildren();
+  // Only clear the host the first time. Clearing it on every visit emptied the
+  // container that React still held a root against, so coming back to Practice
+  // showed nothing at all and reported no error.
+  if (host.dataset.pilot !== 'practice') host.replaceChildren();
   host.dataset.pilot = 'practice';
   pilotModule.mount(host, {
     request: (path, init) => request(path, init),
@@ -1284,8 +1287,19 @@ async function showView(key) {
   heading.focus({ preventScroll: true });
   // The subtitle says what the screen is for, and which workspace it belongs
   // to when there is one, because a person may belong to several.
-  $('#page-subtitle').textContent = [screen.subtitle, key === 'platform' ? '' : state.organization?.name || '']
+  // Four screens belong to the account, not to a workspace: the dashboard,
+  // practice, the profile and the workspace list itself. Naming an organization
+  // on them is wrong rather than merely noisy — personal practice in particular
+  // is never visible to a workspace, and saying "Demo Academy" there suggests
+  // it is. Platform Operations is cross-tenant, so it is in the same bucket.
+  const accountScope = ['start', 'practice', 'account', 'workspace-access', 'platform'];
+  const personal = accountScope.includes(screenKey);
+  $('#page-subtitle').textContent = [screen.subtitle,
+    personal ? '' : state.organization?.name || '']
     .filter(Boolean).join(' · ');
+  // The three places the page says whose scope you are in, kept in agreement.
+  $('#page-scope').textContent = personal ? 'Your account' : 'JachAI workspace';
+  $('#page-role-context').classList.toggle('hidden', personal);
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'start') { await loadHome(); return; }
   if (key === 'account') { await loadAccount(); return; }
