@@ -17,9 +17,10 @@ public record WorkspaceJoinCode(
         Instant createdAt,
         @Indexed(expireAfter = "0s") Instant expiresAt,
         Instant revokedAt,
-        long redemptions) {
+        long redemptions,
+        long claimRevision) {
     public WorkspaceJoinCode revoked(Instant at) {
         return new WorkspaceJoinCode(id, organizationId, role, codeHash, createdByUserId,
-                createdAt, expiresAt, at, redemptions);
+                createdAt, expiresAt, at, redemptions, claimRevision);
     }
 }
