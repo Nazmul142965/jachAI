@@ -78,6 +78,20 @@ class EmailLinkGuardTests {
     }
 
     @Test
+    void verificationIsNotEmailedAfterTheAccountRetentionDeadline() {
+        Instant now = Instant.now();
+        when(verificationTokens.findByTokenHash(any())).thenReturn(Optional.of(
+                new EmailVerificationToken("id", "hash", "user", now.plusSeconds(3600))));
+        when(users.findById("user")).thenReturn(Optional.of(new User("user",
+                "person@example.com", "Person", null, false, false, 0,
+                now.minusSeconds(8 * 24 * 3600L))));
+
+        assertFalse(guard().isCurrent(new EmailPayload(EmailJobType.VERIFICATION,
+                "person@example.com", "Person", null,
+                "https://example.test/verify?token=secret", now.plusSeconds(3600))));
+    }
+
+    @Test
     void resetTokenMustBelongToCurrentVerifiedRecipient() {
         when(resetTokens.findByTokenHash(any())).thenReturn(Optional.of(
                 new PasswordResetToken("id", "hash", "user", Instant.now().plusSeconds(3600))));

@@ -23,6 +23,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +73,8 @@ public class EmailLinkGuard {
                     .filter(value -> value.expiresAt().isAfter(now))
                     .flatMap(value -> users.findById(value.userId()))
                     .filter(user -> !user.emailVerified() && !user.disabled()
+                            && user.createdAt() != null
+                            && user.createdAt().isAfter(now.minus(Duration.ofDays(7)))
                             && user.email().equalsIgnoreCase(payload.recipient())).isPresent();
             case PASSWORD_RESET -> resetTokens.findByTokenHash(hash)
                     .filter(value -> value.expiresAt().isAfter(now))
