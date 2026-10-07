@@ -51,3 +51,4 @@ replay_pid*.log
 frontend/node_modules/
 # Build output. Produced by `npm --prefix frontend run build`; never committed.
 src/main/resources/static/pilot/
+frontend/*.tsbuildinfo
