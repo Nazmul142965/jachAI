@@ -1,6 +1,6 @@
 # JachAI — current delivery checklist
 
-Updated: 2026-10-05. `ARCHITECTURE.md` §14 defines acceptance; this file tracks what still needs proof or implementation. A checked item means only the stated scope passed, not that the whole product is production-ready.
+Updated: 2026-10-07. `ARCHITECTURE.md` §14 defines acceptance; this file tracks what still needs proof or implementation. A checked item means only the stated scope passed, not that the whole product is production-ready.
 
 ## Working foundation
 
@@ -25,11 +25,18 @@ Updated: 2026-10-05. `ARCHITECTURE.md` §14 defines acceptance; this file tracks
 
 - [x] Operator audit recovery for membership and ownership is implemented and merged (`f859392`). A platform admin gets a bounded tenant-scoped dry run that writes nothing, and an insert-only repair that is idempotent, re-reads each record before writing, and refuses records whose markers are incomplete. The membership action derivation is now defined once and shared with `MembershipService`, so the operator tool cannot write an event the owning service would not. 31 focused plus 5 local-Mongo tests passed, and the full 547-test suite passed on a dedicated `jachai_it_` database. A runbook is at `docs/runbook-audit-recovery.md`. Transitions whose markers were overwritten by a later change remain unrecoverable by design, and no endpoint has been exercised over HTTP.
 
+## Current coordination (2026-10-07)
+
+- [x] Claude's later staff-name, certificate-list, mobile-overflow, and application-context fixes were reviewed and cherry-picked into `main` as `b8dfef9` through `1d36c35`. His branch is still separate; its retrospective delivery notes and unfinished browser journeys are not a completed release gate. Do not merge the older branch wholesale over newer auth/billing changes.
+- [x] Seven-day unverified-account retention is implemented in `UnverifiedAccountCleanup` and the verification/login paths (`92ccdb0`); the earlier pending-retention checkbox below is superseded. Live Atlas cleanup timing and race behaviour remain unverified.
+- [x] Google ID-token audience/authorized-party validation was tightened (`c9536cf`); 12 focused auth tests passed. A real Google sign-in remains unverified. The local app was not running when checked on 2026-10-07, so the newly entered `GOOGLE_CLIENT_ID` could not yet be confirmed at runtime.
+- [x] Separate agent assignments and owner-only account/setup checklist are committed (`d39c962`). Agent 01's Claude branch has partial delivery; agent 02's identity scope is the current main-writer scope. Agent 03 AI/practice, 04 billing/platform, 05 runtime, and 06 final integration have not been assigned or declared complete merely because prompt files exist.
+
 ## Next implementation and integration
 
 - [ ] Continue the separate frontend redesign worktree and merge only reviewed, committed slices into `main`. Do not redo the existing versions, order-detail, or usage-reconciliation UI panels, and do not overwrite the frontend agent's worktree. The Academy learner-name gap is closed in the local demo.
 - [ ] Complete real-browser Academy instructor workflows beyond the cohort, broader Talent review decisions and integrity behavior beyond one demo HOLD submission, payment/order-detail interactions beyond the read-only Billing view, and platform-admin walkthroughs against a current local API. Learner released result, Academy cohort, recruiter comparison, candidate assignment, one guarded Talent review, and read-only Billing have scoped live-browser proof; fixture journeys alone are not live API proof.
-- [ ] Decide and implement pending-account retention. User requested automatic removal after a few unverified days; the exact duration and whether the rule applies to existing accounts require explicit approval before enabling deletion.
+- [ ] Verify the implemented seven-day pending-account cleanup against a disposable Atlas test database, including verification/cleanup concurrency and records with memberships. Do not delete real accounts as a test.
 - [ ] Verify remaining MongoDB-sensitive workflows on a dedicated `jachai_it_*` database: membership concurrency, telemetry TTL, and billing reconciliation. Membership and ownership audit recovery is now closed (`f859392`). Local owner concurrency, membership prior-audit recovery, outbox lease/retry, and batch analytics are closed; Atlas behavior remains separate.
 
 ## External-service gates
