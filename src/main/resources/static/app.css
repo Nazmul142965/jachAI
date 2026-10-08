@@ -342,13 +342,14 @@ a:focus-visible,
 .topnav a:hover::after { transform: scaleX(1); }
 
 .topbar .button { margin-left: auto; }
-.account-menu { margin-left: auto; position: relative; }
+.account-menu { margin-left: 0; position: relative; }
 .account-menu-toggle { display: inline-flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface); padding: 4px 10px 4px 5px; color: var(--ink); font: inherit; cursor: pointer; }
 .header-avatar, .header-avatar-fallback { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
 .header-avatar-fallback { display: grid; place-items: center; background: var(--brand); color: white; font-weight: var(--weight-bold); }
 .account-menu-panel { position: absolute; right: 0; top: calc(100% + 8px); min-width: 170px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--e-2); }
 .account-menu-panel button { display: block; width: 100%; border: 0; background: transparent; padding: 10px; text-align: left; color: var(--ink); font: inherit; cursor: pointer; border-radius: var(--radius-sm); }
 .account-menu-panel button:hover { background: var(--surface-sunk); }
+.account-menu-panel:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* -- Notice --------------------------------------------------------------- */
 

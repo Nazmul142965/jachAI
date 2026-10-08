@@ -429,7 +429,7 @@ async function signedIn(tokens) {
   state.accessToken = tokens.accessToken;
   state.refreshToken = tokens.refreshToken;
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
-  $('#logout').classList.remove('hidden');
+  $('#logout').classList.add('hidden');
   $('#account-menu').classList.remove('hidden');
   setInAppLinks(true);
   let invitationMessage = 'Signed in.';
@@ -542,8 +542,7 @@ async function setOrganization() {
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
     availableScreens = ['start', 'practice', 'account', 'support', ...(state.platformAdmin ? ['platform'] : [])];
-    for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'],
-      ['support', 'Support'],
+    for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'],
       ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])]) {
       const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
       tab.addEventListener('click', () => run(() => showScreen(key)));
@@ -573,8 +572,7 @@ async function setOrganization() {
   // Talent read as related but distinct products.
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
-  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'],
-    ['support', 'Support'], ['workspace-access', 'Your workspaces']]);
+  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['workspace-access', 'Your workspaces']]);
   group('Workspace', [['overview', 'Overview']]);
   group('Assessment engine', [
     ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
@@ -636,6 +634,8 @@ async function loadHome() {
   const organization = state.organization;
   $('#ai-tutor-entry').classList.toggle('hidden',
     !(academy && role === 'LEARNER'));
+  $('#home-messages-entry').classList.toggle('hidden',
+    !(academy && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)));
   $('#home-role').textContent = organization
     ? `${academy ? 'Academy' : 'Talent'} workspace · ${organization.name} · ${organization.owner ? 'Owner / Org Admin' : roleTitle(role)}`
     : 'Personal account · No workspace role yet';
@@ -803,6 +803,7 @@ function renderHomeWork({ organization, participant, staff, academy, assignments
 $('#home-next-action').addEventListener('click', () => run(() => state.homeAction?.()));
 $('#home-account-action').addEventListener('click', () => run(() => showScreen('account')));
 $('#ai-tutor-entry-action').addEventListener('click', () => run(() => showScreen('my-assessments')));
+$('#home-messages-entry-action').addEventListener('click', () => run(() => showScreen('messages')));
 $('#support-ticket-form').addEventListener('submit', (event) => {
   event.preventDefault();
   run(async () => {

@@ -279,7 +279,8 @@ async function main() {
       && /Records generate/.test(await ev(`document.querySelector('#practice-result').textContent`)));
   check(journey, 'Practice shows the consumed free allowance',
     await ev(`document.querySelector('#practice-usage').textContent.includes('1/20 answers checked (19 left)')`));
-  await view('Profile & settings'); await wait(450);
+  await ev(`document.querySelector('#account-menu-toggle').click()`);
+  await ev(`document.querySelector('#account-menu-profile').click()`); await wait(450);
   check(journey, 'account usage uses the API limit field',
     await ev(`document.querySelector('#account-plan').textContent.includes('1 of 20 answers used')
       && document.querySelectorAll('#account-plan progress')[1].max === 20`));
