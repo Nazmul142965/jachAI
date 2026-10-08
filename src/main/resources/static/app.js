@@ -1640,6 +1640,7 @@ async function loadPlatformView() {
     loadList('#platform-storage', () => loadPlatformStorage(), 'Storage metrics could not be loaded.'),
     loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')
   ]);
+  await loadSupportInbox();
   if (state.platformOrganizationId) {
     await inspectPlatformOrganization(state.platformOrganizationId);
   } else {
@@ -1650,6 +1651,66 @@ async function loadPlatformView() {
     setList('#platform-manual-audit', [], 'No organization selected.');
     $('#platform-manual-audit-pagination').replaceChildren();
     $('#platform-manual-revoke-submit').disabled = true;
+  }
+  async function loadSupportInbox() {
+    const status = $('#support-inbox-status')?.value;
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    await loadList('#support-inbox-list', async () => {
+      const page = await request(`/platform/support/tickets${query}`);
+      setList('#support-inbox-list', (page.content || []).map((ticket) => item(
+        `${ticket.referenceNumber} · ${ticket.status}`,
+        `${ticket.subject} · ${ticket.category}`,
+        [button('Open', () => run(() => openSupportTicket(ticket.id)), 'button secondary small')]
+      )), 'No support tickets match this filter.');
+    }, 'Support inbox could not be loaded.');
+  }
+  async function openSupportTicket(ticketId) {
+    const detail = $('#support-inbox-detail');
+    const [ticket, replyPage] = await Promise.all([
+      request(`/platform/support/tickets/${encodeURIComponent(ticketId)}`),
+      request(`/platform/support/tickets/${encodeURIComponent(ticketId)}/replies?page=0`)
+    ]);
+    detail.classList.remove('hidden');
+    detail.replaceChildren(
+      node('h3', `${ticket.referenceNumber} · ${ticket.status}`),
+      node('p', `${ticket.subject} · ${ticket.category}`, 'muted'),
+      node('p', ticket.description),
+      node('div', '', 'item-list')
+    );
+    const replies = detail.querySelector('.item-list');
+    (replyPage.content || []).forEach((reply) => replies.append(
+      item(reply.publicReply ? 'Public reply' : 'Internal note',
+        `${reply.authorUserId} · ${new Date(reply.createdAt).toLocaleString()}`,
+        [node('p', reply.body)]
+      )));
+    const form = node('form', '', 'stack');
+    form.innerHTML = `<label>Reply or internal note<textarea name="body" rows="4" maxlength="4000" required></textarea></label>
+      <label><input type="checkbox" name="publicReply" checked> Send as public reply</label>
+      <button class="button primary" type="submit">Add response</button>`;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      run(async () => {
+        const values = new FormData(form);
+        await request(`/platform/support/tickets/${encodeURIComponent(ticketId)}/replies`, {
+          method: 'POST', body: { body: values.get('body'), publicReply: values.has('publicReply') }
+        });
+        await openSupportTicket(ticketId);
+        notice('Support response saved.');
+      });
+    });
+    const statusForm = node('form', 'form-row');
+    statusForm.innerHTML = `<label>Change status<select name="status"><option value="WORKING_ON_IT">Working on it</option><option value="WAITING_FOR_YOUR_REPLY">Waiting for reply</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option></select></label><button class="button quiet" type="submit">Update status</button>`;
+    statusForm.elements.status.value = ticket.status;
+    statusForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      run(async () => {
+        await request(`/platform/support/tickets/${encodeURIComponent(ticketId)}/status?status=${statusForm.elements.status.value}`, { method: 'PUT' });
+        await loadSupportInbox();
+        await openSupportTicket(ticketId);
+        notice('Support ticket status updated.');
+      });
+    });
+    detail.append(form, statusForm);
   }
   if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
 }
