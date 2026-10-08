@@ -41,7 +41,7 @@ import org.springframework.stereotype.Service;
 
 /** Seeds one usable journey per demo tenant through the normal business services. */
 @Service
-@Profile("demo & !prod")
+@Profile("demo | prod")
 @RequiredArgsConstructor
 @Slf4j
 public class DemoFixtureService {

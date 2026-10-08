@@ -13,6 +13,7 @@ import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Service;
 
 /** Disposable local demo identities; no passwords or public credentials are stored. */
 @Service
-@Profile("demo & !prod")
+@Profile("demo | prod")
 @Slf4j
 public class DemoAccountService {
     public record DemoAccount(String key, String label, String role, String workspace) { }
@@ -42,16 +43,19 @@ public class DemoAccountService {
     private final MembershipRepository memberships;
     private final AuthService auth;
     private final DemoFixtureService fixtures;
+    private final boolean sharedDatabase;
 
     public DemoAccountService(MongoTemplate mongo, UserRepository users,
                               OrganizationRepository organizations, MembershipRepository memberships,
-                              AuthService auth, DemoFixtureService fixtures) {
+                              AuthService auth, DemoFixtureService fixtures,
+                              @Value("${app.demo.shared-database:false}") boolean sharedDatabase) {
         this.mongo = mongo;
         this.users = users;
         this.organizations = organizations;
         this.memberships = memberships;
         this.auth = auth;
         this.fixtures = fixtures;
+        this.sharedDatabase = sharedDatabase;
     }
 
     public List<DemoAccount> accounts() {
@@ -97,9 +101,9 @@ public class DemoAccountService {
     }
 
     private void requireDemoDatabase() {
-        if (!mongo.getDb().getName().startsWith("jachai_demo_")) {
+        if (!sharedDatabase && !mongo.getDb().getName().startsWith("jachai_demo_")) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "DEMO_DATABASE_REQUIRED",
-                    "Demo login requires a dedicated jachai_demo_* database");
+                    "Demo login requires a dedicated jachai_demo_* database or explicit shared-database opt-in");
         }
     }
 

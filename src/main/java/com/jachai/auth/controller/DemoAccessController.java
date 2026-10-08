@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("demo & !prod")
+@Profile("demo | prod")
 @RequestMapping("/api/v1/demo")
 public class DemoAccessController {
     private final DemoAccountService accounts;
@@ -62,5 +62,6 @@ public class DemoAccessController {
                 || !("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "[::1]".equals(host))) {
             throw new ApiException(HttpStatus.FORBIDDEN, "DEMO_LOCAL_ONLY", "Demo login is available on localhost only");
         }
+
     }
 }

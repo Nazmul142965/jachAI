@@ -29,7 +29,7 @@ class DemoAccountServiceTests {
     private final AuthService auth = mock(AuthService.class);
     private final DemoFixtureService fixtures = mock(DemoFixtureService.class);
     private final DemoAccountService service = new DemoAccountService(mongo,
-            users, organizations, memberships, auth, fixtures);
+            users, organizations, memberships, auth, fixtures, false);
 
     @Test
     void refusesToExposeRolesAgainstNormalDatabase() {
@@ -47,6 +47,16 @@ class DemoAccountServiceTests {
         when(database.getName()).thenReturn("jachai_demo_local");
         assertEquals(6, service.accounts().size());
         assertEquals("ORG_ADMIN", service.accounts().get(0).role());
+    }
+
+    @Test
+    void explicitlyAllowsSharedProductionDatabase() {
+        DemoAccountService shared = new DemoAccountService(mongo,
+                users, organizations, memberships, auth, fixtures, true);
+        MongoDatabase database = mock(MongoDatabase.class);
+        when(mongo.getDb()).thenReturn(database);
+        when(database.getName()).thenReturn("jachai_prod");
+        assertEquals(6, shared.accounts().size());
     }
 
     @Test
