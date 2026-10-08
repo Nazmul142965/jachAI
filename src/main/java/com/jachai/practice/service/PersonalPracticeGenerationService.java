@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PersonalPracticeGenerationService {
-    private static final int FREE_DAILY_GENERATIONS = 20;
     private static final String INSTRUCTION = """
             Create exactly one original technical practice multiple-choice question.
             Return only a JSON object with prompt, options (exactly four objects with id and text),
@@ -79,28 +78,49 @@ public class PersonalPracticeGenerationService {
         LocalDate day = LocalDate.now(ZoneOffset.UTC);
         String userBucket = userId + ":" + day;
         String globalBucket = "personal-ai:global:" + day;
-        reserve(userBucket, userId, day, FREE_DAILY_GENERATIONS, false);
+        reserve(userBucket, userId, day, PracticeLimits.DAILY_FREE_GENERATIONS, false);
         try {
             reserve(globalBucket, "platform", day, globalDailyLimit, true);
         } catch (RuntimeException exception) {
             refund(userBucket);
             throw exception;
         }
+        String raw;
+        Generated generated;
         try {
-            String raw = ai.generate(AiUseCase.QUESTION_DRAFT, INSTRUCTION,
+            raw = ai.generate(AiUseCase.QUESTION_DRAFT, INSTRUCTION,
                     "Topic: " + topic + "\nDifficulty: " + request.difficulty()
                             + "\nLearner focus: " + brief);
-            Generated generated = parse(raw);
-            Instant now = Instant.now();
-            PersonalPracticeQuestion saved = questions.insert(new PersonalPracticeQuestion(
-                    "pg-" + UUID.randomUUID(), userId, topic, generated.prompt(), generated.options(),
-                    generated.correctOptionId(), generated.explanation(), now,
-                    now.plusSeconds(30L * 24 * 60 * 60)));
-            return new PracticeCatalog.QuestionView(saved.id(), saved.topic(), saved.prompt(), saved.options());
+            generated = parse(raw);
         } catch (RuntimeException exception) {
             refund(globalBucket);
             refund(userBucket);
             throw exception;
+        }
+        Instant now = Instant.now();
+        String questionId = "pg-" + UUID.randomUUID();
+        PersonalPracticeQuestion toSave = new PersonalPracticeQuestion(
+                questionId, userId, topic, generated.prompt(), generated.options(),
+                generated.correctOptionId(), generated.explanation(), now,
+                now.plusSeconds(PracticeLimits.GENERATION_RETENTION_DAYS * 24L * 60 * 60));
+        try {
+            questions.insert(toSave);
+            return new PracticeCatalog.QuestionView(toSave.id(), topic, toSave.prompt(), toSave.options());
+        } catch (RuntimeException insertFailure) {
+            PersonalPracticeQuestion existing;
+            try {
+                existing = questions.findById(questionId).orElse(null);
+            } catch (RuntimeException readFailure) {
+                insertFailure.addSuppressed(readFailure);
+                throw insertFailure;
+            }
+            if (existing != null) {
+                return new PracticeCatalog.QuestionView(existing.id(), existing.topic(),
+                        existing.prompt(), existing.options());
+            }
+            refund(globalBucket);
+            refund(userBucket);
+            throw insertFailure;
         }
     }
 

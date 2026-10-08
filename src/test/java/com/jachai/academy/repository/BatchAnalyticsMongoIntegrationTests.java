@@ -1,4 +1,5 @@
 package com.jachai.academy.repository;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -8,6 +9,7 @@ import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
+@EnabledIfEnvironmentVariable(named = "MONGODB_TEST_URI", matches = ".+")
 class BatchAnalyticsMongoIntegrationTests extends BaseMongoIntegrationTest {
 
     @Test

@@ -1,4 +1,5 @@
 package com.jachai.organization.service;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,6 +40,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * Skipped unless MONGODB_TEST_URI names a dedicated {@code jachai_it_} database.
  */
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "MONGODB_TEST_URI", matches = ".+")
 class AuditRecoveryMongoIntegrationTests extends BaseMongoIntegrationTest {
 
     @Autowired OrganizationAuditRecoveryService service;

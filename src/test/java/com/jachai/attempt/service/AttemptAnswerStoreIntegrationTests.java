@@ -1,4 +1,5 @@
 package com.jachai.attempt.service;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 
+@EnabledIfEnvironmentVariable(named = "MONGODB_TEST_URI", matches = ".+")
 class AttemptAnswerStoreIntegrationTests extends BaseMongoIntegrationTest {
     private Attempt insertAttempt(MongoTemplate mongo, Instant deadline) {
         String id = generateTestId("attempt");

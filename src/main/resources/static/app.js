@@ -514,6 +514,9 @@ async function setOrganization() {
     : [['academy', 'My batches']];
 
   availableScreens = groups.flatMap(([, items]) => items.map(([key]) => key));
+  // The sections list exists now, so the control that opens it can appear.
+  $('#nav-toggle').hidden = false;
+  setNavCollapsed(true);
   for (const [heading, items] of groups) {
     if (heading) nav.append(node('p', heading, 'nav-heading'));
     for (const [key, title] of items) {
@@ -1156,6 +1159,66 @@ async function loadWorkspaceFacts(organization, role) {
   setList('#workspace-facts', facts, '');
 }
 
+// The mobile sections menu. Collapsed is the default below 900px, where the
+// stylesheet hides the list; above it the attribute is ignored and the sidebar
+// renders as it always has, so desktop behaviour is untouched.
+function mobileNav() {
+  return { toggle: $('#nav-toggle'), nav: $('#workspace-nav') };
+}
+function setNavCollapsed(collapsed) {
+  const { toggle, nav } = mobileNav();
+  if (!toggle || !nav) return;
+  nav.dataset.collapsed = String(collapsed);
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+}
+// The control names the screen you are on, so the menu never costs you your place.
+function setNavToggleLabel(text) {
+  const label = $('.nav-toggle-label');
+  if (label) label.textContent = text || 'Menu';
+}
+$('#nav-toggle').addEventListener('click', () => {
+  const { nav } = mobileNav();
+  setNavCollapsed(nav.dataset.collapsed !== 'true');
+});
+
+// -- React Practice pilot ---------------------------------------------------
+// Off unless the URL carries ?pilot=practice, so the production dashboard is
+// untouched: there is no second navigation, no second route, and the module is
+// never fetched. The existing Practice screen is still what everyone else gets.
+//
+// It mounts into the existing #practice-view, inside this page, for one reason:
+// the access token lives in a variable here and nowhere else. A React app served
+// at its own URL could not see it, and copying it into storage to work around
+// that would be a security regression rather than a migration. So the pilot is
+// handed `request` and never the token.
+function pilotRequested() {
+  return new URLSearchParams(location.search).get('pilot') === 'practice';
+}
+let pilotModule = null;
+async function mountPracticePilot() {
+  const host = $('#practice-view');
+  if (!host) return false;
+  try {
+    if (!pilotModule) pilotModule = await import('/pilot/practice.js');
+  } catch (error) {
+    // The bundle is a build artefact and is not committed, so a checkout without
+    // it is normal. Say so plainly and leave the existing screen in place.
+    notice('The Practice pilot bundle is not built. Run: npm --prefix frontend run build');
+    return false;
+  }
+  // Only clear the host the first time. Clearing it on every visit emptied the
+  // container that React still held a root against, so coming back to Practice
+  // showed nothing at all and reported no error.
+  if (host.dataset.pilot !== 'practice') host.replaceChildren();
+  host.dataset.pilot = 'practice';
+  pilotModule.mount(host, {
+    request: (path, init) => request(path, init),
+    // The pilot changes a quota the rest of the page also shows.
+    onUsageChanged: () => { void loadHome().catch(() => {}); }
+  });
+  return true;
+}
+
 // Open a screen, optionally at one of its tabs. This is what the sidebar, the
 // overview shortcuts and the URL all go through.
 async function showScreen(screenKey, viewKey) {
@@ -1211,6 +1274,9 @@ async function showView(key) {
   renderScreenTabs(screenKey, key);
   writeRoute(screenKey, key);
   const screen = SCREENS[screenKey];
+  // Choosing a section closes the menu, so the content it opened is what you see.
+  setNavToggleLabel(screen.title);
+  setNavCollapsed(true);
   const tabLabel = (screen.views.find(([id]) => id === key) || [, screen.title])[1];
   $('#page-title').textContent = screen.title;
   document.title = screen.views.length > 1
@@ -1221,48 +1287,65 @@ async function showView(key) {
   heading.focus({ preventScroll: true });
   // The subtitle says what the screen is for, and which workspace it belongs
   // to when there is one, because a person may belong to several.
-  $('#page-subtitle').textContent = [screen.subtitle, key === 'platform' ? '' : state.organization?.name || '']
+  // Four screens belong to the account, not to a workspace: the dashboard,
+  // practice, the profile and the workspace list itself. Naming an organization
+  // on them is wrong rather than merely noisy — personal practice in particular
+  // is never visible to a workspace, and saying "Demo Academy" there suggests
+  // it is. Platform Operations is cross-tenant, so it is in the same bucket.
+  const accountScope = ['start', 'practice', 'account', 'workspace-access', 'platform'];
+  const personal = accountScope.includes(screenKey);
+  $('#page-subtitle').textContent = [screen.subtitle,
+    personal ? '' : state.organization?.name || '']
     .filter(Boolean).join(' · ');
+  // The three places the page says whose scope you are in, kept in agreement.
+  $('#page-scope').textContent = personal ? 'Your account' : 'JachAI workspace';
+  $('#page-role-context').classList.toggle('hidden', personal);
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'start') { await loadHome(); return; }
   if (key === 'account') { await loadAccount(); return; }
   if (key === 'practice') { await loadPractice(); return; }
   if (key === 'overview') await loadOverview();
   if (key === 'workspace-access') loadWorkspaceAccess();
-  if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
+  if (key === 'overview' && state.organization?.myRole === 'ORG_ADMIN') {
     await loadOrganizationSettings();
     ensureTenantSupportAuditPanel();
     await loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
       'Platform support history could not be loaded.');
   }
-  if (key === 'billing' && state.organization.myRole === 'ORG_ADMIN') {
+  if (key === 'billing' && state.organization?.myRole === 'ORG_ADMIN') {
     await loadEntitlements();
     await loadList('#usage-report', () => loadUsageReconciliation(),
       'The quota check could not be run.');
   }
   if (key === 'members') {
+    if (!state.organization) return;
     await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
     await loadList('#join-code-list', () => loadJoinCodes(), 'Join codes could not be loaded.');
     attachFilter('#members-list', 'Filter members by name, email, role or ID');
   }
   if (key === 'questions') {
+    if (!state.organization) return;
     await loadList('#questions-list', () => loadQuestions(), 'Questions could not be loaded.');
     attachFilter('#questions-list', 'Filter questions by topic, prompt or status');
   }
   if (key === 'assessments') {
+    if (!state.organization) return;
     await loadList('#assessments-list', async () => {
       await loadApprovedQuestions(); await loadAssessments();
     }, 'Assessments could not be loaded.');
     attachFilter('#assessments-list', 'Filter assessments by title, status or release policy');
   }
   if (key === 'assign') {
+    if (!state.organization) return;
     await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
   }
   if (key === 'review') {
+    if (!state.organization) return;
     await loadList('#review-queue', () => loadReviewQueue(0), 'The review queue could not be loaded.');
     await loadOrganizationSettings();
   }
   if (key === 'academy') {
+    if (!state.organization) return;
     await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
     attachFilter('#courses-list', 'Filter courses by name or description');
     if (state.organization.myRole === 'ORG_ADMIN') {
@@ -2050,7 +2133,7 @@ async function loadOwnershipAudit(pageNumber) {
   setList('#ownership-audit', (page.content || []).map((entry) => item(
     `Owner: ${entry.previousOwnerUserId} → ${entry.ownerUserId}`,
     `By ${entry.actorUserId} · ${new Date(entry.occurredAt).toLocaleString()}`)),
-  'No ownership transfers yet.');
+  'No ownership transfer has been recorded for this workspace. Transfers appear here with who made them and when.');
   renderPageControls('#ownership-audit-pagination', page, loadOwnershipAudit);
 }
 async function loadMemberAudit(userId, pageNumber, target) {
@@ -2259,7 +2342,7 @@ async function loadReviewQueue(pageNumber) {
       `${participantIdNote(attempt)} · Attempt ${attempt.attemptNumber} · ${attempt.percentage == null ? 'Manual grading pending' : `${attempt.percentage}% · ${attempt.passed ? 'Passed' : 'Not passed'}`} · Submitted ${new Date(attempt.submittedAt).toLocaleString()}`,
       actions);
   });
-  setList('#review-queue', rows, 'No results are waiting for release.');
+  setList('#review-queue', rows, 'No results are waiting for release. A submitted attempt appears here when it needs a grade, or when its assessment releases results only after staff say so.');
   $('#review-page-label').textContent = `Page ${page.number + 1} of ${Math.max(1, page.totalPages)}`;
   $('#review-prev').disabled = page.first;
   $('#review-next').disabled = page.last;
@@ -2519,7 +2602,7 @@ async function compareCandidates(campaignId, pageNumber = 0) {
     summary.append(row);
   }
   rows.unshift(summary);
-  setList('#campaign-candidates', rows, 'No candidates invited yet.');
+  setList('#campaign-candidates', rows, 'No candidates invited yet. Use “Invite a registered candidate” to add someone with an account, or send an email invitation to someone without one.');
   renderPageControls('#campaign-candidates-pagination', page,
     (nextPage) => compareCandidates(campaignId, nextPage));
   $('#campaign-candidates-panel').classList.remove('hidden');
@@ -3160,7 +3243,7 @@ async function loadMyBatches(pageNumber = 0) {
   setList('#my-batches-list', (page.content || []).map((enrollment) => item(
     `${enrollment.courseName} · ${enrollment.batchName}`,
     `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
-  'You are not enrolled in a batch yet.');
+  'You are not enrolled in a batch yet. An instructor or the workspace owner enrols you. An assessment assigned to you directly still appears under My Assessments.');
   renderPageControls('#my-batches-pagination', page, loadMyBatches);
 }
 
@@ -3168,7 +3251,7 @@ async function loadAcademyCourses(pageNumber = 0) {
   const page = await request(ownOrg(`/academy/courses?page=${pageNumber}`));
   state.academyCourses = page.content || [];
   setList('#courses-list', state.academyCourses.map((course) => item(course.name,
-    course.description || `Course ID: ${course.id}`)), 'No courses yet.');
+    course.description || `Course ID: ${course.id}`)), 'No courses yet. A course groups learners into batches, and a batch is what you distribute an assessment to. Create one with the form below.');
   renderPageControls('#courses-pagination', page, loadAcademyCourses);
   const select = $('#academy-course-select');
   const selected = select.value;
@@ -3198,7 +3281,7 @@ async function loadAcademyBatches(pageNumber = 0) {
   setList('#batches-list', batches.map((batch) => item(batch.name,
     `${new Date(batch.startsAt).toLocaleDateString()} – ${new Date(batch.endsAt).toLocaleDateString()}`,
     [button('Open workspace', () => openBatchWorkspace(courseId, batch.id))])),
-  'No batches for this course yet.');
+  'No batches for this course yet. A batch is one run of the course — a cohort with a start and an end. Create one with the form below.');
   renderPageControls('#batches-pagination', page, loadAcademyBatches);
   const select = $('#academy-batch-select');
   const selected = select.value;
@@ -3262,7 +3345,7 @@ async function loadAcademyBatchLearners(pageNumber = 0) {
   setList('#batch-learners-list', (page.content || []).map((enrollment) => item(
     learnerName(enrollment),
     `${learnerIdNote(enrollment)} · Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`)),
-  'No learners enrolled yet.');
+  'No learners enrolled yet. Use “Enroll a learner” below. They must already be a member of this workspace with the learner role.');
   renderPageControls('#batch-learners-pagination', page, loadAcademyBatchLearners);
 }
 
@@ -3833,7 +3916,7 @@ async function loadConversations(pageNumber = 0) {
   setList('#conversations-list', (page.content || []).map((conversation) => item(
     conversation.counterpartDisplayName,
     `Started ${new Date(conversation.createdAt).toLocaleDateString()}`,
-    [button('Open', () => openConversation(conversation))])), 'No conversations yet.');
+    [button('Open', () => openConversation(conversation))])), 'No conversations yet. Use “Open conversation” above to start one with an instructor or a learner in this workspace.');
   renderPageControls('#conversations-pagination', page, loadConversations);
 }
 
@@ -4057,6 +4140,9 @@ $('#organization-select').addEventListener('change', (event) => run(async () => 
   await setOrganization();
 }));
 async function loadPractice() {
+  // When the pilot is on it owns this screen entirely; the code below is what
+  // everyone else still sees, unchanged.
+  if (pilotRequested() && await mountPracticePilot()) return;
   const [questionsResult, usageResult, historyResult] = await Promise.allSettled([
     request('/practice/questions'), request('/practice/usage'), request('/practice/answers/mine?page=0')
   ]);

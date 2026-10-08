@@ -32,4 +32,21 @@ class PracticeControllerTests {
         assertFalse(json.contains("userId"));
         assertFalse(json.contains("expiresAt"));
     }
+
+    @Test
+    void usageExposesStatedRetentionPolicyAndAllowances() {
+        PracticeService service = org.mockito.Mockito.mock(PracticeService.class);
+        Jwt jwt = Jwt.withTokenValue("test").header("alg", "none").subject("learner")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
+        when(service.usage("learner")).thenReturn(new PracticeService.Usage(
+                "2026-10-07", 3, 20, 17, 2, 20, 18, 90, 30));
+
+        var response = new PracticeController(service,
+                org.mockito.Mockito.mock(PersonalPracticeGenerationService.class)).usage(jwt);
+
+        assertEquals(90, response.answerRetentionDays());
+        assertEquals(30, response.generationRetentionDays());
+        assertEquals(17, response.remaining());
+        assertEquals(18, response.generationRemaining());
+    }
 }

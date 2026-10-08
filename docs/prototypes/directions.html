@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JachAI signed-in UI — design directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* Tokens copied from the product's theme.css so these mockups are the real
+   palette, not an invented one. Light only: the directions are about layout. */
+:root{
+  --brand-50:#e8f8fa;--brand-100:#c6eef3;--brand-500:#0f8ca3;--brand-600:#0b7187;--brand-700:#0a5b6d;--brand-800:#0a4654;
+  --accent-400:#ff7f6b;--accent-soft:#fff0ec;--accent-ink:#a23b27;
+  --neutral-0:#fff;--neutral-50:#f7f5f1;--neutral-100:#efebe3;--neutral-200:#e3ded5;--neutral-300:#cec7ba;
+  --neutral-500:#6f6a60;--neutral-700:#3c3932;--neutral-900:#1c1b18;
+  --success-surface:#e4f6ea;--success-ink:#11703f;--warn-surface:#fdf2dd;--warn-ink:#8a5a12;
+  --danger-surface:#fdecea;--danger-ink:#b3291b;--info-surface:#e9f1fb;--info-ink:#1d4e85;
+  --canvas:var(--neutral-50);--surface:var(--neutral-0);--surface-sunk:#f2efe9;
+  --line:var(--neutral-200);--line-soft:#eeeae2;--ink:var(--neutral-900);--ink-soft:var(--neutral-700);
+  --muted:var(--neutral-500);--brand:var(--brand-600);--on-brand:#fff;
+  --r:12px;--r-sm:8px;
+  --e1:0 1px 2px rgba(28,27,24,.06),0 1px 1px rgba(28,27,24,.04);
+  --e2:0 4px 16px rgba(28,27,24,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font:400 16px/1.55 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1360px;margin:0 auto;padding:48px 20px 96px}
+h1{font-size:clamp(30px,4vw,42px);letter-spacing:-.04em;margin:0 0 10px;font-weight:800}
+h2{font-size:clamp(22px,2.6vw,28px);letter-spacing:-.03em;margin:64px 0 6px;font-weight:700}
+h3{font-size:18px;margin:34px 0 8px;font-weight:650}
+.lede{color:var(--ink-soft);font-size:18px;max-width:78ch;margin:0 0 8px}
+.muted{color:var(--muted)}
+.small{font-size:13.5px}
+.eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-700);margin:0 0 6px}
+hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:650;background:var(--surface-sunk)}
+code{background:var(--surface-sunk);padding:1px 5px;border-radius:5px;font-size:.88em}
+
+/* --- direction cards --- */
+.dirs{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:20px}
+.dir{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;box-shadow:var(--e1)}
+.dir.pick{border-color:var(--brand-500);box-shadow:0 0 0 3px var(--brand-50),var(--e2)}
+.dir h3{margin:0 0 4px;font-size:17px}
+.dir .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--surface-sunk);color:var(--ink-soft);padding:3px 8px;border-radius:99px;margin-bottom:10px}
+.dir.pick .tag{background:var(--brand-600);color:#fff}
+.dir ul{margin:10px 0 0;padding-left:18px;font-size:14px;color:var(--ink-soft)}
+.dir li{margin:4px 0}
+.wire{width:100%;height:92px;display:block;margin:12px 0 4px;border-radius:var(--r-sm);background:var(--surface-sunk)}
+
+/* --- device frames --- */
+.screens{margin-top:22px}
+.pair{display:grid;gap:26px;grid-template-columns:1fr;align-items:start}
+@media(min-width:1100px){.pair{grid-template-columns:minmax(0,1fr) 393px}}
+.frame{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface);box-shadow:var(--e2)}
+.frame .chrome{display:flex;gap:6px;align-items:center;padding:8px 12px;background:var(--surface-sunk);border-bottom:1px solid var(--line)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--neutral-300)}
+.frame .label{margin-left:8px;font-size:12px;color:var(--muted);font-weight:600}
+.scale{overflow:hidden}
+.scale > .app{transform-origin:top left}
+.phone{width:393px;border:9px solid var(--neutral-900);border-radius:34px;overflow:hidden;background:#000;box-shadow:var(--e2)}
+.phone .app{width:375px}
+.phone .holder{width:375px;overflow:hidden}
+
+/* ===================== the mock app itself ===================== */
+.app{background:var(--canvas);color:var(--ink);font-size:14px}
+.app .topbar{display:flex;align-items:center;gap:12px;padding:0 16px;height:52px;background:var(--surface);border-bottom:1px solid var(--line)}
+.mark{width:28px;height:28px;border-radius:9px 9px 9px 3px;background:var(--brand);color:var(--accent-400);
+  display:grid;place-items:center;font-weight:800;font-size:16px;flex:0 0 auto}
+.wsw{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:99px;padding:5px 11px 5px 7px;background:var(--surface);cursor:default}
+.wsw .av{width:20px;height:20px;border-radius:6px;background:var(--brand-100);color:var(--brand-800);display:grid;place-items:center;font-size:10px;font-weight:800}
+.wsw b{font-weight:650;font-size:13px}
+.wsw .role{font-size:11px;color:var(--muted)}
+.wsw .caret{color:var(--muted);font-size:10px}
+.spacer{flex:1}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--neutral-200);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink-soft)}
+.shell{display:grid;grid-template-columns:216px minmax(0,1fr)}
+.side{background:var(--surface-sunk);border-right:1px solid var(--line);padding:14px 10px;min-height:560px}
+.navh{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:12px 8px 5px}
+.navi{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:var(--r-sm);color:var(--ink-soft);font-size:13.5px;font-weight:500}
+.navi.on{background:var(--surface);color:var(--brand-700);font-weight:650;box-shadow:var(--e1)}
+.navi .ic{width:15px;text-align:center;opacity:.8}
+.navi .ct{margin-left:auto;font-size:11px;font-weight:700;background:var(--brand-600);color:#fff;border-radius:99px;padding:1px 6px}
+.main{padding:22px 24px 40px;min-width:0}
+.ph{display:flex;align-items:flex-end;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.ph h1{font-size:25px;letter-spacing:-.03em;margin:2px 0 3px;font-weight:700}
+.ph p{margin:0;color:var(--muted);font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--e1)}
+.card h4{margin:0 0 3px;font-size:14.5px;font-weight:650}
+.card .sub{margin:0 0 12px;font-size:12.5px;color:var(--muted)}
+.grid2{display:grid;gap:14px;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
+.stack{display:grid;gap:14px}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px}
+.pill.ok{background:var(--success-surface);color:var(--success-ink)}
+.pill.warn{background:var(--warn-surface);color:var(--warn-ink)}
+.pill.dgr{background:var(--danger-surface);color:var(--danger-ink)}
+.pill.inf{background:var(--info-surface);color:var(--info-ink)}
+.btn{display:inline-block;font-size:12.5px;font-weight:650;padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+.row{display:flex;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line-soft)}
+.row:first-of-type{border-top:0}
+.row .t{font-weight:600;font-size:13.5px}
+.row .m{font-size:12px;color:var(--muted);margin-top:2px}
+.row .act{margin-left:auto;flex:0 0 auto}
+.next{background:linear-gradient(135deg,var(--brand-700),var(--brand-500));color:#fff;border:0}
+.next h4,.next .sub{color:#fff}
+.next .sub{opacity:.82}
+.next .btn{background:#fff;border-color:#fff;color:var(--brand-700)}
+.meter{height:7px;border-radius:99px;background:var(--neutral-100);overflow:hidden;margin:7px 0 3px}
+.meter i{display:block;height:100%;background:var(--brand-500)}
+.kpis{display:grid;gap:10px;grid-template-columns:repeat(4,1fr)}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 12px}
+.kpi b{display:block;font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.1}
+.kpi span{font-size:11.5px;color:var(--muted)}
+.qmap{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.qn{width:28px;height:28px;border-radius:7px;border:1px solid var(--line);display:grid;place-items:center;
+  font-size:12px;font-weight:650;color:var(--muted);background:var(--surface)}
+.qn.done{background:var(--success-surface);border-color:#b3e0c4;color:var(--success-ink)}
+.qn.here{background:var(--brand-600);border-color:var(--brand-600);color:#fff}
+.opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-top:8px;font-size:13.5px;background:var(--surface)}
+.opt.sel{border-color:var(--brand-500);background:var(--brand-50);box-shadow:0 0 0 2px var(--brand-50)}
+.opt .k{width:20px;height:20px;border-radius:50%;border:1px solid var(--neutral-300);display:grid;place-items:center;font-size:11px;font-weight:700;flex:0 0 auto;background:var(--surface)}
+.opt.sel .k{background:var(--brand-600);border-color:var(--brand-600);color:#fff}
+.focusbar{display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;background:var(--surface);border-bottom:1px solid var(--line)}
+.timer{font-variant-numeric:tabular-nums;font-weight:750;font-size:15px}
+.note{background:var(--info-surface);color:var(--info-ink);border-radius:var(--r-sm);padding:9px 11px;font-size:12.5px}
+.empty{text-align:center;padding:22px 12px}
+.empty .ei{font-size:24px;opacity:.5}
+.empty h4{margin:8px 0 3px}
+.gen{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ink-soft)}
+.spin{width:15px;height:15px;border-radius:50%;border:2px solid var(--brand-100);border-top-color:var(--brand-600);flex:0 0 auto}
+.mobnav{display:flex;border-top:1px solid var(--line);background:var(--surface)}
+.mobnav div{flex:1;text-align:center;padding:8px 2px 9px;font-size:10.5px;color:var(--muted);font-weight:600}
+.mobnav div.on{color:var(--brand-700)}
+.mobnav .ic{display:block;font-size:16px;margin-bottom:1px}
+.callout{background:var(--accent-soft);border:1px solid #f7d4cb;border-radius:var(--r);padding:16px 18px;margin:18px 0}
+.callout b{color:var(--accent-ink)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<p class="eyebrow">JachAI · signed-in UI</p>
+<h1>Three design directions, and one recommendation</h1>
+<p class="lede">Built on an inventory of the existing UI: 5 workspace roles, 15 screens, 22 views, 116 API
+paths. The palette below is the product's own <code>theme.css</code>, so these are layout proposals,
+not a repaint.</p>
+
+<h2>What the research says</h2>
+<p class="lede">Three product categories matter here, because JachAI is all three at once.</p>
+<table>
+<tr><th style="width:21%">Category</th><th style="width:40%">What mature products do</th><th>What it means for JachAI</th></tr>
+<tr>
+  <td><b>Multi-tenant SaaS</b><br><span class="small muted">Linear, Notion, Vercel, Figma</span></td>
+  <td>The workspace switcher is the highest-leverage control in the product: it decides which reality
+      every other screen renders. It sits top-left in the sidebar or app chrome, carries a name and a
+      distinct avatar, and lists each workspace with the viewer's role on the row. The personal
+      account menu is a <i>separate</i> home, bottom-left or top-right, so switching tenant and
+      managing yourself are different levers.</td>
+  <td>This is JachAI's central problem, not a detail. One account can be a learner in one workspace
+      and own another, and personal practice sits outside every workspace. The split has to be
+      visible at all times.</td>
+</tr>
+<tr>
+  <td><b>Assessment &amp; hiring</b><br><span class="small muted">HackerRank, Codility, TestGorilla</span></td>
+  <td>Auto-graded runs against real cases, and candidate <i>comparison</i> is a first-class screen
+      rather than a report. Integrity tooling is prominent but framed as signals. Codility's
+      differentiator is explicitly methodology and compliance.</td>
+  <td>JachAI already has comparison, integrity signals and an audit trail. They should be presented
+      as the serious core of the Talent product, not buried under a campaign list.</td>
+</tr>
+<tr>
+  <td><b>Consumer practice</b><br><span class="small muted">Duolingo, Khan Academy, Brilliant</span></td>
+  <td>Streaks, daily targets, progress meters and celebratory feedback, grounded in behavioural
+      psychology; a 7-day streak measurably lifts retention.</td>
+  <td><b>Adopt the structure, not the confetti.</b> A daily target and a visible quota fit JachAI's
+      AI practice quota exactly. Badges and celebration animations would undercut the credibility of
+      a product whose other half issues verifiable certificates to employers.</td>
+</tr>
+</table>
+
+<h2>The three directions</h2>
+<div class="dirs">
+
+  <div class="dir">
+    <span class="tag">Direction A</span>
+    <h3>Two scopes, one shell</h3>
+    <svg class="wire" viewBox="0 0 300 92"><rect width="300" height="92" fill="#f2efe9"/>
+      <rect x="0" y="0" width="300" height="13" fill="#fff" stroke="#e3ded5"/>
+      <rect x="6" y="3.5" width="52" height="6" rx="3" fill="#0b7187"/>
+      <rect x="0" y="13" width="74" height="79" fill="#fff" stroke="#e3ded5"/>
+      <rect x="7" y="20" width="40" height="4" rx="2" fill="#cec7ba"/>
+      <rect x="7" y="29" width="58" height="6" rx="3" fill="#c6eef3"/>
+      <rect x="7" y="39" width="52" height="5" rx="2.5" fill="#e3ded5"/>
+      <rect x="7" y="48" width="56" height="5" rx="2.5" fill="#e3ded5"/>
+      <rect x="7" y="76" width="46" height="8" rx="4" fill="#efebe3"/>
+      <rect x="82" y="20" width="118" height="26" rx="4" fill="#fff" stroke="#e3ded5"/>
+      <rect x="208" y="20" width="84" height="26" rx="4" fill="#fff" stroke="#e3ded5"/>
+      <rect x="82" y="52" width="210" height="32" rx="4" fill="#fff" stroke="#e3ded5"/>
+    </svg>
+    <p class="small muted" style="margin:6px 0 0">Persistent sidebar. Workspace switcher pinned top,
+      account menu pinned bottom. Role decides the home and which groups appear.</p>
+    <ul>
+      <li>Conventional, so nothing has to be learned</li>
+      <li>Keeps the account/workspace split permanently visible</li>
+      <li>Weak during an attempt: the chrome is a distraction and an exit route</li>
+    </ul>
+  </div>
+
+  <div class="dir">
+    <span class="tag">Direction B</span>
+    <h3>Task-first focus mode</h3>
+    <svg class="wire" viewBox="0 0 300 92"><rect width="300" height="92" fill="#f2efe9"/>
+      <rect x="0" y="0" width="300" height="13" fill="#fff" stroke="#e3ded5"/>
+      <rect x="6" y="3.5" width="30" height="6" rx="3" fill="#0b7187"/>
+      <rect x="250" y="3.5" width="44" height="6" rx="3" fill="#efebe3"/>
+      <rect x="40" y="24" width="220" height="12" rx="6" fill="#fff" stroke="#cec7ba"/>
+      <rect x="40" y="44" width="220" height="18" rx="4" fill="#fff" stroke="#e3ded5"/>
+      <rect x="40" y="66" width="220" height="18" rx="4" fill="#fff" stroke="#e3ded5"/>
+      <rect x="46" y="50" width="70" height="6" rx="3" fill="#0b7187"/>
+      <rect x="46" y="72" width="54" height="6" rx="3" fill="#cec7ba"/>
+    </svg>
+    <p class="small muted" style="margin:6px 0 0">No persistent nav. Home is a ranked queue of what to
+      do next; opening work fills the screen. Navigation by command palette and breadcrumbs.</p>
+    <ul>
+      <li>Excellent for the attempt and for grading runs</li>
+      <li>Makes "what should I do now" the product's first answer</li>
+      <li>Discovery suffers badly: 15 screens with no visible map</li>
+    </ul>
+  </div>
+
+  <div class="dir">
+    <span class="tag">Direction C</span>
+    <h3>Product switcher console</h3>
+    <svg class="wire" viewBox="0 0 300 92"><rect width="300" height="92" fill="#f2efe9"/>
+      <rect x="0" y="0" width="300" height="13" fill="#0a4654"/>
+      <rect x="6" y="3.5" width="26" height="6" rx="3" fill="#55c6d5"/>
+      <rect x="38" y="3" width="36" height="7" rx="2" fill="#0b7187"/>
+      <rect x="78" y="3" width="36" height="7" rx="2" fill="#0a5b6d"/>
+      <rect x="118" y="3" width="36" height="7" rx="2" fill="#0a5b6d"/>
+      <rect x="0" y="13" width="66" height="79" fill="#fff" stroke="#e3ded5"/>
+      <rect x="7" y="21" width="48" height="5" rx="2.5" fill="#e3ded5"/>
+      <rect x="7" y="31" width="44" height="5" rx="2.5" fill="#e3ded5"/>
+      <rect x="74" y="20" width="218" height="28" rx="4" fill="#fff" stroke="#e3ded5"/>
+      <rect x="74" y="54" width="218" height="30" rx="4" fill="#fff" stroke="#e3ded5"/>
+    </svg>
+    <p class="small muted" style="margin:6px 0 0">Academy, Talent and Practice become three top-level
+      products behind a switcher, each with its own nav. Workspace is implied by the product.</p>
+    <ul>
+      <li>Reads as a large, serious platform</li>
+      <li>Scales if more products are added later</li>
+      <li><b>Wrong boundary:</b> the real scope is the workspace, not the product — a learner in one
+          org and an owner of another would be switching twice</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout">
+  <p style="margin:0 0 6px"><b>Recommendation — Direction A as the shell, with B's focus mode for exactly two screens.</b></p>
+  <p class="small" style="margin:0;color:var(--ink-soft)">A is right for the 13 screens where people
+  navigate, because the account/workspace split is JachAI's defining structure and the research is
+  unambiguous that it should be permanently visible. B is right for the two screens where people
+  <i>work</i> — taking an attempt, and grading one — because chrome there is a distraction and an
+  accidental exit. C is rejected: it switches on the product when the real scope boundary is the
+  workspace, so a person holding roles in two organizations would switch twice to get anywhere.</p>
+</div>
+
+<hr>
+
+<h2>Prototype 1 — Personal dashboard</h2>
+<p class="lede">The account scope. A learner or candidate lands here. It answers one question first:
+what should I do now. Quota is shown because it is a real limit, not decoration.</p>
+<div class="screens"><div class="pair">
+  <div class="frame">
+    <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="label">Desktop · 1280</span></div>
+    <div class="scale" style="height:488px"><div class="app" style="width:1280px;transform:scale(.685)">
+      <div class="topbar">
+        <div class="mark">J</div>
+        <div class="wsw"><span class="av">DA</span><span><b>Demo Academy</b> <span class="role">· Learner</span></span><span class="caret">▾</span></div>
+        <span class="spacer"></span>
+        <span class="btn">Theme</span><div class="avatar">L</div>
+      </div>
+      <div class="shell">
+        <div class="side">
+          <div class="navh">My account</div>
+          <div class="navi on"><span class="ic">◆</span>My dashboard</div>
+          <div class="navi"><span class="ic">◇</span>Practice</div>
+          <div class="navi"><span class="ic">◇</span>Profile &amp; settings</div>
+          <div class="navi"><span class="ic">◇</span>Your workspaces</div>
+          <div class="navh">Demo Academy</div>
+          <div class="navi"><span class="ic">◇</span>Overview</div>
+          <div class="navi"><span class="ic">◇</span>My batches</div>
+          <div class="navi"><span class="ic">◇</span>My assessments<span class="ct">1</span></div>
+          <div class="navi"><span class="ic">◇</span>Messages</div>
+          <div class="navi"><span class="ic">◇</span>Certificates</div>
+        </div>
+        <div class="main">
+          <div class="ph"><div><p class="eyebrow" style="margin:0 0 3px">Your account</p>
+            <h1>Your learning, in one place</h1>
+            <p>Personal practice stays private. Workspace assignments and results stay in Demo Academy.</p></div></div>
+          <div class="grid2">
+            <div class="stack">
+              <div class="card next">
+                <h4>Recommended next</h4>
+                <p class="sub">Dependency injection — written answer · Autumn 2026 cohort</p>
+                <p style="margin:0 0 12px;font-size:13px;opacity:.9">1 attempt left · closes 20 Dec · 20 min, timed by the server</p>
+                <span class="btn">Start assessment</span>
+              </div>
+              <div class="card">
+                <h4>Your work in Demo Academy</h4>
+                <p class="sub">Assignments only. Practice is separate.</p>
+                <div class="row"><div><div class="t">Spring Boot foundations</div>
+                  <div class="m">Assigned through a batch · 2 attempts · open until 20 Dec</div></div>
+                  <span class="act"><span class="pill ok">100% · Passed</span></span></div>
+                <div class="row"><div><div class="t">Dependency injection — written answer</div>
+                  <div class="m">Submitted 3 min ago · a reviewer grades this by hand</div></div>
+                  <span class="act"><span class="pill warn">Awaiting grading</span></span></div>
+              </div>
+            </div>
+            <div class="stack">
+              <div class="card">
+                <h4>Today's practice</h4>
+                <p class="sub">Resets at midnight</p>
+                <div class="meter"><i style="width:35%"></i></div>
+                <p class="small muted" style="margin:0">7 of 20 AI questions used · 20 answers left</p>
+                <div style="margin-top:12px"><span class="btn pri">Practise a topic</span></div>
+              </div>
+              <div class="card">
+                <h4>Your cohort</h4>
+                <p class="sub">Java Backend Fundamentals</p>
+                <div class="row"><div><div class="t">Autumn 2026 cohort</div><div class="m">Enrolled 7 Oct · 1 Oct – 20 Dec</div></div></div>
+              </div>
+              <div class="card">
+                <h4>Certificates</h4>
+                <div class="row"><div><div class="t">Spring Boot foundations</div>
+                  <div class="m">Issued 7 Oct · publicly verifiable</div></div>
+                  <span class="act"><span class="btn">Verify</span></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="phone"><div class="holder"><div class="app" style="width:375px">
+    <div class="topbar" style="padding:0 12px">
+      <div class="mark" style="width:24px;height:24px;font-size:14px">J</div>
+      <div class="wsw" style="padding:4px 9px 4px 6px"><span class="av" style="width:17px;height:17px;font-size:9px">DA</span><span><b style="font-size:12px">Demo Academy</b></span><span class="caret">▾</span></div>
+      <span class="spacer"></span><div class="avatar" style="width:24px;height:24px;font-size:10px">L</div>
+    </div>
+    <div class="main" style="padding:14px 14px 10px">
+      <p class="eyebrow" style="margin:0 0 2px">Your account · Learner</p>
+      <h1 style="font-size:20px;letter-spacing:-.03em;margin:0 0 14px;font-weight:700">Your learning</h1>
+      <div class="stack">
+        <div class="card next" style="padding:14px">
+          <h4>Recommended next</h4>
+          <p class="sub">Dependency injection — written answer</p>
+          <p style="margin:0 0 11px;font-size:12px;opacity:.9">1 attempt left · 20 min · server-timed</p>
+          <span class="btn" style="display:block;text-align:center">Start assessment</span>
+        </div>
+        <div class="card" style="padding:14px">
+          <h4>Today's practice</h4>
+          <div class="meter"><i style="width:35%"></i></div>
+          <p class="small muted" style="margin:0">7 of 20 questions used</p>
+        </div>
+        <div class="card" style="padding:14px">
+          <h4>Your work</h4>
+          <div class="row" style="padding:9px 0"><div><div class="t" style="font-size:12.5px">Spring Boot foundations</div>
+            <div class="m">Through a batch</div></div><span class="act"><span class="pill ok">Passed</span></span></div>
+          <div class="row" style="padding:9px 0"><div><div class="t" style="font-size:12.5px">Dependency injection</div>
+            <div class="m">Submitted 3 min ago</div></div><span class="act"><span class="pill warn">Awaiting</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="mobnav"><div class="on"><span class="ic">◆</span>Home</div><div><span class="ic">◇</span>Practice</div>
+      <div><span class="ic">◇</span>Assessments</div><div><span class="ic">◇</span>Batches</div><div><span class="ic">◇</span>You</div></div>
+  </div></div></div>
+</div></div>
+
+<h2>Prototype 2 — Organizer dashboard</h2>
+<p class="lede">The workspace scope, for an instructor or owner. Counts are not decoration: each one is
+a queue, and each opens the screen that owns it. An ungraded attempt never shows a verdict.</p>
+<div class="screens"><div class="pair">
+  <div class="frame">
+    <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="label">Desktop · 1280</span></div>
+    <div class="scale" style="height:534px"><div class="app" style="width:1280px;transform:scale(.685)">
+      <div class="topbar">
+        <div class="mark">J</div>
+        <div class="wsw"><span class="av">DA</span><span><b>Demo Academy</b> <span class="role">· Owner</span></span><span class="caret">▾</span></div>
+        <span class="spacer"></span><span class="btn">Theme</span><div class="avatar">A</div>
+      </div>
+      <div class="shell">
+        <div class="side">
+          <div class="navh">My account</div>
+          <div class="navi"><span class="ic">◇</span>My dashboard</div>
+          <div class="navi"><span class="ic">◇</span>Practice</div>
+          <div class="navh">Demo Academy</div>
+          <div class="navi on"><span class="ic">◆</span>Overview</div>
+          <div class="navi"><span class="ic">◇</span>Assessment Studio<span class="ct">1</span></div>
+          <div class="navi"><span class="ic">◇</span>Academy Workspace</div>
+          <div class="navi"><span class="ic">◇</span>Members</div>
+          <div class="navh">Administration</div>
+          <div class="navi"><span class="ic">◇</span>Billing</div>
+        </div>
+        <div class="main">
+          <div class="ph"><div><p class="eyebrow" style="margin:0 0 3px">Demo Academy · Owner</p>
+            <h1>Overview</h1><p>What to work on next in this workspace.</p></div>
+            <span class="spacer"></span><span class="btn">Refresh</span></div>
+          <div class="kpis" style="margin-bottom:16px">
+            <div class="kpi"><b>1</b><span>Waiting for release</span></div>
+            <div class="kpi"><b>1</b><span>Published assessments</span></div>
+            <div class="kpi"><b>0</b><span>Questions to approve</span></div>
+            <div class="kpi"><b>1</b><span>Courses</span></div>
+          </div>
+          <div class="grid2">
+            <div class="stack">
+              <div class="card">
+                <h4>Next steps</h4>
+                <p class="sub">Each row opens the screen that owns it.</p>
+                <div class="row"><div><div class="t">Dependency injection — written answer · attempt 1</div>
+                  <div class="m">Learner · ID demo-account-learner · not graded yet · submitted 3 min ago</div></div>
+                  <span class="act"><span class="pill warn">Awaiting grading</span> <span class="btn pri">Review &amp; release</span></span></div>
+                <div class="row"><div><div class="t">Autumn 2026 cohort</div>
+                  <div class="m">1 learner enrolled · 1 assessment distributed</div></div>
+                  <span class="act"><span class="btn">Open batch</span></span></div>
+              </div>
+              <div class="card">
+                <h4>Cohort progress</h4>
+                <p class="sub">Java Backend Fundamentals · Autumn 2026 cohort</p>
+                <div class="row"><div><div class="t">Learner</div><div class="m">1 of 2 assessments submitted</div></div>
+                  <span class="act" style="width:180px"><div class="meter" style="margin:0"><i style="width:50%"></i></div></span></div>
+              </div>
+            </div>
+            <div class="stack">
+              <div class="card">
+                <h4>Plan usage</h4>
+                <p class="sub">Against the limits this plan enforces</p>
+                <div class="row" style="padding:8px 0"><div><div class="t">Published assessments</div>
+                  <div class="m">1 / 3 · 33% used</div></div></div>
+                <div class="meter"><i style="width:33%"></i></div>
+                <div style="margin-top:12px"><span class="btn">Open billing</span></div>
+              </div>
+              <div class="card">
+                <h4>How work moves here</h4>
+                <p class="sub">Each step opens where that work happens.</p>
+                <div class="row" style="padding:7px 0"><div><div class="t">1 · Approve questions</div></div></div>
+                <div class="row" style="padding:7px 0"><div><div class="t">2 · Publish an assessment</div></div></div>
+                <div class="row" style="padding:7px 0"><div><div class="t">3 · Distribute to a batch</div></div></div>
+                <div class="row" style="padding:7px 0"><div><div class="t">4 · Grade and release</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="phone"><div class="holder"><div class="app" style="width:375px">
+    <div class="topbar" style="padding:0 12px">
+      <div class="mark" style="width:24px;height:24px;font-size:14px">J</div>
+      <div class="wsw" style="padding:4px 9px 4px 6px"><span class="av" style="width:17px;height:17px;font-size:9px">DA</span><span><b style="font-size:12px">Demo Academy</b></span><span class="caret">▾</span></div>
+      <span class="spacer"></span><div class="avatar" style="width:24px;height:24px;font-size:10px">A</div>
+    </div>
+    <div class="main" style="padding:14px 14px 10px">
+      <p class="eyebrow" style="margin:0 0 2px">Demo Academy · Owner</p>
+      <h1 style="font-size:20px;letter-spacing:-.03em;margin:0 0 12px;font-weight:700">Overview</h1>
+      <div class="kpis" style="grid-template-columns:1fr 1fr;margin-bottom:12px">
+        <div class="kpi"><b>1</b><span>Waiting for release</span></div>
+        <div class="kpi"><b>1</b><span>Published</span></div>
+      </div>
+      <div class="stack">
+        <div class="card" style="padding:14px">
+          <h4>Next steps</h4>
+          <div class="row" style="padding:9px 0;display:block">
+            <div class="t" style="font-size:12.5px">Dependency injection · attempt 1</div>
+            <div class="m">Learner · not graded yet · 3 min ago</div>
+            <div style="margin-top:8px"><span class="pill warn">Awaiting grading</span>
+              <span class="btn pri" style="margin-left:4px">Review</span></div>
+          </div>
+        </div>
+        <div class="card" style="padding:14px">
+          <h4>Plan usage</h4>
+          <div class="meter"><i style="width:33%"></i></div>
+          <p class="small muted" style="margin:0">Published assessments 1 / 3</p>
+        </div>
+      </div>
+    </div>
+    <div class="mobnav"><div class="on"><span class="ic">◆</span>Overview</div><div><span class="ic">◇</span>Studio</div>
+      <div><span class="ic">◇</span>Academy</div><div><span class="ic">◇</span>Members</div><div><span class="ic">◇</span>You</div></div>
+  </div></div></div>
+</div></div>
+
+<h2>Prototype 3 — Practice question screen</h2>
+<p class="lede">Personal practice: account scope, no workspace involved. This is the screen the
+research most directly shapes — a daily target and a visible quota, and no confetti. Generation
+progress is explicit, every generated question is readable without opening it, and a provider
+failure says plainly that nothing was charged.</p>
+<div class="screens"><div class="pair">
+  <div class="frame">
+    <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="label">Desktop · 1280</span></div>
+    <div class="scale" style="height:786px"><div class="app" style="width:1280px;transform:scale(.685)">
+      <div class="topbar">
+        <div class="mark">J</div>
+        <div class="wsw"><span class="av">DA</span><span><b>Demo Academy</b> <span class="role">· Learner</span></span><span class="caret">▾</span></div>
+        <span class="spacer"></span><span class="btn">Theme</span><div class="avatar">L</div>
+      </div>
+      <div class="shell">
+        <div class="side">
+          <div class="navh">My account</div>
+          <div class="navi"><span class="ic">◇</span>My dashboard</div>
+          <div class="navi on"><span class="ic">◆</span>Practice</div>
+          <div class="navi"><span class="ic">◇</span>Profile &amp; settings</div>
+          <div class="navi"><span class="ic">◇</span>Your workspaces</div>
+          <div class="navh">Demo Academy</div>
+          <div class="navi"><span class="ic">◇</span>Overview</div>
+          <div class="navi"><span class="ic">◇</span>My batches</div>
+          <div class="navi"><span class="ic">◇</span>My assessments<span class="ct">1</span></div>
+        </div>
+        <div class="main">
+          <div class="ph"><div><p class="eyebrow" style="margin:0 0 3px">Your account · private</p>
+            <h1>Practice</h1>
+            <p>Questions are generated for you alone. Nothing here reaches a workspace or a result.</p></div></div>
+          <div class="grid2">
+            <div class="stack">
+              <div class="card">
+                <h4>Generate a question</h4>
+                <p class="sub">Pick a topic and difficulty. One question at a time.</p>
+                <div style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap">
+                  <div><div class="small muted" style="margin-bottom:3px">Topic</div>
+                    <div class="btn" style="min-width:230px;text-align:left">Spring bean scopes</div></div>
+                  <div><div class="small muted" style="margin-bottom:3px">Difficulty</div>
+                    <div class="btn" style="min-width:105px;text-align:left">Medium ▾</div></div>
+                  <span class="btn pri">Generate</span>
+                </div>
+                <div style="margin-top:13px;padding-top:12px;border-top:1px solid var(--line-soft)">
+                  <div class="gen"><span class="spin"></span><span>Writing a question on <b>Spring bean scopes</b>…</span></div>
+                  <div class="meter" style="margin-top:9px"><i style="width:62%"></i></div>
+                  <p class="small muted" style="margin:6px 0 0">Usually 5–10 seconds. Your quota is
+                    charged only when a question is actually produced.</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <h4>Your practice questions</h4>
+                <p class="sub">All of them readable here. Nothing to open one at a time.</p>
+
+                <div style="border:1px solid var(--line);border-radius:10px;padding:13px;margin-top:4px">
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:7px">
+                    <span class="pill inf">Spring bean scopes</span><span class="pill">Medium</span>
+                    <span class="spacer"></span><span class="small muted">2 minutes ago</span>
+                  </div>
+                  <div style="font-weight:600;font-size:14px;line-height:1.45;margin-bottom:9px">
+                    A bean is declared with <code>@Scope(prototype)</code>
+                    and injected into a singleton. How many instances are created?</div>
+                  <div class="opt"><span class="k">A</span><span>One, at the moment the singleton is created</span></div>
+                  <div class="opt sel"><span class="k">B</span><span>One per injection point, resolved when the singleton is built</span></div>
+                  <div class="opt"><span class="k">C</span><span>A new one on every method call</span></div>
+                  <div style="display:flex;gap:9px;margin-top:11px;align-items:center">
+                    <span class="btn pri">Check answer</span>
+                    <span class="small muted">Answering does not use another question from your quota.</span>
+                  </div>
+                </div>
+
+                <div style="border:1px solid #b3e0c4;background:var(--success-surface);border-radius:10px;padding:13px;margin-top:11px">
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                    <span class="pill ok">Correct</span><span class="pill">Dependency injection</span>
+                    <span class="spacer"></span><span class="small" style="color:var(--success-ink)">Answered 11 min ago</span>
+                  </div>
+                  <div style="font-weight:600;font-size:14px;margin-bottom:5px">Which annotation makes a
+                    constructor the one Spring uses when several are present?</div>
+                  <p class="small" style="margin:0;color:var(--ink-soft)"><b>You answered:</b> Autowired —
+                    correct. With a single constructor Spring uses it without the annotation; with several,
+                    the annotation chooses.</p>
+                </div>
+
+                <div style="border:1px solid #f0d9a8;background:var(--warn-surface);border-radius:10px;padding:13px;margin-top:11px">
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:5px">
+                    <span class="pill warn">Not generated</span>
+                    <span class="spacer"></span><span class="small" style="color:var(--warn-ink)">18 min ago</span>
+                  </div>
+                  <p class="small" style="margin:0;color:var(--warn-ink)"><b>The question provider did not
+                    respond.</b> Nothing was charged — your quota still shows 13 of 20 remaining. Try again,
+                    or pick a different topic.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <h4>Today</h4>
+                <p class="sub">Resets at midnight</p>
+                <div class="small muted" style="margin-bottom:3px">Questions generated</div>
+                <div class="meter"><i style="width:35%"></i></div>
+                <p class="small" style="margin:3px 0 11px"><b>7 of 20</b> <span class="muted">used</span></p>
+                <div class="small muted" style="margin-bottom:3px">Answers checked</div>
+                <div class="meter"><i style="width:20%"></i></div>
+                <p class="small" style="margin:3px 0 0"><b>4 of 20</b> <span class="muted">used</span></p>
+              </div>
+              <div class="card">
+                <h4>What you have practised</h4>
+                <p class="sub">Last 7 days</p>
+                <div class="row" style="padding:8px 0"><div><div class="t">Dependency injection</div>
+                  <div class="m">9 questions · 7 correct</div></div></div>
+                <div class="row" style="padding:8px 0"><div><div class="t">Spring bean scopes</div>
+                  <div class="m">4 questions · 2 correct</div></div></div>
+                <div class="row" style="padding:8px 0"><div><div class="t">REST controllers</div>
+                  <div class="m">3 questions · 3 correct</div></div></div>
+              </div>
+              <div class="card" style="background:var(--surface-sunk)">
+                <p class="small muted" style="margin:0">Practice is private to your account. It is never
+                  shown to an instructor, never scored against an assessment, and never appears on a
+                  certificate.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="phone"><div class="holder"><div class="app" style="width:375px">
+    <div class="topbar" style="padding:0 12px">
+      <div class="mark" style="width:24px;height:24px;font-size:14px">J</div>
+      <div class="wsw" style="padding:4px 9px 4px 6px"><span class="av" style="width:17px;height:17px;font-size:9px">DA</span><span><b style="font-size:12px">Demo Academy</b></span><span class="caret">▾</span></div>
+      <span class="spacer"></span><div class="avatar" style="width:24px;height:24px;font-size:10px">L</div>
+    </div>
+    <div class="main" style="padding:14px 14px 10px">
+      <p class="eyebrow" style="margin:0 0 2px">Your account · private</p>
+      <h1 style="font-size:20px;letter-spacing:-.03em;margin:0 0 12px;font-weight:700">Practice</h1>
+      <div class="stack">
+        <div class="card" style="padding:14px">
+          <h4>Today</h4>
+          <div class="meter"><i style="width:35%"></i></div>
+          <p class="small" style="margin:3px 0 0"><b>7 of 20</b> <span class="muted">questions used</span></p>
+        </div>
+        <div class="card" style="padding:14px">
+          <div class="gen"><span class="spin"></span><span>Writing a question on <b>Spring bean scopes</b>…</span></div>
+          <div class="meter" style="margin-top:9px"><i style="width:62%"></i></div>
+          <p class="small muted" style="margin:6px 0 0">Charged only when a question is produced.</p>
+        </div>
+        <div class="card" style="padding:13px">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+            <span class="pill inf">Bean scopes</span><span class="pill">Medium</span></div>
+          <div style="font-weight:600;font-size:13px;line-height:1.45;margin-bottom:8px">
+            A prototype-scoped bean is injected into a singleton. How many instances are created?</div>
+          <div class="opt" style="padding:9px 10px;font-size:12.5px"><span class="k">A</span><span>One, when the singleton is created</span></div>
+          <div class="opt sel" style="padding:9px 10px;font-size:12.5px"><span class="k">B</span><span>One per injection point</span></div>
+          <div class="opt" style="padding:9px 10px;font-size:12.5px"><span class="k">C</span><span>A new one on every call</span></div>
+          <span class="btn pri" style="display:block;text-align:center;margin-top:10px">Check answer</span>
+        </div>
+        <div class="card" style="padding:13px;border-color:#f0d9a8;background:var(--warn-surface)">
+          <span class="pill warn">Not generated</span>
+          <p class="small" style="margin:6px 0 0;color:var(--warn-ink)">The provider did not respond.
+            <b>Nothing was charged.</b></p>
+        </div>
+      </div>
+    </div>
+    <div class="mobnav"><div><span class="ic">◇</span>Home</div><div class="on"><span class="ic">◆</span>Practice</div>
+      <div><span class="ic">◇</span>Assessments</div><div><span class="ic">◇</span>Batches</div><div><span class="ic">◇</span>You</div></div>
+  </div></div></div>
+</div></div>
+
+<h2>Prototype 4 — Assessment attempt (focus mode)</h2>
+<p class="lede">Focus mode, from Direction B. No sidebar, no workspace switcher: during an attempt the
+only navigation is between questions. All questions are reachable at once, so nobody is trapped in a
+wizard. The timer states that it belongs to the server.</p>
+<div class="screens"><div class="pair">
+  <div class="frame">
+    <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="label">Desktop · 1280 · focus mode</span></div>
+    <div class="scale" style="height:421px"><div class="app" style="width:1280px;transform:scale(.685)">
+      <div class="focusbar">
+        <div class="mark" style="border-radius:8px">J</div>
+        <div><div style="font-weight:650;font-size:14px">Spring Boot foundations</div>
+          <div class="m" style="font-size:11.5px;color:var(--muted)">Attempt 1 of 2 · Demo Academy</div></div>
+        <span class="spacer"></span>
+        <span class="pill ok">3 of 4 saved</span>
+        <div><div class="timer">14:57</div><div style="font-size:10.5px;color:var(--muted)">server time left</div></div>
+        <span class="btn">Save &amp; exit</span><span class="btn pri">Submit attempt</span>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 260px;min-height:560px">
+        <div class="main" style="padding:26px 30px">
+          <div style="max-width:720px">
+            <p class="eyebrow" style="margin:0 0 6px">Question 4 of 4 · Spring dependency injection</p>
+            <h1 style="font-size:23px;letter-spacing:-.02em;margin:0 0 6px;font-weight:700;line-height:1.35">
+              Explain in your own words why constructor injection is preferred over field injection in Spring.</h1>
+            <p class="small muted" style="margin:0 0 14px">Written answer · a reviewer grades this by hand,
+              so your result is not shown until it is released.</p>
+            <div class="card" style="padding:0;overflow:hidden">
+              <div style="padding:13px 14px;font-size:13.5px;line-height:1.6;color:var(--ink-soft);min-height:120px">
+                Constructor injection makes dependencies explicit and final, so an object cannot exist in a
+                half-built state. It also makes the class testable without a container, because you just
+                pass the collaborators in.<span style="border-left:1.5px solid var(--brand-600);margin-left:1px"></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--line);background:var(--surface-sunk)">
+                <span class="small muted">231 / 4000 characters</span><span class="spacer"></span>
+                <span class="small" style="color:var(--success-ink)">✓ Saved 8 seconds ago</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;align-items:center">
+              <span class="btn">← Previous</span><span class="btn">Next →</span>
+              <span class="spacer"></span><span class="btn pri">Submit attempt</span>
+            </div>
+          </div>
+        </div>
+        <div style="border-left:1px solid var(--line);background:var(--surface);padding:20px 18px">
+          <h4 style="margin:0 0 3px;font-size:13.5px;font-weight:650">All questions</h4>
+          <p class="small muted" style="margin:0 0 10px">Jump to any of them. Nothing locks.</p>
+          <div class="qmap">
+            <span class="qn done">1</span><span class="qn done">2</span><span class="qn done">3</span><span class="qn here">4</span>
+          </div>
+          <div style="margin-top:16px" class="note">The time limit is held by the server. Closing this
+            tab does not lose saved answers, and an attempt in progress is resumed, not restarted.</div>
+          <div style="margin-top:14px">
+            <h4 style="margin:0 0 3px;font-size:13.5px;font-weight:650">Before you submit</h4>
+            <p class="small muted" style="margin:0">Answers cannot be changed after submitting.</p>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="phone"><div class="holder"><div class="app" style="width:375px">
+    <div class="focusbar" style="padding:0 12px;gap:9px">
+      <div><div style="font-weight:650;font-size:12.5px">Spring Boot foundations</div>
+        <div style="font-size:10.5px;color:var(--muted)">Attempt 1 of 2</div></div>
+      <span class="spacer"></span>
+      <div style="text-align:right"><div class="timer" style="font-size:14px">14:57</div>
+        <div style="font-size:9.5px;color:var(--muted)">server time</div></div>
+    </div>
+    <div style="padding:9px 14px;border-bottom:1px solid var(--line);background:var(--surface-sunk);display:flex;align-items:center;gap:8px">
+      <span class="small" style="font-weight:650">Q4 of 4</span>
+      <div class="qmap" style="margin:0"><span class="qn done" style="width:22px;height:22px;font-size:10.5px">1</span>
+        <span class="qn done" style="width:22px;height:22px;font-size:10.5px">2</span>
+        <span class="qn done" style="width:22px;height:22px;font-size:10.5px">3</span>
+        <span class="qn here" style="width:22px;height:22px;font-size:10.5px">4</span></div>
+      <span class="spacer"></span><span class="pill ok">3 saved</span>
+    </div>
+    <div class="main" style="padding:14px">
+      <p class="eyebrow" style="margin:0 0 5px">Spring dependency injection</p>
+      <h1 style="font-size:16.5px;letter-spacing:-.01em;margin:0 0 6px;font-weight:700;line-height:1.4">
+        Explain in your own words why constructor injection is preferred over field injection in Spring.</h1>
+      <p class="small muted" style="margin:0 0 11px">Written answer · graded by a reviewer</p>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:11px 12px;font-size:12.5px;line-height:1.6;color:var(--ink-soft);min-height:150px">
+          Constructor injection makes dependencies explicit and final, so an object cannot exist in a
+          half-built state.</div>
+        <div style="display:flex;padding:8px 12px;border-top:1px solid var(--line);background:var(--surface-sunk)">
+          <span class="small muted">231 / 4000</span><span class="spacer"></span>
+          <span class="small" style="color:var(--success-ink)">✓ Saved</span></div>
+      </div>
+      <div class="note" style="margin-top:12px">The time limit is held by the server. Saved answers
+        survive closing this tab.</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <span class="btn" style="flex:1;text-align:center">← Prev</span>
+        <span class="btn pri" style="flex:1.4;text-align:center">Submit attempt</span>
+      </div>
+    </div>
+  </div></div></div>
+</div></div>
+
+<h2>Two states the rewrite exists to fix</h2>
+<p class="lede">These are not new screens. They are the states the current UI handles least well, and
+they are a large part of why this is worth doing in React.</p>
+<div class="dirs" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+  <div class="card">
+    <h4>Generation progress</h4>
+    <p class="sub">AI question drafting and practice generation</p>
+    <div class="gen"><span class="spin"></span><span>Writing a question on <b>Spring bean scopes</b>…</span></div>
+    <div class="meter" style="margin-top:12px"><i style="width:62%"></i></div>
+    <p class="small muted" style="margin:6px 0 0">Usually 5–10 seconds. Your quota is charged only when
+      a question is produced.</p>
+  </div>
+  <div class="card">
+    <h4>Empty, with the way out</h4>
+    <p class="sub">An empty list is a dead end; this is not</p>
+    <div class="empty"><div class="ei">◇</div>
+      <h4>No cohort yet</h4>
+      <p class="small muted" style="margin:0 0 11px">A course groups learners into batches. Create one
+        and you can distribute an assessment to everyone in it at once.</p>
+      <span class="btn pri">Create a course</span></div>
+  </div>
+  <div class="card">
+    <h4>Error, with a cause</h4>
+    <p class="sub">Not "something went wrong"</p>
+    <div class="note" style="background:var(--danger-surface);color:var(--danger-ink)">
+      <b>Availability must sit inside the batch window.</b><br>
+      The batch runs 1 Oct – 20 Dec. Choose an end on or before 20 Dec.</div>
+    <p class="small muted" style="margin:10px 0 0">Field-level, from the server's own message, with the
+      value that was rejected named — never the whole request echoed back.</p>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

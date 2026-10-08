@@ -46,3 +46,9 @@ application-prod-secret.properties
 # which on this project includes the MongoDB connection string.
 hs_err_pid*.log
 replay_pid*.log
+
+### React practice pilot ###
+frontend/node_modules/
+# Build output. Produced by `npm --prefix frontend run build`; never committed.
+src/main/resources/static/pilot/
+frontend/*.tsbuildinfo
