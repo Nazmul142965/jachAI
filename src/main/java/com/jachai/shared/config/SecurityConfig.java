@@ -5,6 +5,7 @@ import com.jachai.shared.error.ApiError;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -13,9 +14,25 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 public class SecurityConfig {
+
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
+    @Order(1)
+    SecurityFilterChain demoFilterChain(HttpSecurity http) throws Exception {
         return http
+                .securityMatcher("/api/v1/demo/**")
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .httpBasic(basic -> basic.disable())
+                .formLogin(form -> form.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .build();
+    }
+
+    @Bean
+    @Order(2)
+    SecurityFilterChain apiFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
+        return http
+                .securityMatcher("/api/**")
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(basic -> basic.disable())
@@ -23,11 +40,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/index.html", "/app.css", "/app.js", "/public.css",
                                 "/theme.css", "/theme.js",
-                                // Every page declares /favicon.svg, so a browser does not ask for
-                                // /favicon.ico. Both are permitted anyway: a bookmark, a crawler or
-                                // an older browser still asks, and answering 401 put an error in
-                                // the console of every page load, which teaches people to ignore
-                                // console errors. Permitted, these are an icon and a plain 404.
                                 "/favicon.svg", "/favicon.ico",
                                 // The React Practice pilot's bundle. A static asset exactly like
                                 // /app.js above: it is fetched by a dynamic import, which carries
@@ -41,7 +53,6 @@ public class SecurityConfig {
                                 "/api/v1/auth/resend-verification", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh", "/api/v1/auth/request-password-reset",
                                 "/api/v1/auth/reset-password", "/api/v1/public/certificates/*",
-                                "/api/v1/demo/accounts", "/api/v1/demo/login/*",
                                 "/certificates/*",
                                 "/academy.html", "/talent.html", "/plans.html", "/how.html",
                                 "/api/v1/billing/sslcommerz/ipn",
@@ -58,6 +69,16 @@ public class SecurityConfig {
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                     objectMapper.writeValue(response.getWriter(), new ApiError("FORBIDDEN", "Access denied"));
                 }))
+                .build();
+    }
+
+    @Bean
+    @Order(3)
+    SecurityFilterChain staticFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher("/**")
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .build();
     }
 }

@@ -27,13 +27,13 @@
 
   <main class="page page--narrow page--auth">
     <p class="eyebrow">Account</p>
-    <h1>Email verification</h1>
+    <h1 id="page-title">Verify your email</h1>
 
     <div class="card">
-      <p id="status" class="status" role="status" aria-live="polite">Checking your verification link…</p>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
 
       <section id="resend" hidden>
-        <p class="form-note">Enter the address you registered with to queue a new verification link.</p>
+        <p class="form-note">Enter the email you used to register. We will queue a new verification link if your account needs one.</p>
         <p id="mail-mode-note" class="form-note" role="status" aria-live="polite">Checking how this server delivers links…</p>
         <form id="resend-form">
           <div class="field">
@@ -103,9 +103,10 @@
       }
     });
     if (!token) {
-      say('This verification link is incomplete.', 'error');
       showResend();
     } else {
+      document.getElementById('page-title').textContent = 'Checking your link';
+      say('Checking your verification link…');
       fetch('/api/v1/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
