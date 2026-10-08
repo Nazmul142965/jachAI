@@ -631,9 +631,10 @@ async function loadHome() {
   const participant = role === 'LEARNER' || role === 'CANDIDATE';
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
   const academy = state.organization?.type === 'ACADEMY';
+  const tutorParticipant = ['LEARNER', 'CANDIDATE'].includes(role);
   const organization = state.organization;
   $('#ai-tutor-entry').classList.toggle('hidden',
-    !(academy && role === 'LEARNER'));
+    !tutorParticipant);
   $('#home-messages-entry').classList.toggle('hidden',
     !(academy && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)));
   $('#home-role').textContent = organization
@@ -3202,7 +3203,9 @@ function renderResult(result, target = '#result-panel') {
         }
         panel.append(box);
       }));
-      const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the Academy AI Tutor'));
+    }
+    if (['LEARNER', 'CANDIDATE'].includes(state.organization?.myRole)) {
+      const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the AI Tutor'));
       form.append(node('p', 'Ask follow-up questions here. The last three exchanges stay in this tab only; reloading or switching workspaces clears them.', 'muted'));
       let history = state.tutorHistory.get(result.attemptId) || [];
       const transcript = node('div', '', 'tutor-thread');
