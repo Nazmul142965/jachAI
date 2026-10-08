@@ -2,7 +2,9 @@ package com.jachai.platform.controller;
 
 import com.jachai.platform.dto.PlatformOrganizationView;
 import com.jachai.platform.dto.PlatformBillingView;
+import com.jachai.billing.model.PaymentProvider;
 import com.jachai.platform.dto.PlatformOperationsView;
+import com.jachai.platform.dto.PlatformSandboxPaymentSummary;
 import com.jachai.platform.dto.PlatformStorageView;
 import com.jachai.billing.dto.PaymentOrderView;
 import com.jachai.billing.dto.UsageReconciliationReport;
@@ -26,6 +28,7 @@ import com.jachai.platform.service.PlatformPlanService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.time.Instant;
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -78,6 +81,15 @@ public class PlatformAdminController {
     @GetMapping("/operations/storage")
     public PlatformStorageView storage(@AuthenticationPrincipal Jwt jwt) {
         return storage.usage(jwt.getSubject());
+    }
+
+    @GetMapping("/operations/sandbox-payments")
+    public PlatformSandboxPaymentSummary sandboxPayments(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) String provider) {
+        PaymentProvider p = provider != null ? PaymentProvider.valueOf(provider.toUpperCase()) : null;
+        return operations.sandboxPaymentSummary(jwt.getSubject(), from, to, p);
     }
 
     @GetMapping("/organizations")
