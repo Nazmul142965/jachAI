@@ -1,5 +1,13 @@
 # JachAI backend: one remaining-work queue
 
+## Local verification checkpoint (2026-10-08)
+
+- `support-center` commit `3cbb600` lets `scripts/start-local.ps1` reuse MongoDB URI and JWT secret from the existing gitignored `application-local-secret.properties` when shell variables are absent; explicit environment variables still win. No secret value is logged or committed.
+- On port **8080**, database `jachai_dev`, the MongoDB preflight passed, the app started, `GET /api/v1/health` returned 200 `UP`, and `GET /` returned 200. This is local-profile smoke evidence, **not** a production deployment or browser journey.
+- Direct Maven 3.9.12 with the existing user dependency cache completed `test -q`: **654 tests, 0 failures, 0 errors, 55 skipped**. The skipped integration tests still require a dedicated `MONGODB_TEST_URI` (`jachai_it_*`), so live database integration is not verified by this count.
+- The support test commit `05f63b6` is already present on `support-center` as `64c23c5`; its two test files are byte-identical. Do not cherry-pick it again.
+- Other modified/untracked files remain in the root worktree and were not staged or committed in this checkpoint. Review their ownership and contents before merging to `main`. Production release gates in `DEPLOYMENT.md` remain open.
+
 Updated 2026-10-08. This is the backend-only coordination file. `ARCHITECTURE.md` is the product/acceptance authority; `agent-prompts/02`–`07` contain detail. Do not assign those old prompts wholesale or treat this file as proof of completion. Recheck Git and tests before acting.
 
 ## Current evidence and ownership
