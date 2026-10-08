@@ -1,5 +1,9 @@
 # Deployment and readiness checklist
 
+## Faculty demo preview (not production)
+
+The six one-click roles on the main sign-in page are available when the `demo` profile is active. For a remote faculty preview, use a separate deployment with `SPRING_PROFILES_ACTIVE=demo`, `SERVER_ADDRESS=0.0.0.0`, `DEMO_PUBLIC_ACCESS=true`, a public HTTPS `APP_PUBLIC_BASE_URL`, and a dedicated `DEMO_MONGODB_DATABASE=jachai_demo_*`. Never use the real-data database or combine `demo` with `prod`. The demo login service rejects any database not starting with `jachai_demo_`; remote access also rejects a non-HTTPS public origin. Do not configure payment credentials or live AI for this disposable preview. Its accounts are shared and passwordless, so anyone with the URL can change demo data; do not treat it as a private faculty account or a production release.
+
 This is a sandbox-only deployment path for evaluating JachAI. It is not a production release sign-off. Keep all gateway endpoints in sandbox mode and never commit real environment files.
 
 ## Build
