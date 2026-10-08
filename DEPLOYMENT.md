@@ -35,6 +35,10 @@ Provider settings are optional until those features are tested: Gemini, Groq, Go
 
 ## Health probes
 
+### Profile image storage
+
+Profile images are optional. The application decodes the uploaded PNG/JPEG, rejects files over 5 MB or dimensions over 6000px, resizes the longest edge to 256px, converts to JPEG, and rejects compressed output over 120 KB. The compressed bytes are stored in a separate `user_avatars` MongoDB document, not inside the user record or a filesystem volume. The authenticated account response contains the small data URL, so the image is visible after login without a public image endpoint. This keeps image storage bounded, but operators should still monitor Atlas storage and users should remove unused images.
+
 An authenticated platform admin can poll `GET /api/v1/platform/operations/summary` for global backlog counts. Alert on nonzero failed mail jobs, verified-but-unapplied sandbox orders older than five minutes, or quota repair requests without completion. Overdue pending mail is measured after a fifteen-minute grace; open sandbox checkouts are considered old after 24 hours and may simply be abandoned. The endpoint does not reveal recipients, orders, or credentials. MongoDB/Redis readiness needs separate monitoring; these counts require MongoDB to be reachable.
 
 An authenticated platform admin can poll `GET /api/v1/platform/operations/storage` for a database-level estimate of data bytes plus index bytes. It reports a warning at 400,000,000 bytes by default; set `ATLAS_STORAGE_WARNING_BYTES` to adjust that operational threshold. This is based on MongoDB `dbStats`, not Atlas's authoritative cluster quota/billing meter: use Atlas's own storage alerts as well, especially if the database is shared with other applications. A failed or unauthorized `dbStats` command returns a generic unavailable error rather than connection details. The endpoint has offline tests but has not yet run against the user's Atlas cluster.

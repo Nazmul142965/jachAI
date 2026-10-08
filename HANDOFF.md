@@ -151,3 +151,6 @@ Use `ARCHITECTURE.md` section 14 as the authoritative phase gates. Key gaps incl
 ## Product-quality audit (payment cancellation, invitations and demo persistence)
 
 The latest audit is recorded in `PAYMENT_EMAIL_MESSAGING_AUDIT.md`. Sandbox gateways now open in a new tab, unfinished orders can be cancelled safely, and cancelled orders cannot be reconciled or grant entitlements. Invitation UI now explains SMTP versus local-console delivery, quota reconciliation copy distinguishes read-only checks from audited repairs, and demo role controls reload after logout. The Google `g_state` message remains harmless external GIS cookie-parser noise; global cookie parsing is intentionally not relaxed.
+## Profile image option
+
+Users can add or remove an optional profile image from Profile & settings. Uploads are authenticated, demo profiles are locked, and PNG/JPEG input is resized to 256px and compressed below 120 KB before being stored in the separate `user_avatars` collection. No public or unauthenticated image URL is exposed.

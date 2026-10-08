@@ -213,13 +213,13 @@ function explainAiFailure(error) {
 async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false,
   extraHeaders = {} } = {}) {
   const headers = { Accept: 'application/json', ...extraHeaders };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
   pendingRequests += 1; updateBusyIndicator();
   let response;
   try {
     response = await fetch(`/api/v1${path}`, {
-      method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'
+      method, headers, body: body === undefined ? undefined : (body instanceof FormData ? body : JSON.stringify(body)), cache: 'no-store'
     });
   } catch (_) {
     throw new Error('Could not reach JachAI. Check your connection and try again.');
@@ -778,6 +778,9 @@ async function loadAccount() {
       node('p', profile.email, 'account-email'),
       node('p', profile.emailVerified ? 'Email verified' : 'Email not verified', 'account-verification'));
     $('#account-profile-form [name="displayName"]').value = profile.displayName;
+    const avatar = $('#account-avatar');
+    avatar.src = profile.avatarDataUrl || '';
+    avatar.classList.toggle('hidden', !profile.avatarDataUrl);
     // The hidden identifier beside the password fields. A password manager needs to
     // know which account a new password belongs to, so it carries the real email
     // rather than sitting empty purely to satisfy the browser's warning.
@@ -833,6 +836,34 @@ $('#account-profile-form').addEventListener('submit', (event) => {
       notice('Display name saved.');
     } finally { control.disabled = false; }
   });
+
+  $('#account-avatar-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    run(async () => {
+      const form = event.currentTarget;
+      const control = form.querySelector('button[type="submit"]');
+      control.disabled = true;
+      try {
+        const image = form.querySelector('input[name="image"]').files[0];
+        if (!image) throw new Error('Choose a JPEG or PNG image first.');
+        const profile = await request('/auth/me/avatar', {
+          method: 'POST', body: (() => { const data = new FormData(); data.append('image', image); return data; })()
+        });
+        state.profile = profile;
+        $('#account-avatar').src = profile.avatarDataUrl || '';
+        $('#account-avatar').classList.toggle('hidden', !profile.avatarDataUrl);
+        form.reset();
+        notice('Profile image saved in compressed form.');
+      } finally { control.disabled = false; }
+    });
+  });
+
+  $('#remove-avatar').addEventListener('click', () => run(async () => {
+    await request('/auth/me/avatar', { method: 'DELETE' });
+    $('#account-avatar').src = '';
+    $('#account-avatar').classList.add('hidden');
+    notice('Profile image removed.');
+  }));
 });
 
 $('#account-password-form').addEventListener('submit', (event) => {
