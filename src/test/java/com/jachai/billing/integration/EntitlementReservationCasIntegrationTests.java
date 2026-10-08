@@ -1,5 +1,5 @@
 package com.jachai.billing.integration;
-import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,13 +37,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 
-@EnabledIf("integrationTestsEnabled")
+@EnabledIfEnvironmentVariable(named = "MONGODB_TEST_URI", matches = ".+")
 class EntitlementReservationCasIntegrationTests extends BaseMongoIntegrationTest {
-
-    static boolean integrationTestsEnabled() {
-        String uri = System.getenv("MONGODB_TEST_URI");
-        return uri != null && !uri.isBlank();
-    }
 
     private MongoTemplate mongoTemplate;
     private MongoEntitlementUsageStore store;

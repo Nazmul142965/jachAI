@@ -5,6 +5,13 @@
 # from the same window where you set them.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\check-mongo.ps1
+#
+# Exit codes:
+#   0 = OK (connection succeeded)
+#   1 = Configuration problem (MONGODB_URI not set, malformed URI, no database named)
+#   2 = Authentication failed (bad credentials or missing permissions)
+#   3 = Network/unreachable (server not reachable, IP not whitelisted, cluster paused)
+#   4 = Other/unknown error
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -12,8 +19,13 @@ Set-Location $projectRoot
 
 if (-not $env:MONGODB_URI) {
     Write-Output 'MONGODB_URI is not set in this shell.'
-    Write-Output 'Set it here first, for example:'
+    Write-Output ''
+    Write-Output 'Set it first, for example:'
     Write-Output '  $env:MONGODB_URI = "mongodb+srv://user:pass@cluster/"'
+    Write-Output '  $env:MONGODB_DATABASE = "jachai_dev"'
+    Write-Output ''
+    Write-Output 'For local development with a local MongoDB on localhost:27017:'
+    Write-Output '  $env:MONGODB_URI = "mongodb://localhost:27017"'
     Write-Output '  $env:MONGODB_DATABASE = "jachai_dev"'
     exit 1
 }
@@ -33,5 +45,5 @@ $classpath = (Get-Content $classpathFile -Raw).Trim()
 # The driver logs its settings, including the username, at INFO. Silence every
 # logger so the only output is the doctor's own, which prints nothing sensitive.
 $logback = Join-Path $PSScriptRoot 'doctor-logback.xml'
-& (Join-Path $env:JAVA_HOME 'bin\java.exe') "-Dlogback.configurationFile=$logback" -cp $classpath (Join-Path $PSScriptRoot 'MongoConnectionDoctor.java')
-exit $LASTEXITCODE
+$exitCode = (& (Join-Path $env:JAVA_HOME 'bin\java.exe') "-Dlogback.configurationFile=$logback" -cp $classpath (Join-Path $PSScriptRoot 'MongoConnectionDoctor.java'))
+exit $exitCode
