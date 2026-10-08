@@ -40,9 +40,31 @@ public class GoogleAuthService {
             throw new ApiException(HttpStatus.FORBIDDEN, "EMAIL_VERIFICATION_REQUIRED",
                     "Use email registration and verification, then link this Google account");
         }
-        if (users.findByEmail(profile.email()).isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "ACCOUNT_LINK_REQUIRED",
-                    "Sign in with your password, then link Google from your account");
+        User existing = users.findByEmail(profile.email()).orElse(null);
+        if (existing != null) {
+            if (existing.disabled() || !existing.emailVerified()) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_UNAVAILABLE",
+                        "Account is unavailable");
+            }
+            try {
+                var result = mongo.updateFirst(Query.query(Criteria.where("_id").is(existing.id())
+                                .and("googleSubject").is(null)
+                                .and("email").is(profile.email())
+                                .and("emailVerified").is(true)
+                                .and("disabled").is(false)),
+                        new Update().set("googleSubject", profile.subject()), User.class);
+                if (result.getModifiedCount() != 1) {
+                    throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_LINK_CONFLICT",
+                            "This account changed while Google sign-in was completing");
+                }
+                User linkedExisting = new User(existing.id(), existing.email(), existing.displayName(),
+                        existing.passwordHash(), existing.emailVerified(), existing.disabled(),
+                        existing.securityVersion(), existing.createdAt(), profile.subject());
+                return auth.issueSession(linkedExisting);
+            } catch (DuplicateKeyException exception) {
+                throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_ALREADY_LINKED",
+                        "This Google account is already linked to another user");
+            }
         }
         User newUser = new User(UUID.randomUUID().toString(), profile.email(), profile.displayName(),
                 null, true, false, 0, Instant.now(), profile.subject());

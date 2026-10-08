@@ -4148,10 +4148,7 @@ async function setupGoogleSignIn() {
       } catch (error) {
         if (error.code !== 'ACCOUNT_LINK_REQUIRED') throw error;
         const help = $('#google-login-help');
-        help.replaceChildren(node('span', 'This email already has a JachAI account. Sign in with your password, then open Profile & settings to connect Google. '));
-        const reset = node('a', 'Forgot your password?');
-        reset.href = '/reset-password.html';
-        help.append(reset);
+        help.replaceChildren(node('span', 'Google could not link this account automatically. Sign in with email/password, then connect Google from Profile & settings.'));
         help.classList.remove('hidden');
         help.scrollIntoView({ block: 'nearest' });
       }

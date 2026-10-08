@@ -154,3 +154,6 @@ The latest audit is recorded in `PAYMENT_EMAIL_MESSAGING_AUDIT.md`. Sandbox gate
 ## Profile image option
 
 Users can add or remove an optional profile image from Profile & settings. Uploads are authenticated, demo profiles are locked, and PNG/JPEG input is resized to 256px and compressed below 120 KB before being stored in the separate `user_avatars` collection. No public or unauthenticated image URL is exposed.
+## Google one-click sign-in
+
+Google sign-in now creates new verified Gmail/Workspace accounts directly and automatically links an existing verified JachAI account when the authoritative Google email matches. Password entry is not required for that first Google sign-in. Disabled, unverified, non-authoritative-domain, and conflicting Google identities remain rejected. Details are in `GOOGLE_SIGN_IN.md`.
