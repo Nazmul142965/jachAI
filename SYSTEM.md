@@ -1,4 +1,6 @@
-# Deployment and readiness checklist
+# JachAI system, deployment, and readiness
+
+This is the active operations guide. Product rules are in [ARCHITECTURE.md](ARCHITECTURE.md), implementation boundaries in [BACKEND.md](BACKEND.md), and the current UI in [FRONTEND.md](FRONTEND.md). Completed test and branch reports are indexed in [docs/archive/completed/](docs/archive/completed/README.md). Historical evidence does not replace a check on the deployed revision.
 
 ## Six-role demo on the production deployment
 

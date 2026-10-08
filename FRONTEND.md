@@ -6,8 +6,10 @@ follows so the next change looks like it was written by the same hand.
 
 `ARCHITECTURE.md` is the product specification and wins over this file on
 anything about behaviour, permissions or data. This file only covers how the
-frontend is put together. Read `PRODUCT_UI_HANDOFF.md` for the current
-account-home/practice work and remaining product decisions.
+frontend is put together. The account-home/practice delivery record is preserved at
+[docs/archive/completed/PRODUCT_UI_HANDOFF.md](docs/archive/completed/PRODUCT_UI_HANDOFF.md);
+it is historical evidence, not a second active specification. A separate
+[React design experiment](docs/design/react/README.md) is retained for future work.
 
 ---
 
