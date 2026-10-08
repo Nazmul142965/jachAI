@@ -1306,40 +1306,46 @@ async function showView(key) {
   if (key === 'practice') { await loadPractice(); return; }
   if (key === 'overview') await loadOverview();
   if (key === 'workspace-access') loadWorkspaceAccess();
-  if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
+  if (key === 'overview' && state.organization?.myRole === 'ORG_ADMIN') {
     await loadOrganizationSettings();
     ensureTenantSupportAuditPanel();
     await loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
       'Platform support history could not be loaded.');
   }
-  if (key === 'billing' && state.organization.myRole === 'ORG_ADMIN') {
+  if (key === 'billing' && state.organization?.myRole === 'ORG_ADMIN') {
     await loadEntitlements();
     await loadList('#usage-report', () => loadUsageReconciliation(),
       'The quota check could not be run.');
   }
   if (key === 'members') {
+    if (!state.organization) return;
     await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
     await loadList('#join-code-list', () => loadJoinCodes(), 'Join codes could not be loaded.');
     attachFilter('#members-list', 'Filter members by name, email, role or ID');
   }
   if (key === 'questions') {
+    if (!state.organization) return;
     await loadList('#questions-list', () => loadQuestions(), 'Questions could not be loaded.');
     attachFilter('#questions-list', 'Filter questions by topic, prompt or status');
   }
   if (key === 'assessments') {
+    if (!state.organization) return;
     await loadList('#assessments-list', async () => {
       await loadApprovedQuestions(); await loadAssessments();
     }, 'Assessments could not be loaded.');
     attachFilter('#assessments-list', 'Filter assessments by title, status or release policy');
   }
   if (key === 'assign') {
+    if (!state.organization) return;
     await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
   }
   if (key === 'review') {
+    if (!state.organization) return;
     await loadList('#review-queue', () => loadReviewQueue(0), 'The review queue could not be loaded.');
     await loadOrganizationSettings();
   }
   if (key === 'academy') {
+    if (!state.organization) return;
     await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
     attachFilter('#courses-list', 'Filter courses by name or description');
     if (state.organization.myRole === 'ORG_ADMIN') {

@@ -38,4 +38,6 @@ public interface SupportTicketRepository extends MongoRepository<SupportTicket, 
     @Query("{ 'status': { $in: ?0 }, 'organizationId': ?1, 'createdAt': { $gte: ?2, $lt: ?3 } }")
     Page<SupportTicket> findByStatusInAndOrganizationIdAndCreatedAtBetween(
             List<TicketStatus> statuses, String organizationId, Instant from, Instant to, Pageable pageable);
+
+    Page<SupportTicket> findByStatusNotIn(List<TicketStatus> statuses, Pageable pageable);
 }

@@ -1,5 +1,6 @@
 package com.jachai.platform.controller;
 
+import com.jachai.platform.dto.PlatformDashboardView;
 import com.jachai.platform.dto.PlatformOrganizationView;
 import com.jachai.platform.dto.PlatformBillingView;
 import com.jachai.billing.model.PaymentProvider;
@@ -22,6 +23,7 @@ import com.jachai.platform.dto.ManualPlanView;
 import com.jachai.platform.dto.RevokeManualPlanRequest;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
+import com.jachai.platform.service.PlatformDashboardService;
 import com.jachai.platform.service.PlatformOperationsService;
 import com.jachai.platform.service.PlatformStorageService;
 import com.jachai.platform.service.PlatformPlanService;
@@ -53,12 +55,14 @@ public class PlatformAdminController {
     private final PlatformStorageService storage;
     private final PlatformPlanService plans;
     private final OrganizationAuditRecoveryService auditRecovery;
+    private final PlatformDashboardService dashboard;
 
     public PlatformAdminController(PlatformAdminService platform, PlatformBillingSupportService billingSupport,
                                    EntitlementUsageReconciliationService usageReconciliation,
                                    PlatformOperationsService operations, PlatformStorageService storage,
                                    PlatformPlanService plans,
-                                   OrganizationAuditRecoveryService auditRecovery) {
+                                   OrganizationAuditRecoveryService auditRecovery,
+                                   PlatformDashboardService dashboard) {
         this.platform = platform;
         this.billingSupport = billingSupport;
         this.usageReconciliation = usageReconciliation;
@@ -66,6 +70,7 @@ public class PlatformAdminController {
         this.storage = storage;
         this.plans = plans;
         this.auditRecovery = auditRecovery;
+        this.dashboard = dashboard;
     }
 
     @GetMapping("/me")
@@ -90,6 +95,11 @@ public class PlatformAdminController {
             @RequestParam(required = false) String provider) {
         PaymentProvider p = provider != null ? PaymentProvider.valueOf(provider.toUpperCase()) : null;
         return operations.sandboxPaymentSummary(jwt.getSubject(), from, to, p);
+    }
+
+    @GetMapping("/dashboard")
+    public PlatformDashboardView dashboard(@AuthenticationPrincipal Jwt jwt) {
+        return dashboard.summary(jwt.getSubject());
     }
 
     @GetMapping("/organizations")
