@@ -17,6 +17,24 @@ if ($Demo) {
     }
 }
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+# IntelliJ may have a private run environment that a separate PowerShell shell
+# cannot inherit. Reuse the owner's ignored local properties when present, but
+# let explicit environment variables take precedence. Never print their values.
+$privateProperties = Join-Path $projectRoot 'application-local-secret.properties'
+if (Test-Path -LiteralPath $privateProperties -PathType Leaf) {
+    foreach ($line in [IO.File]::ReadLines($privateProperties)) {
+        if ($line -notmatch '^\s*(spring\.data\.mongodb\.uri|app\.jwt\.secret)\s*[=:]\s*(.*?)\s*$') { continue }
+        $setting = $Matches[1]
+        $value = $Matches[2]
+        if ([string]::IsNullOrWhiteSpace($value) -or $value.StartsWith('${')) { continue }
+        if ($setting -eq 'spring.data.mongodb.uri' -and -not $env:MONGODB_URI) {
+            $env:MONGODB_URI = $value
+        }
+        if ($setting -eq 'app.jwt.secret' -and -not $env:JWT_SECRET) {
+            $env:JWT_SECRET = $value
+        }
+    }
+}
 $logDir = Join-Path $projectRoot 'target\local-dev'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $appLog = if ($Port -eq 8080) { 'app.out.log' } else { "app.$Port.out.log" }
@@ -104,6 +122,7 @@ $env:CACHE_ENABLED = 'false'
 $env:REDIS_REVOCATION_ENABLED = 'false'
 $env:AI_PROVIDER = 'none'
 $env:AI_TUTOR_PROVIDER = 'none'
+
 if (-not $env:JWT_SECRET) {
     $secretBytes = New-Object byte[] 48
     $random = [Security.Cryptography.RandomNumberGenerator]::Create()
