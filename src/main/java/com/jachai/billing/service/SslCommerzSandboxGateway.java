@@ -164,7 +164,7 @@ public class SslCommerzSandboxGateway {
                 || !validationId.equals(response.path("val_id").asText())
                 || !"BDT".equals(response.path("currency_type").asText())
                 || !"BDT".equals(response.path("currency").asText())
-                || !expectedStoreId.equals(response.path("store_id").asText(expectedStoreId))
+                || !expectedStoreId.equals(response.path("store_id").asText(""))
                 || response.path("risk_level").asInt(-1) != 0
                 || response.path("bank_tran_id").asText("").isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_VERIFIED",
