@@ -318,6 +318,8 @@ function showSignedOut() {
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
   $('#account-menu').classList.add('hidden');
+  $('#account-menu-panel')?.classList.add('hidden');
+  $('#account-menu-toggle')?.setAttribute('aria-expanded', 'false');
   setInAppLinks(false);
   loadDemoAccess();
 }
@@ -428,6 +430,8 @@ function setInAppLinks(signedInNow) {
 async function signedIn(tokens) {
   state.accessToken = tokens.accessToken;
   state.refreshToken = tokens.refreshToken;
+  $('#account-menu-panel')?.classList.add('hidden');
+  $('#account-menu-toggle')?.setAttribute('aria-expanded', 'false');
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#logout').classList.add('hidden');
   $('#account-menu').classList.remove('hidden');
