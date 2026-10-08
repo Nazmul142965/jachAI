@@ -1,5 +1,15 @@
 # JachAI working handoff
 
+## Latest UI defect fix (2026-10-09)
+
+Commit `e13921b` is on `main`. The account dropdown was staying open across
+logout/login transitions because its panel state was not reset when the
+authenticated shell was hidden or shown. `app.js` now closes
+`#account-menu-panel` and resets `aria-expanded` to `false` in both
+`showSignedOut()` and `signedIn()`. This keeps Profile, Support, and Sign out
+hidden until the user explicitly opens the Account menu. JavaScript syntax and
+the frontend journey suite passed 151/151 after the fix.
+
 ## Latest delivered change log (2026-10-08)
 
 `main` and `support-center` are aligned at `403da4d` (the documentation correction is
