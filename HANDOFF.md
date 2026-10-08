@@ -2,7 +2,8 @@
 
 ## Latest delivered change log (2026-10-08)
 
-`main` and `support-center` are aligned at `403da4d`. The following table records the
+`main` and `support-center` are aligned at `403da4d` (the documentation correction is
+tracked in the next release-check commit). The following table records the
 recent user-requested work and the reason for each change so a later maintainer can
 understand the decisions without reconstructing the commit history:
 
@@ -28,7 +29,12 @@ already fast-forwarded into `main`.
 
 ## Delivery verification (2026-10-08, current revision)
 
-The current `main`/`support-center` revision is `b50db14`, fast-forwarded from the requested baseline `a257623`. The application was rebuilt and restarted on the required local URL `http://127.0.0.1:8080/` with the `demo` profile and disposable Mongo database `jachai_demo_local`; the process is healthy at `/api/v1/health` and `/actuator/health/liveness`. No customer database or real-money endpoint is used by this run.
+The prior local verification revision was `b50db14`; the current `main` revision is
+the commit shown by `git log -1`. The application was rebuilt and restarted on the
+required local URL `http://127.0.0.1:8080/` with the `demo` profile and disposable
+Mongo database `jachai_demo_local`; the process was healthy at `/api/v1/health` and
+`/actuator/health/liveness`. No customer database or real-money endpoint was used by
+that run.
 
 Real Chrome clicks passed for all six demo buttons. Each issued the corresponding `POST /api/v1/demo/login/{key}`, created an in-memory browser session, reached the expected dashboard route, and showed the expected isolated workspace/role:
 
@@ -69,7 +75,15 @@ The remaining untracked `.kilo/`, `.playwright-mcp/`, and `agent-prompts/` files
 
 The baseline `support-center`/`main` revision for this checkpoint was `a257623`; the current verified revision is documented above. Java 21 compilation passed, `JachAiApplicationTests` passed, and the focused billing flow/reconciliation suite passed with 0 failures. The application was subsequently restarted on port 8080 in isolated demo mode and its current evidence is documented above.
 
-The six-role path is now designed for the same hosted production deployment and database: enable both `DEMO_PUBLIC_ACCESS=true` and `DEMO_SHARED_DATABASE=true` with an HTTPS `APP_PUBLIC_BASE_URL`. The endpoint remains unavailable unless explicitly enabled; `DEMO_PREVIEW_URL`, a separate deployment, and a separate demo database are not required for this flow. Hosted browser verification is still pending because no public production URL is configured in this environment. Existing candidate worktrees were audited; their missing commits either are already represented on `main` or contain broad incompatible deletions and were not merged.
+The six-role path is designed for the same hosted production deployment and database:
+enable `DEMO_PUBLIC_ACCESS=true` with an HTTPS `APP_PUBLIC_BASE_URL`. The current
+code does not require `DEMO_SHARED_DATABASE` or a `jachai_demo_*` database name;
+that setting is retained only for configuration compatibility. `DEMO_PREVIEW_URL`,
+a separate deployment, and a separate demo database are not required for this flow.
+Hosted browser verification is still pending because no public production URL is
+configured in this environment. Existing candidate worktrees were audited; their
+missing commits either are already represented on `main` or contain broad
+incompatible deletions and were not merged.
 
 Parallel assignment boundaries and paste-ready prompts are in
 `AGENT_WORKSTREAMS.md`. Assign one writer per lane and integrate reviewed
@@ -100,11 +114,11 @@ and a closed sample campaign is not reused. Focused demo tests passed; this
 behavior still needs a live disposable database walkthrough.
 
 Main includes role-specific account-home work rows (`d8207ce`). The local-demo
-slice adds six passwordless role shortcuts, guarded by the `demo` profile,
-loopback client and `jachai_demo_*` database name; inspect the current Git
-status before editing. Demo/auth unit tests, script/JS syntax and a mocked
-two-check browser shortcut passed, but live Atlas seeding and browser sign-in
-against the real backend have not been run.
+slice adds six passwordless role shortcuts, guarded by the `demo` profile and
+loopback client; it is not guarded by a database name. Demo/auth unit tests,
+script/JS syntax and a mocked two-check browser shortcut passed, but live Atlas
+seeding and browser sign-in against the real backend had not been run at that
+checkpoint.
 Do not merge stale frontend worktrees or put demo credentials in the public
 frontend. `README.md` documents `scripts/start-local.ps1 -Demo`.
 

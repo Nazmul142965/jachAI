@@ -4368,9 +4368,11 @@ function loadDemoAccess() {
     roles.children[accounts.findIndex((account) => account.key === requestedRole)].click();
   }
   }).catch((error) => {
-    $('#demo-access-status').textContent = error.code === 'DEMO_DATABASE_REQUIRED'
-      ? 'Demo roles are disabled for this database. Start the local app with the disposable jachai_demo_* database, or explicitly enable shared demo access.'
-      : 'Demo roles are not enabled on this deployment. The operator must enable the documented demo settings before these buttons can be used.';
+    $('#demo-access-status').textContent = error.code === 'DEMO_LOCAL_ONLY'
+      ? 'Demo roles are available only from this local app address.'
+      : error.code === 'DEMO_HTTPS_REQUIRED'
+        ? 'Public demo access requires the operator to configure a valid HTTPS application URL.'
+        : 'Demo roles are not enabled on this deployment. The operator must enable public demo access before these buttons can be used.';
   });
 }
 loadDemoAccess();

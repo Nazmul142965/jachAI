@@ -2,15 +2,35 @@
 
 ## Six-role demo on the production deployment
 
-On the local `local` profile, the demo endpoint is present but only works when the configured database name starts with `jachai_demo_`; this prevents a normal customer/developer database from receiving passwordless demo access. Use `SPRING_PROFILES_ACTIVE=local`, `LOCAL_MONGODB_DATABASE=jachai_demo_local`, and the existing local Mongo/Atlas connection for a disposable local demo. The sign-in page now keeps the demo panel visible and explains the exact configuration reason when the endpoint is unavailable instead of silently hiding it.
+The six one-click demo roles are available when the demo access endpoint is enabled;
+the current implementation does **not** require a special database name and does not
+use `DEMO_SHARED_DATABASE` as an authorization gate. Do not restore a
+`jachai_demo_*` database restriction or make `DEMO_SHARED_DATABASE` mandatory.
+`DEMO_SHARED_DATABASE` is retained only as a backwards-compatible configuration name
+and has no effect on access.
 
-The six one-click roles can be enabled on the same hosted production deployment and Mongo database only with an explicit two-flag opt-in: `DEMO_PUBLIC_ACCESS=true` and `DEMO_SHARED_DATABASE=true`. The deployment must use a public HTTPS `APP_PUBLIC_BASE_URL`. Demo users and organizations use reserved `demo-account-*`, `demo-org-*`, and `@demo.jachai.invalid` identifiers; they are seeded through normal services and can access only the two demo organizations. They cannot change their profile/password, link Google, or use password reset. All customer organizations remain protected by the existing membership and tenant checks.
+For local verification use `SPRING_PROFILES_ACTIVE=demo` (or `local`) and a
+disposable database such as `DEMO_MONGODB_DATABASE=jachai_demo_local`. For a hosted
+preview set `DEMO_PUBLIC_ACCESS=true` and use a public HTTPS `APP_PUBLIC_BASE_URL`.
+Local requests remain loopback-only when public access is false. Demo users and
+organizations use reserved `demo-account-*`, `demo-org-*`, and
+`@demo.jachai.invalid` identifiers; they are seeded through normal services and can
+access only the two demo organizations. They cannot change their profile/password,
+link Google, or use password reset. All customer organizations remain protected by
+the existing membership and tenant checks.
 
 This is a shared production data store, not a separate demo database. Anyone with the public URL can change demo workspace data, so do not place customer records in the demo organizations and do not describe this as a private faculty account. Payment credentials and real-money endpoints remain disabled for the demo path.
 
-`DEMO_PREVIEW_URL` is no longer needed for the same-deployment flow. The sign-in page discovers roles from `/api/v1/demo/accounts` and each button posts to `/api/v1/demo/login/{key}` on the same origin, then creates the normal JachAI session and routes to the role dashboard. If either flag is false, the endpoint is unavailable and no demo buttons are rendered.
+`DEMO_PREVIEW_URL` is no longer needed. The sign-in page discovers roles from
+`/api/v1/demo/accounts` and each button posts to `/api/v1/demo/login/{key}` on the same
+origin, then creates the normal JachAI session and routes to the role dashboard. If
+public demo access is disabled, the endpoint remains available only from loopback;
+hosted public access requires `DEMO_PUBLIC_ACCESS=true` and a valid HTTPS origin.
 
-Local live verification on 2026-10-08 passed on `http://127.0.0.1:8080/` using `SPRING_PROFILES_ACTIVE=demo` and the disposable `jachai_demo_local` database. Hosted verification still requires the actual public HTTPS URL and a controlled production deployment with both flags enabled; local Chrome evidence is not hosted evidence.
+Local live verification on 2026-10-08 passed on `http://127.0.0.1:8080/` using
+`SPRING_PROFILES_ACTIVE=demo` and the disposable `jachai_demo_local` database. Hosted
+verification still requires the actual public HTTPS URL and a controlled deployment
+with `DEMO_PUBLIC_ACCESS=true`; local Chrome evidence is not hosted evidence.
 
 ## Build
 
