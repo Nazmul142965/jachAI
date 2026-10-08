@@ -261,7 +261,7 @@ async function main() {
     nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
     nav.join(', '));
   check(journey, 'nav lists screens, not every view',
-    nav.length <= 9 && !nav.includes('Batch workspace'), nav.join(', '));
+    nav.length <= 10 && !nav.includes('Batch workspace'), nav.join(', '));
   check(journey, 'account-level Practice is reachable', nav.includes('Practice'), nav.join(', '));
   await view('Practice'); await wait(450);
   check(journey, 'Practice shows a private question without its answer key',

@@ -23,7 +23,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   practiceQuestions: [], practiceAnswers: [], practiceRequestId: null, practiceRemaining: 0,
   homeAction: null, homeLoadToken: 0, profile: null,
   view: 'overview' };
-const views = ['start', 'account', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+const views = ['start', 'account', 'support', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
@@ -33,6 +33,7 @@ const views = ['start', 'account', 'practice', 'overview', 'workspace-access', '
 const SCREENS = {
   start: { title: 'My dashboard', subtitle: 'Your learning and work in one place', views: [['start', 'My dashboard']] },
   account: { title: 'Profile & settings', subtitle: 'Your identity, sign-in and plan', views: [['account', 'Profile & settings']] },
+  support: { title: 'Support', subtitle: 'Get help from the JachAI support team', views: [['support', 'Support']] },
   practice: { title: 'Practice', subtitle: 'Learn at your own pace', views: [['practice', 'Practice']] },
   overview: { title: 'Overview', subtitle: '', views: [['overview', 'Overview']] },
   'workspace-access': { title: 'Your workspaces', subtitle: 'Join or create another workspace',
@@ -221,6 +222,7 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
     response = await fetch(`/api/v1${path}`, {
       method, headers, body: body === undefined ? undefined : (body instanceof FormData ? body : JSON.stringify(body)), cache: 'no-store'
     });
+
   } catch (_) {
     throw new Error('Could not reach JachAI. Check your connection and try again.');
   } finally {
@@ -256,6 +258,39 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
   }
   return data;
 }
+function updateAccountMenu(profile) {
+  const image = $('#header-avatar');
+  const fallback = $('#header-avatar-fallback');
+  const name = $('#header-account-name');
+  if (image) {
+    image.src = profile.avatarDataUrl || '';
+    image.alt = `${profile.displayName} profile image`;
+    image.classList.toggle('hidden', !profile.avatarDataUrl);
+  }
+  if (fallback) {
+    fallback.classList.toggle('hidden', !!profile.avatarDataUrl);
+    fallback.textContent = (profile.displayName || '?').trim().charAt(0).toUpperCase();
+  }
+  if (name) name.textContent = profile.displayName;
+}
+function initAccountMenu() {
+  $('#account-menu-toggle')?.addEventListener('click', () => {
+    const panel = $('#account-menu-panel');
+    if (!panel) return;
+    const open = panel.classList.toggle('hidden');
+    $('#account-menu-toggle').setAttribute('aria-expanded', String(!open));
+  });
+  $('#account-menu-profile')?.addEventListener('click', () => {
+    $('#account-menu-panel')?.classList.add('hidden');
+    showScreen('account');
+  });
+  $('#account-menu-support')?.addEventListener('click', () => {
+    $('#account-menu-panel')?.classList.add('hidden');
+    showScreen('support');
+  });
+  $('#account-menu-logout')?.addEventListener('click', () => $('#logout')?.click());
+}
+document.addEventListener('DOMContentLoaded', initAccountMenu);
 function showSignedOut() {
   window.clearInterval(state.timer);
   stopMessageRefresh();
@@ -282,6 +317,7 @@ function showSignedOut() {
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
+  $('#account-menu').classList.add('hidden');
   setInAppLinks(false);
   loadDemoAccess();
 }
@@ -394,6 +430,7 @@ async function signedIn(tokens) {
   state.refreshToken = tokens.refreshToken;
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
+  $('#account-menu').classList.remove('hidden');
   setInAppLinks(true);
   let invitationMessage = 'Signed in.';
   const pending = sessionStorage.getItem('jachaiPendingInvitation');
@@ -504,8 +541,9 @@ async function setOrganization() {
     : 'Your personal learning space';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
-    availableScreens = ['start', 'practice', 'account', ...(state.platformAdmin ? ['platform'] : [])];
+    availableScreens = ['start', 'practice', 'account', 'support', ...(state.platformAdmin ? ['platform'] : [])];
     for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'],
+      ['support', 'Support'],
       ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])]) {
       const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
       tab.addEventListener('click', () => run(() => showScreen(key)));
@@ -535,7 +573,8 @@ async function setOrganization() {
   // Talent read as related but distinct products.
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
-  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'], ['workspace-access', 'Your workspaces']]);
+  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'],
+    ['support', 'Support'], ['workspace-access', 'Your workspaces']]);
   group('Workspace', [['overview', 'Overview']]);
   group('Assessment engine', [
     ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
@@ -545,7 +584,7 @@ async function setOrganization() {
     group('Academy', [
       ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
         ? [['academy', role === 'LEARNER' ? 'My batches' : 'Academy Workspace']] : []),
-      ...(['INSTRUCTOR', 'LEARNER'].includes(role) ? [['messages', 'Messages']] : []),
+      ...(['INSTRUCTOR', 'LEARNER', 'ORG_ADMIN'].includes(role) ? [['messages', 'Messages']] : []),
       ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
     ]);
   }
@@ -595,6 +634,8 @@ async function loadHome() {
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
   const academy = state.organization?.type === 'ACADEMY';
   const organization = state.organization;
+  $('#ai-tutor-entry').classList.toggle('hidden',
+    !(academy && role === 'LEARNER'));
   $('#home-role').textContent = organization
     ? `${academy ? 'Academy' : 'Talent'} workspace · ${organization.name} · ${organization.owner ? 'Owner / Org Admin' : roleTitle(role)}`
     : 'Personal account · No workspace role yet';
@@ -761,6 +802,26 @@ function renderHomeWork({ organization, participant, staff, academy, assignments
 }
 $('#home-next-action').addEventListener('click', () => run(() => state.homeAction?.()));
 $('#home-account-action').addEventListener('click', () => run(() => showScreen('account')));
+$('#ai-tutor-entry-action').addEventListener('click', () => run(() => showScreen('my-assessments')));
+$('#support-ticket-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(async () => {
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    await request('/support/tickets', {
+      method: 'POST',
+      body: {
+        category: values.get('category'),
+        subject: values.get('subject'),
+        description: values.get('description'),
+        organizationId: values.get('organizationId') || null
+      }
+    });
+    form.reset();
+    await loadSupport();
+    notice('Support ticket created. Replies will appear here and by email when SMTP is configured.');
+  });
+});
 
 async function loadAccount() {
   const admin = state.organization?.myRole === 'ORG_ADMIN';
@@ -778,6 +839,7 @@ async function loadAccount() {
       node('p', profile.email, 'account-email'),
       node('p', profile.emailVerified ? 'Email verified' : 'Email not verified', 'account-verification'));
     $('#account-profile-form [name="displayName"]').value = profile.displayName;
+    updateAccountMenu(profile);
     const avatar = $('#account-avatar');
     avatar.src = profile.avatarDataUrl || '';
     avatar.classList.toggle('hidden', !profile.avatarDataUrl);
@@ -793,6 +855,23 @@ async function loadAccount() {
     $('#account-profile-form').classList.add('hidden');
     $('#account-password-form').classList.add('hidden');
     $('#account-login-method').textContent = 'Sign-in methods unavailable right now.';
+  }
+  async function loadSupport() {
+    const organization = state.organization;
+    const select = $('#support-organization');
+    if (select) {
+      select.replaceChildren(new Option('Personal account', ''));
+      for (const item of state.organizations) {
+        select.append(new Option(`${item.name} · ${item.type}`, item.id));
+      }
+      if (organization) select.value = organization.id;
+    }
+    await loadList('#support-tickets', async () => {
+      const page = await request('/support/tickets?page=0');
+      setList('#support-tickets', (page.content || []).map((ticket) => item(
+        `${ticket.referenceNumber} · ${ticket.status}`,
+        `${ticket.subject} · ${ticket.category}`)), 'No support tickets yet.');
+    }, 'Support tickets could not be loaded.');
   }
   const plan = $('#account-plan');
   plan.replaceChildren();
@@ -1384,6 +1463,7 @@ async function showView(key) {
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'start') { await loadHome(); return; }
   if (key === 'account') { await loadAccount(); return; }
+  if (key === 'support') { await loadSupport(); return; }
   if (key === 'practice') { await loadPractice(); return; }
   if (key === 'overview') await loadOverview();
   if (key === 'workspace-access') loadWorkspaceAccess();
