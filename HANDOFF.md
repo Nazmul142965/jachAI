@@ -2,7 +2,7 @@
 
 ## Delivery verification (2026-10-08, current revision)
 
-The current `main`/`support-center` revision is being advanced from `a257623`. The application was rebuilt and restarted on the required local URL `http://127.0.0.1:8080/` with the `demo` profile and disposable Mongo database `jachai_demo_local`; the process is healthy at `/api/v1/health` and `/actuator/health/liveness`. No customer database or real-money endpoint is used by this run.
+The current `main`/`support-center` revision is `b50db14`, fast-forwarded from the requested baseline `a257623`. The application was rebuilt and restarted on the required local URL `http://127.0.0.1:8080/` with the `demo` profile and disposable Mongo database `jachai_demo_local`; the process is healthy at `/api/v1/health` and `/actuator/health/liveness`. No customer database or real-money endpoint is used by this run.
 
 Real Chrome clicks passed for all six demo buttons. Each issued the corresponding `POST /api/v1/demo/login/{key}`, created an in-memory browser session, reached the expected dashboard route, and showed the expected isolated workspace/role:
 
@@ -41,7 +41,7 @@ The remaining untracked `.kilo/`, `.playwright-mcp/`, and `agent-prompts/` files
 
 ## Verification checkpoint (2026-10-08)
 
-The current `support-center`/`main` revision is `a257623`. Java 21 compilation passed, `JachAiApplicationTests` passed, and the focused billing flow/reconciliation suite passed with 0 failures. The existing process on port 8080 was deliberately left running; it returned the sign-in page and liveness health response, while `/api/v1/demo/accounts` returned 404 because that process is not running the public `demo` profile. Desktop and mobile screenshots from that live process are retained at `target/frontend-live-evidence/sign-in-desktop.png` and `target/frontend-live-evidence/sign-in-mobile.png`; both rendered the password field, visibility UI, recovery links, Google area, and six role labels.
+The baseline `support-center`/`main` revision for this checkpoint was `a257623`; the current verified revision is documented above. Java 21 compilation passed, `JachAiApplicationTests` passed, and the focused billing flow/reconciliation suite passed with 0 failures. The application was subsequently restarted on port 8080 in isolated demo mode and its current evidence is documented above.
 
 The six links cannot be treated as working hosted demo journeys from this runtime: the process on port 8080 was started before the current compiled classes and rendered relative/local demo links rather than an isolated HTTPS preview. No demo session or dashboard navigation is claimed. A real deployment still needs `SPRING_PROFILES_ACTIVE=demo`, `DEMO_PUBLIC_ACCESS=true`, a dedicated `DEMO_MONGODB_DATABASE=jachai_demo_*`, an HTTPS `APP_PUBLIC_BASE_URL`, and `DEMO_PREVIEW_URL` on the customer-facing deployment. Existing candidate worktrees were audited; their missing commits either are already represented on `main` or contain broad incompatible deletions and were not merged.
 
