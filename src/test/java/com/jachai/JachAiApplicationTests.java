@@ -15,6 +15,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.jachai.auth.service.AuthService;
 import com.jachai.auth.service.GoogleAuthService;
@@ -94,6 +95,7 @@ import java.time.Instant;
 @ActiveProfiles("test")
 class JachAiApplicationTests {
     @Autowired MockMvc mvc;
+    @Autowired com.jachai.shared.web.PageController pageController;
     @MockitoBean AuthService authService;
     @MockitoBean GoogleAuthService googleAuthService;
     @MockitoBean UserRepository userRepository;
@@ -420,6 +422,23 @@ class JachAiApplicationTests {
         mvc.perform(get("/app.css")).andExpect(status().isOk());
         mvc.perform(get("/theme.css")).andExpect(status().isOk());
         mvc.perform(get("/theme.js")).andExpect(status().isOk());
+    }
+
+    @Test
+    void configuredFacultyPreviewShowsRoleLinksOnMainSignIn() throws Exception {
+        ReflectionTestUtils.setField(pageController, "demoPreviewUrl", "https://demo.jachai.example");
+        try {
+            mvc.perform(get("/"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("demoRole=academy-admin")))
+                    .andExpect(content().string(containsString("demoRole=instructor")))
+                    .andExpect(content().string(containsString("demoRole=learner")))
+                    .andExpect(content().string(containsString("demoRole=talent-admin")))
+                    .andExpect(content().string(containsString("demoRole=recruiter")))
+                    .andExpect(content().string(containsString("demoRole=candidate")));
+        } finally {
+            ReflectionTestUtils.setField(pageController, "demoPreviewUrl", "");
+        }
     }
 
     @Test

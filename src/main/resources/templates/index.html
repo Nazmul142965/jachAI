@@ -63,7 +63,19 @@
         <button class="button primary" type="submit">Create account</button>
         <p class="muted">Already registered? <a class="inline-link" href="/verify-email.html">Request a new verification link</a> or switch to Sign in above.</p>
       </form>
-      <div id="google-login-area" class="google-signin hidden"><p class="muted">Or continue with Google</p><div id="google-login-button"></div><p id="google-login-help" class="google-login-help hidden" role="alert"></p></div>
+      <div id="google-login-area" class="google-signin hidden"><p class="muted">or</p><div id="google-login-button"></div><p id="google-login-help" class="google-login-help hidden" role="alert"></p></div>
+      <section id="demo-preview" class="demo-access" th:if="${demoPreviewUrl != ''}" aria-labelledby="demo-preview-title">
+        <h2 id="demo-preview-title">Explore JachAI</h2>
+        <p class="muted">Choose a role to enter a separate, disposable preview workspace. No password needed.</p>
+        <div class="demo-access-roles">
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='academy-admin')}">Academy owner</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='instructor')}">Academy instructor</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='learner')}">Academy learner</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='talent-admin')}">Talent owner</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='recruiter')}">Talent recruiter</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='candidate')}">Talent candidate</a>
+        </div>
+      </section>
       <section id="demo-access" class="demo-access hidden" aria-labelledby="demo-access-title">
         <h2 id="demo-access-title">Explore JachAI by role</h2>
         <p class="muted">Choose a role to enter a disposable Academy or Talent workspace. No password or copy-paste needed; changes here are shared test data.</p>

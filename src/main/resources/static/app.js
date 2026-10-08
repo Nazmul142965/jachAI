@@ -1403,7 +1403,10 @@ async function showView(key) {
     }
   }
   if (key === 'academy-batch') await loadAcademyBatchWorkspace();
-  if (key === 'messages') await loadMessaging();
+  if (key === 'messages') {
+    await loadList('#conversations-list', () => loadMessaging(), 'Messages could not be loaded.');
+    attachFilter('#conversations-list', 'Filter conversations by name');
+  }
   if (key === 'campaigns') {
     await loadList('#campaigns-list', async () => {
       await loadPublishedAssessments('#campaign-assessment', '#campaign-assessment-pagination');
@@ -4114,7 +4117,7 @@ async function setupGoogleSignIn() {
       }
     }
   }) });
-  area.querySelector('.muted').textContent = 'Or continue with your Google account';
+  area.querySelector('.muted').textContent = 'or';
   for (const [selector, area] of [['#google-login-button', '#google-login-area'],
     ['#google-link-button', '#google-link-area']]) {
     window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'en' });
@@ -4170,6 +4173,13 @@ request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
     return control;
   }));
   $('#demo-access').classList.remove('hidden');
+  const requestedRole = new URLSearchParams(window.location.search).get('demoRole');
+  if (requestedRole && accounts.some((account) => account.key === requestedRole)) {
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('demoRole');
+    window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    roles.children[accounts.findIndex((account) => account.key === requestedRole)].click();
+  }
 }).catch(() => { /* Non-demo profiles intentionally have no demo endpoint. */ });
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const element = event.currentTarget;
