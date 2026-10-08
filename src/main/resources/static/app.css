@@ -901,7 +901,7 @@ a:focus-visible,
   gap: var(--sp-5);
   align-items: start;
 }
-.dash-primary { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
+.dash-primary { grid-template-columns: minmax(0, 1fr); }
 .dash-secondary { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
 
 /* The queue is the one thing on this screen that is genuinely urgent, so it
@@ -909,7 +909,7 @@ a:focus-visible,
 .dash-focus { border-left: 3px solid var(--brand); }
 .dash-focus .item-title { letter-spacing: var(--tracking-tight); }
 
-.dash-side .metrics { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--sp-3); }
+.dash-side .metrics { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: var(--sp-3); }
 .dash-side .metric { padding: var(--sp-4); }
 .dash-side .metric-value { font-size: 26px; }
 
@@ -1157,6 +1157,7 @@ a:focus-visible,
 
   .usage-grid { grid-template-columns: 1fr; }
   .dash-side .metrics { grid-template-columns: 1fr 1fr; }
+  .dash-side .metrics .metric:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
   .topbar {
     height: auto;
