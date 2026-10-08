@@ -1,6 +1,6 @@
 # JachAI pre-deployment release check
 
-**Revision:** `ecab0e9` on `main`  
+**Revision:** `980a2e1` on `main`  
 **Checked:** 2026-10-09  
 **Local URL:** `http://127.0.0.1:8080/`  
 **Data safety:** no customer data was deleted or modified; no real-money checkout was started.
@@ -34,3 +34,39 @@
 6. Run the opt-in MongoDB/Redis integration and reverse-proxy client-IP checks against disposable infrastructure before routing customer traffic.
 
 **Release recommendation:** application code is test-clean and local demo-safe, but production deployment should remain gated until the items marked **UNVERIFIED** that are required for the chosen hosting environment are completed.
+
+## Deployment environment and smoke checklist
+
+Configure these names through the hosting platform's secret manager or environment
+settings; never print their values or commit them:
+
+| Purpose | Environment variable |
+| --- | --- |
+| MongoDB connection | `MONGODB_URI` |
+| MongoDB database | `MONGODB_DATABASE` |
+| JWT signing secret | `JWT_SECRET` |
+| Redis host/port or URL | `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_SSL_ENABLED`, or `SPRING_DATA_REDIS_URL` |
+| SMTP transport | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` |
+| Mail payload encryption | `MAIL_JOB_ENCRYPTION_KEY` |
+| Public HTTPS origin | `APP_PUBLIC_BASE_URL` |
+| Public demo access | `DEMO_PUBLIC_ACCESS` |
+| Google sign-in | `GOOGLE_CLIENT_ID` |
+| AI providers | `AI_PROVIDER`, `AI_TUTOR_PROVIDER`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OLLAMA_BASE_URL` |
+| Payment sandboxes | `SSLCOMMERZ_SANDBOX_STORE_ID`, `SSLCOMMERZ_SANDBOX_STORE_PASSWORD`, `BKASH_SANDBOX_APP_KEY`, `BKASH_SANDBOX_APP_SECRET`, `BKASH_SANDBOX_USERNAME`, `BKASH_SANDBOX_PASSWORD` |
+| Trusted proxy (only when required) | `TRUSTED_PROXY_CIDRS` |
+
+Before routing users, check from the deployed HTTPS origin:
+
+1. `GET /api/v1/health` returns HTTP 200.
+2. `GET /actuator/health/liveness` returns HTTP 200.
+3. `GET /actuator/health/readiness` is healthy and includes the required MongoDB/Redis dependencies.
+4. The application serves the login page over HTTPS and does not expose secret values in responses or logs.
+5. If public demos are enabled, `GET /api/v1/demo/accounts` returns exactly six roles and no password is requested.
+6. Click each demo role once: `academy-admin`, `instructor`, `learner`, `talent-admin`, `recruiter`, and `candidate`.
+7. Confirm Academy owner/instructor/learner and Talent owner/recruiter/candidate land in the correct workspace with role-scoped navigation.
+8. Confirm Academy learner and Talent candidate can see Tutor only after a released result; active attempts must not expose Tutor.
+9. Confirm demo accounts cannot change password, reset password, change profile/avatar, or link Google; do not apply this restriction to real accounts.
+10. Verify one controlled real-account login, password change, Google flow, support ticket, and platform-admin flow using disposable/test identities.
+
+`DEMO_SHARED_DATABASE` is intentionally not part of this required deployment list:
+it must not be made mandatory and must not reintroduce a database-name restriction.
