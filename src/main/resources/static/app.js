@@ -2598,9 +2598,11 @@ async function compareCandidates(campaignId, pageNumber = 0) {
       const counts = Object.entries(report.eventCounts || {})
         .map(([type, count]) => `${type.replaceAll('_', ' ').toLowerCase()}: ${count}`).join(' · ');
       integrityPanel.replaceChildren(
-        node('p', `${report.totalEvents} recorded events · ${report.clientReportedRapidAnswerIntervals} rapid answer intervals`, 'item-meta'),
+        node('p', `${report.totalEvents} recorded events · ${report.tabSwitchCount || 0} tab leaves · ${report.clientReportedRapidAnswerIntervals} rapid answer intervals`, 'item-meta'),
         node('p', counts || 'No signals recorded.'),
-        node('p', report.interpretation, 'muted'));
+        node('p', report.tabSwitchLimitReached
+          ? 'Three tab leaves reached; review the attempt before making a decision.'
+          : report.interpretation, 'muted'));
     });
     const eventsPanel = node('div', '', 'item-list');
     const eventsButton = button('Event log', () => loadIntegrityEvents(candidate.attemptId, 0, eventsPanel));
@@ -2754,8 +2756,11 @@ async function sendTelemetry(type, questionId) {
   if (!talentAttemptActive()) return;
   const attemptId = state.activeAttempt.id;
   try {
-    await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/telemetry`),
+    const response = await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/telemetry`),
       { method: 'POST', body: { type, ...(questionId ? { questionId } : {}) } });
+    if (response?.warning) {
+      notice(response.warningMessage || 'Exam tab switching has reached the review threshold.', true);
+    }
   } catch (_) { /* Optional signals must never block the assessment. */ }
 }
 document.addEventListener('visibilitychange', () => {

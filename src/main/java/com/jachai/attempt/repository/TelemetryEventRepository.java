@@ -1,6 +1,7 @@
 package com.jachai.attempt.repository;
 
 import com.jachai.attempt.model.TelemetryEvent;
+import com.jachai.attempt.model.TelemetryEventType;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -12,6 +13,8 @@ public interface TelemetryEventRepository extends MongoRepository<TelemetryEvent
             String organizationId, String attemptId, Instant now);
     List<TelemetryEvent> findByOrganizationIdAndAttemptIdAndExpiresAtAfterOrderByReceivedAtAsc(
             String organizationId, String attemptId, Instant now);
+    long countByOrganizationIdAndAttemptIdAndTypeAndExpiresAtAfter(
+            String organizationId, String attemptId, TelemetryEventType type, Instant now);
     Page<TelemetryEvent> findByOrganizationIdAndAttemptIdAndExpiresAtAfter(
             String organizationId, String attemptId, Instant now, Pageable pageable);
 }

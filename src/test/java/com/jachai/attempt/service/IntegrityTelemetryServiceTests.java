@@ -80,6 +80,27 @@ class IntegrityTelemetryServiceTests {
     }
 
     @Test
+    void thirdTabLeaveReturnsWarningForCandidate() {
+        talent();
+        when(attempts.findByIdAndOrganizationIdAndUserId("attempt", "org-a", "candidate"))
+                .thenReturn(Optional.of(attempt(AttemptStatus.IN_PROGRESS)));
+        when(assignments.findByIdAndOrganizationId("assignment", "org-a"))
+                .thenReturn(Optional.of(assignment("campaign")));
+        when(events.insert(any(TelemetryEvent.class))).thenAnswer(call -> call.getArgument(0));
+        when(events.countByOrganizationIdAndAttemptIdAndTypeAndExpiresAtAfter(
+                org.mockito.ArgumentMatchers.eq("org-a"), org.mockito.ArgumentMatchers.eq("attempt"),
+                org.mockito.ArgumentMatchers.eq(TelemetryEventType.TAB_HIDDEN), any(Instant.class)))
+                .thenReturn(3L);
+
+        var result = service().record("candidate", "org-a", "attempt",
+                new RecordTelemetryRequest(TelemetryEventType.TAB_HIDDEN, null));
+
+        assertEquals(3L, result.tabSwitchCount());
+        assertTrue(result.warning());
+        assertTrue(result.warningMessage().contains("reported to the examiner"));
+    }
+
+    @Test
     void anotherCandidateCannotRecordAnEvent() {
         talent();
         ApiException error = assertThrows(ApiException.class, () -> service().record(

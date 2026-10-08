@@ -34,6 +34,7 @@ import org.springframework.stereotype.Service;
 public class IntegrityTelemetryService {
     private static final Duration RETENTION = Duration.ofDays(90);
     private static final long MAX_STORED_EVENTS_PER_ATTEMPT = 200;
+    private static final long TAB_SWITCH_WARNING_LIMIT = 3;
     private static final Duration RAPID_ANSWER_WINDOW = Duration.ofSeconds(2);
 
     private final TelemetryEventRepository events;
@@ -70,7 +71,15 @@ public class IntegrityTelemetryService {
         }
         TelemetryEvent event = new TelemetryEvent(UUID.randomUUID().toString(), organizationId,
                 attemptId, candidateId, request.type(), questionId, now, now.plus(RETENTION));
-        return TelemetryEventView.from(events.insert(event));
+        TelemetryEvent saved = events.insert(event);
+        long tabSwitches = events.countByOrganizationIdAndAttemptIdAndTypeAndExpiresAtAfter(
+                organizationId, attemptId, TelemetryEventType.TAB_HIDDEN, now);
+        boolean warning = request.type() == TelemetryEventType.TAB_HIDDEN
+                && tabSwitches >= TAB_SWITCH_WARNING_LIMIT;
+        return new TelemetryEventView(saved.type(), saved.questionId(), saved.receivedAt(),
+                tabSwitches, warning,
+                warning ? "You have left the exam tab three times. This integrity event was reported to the examiner."
+                        : null);
     }
 
     public IntegrityReport report(String actorId, String organizationId, String attemptId) {
@@ -94,7 +103,9 @@ public class IntegrityTelemetryService {
                 previousQuestionId = event.questionId();
             }
         }
+        long tabSwitches = counts.getOrDefault(TelemetryEventType.TAB_HIDDEN, 0L);
         return new IntegrityReport(attemptId, all.size(), Map.copyOf(counts), rapid,
+                tabSwitches, tabSwitches >= TAB_SWITCH_WARNING_LIMIT,
                 "Client-reported signals are evidence for human review, not proof of cheating");
     }
 
