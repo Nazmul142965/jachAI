@@ -2,6 +2,8 @@
 
 ## Six-role demo on the production deployment
 
+On the local `local` profile, the demo endpoint is present but only works when the configured database name starts with `jachai_demo_`; this prevents a normal customer/developer database from receiving passwordless demo access. Use `SPRING_PROFILES_ACTIVE=local`, `LOCAL_MONGODB_DATABASE=jachai_demo_local`, and the existing local Mongo/Atlas connection for a disposable local demo. The sign-in page now keeps the demo panel visible and explains the exact configuration reason when the endpoint is unavailable instead of silently hiding it.
+
 The six one-click roles can be enabled on the same hosted production deployment and Mongo database only with an explicit two-flag opt-in: `DEMO_PUBLIC_ACCESS=true` and `DEMO_SHARED_DATABASE=true`. The deployment must use a public HTTPS `APP_PUBLIC_BASE_URL`. Demo users and organizations use reserved `demo-account-*`, `demo-org-*`, and `@demo.jachai.invalid` identifiers; they are seeded through normal services and can access only the two demo organizations. They cannot change their profile/password, link Google, or use password reset. All customer organizations remain protected by the existing membership and tenant checks.
 
 This is a shared production data store, not a separate demo database. Anyone with the public URL can change demo workspace data, so do not place customer records in the demo organizations and do not describe this as a private faculty account. Payment credentials and real-money endpoints remain disabled for the demo path.

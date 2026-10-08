@@ -79,9 +79,9 @@
           <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='candidate')}">Talent candidate</a>
         </div>
       </section>
-      <section id="demo-access" class="demo-access hidden" aria-labelledby="demo-access-title">
+      <section id="demo-access" class="demo-access" aria-labelledby="demo-access-title">
         <h2 id="demo-access-title">Explore JachAI by role</h2>
-        <p class="muted">Choose a role to enter a disposable Academy or Talent workspace. No password or copy-paste needed; changes here are shared test data.</p>
+        <p id="demo-access-status" class="muted">Loading disposable demo roles…</p>
         <div id="demo-access-roles" class="demo-access-roles"></div>
       </section>
     </section>

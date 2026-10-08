@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
 
 /** Disposable local demo identities; no passwords or public credentials are stored. */
 @Service
-@Profile("demo | prod")
+@Profile("demo | prod | local")
 @Slf4j
 public class DemoAccountService {
     public record DemoAccount(String key, String label, String role, String workspace) { }

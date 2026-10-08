@@ -4214,6 +4214,7 @@ function loadDemoAccess() {
     return control;
   }));
   $('#demo-access').classList.remove('hidden');
+  $('#demo-access-status').textContent = 'Choose a role to enter a disposable Academy or Talent workspace. No password or copy-paste needed; changes here are shared test data.';
   const requestedRole = new URLSearchParams(window.location.search).get('demoRole');
   if (requestedRole && accounts.some((account) => account.key === requestedRole)) {
     const cleanUrl = new URL(window.location.href);
@@ -4221,7 +4222,11 @@ function loadDemoAccess() {
     window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
     roles.children[accounts.findIndex((account) => account.key === requestedRole)].click();
   }
-  }).catch(() => { /* Non-demo profiles intentionally have no demo endpoint. */ });
+  }).catch((error) => {
+    $('#demo-access-status').textContent = error.code === 'DEMO_DATABASE_REQUIRED'
+      ? 'Demo roles are disabled for this database. Start the local app with the disposable jachai_demo_* database, or explicitly enable shared demo access.'
+      : 'Demo roles are not enabled on this deployment. The operator must enable the documented demo settings before these buttons can be used.';
+  });
 }
 loadDemoAccess();
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
