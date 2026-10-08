@@ -530,19 +530,21 @@ input[type="email"], input[type="password"], input[type="text"] {
 /* Password visibility toggle */
 .password-field {
   position: relative;
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  gap: var(--sp-2);
 }
 .password-field > input[type="password"],
 .password-field > input[type="text"] {
-  flex: 1;
+  width: 100%;
+  min-width: 0;
   padding-right: 52px;
 }
 .password-toggle {
   position: absolute;
   right: 0;
-  top: 0;
+  top: auto;
   bottom: 0;
+  height: 46px;
   width: 46px;
   display: flex;
   align-items: center;

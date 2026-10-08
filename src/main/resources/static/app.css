@@ -155,19 +155,21 @@ input[type=checkbox], input[type=radio] { width: auto; min-height: auto; accent-
 /* Password visibility toggle for workspace forms */
 .password-field {
   position: relative;
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  gap: var(--sp-2);
 }
 .password-field > input[type="password"],
 .password-field > input[type="text"] {
-  flex: 1;
+  width: 100%;
+  min-width: 0;
   padding-right: 48px;
 }
 .password-toggle {
   position: absolute;
   right: 0;
-  top: 0;
+  top: auto;
   bottom: 0;
+  height: 42px;
   width: 42px;
   display: flex;
   align-items: center;
