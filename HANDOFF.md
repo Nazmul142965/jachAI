@@ -1,5 +1,31 @@
 # JachAI working handoff
 
+## Latest delivered change log (2026-10-08)
+
+`main` and `support-center` are aligned at `403da4d`. The following table records the
+recent user-requested work and the reason for each change so a later maintainer can
+understand the decisions without reconstructing the commit history:
+
+| Commit | Change | Why it was done |
+| --- | --- | --- |
+| `6d9be63` | Replaced the unsupported derived MongoDB `BigDecimal` sum query with a custom aggregation repository fragment. | Spring Data tried to reflect into `java.math.BigDecimal`, so the application failed during startup while creating `PaymentOrderRepository`. |
+| `f78e16e`, `9dd9896` | Hardened SSLCOMMERZ and bKash sandbox checkout/callback validation and reconciliation. | A browser redirect alone must not verify a payment; provider identity, callbacks, duplicate notifications, tenant boundaries, and entitlement application need server-side checks. |
+| `00b649d` | Added server-side exam tab-leave counting and a warning after repeated leaves. | The original browser telemetry was not enough to surface repeated tab switching to reviewers. |
+| `22370b1` | Preserved the signed-in JachAI tab during sandbox checkout and added safe cancellation for unfinished payments. | Opening checkout in the same tab could appear to log the customer out; customers also need a way to cancel before verification/application. |
+| `e785e37` | Added authenticated avatar upload/removal with resize, JPEG conversion, output-size bounds, and a separate `user_avatars` collection. | Users need visible profile images without putting large binary data into the main user document or exhausting the primary database unnecessarily. |
+| `43ca4f7` | Added safe direct Google sign-in and automatic account linking for authoritative verified email identities. | A first-time Google user should not have to register again, while conflicting, disabled, or unverified identities must remain protected. |
+| `123b338`, `3261c71`, `401cf13` | Kept demo login visible, enabled the six role shortcuts in supported profiles, and removed the database-name restriction. | Demo access should remain discoverable and work on the configured database without silently disappearing or forcing a special database name. Demo users remain protected from password, profile, avatar, and Google-identity changes. |
+| `092f2e1`, `1e13aee` | Connected user Support tickets and the platform-admin Support inbox to the existing APIs. | Users need a clear place to ask for help, and operators need a controlled place to reply, add internal notes, and change ticket status. |
+| `b199e91` | Consolidated Profile, Support, and Sign out into one account menu; removed duplicate sidebar/footer actions and exposed Messages. | The previous layout repeated the same actions and made Academy messaging difficult to discover. |
+| `bb9bf98` | Clarified the AI Tutor wording as Academy-focused while preserving the existing Academy learner guard. | The initial product decision described Tutor as Academy-only, so the UI needed to communicate that scope accurately. |
+| `403da4d` | Enabled AI Tutor for Talent candidates as well as Academy learners, from a released result and the account workspace. | Candidates should be able to learn from an exam after it ends, and practice independently later; active in-progress exams remain blocked by the server guard. |
+
+The latest Tutor policy is therefore: **Academy learners and Talent candidates may use Tutor
+after a submitted result is graded and released; neither role can use it during an active
+exam.** Staff roles do not receive the learner/candidate Tutor entry point. The frontend
+journey suite remains at 151/151, Java compilation passes, and the latest Tutor change is
+already fast-forwarded into `main`.
+
 ## Delivery verification (2026-10-08, current revision)
 
 The current `main`/`support-center` revision is `b50db14`, fast-forwarded from the requested baseline `a257623`. The application was rebuilt and restarted on the required local URL `http://127.0.0.1:8080/` with the `demo` profile and disposable Mongo database `jachai_demo_local`; the process is healthy at `/api/v1/health` and `/actuator/health/liveness`. No customer database or real-money endpoint is used by this run.
