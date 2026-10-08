@@ -64,7 +64,10 @@
         <p class="muted">Already registered? <a class="inline-link" href="/verify-email.html">Request a new verification link</a> or switch to Sign in above.</p>
       </form>
       <div id="google-login-area" class="google-signin hidden"><p class="muted">or</p><div id="google-login-button"></div><p id="google-login-help" class="google-login-help hidden" role="alert"></p></div>
-      <section id="demo-preview" class="demo-access" th:if="${demoPreviewUrl != ''}" aria-labelledby="demo-preview-title">
+      <section id="demo-preview" class="demo-access"
+               th:if="${demoPreviewUrl != null and !#strings.isEmpty(demoPreviewUrl)
+                 and #strings.startsWith(demoPreviewUrl, 'https://')}"
+               aria-labelledby="demo-preview-title">
         <h2 id="demo-preview-title">Explore JachAI</h2>
         <p class="muted">Choose a role to enter a separate, disposable preview workspace. No password needed.</p>
         <div class="demo-access-roles">

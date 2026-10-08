@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import org.junit.jupiter.api.Test;
@@ -439,6 +440,15 @@ class JachAiApplicationTests {
         } finally {
             ReflectionTestUtils.setField(pageController, "demoPreviewUrl", "");
         }
+    }
+
+    @Test
+    void missingFacultyPreviewDoesNotRenderClickableRoleLinks() throws Exception {
+        ReflectionTestUtils.setField(pageController, "demoPreviewUrl", "");
+        mvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("demoRole=academy-admin"))))
+                .andExpect(content().string(not(containsString("demoRole=candidate"))));
     }
 
     @Test

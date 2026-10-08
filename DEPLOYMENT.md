@@ -4,6 +4,8 @@
 
 The six one-click roles on the sign-in page are available when the `demo` profile is active. For a remote faculty preview, use a separate deployment with `SPRING_PROFILES_ACTIVE=demo`, `SERVER_ADDRESS=0.0.0.0`, `DEMO_PUBLIC_ACCESS=true`, a public HTTPS `APP_PUBLIC_BASE_URL`, and a dedicated `DEMO_MONGODB_DATABASE=jachai_demo_*`. Never use the real-data database or combine `demo` with `prod`. The demo login service rejects any database not starting with `jachai_demo_`; remote access also rejects a non-HTTPS public origin. Do not configure payment credentials or live AI for this disposable preview. Its accounts are shared and passwordless, so anyone with the URL can change demo data; do not treat it as a private faculty account or a production release.
 
+Local live verification on 2026-10-08 passed on `http://127.0.0.1:8080/` using `SPRING_PROFILES_ACTIVE=demo` and the disposable `jachai_demo_local` database. Chrome clicks for all six roles reached their expected role and dashboard routes; this is local Mongo-backed evidence, not proof of a hosted HTTPS deployment.
+
 On the real-data deployment, set `DEMO_PREVIEW_URL` to that separate preview's HTTPS origin. Its sign-in page then shows six role links; each opens the isolated preview and signs in to the chosen role automatically. Without this URL, those links are intentionally absent because an anonymous demo cannot safely run against customer data. The preview URL must be an HTTPS origin without a path, query, fragment, or credentials.
 
 This is a sandbox-only deployment path for evaluating JachAI. It is not a production release sign-off. Keep all gateway endpoints in sandbox mode and never commit real environment files.

@@ -1,5 +1,44 @@
 # JachAI working handoff
 
+## Delivery verification (2026-10-08, current revision)
+
+The current `main`/`support-center` revision is being advanced from `a257623`. The application was rebuilt and restarted on the required local URL `http://127.0.0.1:8080/` with the `demo` profile and disposable Mongo database `jachai_demo_local`; the process is healthy at `/api/v1/health` and `/actuator/health/liveness`. No customer database or real-money endpoint is used by this run.
+
+Real Chrome clicks passed for all six demo buttons. Each issued the corresponding `POST /api/v1/demo/login/{key}`, created an in-memory browser session, reached the expected dashboard route, and showed the expected isolated workspace/role:
+
+| Key | Browser result |
+| --- | --- |
+| `academy-admin` | `#/overview`, `Academy · Owner / Org Admin`, `Demo Academy` |
+| `instructor` | `#/overview`, `Academy · Instructor`, `Demo Academy` |
+| `learner` | `#/start`, `Academy · Learner`, `Demo Academy` |
+| `talent-admin` | `#/overview`, `Talent · Owner / Org Admin`, `Demo Talent` |
+| `recruiter` | `#/overview`, `Talent · Recruiter`, `Demo Talent` |
+| `candidate` | `#/start`, `Talent · Candidate`, `Demo Talent` |
+
+Live sign-in screenshots are `target/frontend-live-evidence/sign-in-demo-desktop.png`, `target/frontend-live-evidence/sign-in-demo-mobile.png`, `target/frontend-live-evidence/demo-live-academy-owner.png`, and `target/frontend-live-evidence/demo-live-talent-candidate.png`. Desktop/mobile checks measured the password field at 371px/301px, found both recovery links, and found six dynamic demo buttons with no invalid server-rendered preview links. The mocked real-browser suite passed 151/151 checks across six journeys after fixing the 320px/375px sidebar navigation grid. Java 21 compilation passed; `JachAiApplicationTests` passed 31/31; focused billing/entitlement/reconciliation tests passed 99 executed with 14 opt-in Mongo tests skipped because no `MONGODB_TEST_URI` was supplied.
+
+### Branch and worktree disposition
+
+All worktrees were inspected against current `main` at file and behavior level. Dirty/untracked files in the main worktree and active worktrees were preserved.
+
+| Branch | Worktree | Disposition |
+| --- | --- | --- |
+| `main`, `support-center` | `E:\Advance Java\jachAI` | Current delivery branch; fast-forward main after commit |
+| `appmod/java-upgrade-20261003170058` | `C:\Users\nazmul\Documents\Codex\2026-09-29\pu\jachai-platform-admin` | Same tree as main; no unique work |
+| `audit/billing-sandbox-flow` | `E:\Advance Java\jachAI-payment-audit` | Its 12 production payment properties are already on main via `3ed3943`; keep historical audit branch |
+| `ai/practice-reliability` | `E:\Advance Java\jachAI-practice-ai` | Practice limits, retention, replay safety, and opt-in tests already integrated on main; no duplicate merge |
+| `backend/atlas-config`, `backend/audit-recovery`, `backend/connection-doctor`, `backend/dependency-hygiene`, `backend/guard-reports-source`, `backend/local-secrets-file`, `backend/pending-account-retention`, `backend/placeholder-guard`, `backend/startup-diagnostics`, `preflight/fix-mongo-preflight` | Separate `E:\Advance Java\jachAI-*` worktrees | No file delta from main; already integrated |
+| `feat/platform-admin-dashboard`, `integrate/backend`, `frontend/product-home`, `frontend/ui-refresh` | Separate worktrees | No file delta from main; already integrated |
+| `frontend/complete-journeys` | `E:\Advance Java\jachAI-journeys` | Google UI commit integrated as `c59f861`; verification-only commits add no missing product code |
+| `frontend/dashboard` | `E:\Advance Java\jachAI-frontend` | Message loading delta integrated as `d426172`; remaining branch commits are already present or documentation-only |
+| `test/support-center` | `C:\Users\nazmul\Documents\Codex\2026-09-29\pu\jachai-support-tests` | Support tests already integrated through `64c23c5`; no duplicate merge |
+| `frontend/react-dashboard` | `E:\Advance Java\jachAI-react-ui` | Deliberately excluded: second UI conflicts with the static same-origin architecture |
+| `delivery/academy-talent-ui` | `E:\Advance Java\jachAI-claude-delivery` | Deliberately excluded: broad incompatible snapshot with unrelated deletions and stale configuration |
+| `generated-braid`, `halved-shade`, `lavender-tartan` | `.kilo\worktrees\...` | Same commit/tree; no unique work |
+| `merge/integrate` | `E:\Advance Java\jachAI-merge` | No unique file delta from main |
+
+The remaining untracked `.kilo/`, `.playwright-mcp/`, and `agent-prompts/` files were not touched or added.
+
 ## Verification checkpoint (2026-10-08)
 
 The current `support-center`/`main` revision is `a257623`. Java 21 compilation passed, `JachAiApplicationTests` passed, and the focused billing flow/reconciliation suite passed with 0 failures. The existing process on port 8080 was deliberately left running; it returned the sign-in page and liveness health response, while `/api/v1/demo/accounts` returned 404 because that process is not running the public `demo` profile. Desktop and mobile screenshots from that live process are retained at `target/frontend-live-evidence/sign-in-desktop.png` and `target/frontend-live-evidence/sign-in-mobile.png`; both rendered the password field, visibility UI, recovery links, Google area, and six role labels.

@@ -1185,6 +1185,7 @@ a:focus-visible,
   .button.small { min-height: 44px; padding: var(--sp-3) var(--sp-4); }
 
   .side-nav { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-1); overflow: visible; }
+  .side-nav[data-collapsed="true"] { display: grid; }
   .side-nav button { width: 100%; white-space: normal; }
   .nav-heading { grid-column: 1 / -1; margin: var(--sp-3) 2px 2px; }
 
