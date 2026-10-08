@@ -1,5 +1,11 @@
 # JachAI working handoff
 
+## Verification checkpoint (2026-10-08)
+
+The current `support-center`/`main` revision is `a257623`. Java 21 compilation passed, `JachAiApplicationTests` passed, and the focused billing flow/reconciliation suite passed with 0 failures. The existing process on port 8080 was deliberately left running; it returned the sign-in page and liveness health response, while `/api/v1/demo/accounts` returned 404 because that process is not running the public `demo` profile. Desktop and mobile screenshots from that live process are retained at `target/frontend-live-evidence/sign-in-desktop.png` and `target/frontend-live-evidence/sign-in-mobile.png`; both rendered the password field, visibility UI, recovery links, Google area, and six role labels.
+
+The six links cannot be treated as working hosted demo journeys from this runtime: the process on port 8080 was started before the current compiled classes and rendered relative/local demo links rather than an isolated HTTPS preview. No demo session or dashboard navigation is claimed. A real deployment still needs `SPRING_PROFILES_ACTIVE=demo`, `DEMO_PUBLIC_ACCESS=true`, a dedicated `DEMO_MONGODB_DATABASE=jachai_demo_*`, an HTTPS `APP_PUBLIC_BASE_URL`, and `DEMO_PREVIEW_URL` on the customer-facing deployment. Existing candidate worktrees were audited; their missing commits either are already represented on `main` or contain broad incompatible deletions and were not merged.
+
 Parallel assignment boundaries and paste-ready prompts are in
 `AGENT_WORKSTREAMS.md`. Assign one writer per lane and integrate reviewed
 commits only after branch handoff; this file is not a completion claim.
