@@ -1,8 +1,8 @@
 # JachAI pre-deployment release check
 
-**Revision:** `980a2e1` on `main`  
-**Checked:** 2026-10-09  
-**Local URL:** `http://127.0.0.1:8080/`  
+**Revision:** `9006f69` on `main`
+**Checked:** 2026-10-09
+**Local URL:** `http://127.0.0.1:8080/`
 **Data safety:** no customer data was deleted or modified; no real-money checkout was started.
 
 ## Result
