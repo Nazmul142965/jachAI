@@ -10,7 +10,7 @@ Updated 2026-10-08. This is the backend-only coordination file. `ARCHITECTURE.md
 | **Support center** | **Integrated at `73d0ecc` (integrate/backend)** — cherry-picked `support-center` `48c948e` plus fixes. Adds ticket controllers/services/models, mail integration, PlatformSupportController, rate limit policy. | **CODED, INTEGRATED, LOCALLY TESTED** — unit tests pass. No live SMTP/Google/AI provider verification. |
 | **AI / personal practice** | **Integrated at `73d0ecc` (integrate/backend)** — cherry-picked `ai/practice-reliability` `9e624cf`..`2d762c4` (6 commits). Fixes replay-after-expiry, ambiguous-insert-outcome, duplicate-key refund vs fail-closed, global bucket isolation, replay field comparison, unsafe `@BeforeEach` global bucket deletion. | **CODED, INTEGRATED, LOCALLY TESTED** — 27 unit tests pass. Mongo integration tests opt-in via `MONGODB_TEST_URI`; live AI provider **PENDING**. |
 | Academy/Talent delivery branch | Previous comparison reported most code byte-identical with `main`; branch tip is `b1d9b78`. | Diff again. Do not merge 12 commits wholesale; extract only an actual missing backend change, if any. |
-| Billing/platform | Sandbox adapters and throttling code exist in `main`; no successful merchant sandbox transaction is evidenced here. | Audit callback/webhook verification, duplicate/retry handling, reconciliation, entitlement grant/reversal, and provider-error behavior. Test offline paths first. Never turn on live-money endpoints by inference. |
+| **Billing/platform** | Sandbox adapters and throttling code exist in `main`; no successful merchant sandbox transaction is evidenced here. **Platform-admin sandbox payment summary added at `02a323f` (merge/integrate)** — GET `/api/v1/platform/operations/sandbox-payments` returns count/sum of unique APPLIED orders by provider and weekly date range, labeled "Sandbox activity (not live revenue)". | Audit callback/webhook verification, duplicate/retry handling, reconciliation, entitlement grant/reversal, and provider-error behavior. Test offline paths first. Never turn on live-money endpoints by inference. |
 
 The screenshot from 2026-10-08 shows logo navigation failing with `Cannot read properties of null (reading 'myRole')`. That is an unresolved **frontend** defect, not a backend-complete signal. UI ownership stays with the UI agent; this queue does not edit those files.
 
@@ -44,20 +44,26 @@ Maintain this file as the single backend status queue. For each slice report: co
 | `222501f` | `ai/practice-reliability` (`8a5ae19`) | Practice: replay field comparison |
 | `600a861` | `ai/practice-reliability` (`67163e8`) | Practice: remove unsafe @BeforeEach global bucket deletion |
 | `4761772` | `ai/practice-reliability` (`2d762c4`) | Practice: delivery doc update |
-| `73d0ecc` | `integrate/backend` | Integration test skipping fix (@EnabledIf, conditional @DynamicPropertySource) |
+| `02a323f` | `merge/integrate` | Platform-admin sandbox payment summary (count/sum of APPLIED orders by provider & date range) |
 
 ### Test evidence
 
 **Unit tests (no MongoDB required):**
 ```
-PracticeServiceTests                    12 pass
-PersonalPracticeGenerationServiceTests   8 pass
-PracticeControllerTests                  2 pass
-SpringAiServiceTests                     5 pass
-PlatformSupportAccessServiceTests        5 pass
-PlatformBillingSupportServiceTests       6 pass
+PracticeServiceTests                     12 pass
+PersonalPracticeGenerationServiceTests    8 pass
+PracticeControllerTests                   2 pass
+SpringAiServiceTests                      5 pass
+PlatformSupportAccessServiceTests         5 pass
+PlatformBillingSupportServiceTests        6 pass
+PlatformAdminServiceTests                14 pass
+PlatformBillingSupportServiceTests        6 pass
+PlatformOperationsServiceTests            6 pass
+PlatformPlanServiceTests                  8 pass
+PlatformStorageServiceTests               5 pass
+PlatformSupportAccessServiceTests         5 pass
 ```
-All unit tests pass. Command: `./run-it-tests.bat "PracticeServiceTests,PersonalPracticeGenerationServiceTests,PracticeControllerTests,SpringAiServiceTests,PlatformSupportAccessServiceTests,PlatformBillingSupportServiceTests"`
+All unit tests pass. Command: `./run-it-tests.bat "PracticeServiceTests,PersonalPracticeGenerationServiceTests,PracticeControllerTests,SpringAiServiceTests,PlatformSupportAccessServiceTests,PlatformBillingSupportServiceTests,PlatformAdminServiceTests,PlatformOperationsServiceTests,PlatformPlanServiceTests,PlatformStorageServiceTests"`
 
 **Integration tests (require MONGODB_TEST_URI):**
 - 18 integration test classes updated with `@EnabledIf("integrationTestsEnabled")` 
@@ -76,6 +82,6 @@ All unit tests pass. Command: `./run-it-tests.bat "PracticeServiceTests,Personal
 
 1. **Support center** — No dedicated unit tests for `SupportTicketService`/`SupportTicketController`/`PlatformSupportController`. Add focused tests for authorization, tenant isolation, status transitions, reply persistence, notification failures.
 2. **AI/Practice** — Live AI provider call verification pending. Requires `AI_PROVIDER` + `GEMINI_API_KEY` (or equivalent) in environment.
-3. **Billing** — Sandbox callback/webhook verification, reconciliation, entitlement grant/reversal not yet exercised against real sandbox.
+3. **Billing** — Sandbox callback/webhook verification, reconciliation, entitlement grant/reversal not yet exercised against real sandbox. **Platform-admin sandbox payment summary** (`02a323f`) coded/integrated/locally-tested; live sandbox verification pending.
 4. **Browser UI** — Logo navigation `myRole` error is a frontend defect (separate ownership).
 5. **Integration test infrastructure** — Consider adding `@EnabledIfEnvironmentVariable` support for JUnit 5.12+ to simplify skipping logic.
