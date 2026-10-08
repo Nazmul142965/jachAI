@@ -13,7 +13,6 @@ import com.jachai.shared.error.ApiException;
 import java.time.Instant;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -43,28 +42,22 @@ public class DemoAccountService {
     private final MembershipRepository memberships;
     private final AuthService auth;
     private final DemoFixtureService fixtures;
-    private final boolean sharedDatabase;
-
     public DemoAccountService(MongoTemplate mongo, UserRepository users,
                               OrganizationRepository organizations, MembershipRepository memberships,
-                              AuthService auth, DemoFixtureService fixtures,
-                              @Value("${app.demo.shared-database:false}") boolean sharedDatabase) {
+                              AuthService auth, DemoFixtureService fixtures) {
         this.mongo = mongo;
         this.users = users;
         this.organizations = organizations;
         this.memberships = memberships;
         this.auth = auth;
         this.fixtures = fixtures;
-        this.sharedDatabase = sharedDatabase;
     }
 
     public List<DemoAccount> accounts() {
-        requireDemoDatabase();
         return ACCOUNTS;
     }
 
     public synchronized AuthResponse login(String key) {
-        requireDemoDatabase();
         DemoAccount account = ACCOUNTS.stream().filter(value -> value.key().equals(key)).findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "DEMO_ROLE_NOT_FOUND", "Demo role not found"));
         Instant now = Instant.now();
@@ -98,13 +91,6 @@ public class DemoAccountService {
             log.warn("Demo example setup incomplete: {}", exception.getClass().getSimpleName());
         }
         return auth.issueSession(user);
-    }
-
-    private void requireDemoDatabase() {
-        if (!sharedDatabase && !mongo.getDb().getName().startsWith("jachai_demo_")) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "DEMO_DATABASE_REQUIRED",
-                    "Demo login requires a dedicated jachai_demo_* database or explicit shared-database opt-in");
-        }
     }
 
     private void insertIfMissing(boolean present, Object document) {
