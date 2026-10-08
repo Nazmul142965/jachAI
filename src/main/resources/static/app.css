@@ -152,6 +152,49 @@ input:focus, select:focus, textarea:focus {
 
 input[type=checkbox], input[type=radio] { width: auto; min-height: auto; accent-color: var(--brand); }
 
+/* Password visibility toggle for workspace forms */
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+.password-field > input[type="password"],
+.password-field > input[type="text"] {
+  flex: 1;
+  padding-right: 48px;
+}
+.password-toggle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--line-strong);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0;
+}
+.password-toggle:hover {
+  background: var(--surface-sunk);
+  color: var(--ink);
+}
+.password-toggle:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
+  border-radius: var(--r-sm);
+}
+.password-toggle svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+
 [aria-invalid="true"] {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);
@@ -608,6 +651,9 @@ a:focus-visible,
 }
 
 .google-signin { margin-top: var(--sp-5); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
+.google-signin:not(.card) { text-align: center; }
+.google-signin #google-login-button, .google-signin #google-link-button { display: flex; justify-content: center; }
+.google-login-help:not(.hidden) { display: block; margin-top: var(--sp-4); padding: var(--sp-3); background: var(--danger-surface); border: 1px solid var(--danger); border-radius: var(--radius-sm); color: var(--danger-ink); text-align: left; }
 .demo-access { margin-top: var(--sp-6); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
 .demo-access h2 { font-size: var(--text-lg); }
 .demo-access .muted { max-width: 48ch; font-size: var(--text-sm); }
@@ -1429,6 +1475,19 @@ a:focus-visible,
 .auth-card .stack { gap: var(--sp-5); }
 .auth-card .button.primary { min-height: 48px; }
 .auth-card .inline-link { text-align: left; }
+
+/* Keep account recovery adjacent to the sign-in action, not as two extra rows. */
+.auth-recovery-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2) var(--sp-4); }
+.auth-recovery-links .inline-link { font-size: var(--text-sm); }
+.auth-layout { padding-block: clamp(20px, 3vh, 32px); gap: clamp(28px, 5vw, 72px); }
+.hero { padding-bottom: 0; }
+.hero h1 { font-size: clamp(42px, 4.6vw, 64px); margin: var(--sp-3) 0 var(--sp-4); }
+.hero .verify-row { margin-top: var(--sp-5); padding: var(--sp-4); }
+.auth-card { padding: clamp(22px, 2.3vw, 34px); }
+.auth-card .tabs { margin-bottom: var(--sp-4); }
+.auth-card .stack { gap: var(--sp-3); }
+.auth-card .hint { margin-bottom: var(--sp-4); }
+.auth-card .google-signin { margin-top: var(--sp-4); padding-top: var(--sp-4); }
 
 .workspace { min-height: calc(100dvh - var(--topbar-h)); background: linear-gradient(to right, var(--surface-sunk) var(--sidebar-w), var(--canvas) var(--sidebar-w)); }
 .sidebar { min-height: calc(100dvh - var(--topbar-h)); padding: var(--sp-7) var(--sp-4) var(--sp-5); background: var(--surface-sunk); }

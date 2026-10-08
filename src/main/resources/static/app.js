@@ -285,6 +285,55 @@ function showSignedOut() {
   setInAppLinks(false);
 }
 
+// Inject SVG icons for password toggles and other UI elements
+function injectIcons() {
+  if (document.getElementById('jachai-icons')) return;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'jachai-icons';
+  svg.style.display = 'none';
+  svg.innerHTML = `
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </symbol>
+  `;
+  document.body.appendChild(svg);
+}
+
+// Password visibility toggle utility
+function initPasswordToggles(root = document) {
+  for (const field of root.querySelectorAll('.password-field')) {
+    const input = field.querySelector('input[type="password"], input[type="text"]');
+    const toggle = field.querySelector('.password-toggle');
+    if (!input || !toggle) continue;
+    if (toggle.dataset.bound) continue;
+    toggle.dataset.bound = 'true';
+    toggle.addEventListener('click', () => {
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      toggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      toggle.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
+      toggle.querySelector('use')?.setAttribute('href', isPassword ? '#icon-eye-off' : '#icon-eye');
+    });
+  }
+}
+
+// Initialize icons and password toggles on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  injectIcons();
+  initPasswordToggles();
+});
+
+// Re-initialize password toggles after dynamic content loads
+function reinitPasswordToggles() {
+  injectIcons();
+  initPasswordToggles();
+}
+
 // ---------------------------------------------------------------------------
 // Leaving the page signs you out.
 //
@@ -1372,6 +1421,8 @@ async function showView(key) {
     await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
     attachFilter('#certificates-list', 'Filter certificates by code, status or date');
   }
+  // Re-initialize password toggles for any dynamically loaded forms
+  reinitPasswordToggles();
 }
 async function loadEntitlements() {
   const plan = await request(ownOrg('/billing/entitlements'));
@@ -4038,7 +4089,7 @@ async function setupGoogleSignIn() {
     return;
   }
   const script = document.createElement('script');
-  script.src = 'https://accounts.google.com/gsi/client';
+  script.src = 'https://accounts.google.com/gsi/client?hl=en';
   script.async = true;
   await new Promise((resolve, reject) => {
     script.onload = resolve; script.onerror = reject; document.head.append(script);
@@ -4048,14 +4099,25 @@ async function setupGoogleSignIn() {
       await request('/auth/google/link', { method: 'POST', body: { credential } });
       notice('Google account linked. You can use it to sign in next time.');
     } else {
-      const tokens = await request('/auth/google', { method: 'POST', auth: false, body: { credential } });
-      await signedIn(tokens);
+      try {
+        const tokens = await request('/auth/google', { method: 'POST', auth: false, body: { credential } });
+        await signedIn(tokens);
+      } catch (error) {
+        if (error.code !== 'ACCOUNT_LINK_REQUIRED') throw error;
+        const help = $('#google-login-help');
+        help.replaceChildren(node('span', 'This email already has a JachAI account. Sign in with your password, then open Profile & settings to connect Google. '));
+        const reset = node('a', 'Forgot your password?');
+        reset.href = '/reset-password.html';
+        help.append(reset);
+        help.classList.remove('hidden');
+        help.scrollIntoView({ block: 'nearest' });
+      }
     }
   }) });
   area.querySelector('.muted').textContent = 'Or continue with your Google account';
   for (const [selector, area] of [['#google-login-button', '#google-login-area'],
     ['#google-link-button', '#google-link-area']]) {
-    window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with' });
+    window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'en' });
     $(area).classList.remove('hidden');
   }
 }

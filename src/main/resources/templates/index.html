@@ -31,7 +31,6 @@
       <h1>Skills deserve more than a score.</h1>
       <p>Build reviewed assessments, invite your people, understand their strengths, and verify what they have achieved.</p>
       <p class="hero-trust">Server-timed attempts · Human-reviewed publishing · Verifiable certificates</p>
-      <div class="hero-points"><span>01&nbsp; Create</span><span>02&nbsp; Assess</span><span>03&nbsp; Verify</span></div>
       <p class="muted" style="margin-top:18px;font-size:13.5px">Start on the FREE plan — <a href="/plans.html">compare plans</a> or <a href="/how.html">see how the engine works</a>.</p>
       <form id="verify-code-form" class="verify-row">
         <label for="verify-code">Verify a certificate</label>
@@ -51,21 +50,20 @@
       <form id="login-form" class="stack" role="tabpanel" aria-labelledby="login-tab">
         <h2>Welcome back</h2><p class="muted">Sign in with your verified email.</p>
         <label>Email<input name="email" type="email" autocomplete="username" required></label>
-        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <label class="password-field">Password<input name="password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label>
         <button class="button primary" type="submit">Sign in</button>
-        <a class="inline-link" href="/reset-password.html">Forgot your password?</a>
-        <a class="inline-link" href="/verify-email.html">Need a new verification link?</a>
+        <div class="auth-recovery-links"><a class="inline-link" href="/reset-password.html">Forgot password?</a><a class="inline-link" href="/verify-email.html">Verify email</a></div>
       </form>
       <form id="register-form" class="stack hidden" role="tabpanel" aria-labelledby="register-tab">
         <h2>Create your account</h2><p class="muted">Register first, then verify your email before signing in.</p>
         <p id="registration-mail-mode" class="muted" role="status" aria-live="polite">Checking how verification links are delivered…</p>
         <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
         <label>Email<input name="email" type="email" autocomplete="username" required></label>
-        <label>Password <small>(at least 6 characters)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
+        <label class="password-field">Password <small>(at least 6 characters)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label>
         <button class="button primary" type="submit">Create account</button>
         <p class="muted">Already registered? <a class="inline-link" href="/verify-email.html">Request a new verification link</a> or switch to Sign in above.</p>
       </form>
-      <div id="google-login-area" class="google-signin hidden"><p class="muted">Or continue with Google</p><div id="google-login-button"></div></div>
+      <div id="google-login-area" class="google-signin hidden"><p class="muted">Or continue with Google</p><div id="google-login-button"></div><p id="google-login-help" class="google-login-help hidden" role="alert"></p></div>
       <section id="demo-access" class="demo-access hidden" aria-labelledby="demo-access-title">
         <h2 id="demo-access-title">Explore the local demo</h2>
         <p class="muted">Choose a role to sign in to disposable demo workspaces. No password or copy-paste needed. This is unavailable outside local demo mode.</p>
@@ -160,7 +158,8 @@
       <section id="account-view" class="view hidden" aria-label="Profile and account settings">
         <div class="account-grid">
           <div class="card panel"><h2>Your profile</h2><p class="muted">This identity follows you across personal practice and every workspace. Your role is set separately in each workspace.</p><div id="account-identity" class="account-identity" role="status">Loading profile…</div><form id="account-profile-form" class="stack"><label>Display name<input name="displayName" minlength="2" maxlength="80" autocomplete="name" required></label><button class="button secondary" type="submit">Save display name</button></form></div>
-          <div class="card panel"><h2>Sign-in and security</h2><p id="account-login-method" class="muted">Checking sign-in methods…</p><form id="account-password-form" class="stack"><input type="email" name="username" autocomplete="username" hidden aria-hidden="true" tabindex="-1"><label>Current password<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>New password <small>(at least 6 characters)</small><input name="newPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><button class="button secondary" type="submit">Change password</button></form><p class="muted">Forgot your current password, or signed up with Google? <a href="/reset-password.html">Request a password reset link</a>.</p></div>
+          <div class="card panel"><h2>Sign-in and security</h2><p id="account-login-method" class="muted">Checking sign-in methods…</p><form id="account-password-form" class="stack"><input type="email" name="username" autocomplete="username" hidden aria-hidden="true" tabindex="-1"><label class="password-field">Current password<input name="currentPassword" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label><label class="password-field">New password <small>(at least 6 characters)</small><input name="newPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label><button class="button secondary" type="submit">Change password</button></form><p class="muted">Forgot your current password, or signed up with Google? <a href="/reset-password.html">Request a password reset link</a>.</p></div>
+          <div id="google-link-area" class="card panel google-signin hidden"><h2>Connect Google sign-in</h2><p class="muted">If you already use a password, connect the Google account with the same verified email here. Next time you can sign in with Google.</p><div id="google-link-button"></div></div>
           <div class="card panel account-plan"><h2>Plan and usage</h2><div id="account-plan" role="status">Loading your current allowance…</div></div>
         </div>
       </section>
@@ -252,7 +251,6 @@
         </section>
 
         <div id="organization-settings-panel" class="card panel hidden"><h2>Result release default</h2><p class="muted">This applies to newly created assessments unless their author selects an override. Published assessment versions keep their existing policy.</p><form id="organization-settings-form" class="form-row"><label>Default policy<select name="defaultResultReleasePolicy"><option value="IMMEDIATE">On submission</option><option value="MANUAL">After staff release</option></select></label><button class="button secondary" type="submit">Save default</button></form></div>
-        <div id="google-link-area" class="card panel hidden"><h2>Account sign-in</h2><p class="muted">Already use email and password? Link the Google account with the same verified email.</p><div id="google-link-button"></div></div>
       </section>
 
       <section id="members-view" class="view hidden">
