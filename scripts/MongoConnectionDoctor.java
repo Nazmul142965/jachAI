@@ -14,6 +14,15 @@ import org.bson.Document;
  * the username, the password or the host, so its output is safe to paste anywhere.
  *
  * <p>Run it through scripts/check-mongo.ps1, which supplies the driver on the classpath.
+ *
+ * <p>Exit codes:
+ * <ul>
+ *   <li>0 = OK (connection succeeded)</li>
+ *   <li>1 = Configuration problem (MONGODB_URI not set, malformed URI, no database named)</li>
+ *   <li>2 = Authentication failed (bad credentials or missing permissions)</li>
+ *   <li>3 = Network/unreachable (server not reachable, IP not whitelisted, cluster paused)</li>
+ *   <li>4 = Other/unknown error</li>
+ * </ul>
  */
 public final class MongoConnectionDoctor {
 
@@ -25,7 +34,7 @@ public final class MongoConnectionDoctor {
         String database = System.getenv("MONGODB_DATABASE");
 
         if (uri == null || uri.isBlank()) {
-            fail("MONGODB_URI is not set in this shell.",
+            fail("MONGODB_URI is not set in this shell.", 1,
                     "Set it in the same window you run this from, or in the IntelliJ run configuration.");
             return;
         }
@@ -43,24 +52,25 @@ public final class MongoConnectionDoctor {
             System.out.println();
             System.out.println("  OK. Authenticated and reached the database.");
             System.out.println("  The application should start with these settings.");
+            System.exit(0);
         } catch (MongoSecurityException authentication) {
-            fail("Authentication was refused by the server.",
+            fail("Authentication was refused by the server.", 2,
                     "Check the Atlas database user, its password, and the cluster connection string.",
                     "  - If you just changed the password in Atlas, wait 30 seconds and retry.",
                     "  - Use the Database User password, not your Atlas account password.",
                     "  - Atlas: Database Access -> Edit -> Edit Password. Choose letters and digits",
                     "    only for one test, which rules out an encoding problem entirely.");
         } catch (MongoTimeoutException unreachable) {
-            fail("No server answered within the time limit.",
+            fail("No server answered within the time limit.", 3,
                     "This is usually the network, not the credentials.",
                     "  - Atlas: Network Access -> add your current IP address.",
                     "  - A cluster that was paused takes a few minutes to resume.");
         } catch (MongoCommandException refused) {
-            fail("The server answered but refused the command (code " + refused.getErrorCode() + ").",
+            fail("The server answered but refused the command (code " + refused.getErrorCode() + ").", 2,
                     "The credentials are probably valid and the user lacks a permission.",
                     "  - Atlas: Database Access -> Edit -> give the user readWrite on this database.");
         } catch (RuntimeException other) {
-            fail("The connection failed: " + other.getClass().getSimpleName(),
+            fail("The connection failed: " + other.getClass().getSimpleName(), 4,
                     "The message is not printed here because it can contain the connection string.");
         }
     }
@@ -69,7 +79,7 @@ public final class MongoConnectionDoctor {
     private static boolean inspect(String uri, String database) {
         boolean srv = uri.startsWith("mongodb+srv://");
         if (!srv && !uri.startsWith("mongodb://")) {
-            fail("The value does not begin with mongodb:// or mongodb+srv://.",
+            fail("The value does not begin with mongodb:// or mongodb+srv://.", 1,
                     "A hosted cluster string normally begins with mongodb+srv://.");
             return false;
         }
@@ -130,12 +140,12 @@ public final class MongoConnectionDoctor {
         return password.matches(".*%[0-9A-Fa-f]{2}.*");
     }
 
-    private static void fail(String headline, String... detail) {
+    private static void fail(String headline, int exitCode, String... detail) {
         System.out.println();
         System.out.println("  " + headline);
         for (String line : detail) {
             System.out.println("  " + line);
         }
-        System.exit(1);
+        System.exit(exitCode);
     }
 }

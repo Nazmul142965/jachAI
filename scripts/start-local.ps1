@@ -3,7 +3,8 @@ param(
     [ValidatePattern('^jachai_(dev|demo_[A-Za-z0-9_-]+|smtp_[A-Za-z0-9_-]+)$')]
     [string]$DatabaseName = 'jachai_dev',
     [switch]$Smtp,
-    [switch]$Demo
+    [switch]$Demo,
+    [switch]$SkipMongoCheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,6 +51,27 @@ if (Test-LocalPort $Port) {
         exit 0
     } catch {
         throw "Port $Port is occupied by another service; JachAI was not started."
+    }
+}
+
+# MongoDB preflight check - fail fast with a clear message if MongoDB is not reachable
+if (-not $SkipMongoCheck) {
+    Write-Host "Preflight: checking MongoDB connectivity..."
+    try {
+        & (Join-Path $PSScriptRoot 'check-mongo.ps1')
+        Write-Host "Preflight: MongoDB is reachable."
+    } catch {
+        $err = $_.Exception.Message
+        Write-Error "Preflight FAILED: MongoDB is not reachable."
+        Write-Error "  $err"
+        Write-Error ""
+        Write-Error "Fix one of these, then retry:"
+        Write-Error "  1. Start a local MongoDB on localhost:27017, OR"
+        Write-Error "  2. Set MONGODB_URI in this shell to a running Atlas cluster (mongodb+srv://...), OR"
+        Write-Error "  3. Run with -SkipMongoCheck to bypass (only for non-Demo, non-SMTP modes where MongoDB is optional)."
+        Write-Error ""
+        Write-Error "The application requires MongoDB for all runtime data. It will not start without it."
+        throw "Aborted: MongoDB preflight check failed."
     }
 }
 

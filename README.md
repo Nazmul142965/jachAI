@@ -55,6 +55,55 @@ hosted trial or a way to grant production access.
 
 On this Windows development machine, set `MONGODB_URI` in the shell, then run `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1` from the repository root. It selects JDK 21 and launches JachAI at `http://127.0.0.1:8080/`, connecting to MongoDB Atlas with the environment URI. It does not start a local MongoDB server. Logs are under ignored `target/local-dev/`. Without SMTP settings, local verification/reset links appear in the app log and must not be shared. After registering, wait a few seconds, then run `powershell -ExecutionPolicy Bypass -File .\scripts\open-local-verification.ps1 -Email you@example.com` to open your verification link without copying its token; add `-Port 8092` if that is your app port. A generated local JWT secret expires sign-ins on restart; set your own stable `JWT_SECRET` privately if sessions must survive restarts. To use a separate development database and port, pass `-Port 8092 -DatabaseName jachai_demo_20261004`; the helper never points at the production database.
 
+## MongoDB Preflight (run before starting)
+
+JachAI requires a reachable MongoDB (Atlas or local) for all runtime data. The startup script now checks connectivity and will fail fast with a clear message if MongoDB is not reachable.
+
+**Quick check (manual):**
+```powershell
+# Run from repo root in the SAME shell where you set MONGODB_URI
+powershell -ExecutionPolicy Bypass -File .\scripts\check-mongo.ps1
+```
+- Exit 0 = OK, MongoDB is reachable
+- Exit 1 = Configuration issue (URI not set, malformed, no database named)
+- Exit 2 = Authentication failed (bad credentials or missing permissions)
+- Exit 3 = Network/unreachable (server down, IP not whitelisted, cluster paused)
+- Exit 4 = Other error
+
+The check prints nothing sensitive (no URI, no credentials). It uses the same `MONGODB_URI` and `MONGODB_DATABASE` you set in the shell.
+
+**Automatic preflight on startup:**
+`start-local.ps1` runs `check-mongo.ps1` before launching. If MongoDB is not reachable, you will see:
+```
+Preflight FAILED: MongoDB is not reachable.
+  No server answered within the time limit.
+  This is usually the network, not the credentials.
+  ...
+
+Fix one of these, then retry:
+  1. Start a local MongoDB on localhost:27017, OR
+  2. Set MONGODB_URI in this shell to a running Atlas cluster (mongodb+srv://...), OR
+  3. Run with -SkipMongoCheck to bypass (only for non-Demo, non-SMTP modes where MongoDB is optional).
+```
+To bypass the preflight (not recommended for demo/SMTP modes):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -SkipMongoCheck
+```
+
+**Port and database discovery:**
+Do not hard-code ports or database names. When the app starts, it prints:
+```
+JachAI is ready at http://127.0.0.1:8080/
+Local demo mode is active. Choose a role on the sign-in page; no password is needed.
+```
+Or in `target/local-dev/app.<port>.out.log`:
+```
+Tomcat started on port(s): 8080 (http) with context path ''
+...
+spring.data.mongodb.database: jachai_dev
+```
+Use the printed `http://127.0.0.1:<port>/` and the logged database name. The ports 8093/8095 in older docs are examples only — the script picks a free port and prints the actual one.
+
 To test real email locally, configure `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` (and optionally `MAIL_PORT`, default 587) plus a stable 32+ byte `JWT_SECRET` privately in your shell or IntelliJ run environment; a separate stable `MAIL_JOB_ENCRYPTION_KEY` is recommended. Complete `MAIL_*` settings automatically select SMTP even when IntelliJ uses the default `local` profile. The existing `smtp` profile and `scripts/start-local.ps1 -Smtp` remain valid. Missing or partial SMTP settings fail startup rather than silently logging links. SMTP uses STARTTLS and short network timeouts. Register only an inbox you control; successful delivery must be checked in that inbox and the `email_jobs` state, not inferred from a 202 registration response. SMTP delivery is still unverified here because no provider account is configured.
 
 Use JDK 21, Maven, and a MongoDB instance. Set environment variables in your terminal or IntelliJ run configuration; Spring Boot does not load `.env` automatically. `.env.example` contains only placeholders. Never commit actual credentials.
