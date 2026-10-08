@@ -283,6 +283,7 @@ function showSignedOut() {
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
   setInAppLinks(false);
+  loadDemoAccess();
 }
 
 // Inject SVG icons for password toggles and other UI elements
@@ -1455,6 +1456,13 @@ async function loadPaymentHistory(pageNumber = 0) {
         await loadEntitlements();
       }));
     }
+    if (order.status === 'CREATED' || order.status === 'CHECKOUT_READY') {
+      actions.push(button('Cancel checkout', async () => {
+        if (!await confirmDialog('Cancel this unfinished sandbox checkout? No entitlement has been granted.')) return;
+        await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/cancel`), { method: 'POST' });
+        await loadPaymentHistory();
+      }, 'button quiet small'));
+    }
     actions.push(button('Details', () => showOrderDetail(order.id), 'button quiet small'));
     return item(
       `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
@@ -1499,6 +1507,9 @@ async function loadOrderDetail() {
       ['Applied to the plan', order.appliedAt,
         'Entitlements were granted. Until this is stamped, the plan has not changed.']
     ];
+    if (order.status === 'CANCELLED') {
+      stages.push(['Cancelled', order.createdAt, 'The unfinished checkout was cancelled; it cannot be reconciled or grant entitlement.']);
+    }
     setList('#order-detail-body', [
       item(`${order.provider} · ৳${order.amountBdt}`, `${order.id} · status ${order.status}`),
       ...stages.map(([label, stamp, explanation]) => {
@@ -4025,38 +4036,34 @@ $('#verify-code-form').addEventListener('submit', (event) => { event.preventDefa
 }); });
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
-  // Leaving for the gateway ends this session, because the token is only in
-  // memory. Saying so first is the difference between a redirect and a
-  // surprise sign-out.
   if (!await confirmDialog('Open the SSLCommerz sandbox?\n\n'
-      + 'JachAI hands you to the gateway, which signs you out of this tab. '
-      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
-      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
+      + 'The sandbox opens in a new tab, so this signed-in tab stays available. '
+      + 'After returning, use Check payment in Billing to read the server-verified result. '
+      + 'A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-ssl-demo');
   control.disabled = true; control.textContent = 'Opening SSLCommerz sandbox…';
   try {
     const checkout = await request(ownOrg('/billing/orders'),
       { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
-    window.location.assign(checkout.checkoutUrl);
+    const gatewayWindow = window.open(checkout.checkoutUrl, '_blank', 'noopener,noreferrer');
+    if (!gatewayWindow) throw new Error('The browser blocked the sandbox popup. Allow popups for this site and try again.');
   } catch (error) {
     control.disabled = false; control.textContent = 'Pay with SSLCommerz sandbox';
     throw error;
   }
 }));
 $('#start-bkash-demo').addEventListener('click', () => run(async () => {
-  // Leaving for the gateway ends this session, because the token is only in
-  // memory. Saying so first is the difference between a redirect and a
-  // surprise sign-out.
   if (!await confirmDialog('Open the bKash sandbox?\n\n'
-      + 'JachAI hands you to the gateway, which signs you out of this tab. '
-      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
-      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
+      + 'The sandbox opens in a new tab, so this signed-in tab stays available. '
+      + 'After returning, use Check payment in Billing to read the server-verified result. '
+      + 'A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-bkash-demo');
   control.disabled = true; control.textContent = 'Opening bKash sandbox…';
   try {
     const checkout = await request(ownOrg('/billing/orders'),
       { method: 'POST', body: { provider: 'BKASH' } });
-    window.location.assign(checkout.checkoutUrl);
+    const gatewayWindow = window.open(checkout.checkoutUrl, '_blank', 'noopener,noreferrer');
+    if (!gatewayWindow) throw new Error('The browser blocked the sandbox popup. Allow popups for this site and try again.');
   } catch (error) {
     control.disabled = false; control.textContent = 'Pay with direct bKash sandbox';
     throw error;
@@ -4162,7 +4169,8 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
     throw error;
   } finally { if (control) control.disabled = false; }
 }); });
-request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
+function loadDemoAccess() {
+  return request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
   if (!Array.isArray(accounts) || !accounts.length) return;
   const roles = $('#demo-access-roles');
   roles.replaceChildren(...accounts.map((account) => {
@@ -4185,7 +4193,9 @@ request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
     window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
     roles.children[accounts.findIndex((account) => account.key === requestedRole)].click();
   }
-}).catch(() => { /* Non-demo profiles intentionally have no demo endpoint. */ });
+  }).catch(() => { /* Non-demo profiles intentionally have no demo endpoint. */ });
+}
+loadDemoAccess();
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const element = event.currentTarget;
   const form = new FormData(element);
@@ -4524,7 +4534,9 @@ $('#invite-member-form').addEventListener('submit', (event) => { event.preventDe
     body: { email: form.get('email').trim(), role: form.get('role') } });
   event.currentTarget.reset();
   await loadMemberInvitations(0);
-  notice('Invitation recorded. The server queues the email; this screen cannot confirm delivery.');
+  notice(mailDeliveryMode === 'SMTP'
+    ? 'Invitation recorded and queued for SMTP delivery. Check the recipient inbox and the email_jobs status if it does not arrive.'
+    : 'Invitation recorded, but this run is not using SMTP. The link is printed in the application console; configure MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM for real delivery.');
 }); });
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const email = new FormData(event.currentTarget).get('email').trim();

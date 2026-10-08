@@ -47,4 +47,11 @@ public record PaymentOrder(
                 PaymentOrderStatus.APPLIED, amountBdt, gatewaySessionId, gatewayValidationId,
                 gatewayTransactionId, createdAt, verifiedAt, at, revision);
     }
+
+    public PaymentOrder cancelled() {
+        return new PaymentOrder(id, organizationId, actorUserId, provider,
+                PaymentOrderStatus.CANCELLED, amountBdt, gatewaySessionId,
+                gatewayValidationId, gatewayTransactionId, createdAt, verifiedAt,
+                appliedAt, revision);
+    }
 }

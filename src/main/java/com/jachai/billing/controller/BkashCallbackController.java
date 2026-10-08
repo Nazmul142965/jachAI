@@ -1,6 +1,7 @@
 package com.jachai.billing.controller;
 
 import com.jachai.billing.service.PaymentBillingService;
+import com.jachai.billing.model.PaymentProvider;
 import com.jachai.shared.error.ApiException;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ public class BkashCallbackController {
             billing.verifyBkashCallback(orderId, paymentId);
             result = "verified";
         } else if ("failure".equals(status) || "cancel".equals(status)) {
+            billing.cancel(orderId, PaymentProvider.BKASH);
             result = "failure".equals(status) ? "failed" : "canceled";
         } else {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_CALLBACK",

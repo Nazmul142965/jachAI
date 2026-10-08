@@ -115,6 +115,37 @@ public class PaymentBillingService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Payment order not found"));
     }
 
+    public PaymentOrderView cancel(String orderId, PaymentProvider provider) {
+        if (orderId == null || orderId.isBlank() || provider == null) {
+            throw invalidCallback();
+        }
+        PaymentOrder order = orders.findById(orderId).orElseThrow(this::invalidCallback);
+        if (order.provider() != provider) throw invalidCallback();
+        if (order.status() == PaymentOrderStatus.CANCELLED) return PaymentOrderView.from(order);
+        if (order.status() == PaymentOrderStatus.VERIFIED || order.status() == PaymentOrderStatus.APPLIED) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_VERIFIED",
+                    "A verified payment cannot be cancelled");
+        }
+        if (order.status() == PaymentOrderStatus.CREATED || order.status() == PaymentOrderStatus.CHECKOUT_READY) {
+            return PaymentOrderView.from(orders.save(order.cancelled()));
+        }
+        throw invalidCallback();
+    }
+
+    public PaymentOrderView cancel(String actorId, String organizationId, String orderId) {
+        access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
+        PaymentOrder order = orders.findByIdAndOrganizationId(orderId, organizationId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND",
+                        "Payment order not found"));
+        if (order.status() == PaymentOrderStatus.CANCELLED) return PaymentOrderView.from(order);
+        if (order.status() != PaymentOrderStatus.CREATED
+                && order.status() != PaymentOrderStatus.CHECKOUT_READY) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_CANCELLABLE",
+                    "Only an unfinished checkout can be cancelled");
+        }
+        return PaymentOrderView.from(orders.save(order.cancelled()));
+    }
+
     public PaymentOrderView reconcile(String actorId, String organizationId, String orderId) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
         PaymentOrder order = orders.findByIdAndOrganizationId(orderId, organizationId)
