@@ -3202,7 +3202,7 @@ function renderResult(result, target = '#result-panel') {
         }
         panel.append(box);
       }));
-      const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the AI Tutor'));
+      const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the Academy AI Tutor'));
       form.append(node('p', 'Ask follow-up questions here. The last three exchanges stay in this tab only; reloading or switching workspaces clears them.', 'muted'));
       let history = state.tutorHistory.get(result.attemptId) || [];
       const transcript = node('div', '', 'tutor-thread');
