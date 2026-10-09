@@ -64,4 +64,9 @@ public class PageController {
     public String how() {
         return "how";
     }
+
+    @GetMapping("/engineering.html")
+    public String engineering() {
+        return "engineering";
+    }
 }

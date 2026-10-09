@@ -1,0 +1,32 @@
+/* This page shares JachAI's public theme; the layout is an engineering record,
+   not a second product shell. */
+.build-page { width: min(100%, 1160px); }
+.build-hero { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(300px, .82fr); gap: clamp(32px, 5vw, 72px); align-items: center; padding-block: clamp(18px, 5vw, 68px) clamp(45px, 7vw, 88px); }
+.build-kicker { margin: 0 0 22px; color: var(--brand-ink); font-weight: 700; font-size: .92rem; }
+.build-hero h1 { max-width: 12ch; margin: 0; color: var(--ink); font-size: clamp(2.7rem, 5.2vw, 5.1rem); line-height: 1.06; letter-spacing: -.065em; }
+.build-intro { max-width: 60ch; margin: 28px 0 22px; color: var(--ink-soft); font-size: clamp(1rem, 1.3vw, 1.16rem); line-height: 1.7; }
+.build-text-link { font-weight: 700; text-underline-offset: .28em; }
+.build-map { padding: clamp(22px, 3vw, 36px); background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--brand); border-radius: 18px; }
+.build-map-title { margin: 0 0 14px; font-size: 1.05rem; font-weight: 800; }
+.build-map-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 14px 0; border-top: 1px solid var(--line-soft); }
+.build-map-row span { color: var(--muted); font-size: .84rem; }
+.build-map-row strong { color: var(--ink); font-weight: 600; line-height: 1.45; }
+.build-map-note { margin: 18px 0 0; color: var(--ink-soft); font-size: .9rem; line-height: 1.6; }
+.build-section { padding-block: 42px 18px; border-top: 1px solid var(--line); }
+.build-section-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .7fr); gap: 24px; align-items: end; margin-bottom: 28px; }
+.build-section-head h2, .build-proof h2 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.7rem); line-height: 1.16; letter-spacing: -.04em; }
+.build-section-head p { max-width: 36ch; margin: 0; color: var(--muted); }
+.build-stack { margin: 0; border-top: 1px solid var(--line); }
+.build-stack > div { display: grid; grid-template-columns: minmax(140px, .28fr) minmax(0, 1fr); gap: 20px; padding: 19px 0; border-bottom: 1px solid var(--line); }
+.build-stack dt { color: var(--brand-ink); font-weight: 700; }
+.build-stack dd { max-width: 73ch; margin: 0; color: var(--ink-soft); line-height: 1.62; }
+.build-decisions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: clamp(28px, 5vw, 70px); }
+.build-decisions article { padding: 24px 0 30px; border-top: 1px solid var(--line); }
+.build-decisions h3 { margin: 0 0 10px; font-size: clamp(1.15rem, 1.8vw, 1.42rem); line-height: 1.35; letter-spacing: -.025em; }
+.build-decisions p { max-width: 63ch; margin: 0; color: var(--ink-soft); line-height: 1.68; }
+.build-decisions code { font-size: .9em; }
+.build-proof { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-top: 52px; padding: clamp(22px, 4vw, 38px); background: var(--surface-brand); border-left: 5px solid var(--brand); border-radius: 16px; }
+.build-proof p { max-width: 76ch; margin: 15px 0 0; color: var(--ink-soft); line-height: 1.66; }
+.build-proof a { flex: 0 0 auto; font-weight: 700; white-space: nowrap; text-underline-offset: .28em; }
+@media (max-width: 800px) { .build-hero, .build-section-head { grid-template-columns: 1fr; } .build-hero h1 { max-width: 15ch; } .build-map { max-width: 620px; } }
+@media (max-width: 640px) { .build-hero { padding-block: 10px 45px; } .build-decisions { grid-template-columns: 1fr; } .build-stack > div { grid-template-columns: 1fr; gap: 5px; } .build-proof { display: block; } .build-proof a { display: inline-block; margin-top: 20px; } }

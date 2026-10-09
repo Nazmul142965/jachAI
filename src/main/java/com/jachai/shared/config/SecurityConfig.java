@@ -38,7 +38,7 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/app.css", "/app.js", "/public.css",
+                        .requestMatchers("/", "/index.html", "/app.css", "/app.js", "/public.css", "/engineering.css",
                                 "/theme.css", "/theme.js",
                                 "/favicon.svg", "/favicon.ico",
                                 // The React Practice pilot's bundle. A static asset exactly like
@@ -54,7 +54,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh", "/api/v1/auth/request-password-reset",
                                 "/api/v1/auth/reset-password", "/api/v1/public/certificates/*",
                                 "/certificates/*",
-                                "/academy.html", "/talent.html", "/plans.html", "/how.html",
+                                "/academy.html", "/talent.html", "/plans.html", "/how.html", "/engineering.html",
                                 "/api/v1/billing/sslcommerz/ipn",
                                 "/api/v1/billing/sslcommerz/callback",
                                 "/api/v1/billing/bkash/callback").permitAll()

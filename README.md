@@ -8,6 +8,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - [FRONTEND.md](FRONTEND.md): the current HTML/CSS/JavaScript UI and its conventions.
 - [BACKEND.md](BACKEND.md): current backend boundaries, demo-account rules, and test entry points.
 - [SYSTEM.md](SYSTEM.md): configuration, deployment, health checks, and release gates.
+- [docs/ENGINEERING.md](docs/ENGINEERING.md): the stack, engineering challenges, and how we addressed them. The same story is available in the app at `/engineering.html`.
 
 Completed delivery reports and old branch/commit notes are indexed in [docs/archive/completed/](docs/archive/completed/README.md). The [React design experiment](docs/design/react/README.md) is deliberately kept separately for future work; it is not the current UI.
 

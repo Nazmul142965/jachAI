@@ -173,6 +173,17 @@ class JachAiApplicationTests {
     }
 
     @Test
+    void engineeringStoryAndStylesArePublic() throws Exception {
+        mvc.perform(get("/engineering.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Problems that changed the design")))
+                .andExpect(content().string(containsString("what still needs live verification")));
+        mvc.perform(get("/engineering.css"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(".build-hero")));
+    }
+
+    @Test
     void googleConfigurationIsPublicButAccountLinkRequiresAuthentication() throws Exception {
         when(googleAuthService.publicClientId()).thenReturn("");
         mvc.perform(get("/api/v1/auth/google/config"))

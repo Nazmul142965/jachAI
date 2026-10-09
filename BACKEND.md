@@ -21,4 +21,4 @@ The six one-click demo identities work on the configured database in the `demo`,
 
 ## Where to read deeper
 
-Backend implementation history and prior open questions: [BACKEND_REMAINING.md](docs/archive/completed/BACKEND_REMAINING.md). Practice quota and replay decisions: [AI_PRACTICE_DELIVERY.md](docs/archive/completed/AI_PRACTICE_DELIVERY.md). The operational audit-repair procedure remains live at [docs/runbook-audit-recovery.md](docs/runbook-audit-recovery.md). These records preserve evidence; [ARCHITECTURE.md](ARCHITECTURE.md), current code, and [SYSTEM.md](SYSTEM.md) decide present behavior.
+Backend delivery history: [HANDOFF.md](docs/archive/completed/HANDOFF.md). Practice quota and replay decisions: [AI_PRACTICE_DELIVERY.md](docs/archive/completed/AI_PRACTICE_DELIVERY.md). The operational audit-repair procedure remains live at [docs/runbook-audit-recovery.md](docs/runbook-audit-recovery.md). These records preserve evidence; [ARCHITECTURE.md](ARCHITECTURE.md), current code, and [SYSTEM.md](SYSTEM.md) decide present behavior.
