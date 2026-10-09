@@ -72,7 +72,7 @@ const SCREENS = {
   platform: {
     title: 'Platform Operations',
     subtitle: 'Administration and support',
-    views: [['platform', 'Health'], ['platform-tenants', 'Organizations'], ['platform-admins', 'Administrators']]
+    views: [['platform', 'Overview'], ['platform-tenants', 'Organizations'], ['platform-admins', 'Administrators']]
   }
 };
 const screenOfView = (view) => Object.keys(SCREENS)
@@ -1638,10 +1638,64 @@ async function loadOrderDetail() {
     ], 'This order could not be described.');
   }, 'The order detail could not be loaded.');
 }
+async function loadPlatformDashboard() {
+  const view = $('#platform-view');
+  let panel = $('#platform-dashboard');
+  if (!panel) {
+    panel = node('section', '', 'card panel platform-dashboard');
+    panel.id = 'platform-dashboard';
+    view.prepend(panel);
+  }
+  panel.replaceChildren(node('p', 'Loading platform overview…', 'muted'));
+  try {
+    const data = await request('/platform/dashboard');
+    const heading = node('div', '', 'section-heading');
+    const title = node('div');
+    title.append(node('h2', 'Platform overview'),
+      node('p', 'Sandbox payments are test activity, not real revenue.', 'muted'));
+    heading.append(title);
+    const metrics = node('div', '', 'platform-metrics');
+    const metric = (label, value) => {
+      const card = node('div', '', 'platform-metric');
+      card.append(node('span', label, 'muted'), node('strong', value));
+      return card;
+    };
+    const amount = `৳${Number(data.sandboxAppliedAmountBdt || 0).toLocaleString('en-BD', { maximumFractionDigits: 2 })}`;
+    metrics.append(metric('Applied sandbox orders', String(data.sandboxAppliedOrders)),
+      metric('Sandbox value · not revenue', amount),
+      metric('Active TEAM workspaces', String(data.activeTeamWorkspaces)),
+      metric('Open support tickets', String(data.openSupportTickets)));
+    const activity = node('div', '', 'platform-activity');
+    const months = node('div', '', 'platform-months');
+    months.append(node('h3', 'Last six months'));
+    for (const month of data.monthlySandboxOrders || []) {
+      const row = node('p');
+      row.append(node('span', month.month), node('strong', `${month.orders} orders`));
+      months.append(row);
+    }
+    const alerts = node('div', '', 'platform-alerts');
+    alerts.append(node('h3', 'Needs attention'));
+    for (const [label, count] of [
+      ['Failed email jobs', data.failedEmailJobs],
+      ['Payments awaiting verification', data.paymentsAwaitingVerification],
+      ['Open support tickets', data.openSupportTickets]
+    ]) {
+      const row = node('p');
+      row.append(node('span', label), node('strong', String(count)));
+      alerts.append(row);
+    }
+    activity.append(months, alerts);
+    panel.replaceChildren(heading, metrics, activity);
+  } catch (error) {
+    panel.replaceChildren(node('p', 'Platform overview could not be loaded. Use Refresh to retry.', 'muted'));
+    throw error;
+  }
+}
 async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
   ensurePlatformSupportPanel();
   await Promise.all([
+    loadPlatformDashboard(),
     loadList('#platform-operations', () => loadPlatformOperations(), 'Operational counts could not be loaded.'),
     loadList('#platform-storage', () => loadPlatformStorage(), 'Storage metrics could not be loaded.'),
     loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')

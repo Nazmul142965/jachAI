@@ -638,6 +638,8 @@ async function main() {
   const platform = 'platform-admin';
   await view('Platform Operations'); await wait(1600);
   const platformText = await ev(`document.querySelector('#platform-view').textContent`);
+  check(platform, 'dashboard separates sandbox activity from revenue',
+    /Sandbox value · not revenue/.test(platformText) && /Applied sandbox orders/.test(platformText));
   check(platform, 'operations render with a timestamp', /Counts generated/.test(platformText));
   check(platform, 'storage estimate is labelled as an estimate', /Storage estimate/.test(platformText));
   check(platform, 'storage shows the estimated size and breakdown', /Estimated logical size/.test(platformText) && /Data .* · Indexes/.test(platformText));
