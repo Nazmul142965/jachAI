@@ -292,6 +292,9 @@ public class AuthService {
 
     public void logout(String userId, String rawToken, String accessJti, Instant accessExpiry) {
         revocations.revoke(accessJti, accessExpiry);
+        // A browser using the session cookie may have no token to hand over. The access token is
+        // already revoked above, and that is the part that cannot be delayed.
+        if (rawToken == null || rawToken.isBlank()) return;
         mongo.findAndRemove(Query.query(Criteria.where("tokenHash").is(TokenSecrets.hash(rawToken))
                 .and("userId").is(userId)), RefreshSession.class);
     }

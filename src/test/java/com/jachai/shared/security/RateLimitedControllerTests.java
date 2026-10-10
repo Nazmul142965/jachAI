@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import com.jachai.academy.controller.PublicCertificateController;
 import com.jachai.academy.service.CertificateService;
 import com.jachai.auth.controller.AuthController;
+import com.jachai.auth.controller.SessionCookies;
 import com.jachai.auth.dto.LoginRequest;
 import com.jachai.auth.service.AuthService;
 import com.jachai.auth.service.GoogleAuthService;
@@ -27,6 +28,7 @@ class RateLimitedControllerTests {
     @Mock GoogleAuthService google;
     @Mock CertificateService certificates;
     @Mock RateLimitService limits;
+    private final SessionCookies cookies = new SessionCookies("https://example.com");
 
     private TrustedClientIpResolver resolver(String trusted) {
         ServerProperties server = new ServerProperties();
@@ -41,7 +43,7 @@ class RateLimitedControllerTests {
         doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many requests"))
                 .when(limits).consume(RateLimitPolicy.LOGIN_IP, "192.0.2.1");
 
-        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits, resolver(""))
+        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits, resolver(""), cookies)
                 .login(new LoginRequest("person@example.com", "irrelevant-password"), servlet));
 
         verify(auth, never()).login(org.mockito.ArgumentMatchers.any());
@@ -54,7 +56,7 @@ class RateLimitedControllerTests {
         doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many requests"))
                 .when(limits).consume(RateLimitPolicy.LOGIN_IP, "192.0.2.3");
 
-        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits, resolver(""))
+        assertThrows(ApiException.class, () -> new AuthController(auth, google, limits, resolver(""), cookies)
                 .googleLogin(new AuthController.GoogleCredentialRequest("credential"), servlet));
 
         verify(google, never()).login(org.mockito.ArgumentMatchers.any());
@@ -79,7 +81,7 @@ class RateLimitedControllerTests {
         servlet.setRemoteAddr("10.0.0.2");
         servlet.addHeader("X-Forwarded-For", "198.51.100.250, 203.0.113.7, 10.0.0.3");
 
-        new AuthController(auth, google, limits, resolver("10.0.0.0/24"))
+        new AuthController(auth, google, limits, resolver("10.0.0.0/24"), cookies)
                 .login(new LoginRequest("person@example.com", "password"), servlet);
 
         verify(limits).consume(RateLimitPolicy.LOGIN_IP, "203.0.113.7");
@@ -91,7 +93,7 @@ class RateLimitedControllerTests {
         servlet.setRemoteAddr("203.0.113.7");
         servlet.addHeader("X-Forwarded-For", "198.51.100.250");
 
-        new AuthController(auth, google, limits, resolver("10.0.0.0/24"))
+        new AuthController(auth, google, limits, resolver("10.0.0.0/24"), cookies)
                 .login(new LoginRequest("person@example.com", "password"), servlet);
 
         verify(limits).consume(RateLimitPolicy.LOGIN_IP, "203.0.113.7");

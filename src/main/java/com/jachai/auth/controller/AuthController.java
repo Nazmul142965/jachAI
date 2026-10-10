@@ -5,6 +5,7 @@ import com.jachai.auth.dto.LoginRequest;
 import com.jachai.auth.dto.RegisterRequest;
 import com.jachai.auth.dto.VerifyEmailRequest;
 import com.jachai.auth.service.AuthService;
+import com.jachai.shared.error.ApiException;
 import com.jachai.auth.service.GoogleAuthService;
 import com.jachai.shared.security.RateLimitPolicy;
 import com.jachai.shared.security.RateLimitService;
@@ -19,6 +20,7 @@ import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -41,6 +43,7 @@ public class AuthController {
     private final GoogleAuthService google;
     private final RateLimitService limits;
     private final TrustedClientIpResolver clientIps;
+    private final SessionCookies sessionCookies;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest request,
@@ -61,7 +64,8 @@ public class AuthController {
     }
 
     public record ResendRequest(@NotBlank @Email String email) { }
-    public record RefreshRequest(@NotBlank String refreshToken) { }
+    /** Optional: a browser using the session cookie sends no token at all. */
+    public record RefreshRequest(String refreshToken) { }
     public record RequestResetRequest(@NotBlank @Email String email) { }
     public record ResetPasswordRequest(@NotBlank String token,
                                        @NotBlank @Size(min = 6, max = 128) String newPassword) { }
@@ -139,9 +143,31 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public AuthResponse refresh(@Valid @RequestBody RefreshRequest request, HttpServletRequest servlet) {
+    public AuthResponse refresh(@RequestBody(required = false) RefreshRequest request, HttpServletRequest servlet) {
         limits.consume(RateLimitPolicy.REFRESH_IP, clientIps.resolve(servlet));
-        return auth.refresh(request.refreshToken());
+        String token = refreshTokenFor(request, servlet);
+        if (token == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH", "Refresh session is invalid or expired");
+        }
+        return auth.refresh(token);
+    }
+
+    /**
+     * The cookie when the caller asked for it, otherwise the token in the body.
+     *
+     * <p>Asking is the {@code X-JachAI-Session} header, which only this site's own script can add.
+     * The cookie wins over a body token because it is always the latest: another tab may have
+     * rotated the session since this one last held a token, and a refresh token is single-use.
+     * A caller that sends only a body token, as every client did before the cookie existed,
+     * behaves exactly as it did.
+     */
+    private String refreshTokenFor(RefreshRequest body, HttpServletRequest servlet) {
+        if (sessionCookies.wantsCookie(servlet)) {
+            var cookie = sessionCookies.read(servlet);
+            if (cookie.isPresent()) return cookie.get();
+        }
+        return body == null || body.refreshToken() == null || body.refreshToken().isBlank()
+                ? null : body.refreshToken();
     }
 
     @PostMapping("/request-password-reset")
@@ -163,10 +189,14 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public Map<String, String> logout(@AuthenticationPrincipal Jwt jwt,
-                                      @Valid @RequestBody RefreshRequest request) {
-        auth.logout(jwt.getSubject(), request.refreshToken(), jwt.getId(), jwt.getExpiresAt());
-        return Map.of("message", "Access token and refresh session revoked");
+    public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal Jwt jwt,
+                                                      @RequestBody(required = false) RefreshRequest request,
+                                                      HttpServletRequest servlet) {
+        auth.logout(jwt.getSubject(), refreshTokenFor(request, servlet), jwt.getId(), jwt.getExpiresAt());
+        // Whatever happened above, the browser is told to drop the cookie.
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, sessionCookies.clear().toString())
+                .body(Map.of("message", "Access token and refresh session revoked"));
     }
 
     private static String emailKey(String email) {
