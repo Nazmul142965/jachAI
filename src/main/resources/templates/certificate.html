@@ -39,10 +39,7 @@
       <a class="button secondary" href="/academy.html">About Academy</a>
       <a class="button quiet" href="/how.html">How certificates work</a>
     </div>
-    <footer style="margin-top:34px;color:var(--muted);font-size:13px">
-      This page shows only the organisation and assessment names, the issue date and whether the certificate is still valid.
-      It never displays the certificate holder's private identity.
-    </footer>
+    <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>How it&#39;s built</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
   </main>
   <script>
     const code = decodeURIComponent(location.pathname.split('/').pop());

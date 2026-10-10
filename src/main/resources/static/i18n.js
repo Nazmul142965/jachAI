@@ -183,6 +183,9 @@ const BN = {
   'Pricing': 'মূল্য',
   'How it works': 'কীভাবে কাজ করে',
   "How it's built": 'কীভাবে বানানো',
+  'Technical assessment and certification.': 'প্রযুক্তিগত দক্ষতা যাচাই ও সনদ।',
+  'Verify a certificate': 'সনদ যাচাই করুন',
+  'All rights reserved.': 'সর্বস্বত্ব সংরক্ষিত।',
   // Sidebar chrome
   'Your organization': 'আপনার প্রতিষ্ঠান',
   'Your account': 'আপনার অ্যাকাউন্ট',

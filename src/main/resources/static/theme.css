@@ -440,3 +440,47 @@
   .topnav { gap: var(--sp-2) var(--sp-4); }
   .topnav a.nav-cta { margin-left: auto; }
 }
+
+/* ==========================================================================
+   Site footer — one block, every page
+   ========================================================================== */
+.site-footer {
+  margin-top: var(--sp-10, 64px);
+  border-top: 1px solid var(--line);
+  background: var(--surface-sunk);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.site-footer-inner {
+  max-width: var(--max, 1180px);
+  margin: 0 auto;
+  padding: var(--sp-7, 32px) var(--gutter, 24px) var(--sp-6, 24px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-5, 20px) var(--sp-7, 32px);
+}
+.site-footer-brand { margin: 0; display: flex; align-items: center; gap: var(--sp-3); }
+.site-footer-brand > span:last-child { display: grid; line-height: 1.35; }
+.site-footer-brand strong { color: var(--ink); font-size: var(--text-md); }
+.site-footer-tag { color: var(--muted); }
+.site-footer .brand-mark { width: 32px; height: 32px; font-size: 16px; }
+.site-footer nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); }
+.site-footer nav a {
+  padding: var(--sp-1) 0;
+  color: var(--ink-soft, var(--ink));
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+.site-footer nav a:hover { color: var(--brand-ink); text-decoration: underline; text-underline-offset: 3px; }
+.site-footer nav a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
+.site-footer-legal {
+  flex-basis: 100%;
+  margin: 0;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+}
+@media (max-width: 640px) {
+  .site-footer nav { margin-left: 0; width: 100%; }
+}
