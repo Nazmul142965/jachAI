@@ -488,3 +488,32 @@
 .ic[data-ic="minus"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3C/svg%3E"); }
 .ic[data-ic="refresh"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11a8 8 0 1 0-2.3 5.7'/%3E%3Cpath d='M20 4v7h-7'/%3E%3C/svg%3E"); }
 .ic[data-ic="send"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 2 11 13'/%3E%3Cpath d='M22 2l-7 20-4-9-9-4z'/%3E%3C/svg%3E"); }
+
+/* Footer, slimmer and without a gap.
+   It used to carry 64px of margin on top, which on the signed-in screens left a blank strip
+   between the bottom of the sidebar and the footer, and three stacked rows that made it tall.
+   Now it is one row on a wide screen: brand and copyright on the left, links on the right.
+   Public pages keep their breathing room above it through the page that precedes it. */
+.site-footer { margin-top: 0; }
+.page + .site-footer { margin-top: var(--sp-9, 48px); }
+.site-footer-inner {
+  padding-top: var(--sp-4, 16px);
+  padding-bottom: var(--sp-4, 16px);
+  gap: var(--sp-2, 8px) var(--sp-6, 24px);
+}
+.site-footer-tag { display: none; }
+.site-footer .brand-mark { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+.site-footer-brand strong { font-size: var(--text-sm); }
+.site-footer-legal {
+  order: 1;
+  flex-basis: auto;
+  padding-top: 0;
+  border-top: 0;
+  margin: 0;
+}
+.site-footer nav { order: 2; margin-left: auto; gap: 0 var(--sp-4, 16px); }
+.site-footer nav a { padding: 2px 0; font-size: var(--text-sm); }
+@media (max-width: 640px) {
+  .site-footer-legal { order: 3; flex-basis: 100%; }
+  .site-footer nav { order: 2; margin-left: 0; width: 100%; }
+}
