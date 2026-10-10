@@ -75,7 +75,7 @@
         <button class="button primary" type="submit">Create account</button>
         <p class="muted">Already registered? <a class="inline-link" href="/verify-email.html">Request a new verification link</a> or switch to Sign in above.</p>
       </form>
-      <div id="google-login-area" class="google-signin hidden"><p class="muted">or</p><div id="google-login-button"></div><p id="google-login-help" class="google-login-help hidden" role="alert"></p><p class="muted">New Google users are registered automatically. Existing verified accounts sign in and link to Google automatically when the email matches.</p></div>
+      <div id="google-login-area" class="google-signin hidden"><p class="muted">or</p><div id="google-login-button"></div><p id="google-login-help" class="google-login-help hidden" role="alert"></p></div>
       <section id="demo-preview" class="demo-access"
                th:if="${demoPreviewUrl != null and !#strings.isEmpty(demoPreviewUrl)
                  and #strings.startsWith(demoPreviewUrl, 'https://')}"

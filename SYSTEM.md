@@ -2,7 +2,7 @@
 
 This is the active operations guide. Product rules are in [ARCHITECTURE.md](ARCHITECTURE.md), implementation boundaries in [BACKEND.md](BACKEND.md), and the current UI in [FRONTEND.md](FRONTEND.md). Completed test and branch reports are indexed in [docs/archive/completed/](docs/archive/completed/README.md). Historical evidence does not replace a check on the deployed revision.
 
-## Six-role demo on the production deployment
+## Demo access and isolated platform-admin preview
 
 The six one-click demo roles are available when the demo access endpoint is enabled;
 the current implementation does **not** require a special database name and does not
@@ -22,6 +22,22 @@ link Google, or use password reset. All customer organizations remain protected 
 the existing membership and tenant checks.
 
 This is a shared production data store, not a separate demo database. Anyone with the public URL can change demo workspace data, so do not place customer records in the demo organizations and do not describe this as a private faculty account. Payment credentials and real-money endpoints remain disabled for the demo path.
+
+The seventh, platform-admin preview role is available only with the `demo` profile
+on a database named `jachai_demo_*`. It has no organization membership and uses
+`demo-account-platform-admin` as its bootstrap admin ID. Never put customer data
+in that database: anyone with the public preview URL can sign in as this admin.
+The six workspace roles remain available under their existing access rules.
+
+For a Render preview, deploy the repository Dockerfile as a Web Service and set
+`SPRING_PROFILES_ACTIVE=demo`, `SERVER_ADDRESS=0.0.0.0`,
+`DEMO_MONGODB_DATABASE=jachai_demo_faculty`, `DEMO_PUBLIC_ACCESS=true`, and
+`APP_PUBLIC_BASE_URL` to the service's HTTPS URL. Keep `MONGODB_URI`, `JWT_SECRET`,
+and mail credentials in Render environment secrets, never GitHub. Set
+`MAIL_HOST=smtp.resend.com`, `MAIL_PORT=2587`, `MAIL_USERNAME=resend`,
+`MAIL_FROM=noreply@mail.nazmulhsn.me`, and `MAIL_PASSWORD` to the Resend API key
+if sending mail from this preview. Verify the live connection before assuming
+email delivery; Render Free does not guarantee an always-awake background worker.
 
 `DEMO_PREVIEW_URL` is no longer needed. The sign-in page discovers roles from
 `/api/v1/demo/accounts` and each button posts to `/api/v1/demo/login/{key}` on the same

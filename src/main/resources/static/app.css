@@ -728,6 +728,9 @@ a:focus-visible,
 }
 
 .auth-card { padding: var(--sp-7); }
+.auth-card.registering #google-login-area,
+.auth-card.registering #demo-preview,
+.auth-card.registering #demo-access { display: none; }
 
 .tabs {
   display: flex;

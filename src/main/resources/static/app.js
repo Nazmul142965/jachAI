@@ -4307,6 +4307,7 @@ $('#register-tab').addEventListener('click', () => switchAuth('register'));
 function switchAuth(which) {
   $('#login-form').classList.toggle('hidden', which !== 'login');
   $('#register-form').classList.toggle('hidden', which !== 'register');
+  $('#login-form').closest('.auth-card').classList.toggle('registering', which === 'register');
   for (const name of ['login', 'register']) {
     const tab = $(`#${name}-tab`); tab.classList.toggle('active', name === which);
     tab.setAttribute('aria-selected', String(name === which));
@@ -4417,7 +4418,7 @@ function loadDemoAccess() {
     return control;
   }));
   $('#demo-access').classList.remove('hidden');
-  $('#demo-access-status').textContent = 'Choose a role to enter a disposable Academy or Talent workspace. No password or copy-paste needed; changes here are shared test data.';
+  $('#demo-access-status').classList.add('hidden');
   const requestedRole = new URLSearchParams(window.location.search).get('demoRole');
   if (requestedRole && accounts.some((account) => account.key === requestedRole)) {
     const cleanUrl = new URL(window.location.href);
@@ -4426,6 +4427,7 @@ function loadDemoAccess() {
     roles.children[accounts.findIndex((account) => account.key === requestedRole)].click();
   }
   }).catch((error) => {
+    $('#demo-access-status').classList.remove('hidden');
     $('#demo-access-status').textContent = error.code === 'DEMO_LOCAL_ONLY'
       ? 'Demo roles are available only from this local app address.'
       : error.code === 'DEMO_HTTPS_REQUIRED'

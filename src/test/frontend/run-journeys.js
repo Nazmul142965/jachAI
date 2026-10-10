@@ -181,6 +181,13 @@ async function main() {
     check('demo', 'local demo roles appear only when the endpoint is available',
       await ev(`!document.querySelector('#demo-access').classList.contains('hidden')
         && document.querySelectorAll('#demo-access-roles button').length === 2`));
+    await ev(`document.querySelector('#register-tab').click()`);
+    check('demo', 'registration hides login-only demo roles and Google sign-in',
+      await ev(`getComputedStyle(document.querySelector('#demo-access')).display === 'none'
+        && getComputedStyle(document.querySelector('#google-login-area')).display === 'none'`));
+    await ev(`document.querySelector('#login-tab').click()`);
+    check('demo', 'sign-in shows demo roles again',
+      await ev(`getComputedStyle(document.querySelector('#demo-access')).display !== 'none'`));
     await ev(`document.querySelector('#demo-access-roles button').click()`); await wait(1400);
     check('demo', 'role shortcut signs in without typing credentials',
       await ev(`document.querySelector('#auth').classList.contains('hidden')
