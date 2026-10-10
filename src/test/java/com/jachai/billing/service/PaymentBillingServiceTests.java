@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,7 +24,10 @@ import com.jachai.organization.service.TenantAccessService;
 import com.jachai.shared.error.ApiException;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -45,6 +49,21 @@ class PaymentBillingServiceTests {
         return new PaymentBillingService(access, users, orders,
                 subscriptions, ssl, bkash, emailSender, new BigDecimal("100.00"),
                 "https://example.test/");
+    }
+
+    @Test
+    void customerHistoryOmitsCancelledAndUnstartedOrdersWithoutDeletingAuditRecords() {
+        List<PaymentOrderStatus> visible = List.of(PaymentOrderStatus.CHECKOUT_READY,
+                PaymentOrderStatus.VERIFIED, PaymentOrderStatus.APPLIED);
+        when(orders.findByOrganizationIdAndStatusIn(eq("org"), eq(visible), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(readyOrder())));
+
+        var history = service().history("admin", "org", 0);
+
+        assertEquals(1, history.getTotalElements());
+        assertEquals(PaymentOrderStatus.CHECKOUT_READY, history.getContent().get(0).status());
+        verify(orders, never()).delete(any(PaymentOrder.class));
+        verify(access).requireRole("admin", "org", OrganizationRole.ORG_ADMIN);
     }
 
     @Test
