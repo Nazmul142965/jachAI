@@ -160,12 +160,12 @@ async function main() {
         ? new Promise((resolve) => setTimeout(() => resolve(original(url, init)), 1800))
         : original(url, init);
       return true; })()`);
-    await view('My dashboard'); await wait(60);
-    await view('Your workspaces'); await wait(150);
+    await view('Home'); await wait(60);
+    await view('My organizations'); await wait(150);
     await ev(`(() => { const form = document.querySelector('#workspace-create-org-form');
       form.elements.name.value = 'New Academy';
       form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); return true; })()`);
-    await wait(500); await view('My dashboard'); await wait(2200);
+    await wait(500); await view('Home'); await wait(2200);
     check('home-race', 'late previous-workspace response cannot replace current home',
       await ev(`document.querySelector('#home-role').textContent.includes('New Academy')
         && !document.querySelector('#home-work-list').textContent.includes('Java Basics')`));
@@ -201,7 +201,7 @@ async function main() {
     await load('no-workspace');
     check('no-workspace', 'registration explains that local mode does not email links',
       /does not send email/.test(await ev(`document.querySelector('#registration-mail-mode').textContent`)));
-    check('no-workspace', 'new account opens My dashboard without creating an organization',
+    check('no-workspace', 'new account opens Home without creating an organization',
       await route() === '#/start' && await ev(`!document.querySelector('#start-view').classList.contains('hidden')`));
     check('no-workspace', 'dashboard recommends a real next action',
       await ev(`!document.querySelector('#home-next-action').disabled
@@ -260,12 +260,12 @@ async function main() {
   const nav = await ev(`[...document.querySelectorAll('#workspace-nav button')].map((b) => b.textContent)`);
   check(journey, 'sign-in reaches the workspace shell', await ev(`!document.querySelector('#app').classList.contains('hidden')`));
   check(journey, 'learner lands on account dashboard with assessments one click away',
-    await route() === '#/start' && nav.includes('My Assessments'), await route());
+    await route() === '#/start' && nav.includes('My tests'), await route());
   check(journey, 'learner dashboard shows assigned work with a direct action',
-    await ev(`document.querySelector('#home-work-list').textContent.includes('Open assessment')
+    await ev(`document.querySelector('#home-work-list').textContent.includes('Open test')
       && document.querySelector('#home-work-list').textContent.includes('Java')`));
   check(journey, 'nav is learner-scoped',
-    nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
+    nav.includes('My tests') && !nav.includes('Platform') && !nav.includes('Billing'),
     nav.join(', '));
   check(journey, 'nav lists screens, not every view',
     nav.length <= 10 && !nav.includes('Batch workspace'), nav.join(', '));
@@ -317,7 +317,7 @@ async function main() {
   check(journey, 'private certificate names its holder and assessment',
     /Learner One/.test(await ev(`document.querySelector('#certificate-display').textContent`))
       && /Java Basics/.test(await ev(`document.querySelector('#certificate-display').textContent`)));
-  await view('My Assessments'); await tab('Assignments'); await wait(1200);
+  await view('My tests'); await tab('Assignments'); await wait(1200);
   check(journey, 'assignment list renders', (await ev(`document.querySelector('#assignments-list').textContent`)).includes('Start / resume'));
   await clickText('#assignments-list', 'Start / resume'); await wait(600);
   const rules = await ev(`document.querySelector('#attempt-panel').textContent`);
@@ -354,7 +354,7 @@ async function main() {
   check(journey, 'pending result offers Check again', await ev(`[...document.querySelectorAll('#result-panel button')].some((b) => b.textContent === 'Check again')`));
 
   // Learner assessment detail: window, attempts, result, feedback and tutor on one screen.
-  await view('My Assessments'); await tab('Assessment detail'); await wait(1600);
+  await view('My tests'); await tab('Assessment detail'); await wait(1600);
   check(journey, 'assessment detail opens from the nav for the learner assignment',
     /Assignment asg-1/.test(await ev(`document.querySelector('#assessment-detail-view').textContent`)));
   check(journey, 'attempt usage is counted from the server attempt list',
@@ -402,7 +402,7 @@ async function main() {
     await ev(`!document.querySelector('#app').classList.contains('hidden')`));
   check(journey, 'the brand names where it goes while signed in',
     await ev(`/Overview/.test(document.querySelector('.topbar .brand').getAttribute('aria-label'))`));
-  await view('Your workspaces'); await wait(400);
+  await view('My organizations'); await wait(400);
   check(journey, 'a learner can open the add-workspace path',
     await ev(`!document.querySelector('#workspace-access-view').classList.contains('hidden')`));
   await ev(`(() => { const form = document.querySelector('#workspace-create-org-form');
@@ -435,7 +435,7 @@ async function main() {
   check(staff, 'plan usage names the current UTC period', /This month \(UTC\)/.test(staffDash));
   await shotBoth('overview-academy-staff');
 
-  await view('Academy Workspace'); await wait(1000);
+  await view('Courses'); await wait(1000);
   check(staff, 'org admin sees the certificate design preview',
     /Sample Learner/.test(await ev(`document.querySelector('#certificate-design-preview').textContent`)));
   await ev(`(() => { const form = document.querySelector('#certificate-design-form');
@@ -499,7 +499,7 @@ async function main() {
   await wait(500);
   check(staff, 'role change names the transition in plain words', /from learner to instructor/.test(await dialogText()), await dialogText());
   await clickDialog('quiet'); await wait(300);
-  await view('Assessment Studio'); await wait(900); await shot('screen-assessment-studio-questions');
+  await view('Create tests'); await wait(900); await shot('screen-assessment-studio-questions');
   await tab('Assessments'); await wait(1400);
 
   // Assessment version history: opened from a published row, never from a draft.
@@ -551,7 +551,7 @@ async function main() {
   check(staff, 'revoke reports the code is now invalid', /verifies as invalid/.test(await ev(`document.querySelector('#review-output').textContent`)));
 
   // Academy batch workspace: a distinct screen reached from the nav and from the batch list.
-  await view('Academy Workspace'); await tab('Batch workspace'); await wait(1500);
+  await view('Courses'); await tab('Batch workspace'); await wait(1500);
   const workspace = await ev(`document.querySelector('#academy-batch-view').textContent`);
   const rosterText = await ev(`document.querySelector('#academy-batch-learners').textContent`);
   check(staff, 'roster shows a learner name when the account resolves',
@@ -597,7 +597,7 @@ async function main() {
   // ---------------------------------------------------------------- talent journey
   await load('talent-recruiter');
   const talent = 'talent-recruiter';
-  await view('Talent Campaigns'); await tab('Campaigns'); await wait(1600);
+  await view('Campaigns'); await tab('All campaigns'); await wait(1600);
   check(talent, 'campaign list renders', (await ev(`document.querySelector('#campaigns-list').textContent`)).includes('Backend Engineer'));
   await clickText('#campaigns-list', 'Compare candidates'); await wait(1300);
   const compare = await ev(`document.querySelector('#campaign-candidates').textContent`);
@@ -619,7 +619,7 @@ async function main() {
   await shot('talent-integrity');
 
   // Talent campaign workspace: a distinct screen reached from the nav and from the campaign row.
-  await view('Talent Campaigns'); await tab('Campaign workspace'); await wait(1600);
+  await view('Campaigns'); await tab('Campaign workspace'); await wait(1600);
   const campaignWorkspace = await ev(`document.querySelector('#talent-campaign-view').textContent`);
   check(talent, 'campaign workspace opens with the campaign and its frozen version',
     /Backend Engineer/.test(campaignWorkspace) && /Frozen version ver-1/.test(campaignWorkspace));
@@ -643,7 +643,7 @@ async function main() {
   // ---------------------------------------------------------------- platform journey + storage states
   await load('platform-admin', 'ok');
   const platform = 'platform-admin';
-  await view('Platform Operations'); await wait(1600);
+  await view('Platform'); await wait(1600);
   const platformText = await ev(`document.querySelector('#platform-view').textContent`);
   check(platform, 'dashboard separates sandbox activity from revenue',
     /Sandbox value · not revenue/.test(platformText) && /Applied sandbox orders/.test(platformText));
@@ -681,13 +681,13 @@ async function main() {
   await clickDialog('quiet'); await wait(300);
 
   await load('platform-admin', 'warn');
-  await view('Platform Operations'); await wait(1600);
+  await view('Platform'); await wait(1600);
   const warnText = await ev(`document.querySelector('#platform-storage').textContent`);
   check(platform, 'storage warning state is explicit, not colour-only', /Warning:/.test(warnText) && /Above the configured threshold/.test(warnText));
   check(platform, 'warning advises review, not a quota claim', /not as proof that a quota has been exceeded/.test(warnText));
 
   await load('platform-admin', 'unavailable');
-  await view('Platform Operations'); await wait(1600);
+  await view('Platform'); await wait(1600);
   const unavailable = await ev(`document.querySelector('#platform-storage').textContent`);
   check(platform, 'storage failure shows the server message', /Database storage metrics are unavailable/.test(unavailable), unavailable.slice(0, 90));
   check(platform, 'storage failure offers a retry', await ev(`[...document.querySelectorAll('#platform-storage button')].some((b) => b.textContent === 'Retry')`));
@@ -702,6 +702,11 @@ async function main() {
   for (const width of [320, 375]) {
     await page.send('Emulation.setDeviceMetricsOverride', { width, height: 720, deviceScaleFactor: 1, mobile: false });
     await wait(600);
+    // The menu starts closed so a phone opens on its content, not on a screenful of links;
+    // the toggle opens it as a two-column grid. This used to assert the menu was always open,
+    // which is what pushed the page itself several hundred pixels below the fold.
+    const collapsed = await ev(`getComputedStyle(document.querySelector('.side-nav')).display === 'none'`);
+    await ev(`document.querySelector('#nav-toggle').click()`); await wait(250);
     const layout = await ev(`(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth,
       nav: getComputedStyle(document.querySelector('.side-nav')).display,
       columns: getComputedStyle(document.querySelector('.side-nav')).gridTemplateColumns.split(' ').length,
@@ -709,14 +714,16 @@ async function main() {
         .find((x) => x.offsetParent !== null && x.getBoundingClientRect().height > 0);
         return b ? Math.round(b.getBoundingClientRect().height) : null; })() }))()`);
     check(mobile, `${width}px viewport has no horizontal overflow`, layout.scroll <= layout.inner + 1, `scroll=${layout.scroll} inner=${layout.inner}`);
-    check(mobile, `${width}px sidebar nav is a grid`, layout.nav === 'grid' && layout.columns >= 2, `${layout.nav}/${layout.columns}`);
+    check(mobile, `${width}px menu starts closed`, collapsed, `collapsed=${collapsed}`);
+    check(mobile, `${width}px opened menu is a grid`, layout.nav === 'grid' && layout.columns >= 2, `${layout.nav}/${layout.columns}`);
+    await ev(`document.querySelector('#nav-toggle').click()`); await wait(150);
     check(mobile, `${width}px small action buttons reach 44px`, layout.small !== null && layout.small >= 44, `height=${layout.small}`);
     await shot(`members-${width}px`);
   }
   // Each screen at phone width, both as evidence and as an overflow check.
   await page.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 760, deviceScaleFactor: 1, mobile: false });
-  for (const [label, name] of [['Overview', 'overview'], ['Assessment Studio', 'assessment-studio'],
-    ['Academy Workspace', 'academy'], ['Billing', 'billing'], ['Members', 'members']]) {
+  for (const [label, name] of [['Overview', 'overview'], ['Create tests', 'assessment-studio'],
+    ['Courses', 'academy'], ['Billing', 'billing'], ['Members', 'members']]) {
     if (!await view(label)) continue;
     await wait(1100);
     const widthCheck = await ev(`(() => ({ wide: document.documentElement.scrollWidth > window.innerWidth + 1,

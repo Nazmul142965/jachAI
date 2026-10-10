@@ -7,7 +7,7 @@
   <title>JachAI · Assess with confidence</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/app.css">
@@ -19,8 +19,9 @@
   <a class="skip-link" href="#app">Skip to workspace content</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
-    <span class="topbar-note">Technical assessment workspace</span>
+    <span class="topbar-note" data-t>Technical assessment workspace</span>
     <nav class="topnav" aria-label="Products"><a href="/academy.html">Academy</a><a href="/talent.html">Talent</a><a href="/plans.html">Plans</a><a href="/how.html">How it works</a><a href="/engineering.html">Inside the build</a></nav>
+    <button id="lang-toggle" class="lang-toggle" type="button" aria-label="Change language / ভাষা বদলান" lang="bn">বাংলা</button>
     <div id="account-menu" class="account-menu hidden">
       <button id="account-menu-toggle" class="account-menu-toggle" type="button" aria-expanded="false" aria-controls="account-menu-panel">
         <img id="header-avatar" class="header-avatar hidden" alt="">
@@ -28,12 +29,12 @@
         <span id="header-account-name">Account</span>
       </button>
       <div id="account-menu-panel" class="account-menu-panel hidden">
-        <button id="account-menu-profile" type="button">Profile & settings</button>
-        <button id="account-menu-support" type="button">Support</button>
-        <button id="account-menu-logout" type="button">Sign out</button>
+        <button id="account-menu-profile" type="button" data-t>Profile & settings</button>
+        <button id="account-menu-support" type="button" data-t>Support</button>
+        <button id="account-menu-logout" type="button" data-t>Sign out</button>
       </div>
     </div>
-    <button id="logout" class="button quiet hidden" type="button">Sign out</button>
+    <button id="logout" class="button quiet hidden" type="button" data-t>Sign out</button>
   </header>
   <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 
@@ -55,19 +56,19 @@
     </section>
     <section class="auth-card card" aria-label="Account access">
       <div class="tabs" role="tablist" aria-label="Account action">
-        <button id="login-tab" class="tab active" type="button" role="tab" aria-selected="true">Sign in</button>
-        <button id="register-tab" class="tab" type="button" role="tab" aria-selected="false">Create account</button>
+        <button id="login-tab" class="tab active" type="button" role="tab" aria-selected="true" data-t>Sign in</button>
+        <button id="register-tab" class="tab" type="button" role="tab" aria-selected="false" data-t>Create account</button>
       </div>
       <p class="muted hint">Invited to a workspace or an assessment? Open the link from your email — signing in with that address joins you automatically.</p>
       <form id="login-form" class="stack" role="tabpanel" aria-labelledby="login-tab">
-        <h2>Welcome back</h2><p class="muted">Sign in with your verified email.</p>
-        <label>Email<input name="email" type="email" autocomplete="username" required></label>
-        <label class="password-field">Password<input name="password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label>
-        <button class="button primary" type="submit">Sign in</button>
-        <div class="auth-recovery-links"><a class="inline-link" href="/reset-password.html">Forgot password?</a><a class="inline-link" href="/verify-email.html">Verify email</a></div>
+        <h2 data-t>Welcome back</h2><p class="muted" data-t>Sign in with your verified email.</p>
+        <label><span data-t>Email</span><input name="email" type="email" autocomplete="username" required></label>
+        <label class="password-field"><span data-t>Password</span><input name="password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label>
+        <button class="button primary" type="submit" data-t>Sign in</button>
+        <div class="auth-recovery-links"><a class="inline-link" href="/reset-password.html" data-t>Forgot password?</a><a class="inline-link" href="/verify-email.html">Verify email</a></div>
       </form>
       <form id="register-form" class="stack hidden" role="tabpanel" aria-labelledby="register-tab">
-        <h2>Create your account</h2><p class="muted">Register first, then verify your email before signing in.</p>
+        <h2 data-t>Create your account</h2><p class="muted">Register first, then verify your email before signing in.</p>
         <p id="registration-mail-mode" class="muted" role="status" aria-live="polite">Checking how verification links are delivered…</p>
         <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
         <label>Email<input name="email" type="email" autocomplete="username" required></label>
@@ -102,7 +103,7 @@
   <main id="app" class="workspace hidden" tabindex="-1">
     <aside class="sidebar">
       <p id="sidebar-context" class="eyebrow">Workspace</p>
-      <label class="select-label" for="organization-select">Organization</label>
+      <label class="select-label visually-hidden" for="organization-select">Organization</label>
       <select id="organization-select" aria-label="Active organization"></select>
       <p id="workspace-role" class="role-badge"></p>
       <button id="nav-toggle" class="nav-toggle" type="button" aria-expanded="false"
@@ -118,74 +119,75 @@
       <div id="screen-tabs" class="tabs hidden" role="tablist" aria-label="Section"></div>
 
       <section id="workspace-access-view" class="view hidden" aria-labelledby="workspace-access-heading">
-        <div class="card panel"><h2 id="workspace-access-heading">Your workspaces</h2><p class="muted">One account can be a learner or candidate in one workspace and own another. Switching does not change your role in either.</p><div id="workspace-access-list" class="item-list"></div></div>
+        <div class="card panel"><h2 id="workspace-access-heading" data-t>My organizations</h2><p class="muted" data-t>You can be a learner in one organization and the owner of another. Your role in each stays separate.</p><div id="workspace-access-list" class="item-list"></div></div>
         <div class="onboarding-grid">
-          <div class="card panel"><h2>Join with a code</h2><p class="muted">Use a code from an Academy or Talent organizer. It grants learner or candidate access only; staff roles require an invitation.</p><form id="workspace-join-code-form" class="stack"><label>Workspace join code<input name="code" autocomplete="off" maxlength="32" required placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="button primary" type="submit">Join workspace</button></form></div>
-          <div class="card panel"><h2>Start your own workspace</h2><p class="muted">Keep your existing learner or candidate access and become the owner of a separate Academy or Talent workspace.</p><form id="workspace-create-org-form" class="stack"><label>Workspace name<input name="name" minlength="2" maxlength="120" required placeholder="e.g. Acme Academy"></label><label>Workspace type<select name="type"><option value="ACADEMY">Academy</option><option value="TALENT">Talent</option></select></label><button class="button secondary" type="submit">Create workspace</button></form></div>
+          <div class="card panel"><h2 data-t>Join with a code</h2><p class="muted" data-t>Use the code your organizer gave you. It lets you join as a student or test taker. Teachers and recruiters join by invitation.</p><form id="workspace-join-code-form" class="stack"><label><span data-t>Join code</span><input name="code" autocomplete="off" maxlength="32" required placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="button primary" type="submit" data-t>Join</button></form></div>
+          <div class="card panel"><h2 data-t>Start your own organization</h2><p class="muted" data-t>Become the owner of a separate Academy or Talent organization. Your existing access stays as it is.</p><form id="workspace-create-org-form" class="stack"><label><span data-t>Organization name</span><input name="name" minlength="2" maxlength="120" required placeholder="e.g. Acme Academy" data-t-placeholder="e.g. Acme Academy"></label><label><span data-t>Type</span><select name="type"><option value="ACADEMY" data-t>Academy</option><option value="TALENT" data-t>Talent</option></select></label><button class="button secondary" type="submit" data-t>Create</button></form></div>
         </div>
       </section>
 
       <section id="start-view" class="view card panel hidden" aria-labelledby="onboarding-title">
-        <p class="eyebrow">Your account</p>
         <h2 id="onboarding-title">Your next step starts here.</h2>
         <p id="home-role" class="home-role" role="status">Checking your workspace role…</p>
         <p id="home-intro" class="muted">Practice for yourself, complete an assessment you've been invited to, or manage an Academy or Talent workspace. One account can do all three.</p>
+        <div class="home-shortcuts">
         <div id="ai-tutor-entry" class="result-box hidden">
-          <h3>AI Tutor</h3>
-          <p>Academy learners and Talent candidates can use AI Tutor after a result is graded and released. It is unavailable while an exam is in progress.</p>
-          <button id="ai-tutor-entry-action" class="button secondary small" type="button">Open my assessments</button>
+          <h3 data-t>AI Tutor</h3>
+          <p data-t>Get help understanding a result once it has been released. Not available during an exam.</p>
+          <button id="ai-tutor-entry-action" class="button secondary small" type="button" data-t>Open my tests</button>
         </div>
         <div id="home-messages-entry" class="result-box hidden">
-          <h3>Messages</h3>
-          <p>Talk with your permitted Academy partners. Owners can message instructors; instructors and learners can message their permitted partners.</p>
-          <button id="home-messages-entry-action" class="button secondary small" type="button">Open messages</button>
+          <h3 data-t>Messages</h3>
+          <p data-t>Chat with your instructor or learners.</p>
+          <button id="home-messages-entry-action" class="button secondary small" type="button" data-t>Open messages</button>
         </div>
-        <button id="home-account-action" class="button quiet small" type="button">View profile, password and plan</button>
+        <button id="home-account-action" class="button quiet small" type="button" data-t>Profile, password and plan</button>
+        </div>
         <div class="home-next" aria-labelledby="home-next-title">
-          <div><p class="home-kicker">Recommended next</p><h3 id="home-next-title">Checking your recent work…</h3><p id="home-next-detail" class="muted" role="status" aria-live="polite">Your personal practice and workspace access are loading.</p></div>
+          <div><p class="home-kicker" data-t>Recommended next</p><h3 id="home-next-title">Checking your recent work…</h3><p id="home-next-detail" class="muted" role="status" aria-live="polite">Your personal practice and workspace access are loading.</p></div>
           <button id="home-next-action" class="button primary" type="button" disabled>Continue</button>
         </div>
         <div id="home-context" class="home-context" aria-label="Your account at a glance"></div>
         <section id="home-work" class="home-work" aria-labelledby="home-work-title">
-          <div class="home-work-heading"><div><h3 id="home-work-title">Your work</h3><p id="home-work-description" class="muted">Loading the work connected to this account…</p></div></div>
+          <div class="home-work-heading"><div><h3 id="home-work-title" data-t>Your work</h3><p id="home-work-description" class="muted">Loading the work connected to this account…</p></div></div>
           <div id="home-work-list" class="home-work-list" aria-live="polite"></div>
         </section>
-        <h3 id="home-explore-title" class="home-explore-title">More you can do</h3>
+        <h3 id="home-explore-title" class="home-explore-title" data-t>Explore</h3>
         <div class="start-actions" aria-label="More ways to use JachAI">
-          <button id="start-practice" class="start-action" type="button"><span class="start-action-number">Your own progress</span><strong>Practice a skill</strong><span>Pick a topic, create a question, and learn from the explanation.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
-          <button id="start-join" class="start-action" type="button"><span class="start-action-number">Your invitation</span><strong>Join a workspace</strong><span>Use an invitation or organizer-issued code.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
-          <button id="start-organize" class="start-action" type="button"><span class="start-action-number">Your team</span><strong>Run assessments</strong><span>Create an Academy or Talent workspace.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-practice" class="start-action" type="button"><span class="start-action-number" data-t>Your own progress</span><strong data-t>Practice a skill</strong><span data-t>Pick a topic, create a question, and learn from the explanation.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-join" class="start-action" type="button"><span class="start-action-number" data-t>Your invitation</span><strong>Join an organization</strong><span data-t>Use an invitation or a join code from your organizer.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
+          <button id="start-organize" class="start-action" type="button"><span class="start-action-number" data-t>Your team</span><strong>Run tests</strong><span data-t>Start an Academy to teach, or Talent to hire.</span><span class="start-action-arrow" aria-hidden="true">↗</span></button>
         </div>
-        <details class="start-details"><summary>Joining a team or starting one? See your options</summary>
-        <h3>Find your exact path</h3>
-        <p class="muted">Choose a role for tailored guidance. This does not assign permissions; access comes from an invitation or a workspace you own.</p>
-        <label class="onboarding-choice">I am here as
+        <details class="start-details"><summary data-t>Join an organization or start your own</summary>
+        <h3 data-t>What would you like to do?</h3>
+        <p class="muted" data-t>Tell us who you are and we will show the right steps. This does not change what you can access.</p>
+        <label class="onboarding-choice"><span data-t>I am here as</span>
           <select id="onboarding-intent">
-            <option value="">Choose your path</option>
-            <option value="learner">Student or assessment candidate</option>
-            <option value="instructor">Teacher or instructor</option>
-            <option value="recruiter">Recruiter or hiring team member</option>
-            <option value="owner">Starting an Academy or company workspace</option>
+            <option value="" data-t>Choose one</option>
+            <option value="learner" data-t>Student or test taker</option>
+            <option value="instructor" data-t>Teacher or instructor</option>
+            <option value="recruiter" data-t>Recruiter or hiring team member</option>
+            <option value="owner" data-t>Starting an Academy or a company</option>
           </select>
         </label>
-        <p id="onboarding-next-step" class="muted" role="status" aria-live="polite">Select a path above. You can change it at any time.</p>
+        <p id="onboarding-next-step" class="muted" role="status" aria-live="polite">Choose one above. You can change it any time.</p>
         <div class="onboarding-grid">
           <div id="onboarding-join" class="onboarding-path hidden">
-            <p class="eyebrow">Join an existing team</p>
-            <h3>Practice now, join a workspace when invited</h3>
-            <p>You can use Practice without an organization. For a private Academy or Talent assessment, an organizer can invite this verified account. Open the link and sign in with the same address; that workspace then appears in your sidebar.</p>
-            <button id="onboarding-open-practice" class="button secondary" type="button">Open Practice</button>
-            <p class="muted">Have a join code from the organizer? Enter it below. Codes grant participant access only; teacher and recruiter access requires an invitation.</p>
-            <form id="join-code-form" class="form-row"><label>Workspace join code<input name="code" autocomplete="off" maxlength="32" required placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="button primary" type="submit">Join workspace</button></form>
+            <p class="eyebrow" data-t>Join with a code</p>
+            <h3 data-t>You can practice right now</h3>
+            <p data-t>You can use Practice without any organization. If an organizer invites you, open their link and sign in with the same email. The organization then appears in your sidebar.</p>
+            <button id="onboarding-open-practice" class="button secondary" type="button" data-t>Open practice</button>
+            <p class="muted" data-t>Have a join code from your organizer? Enter it below. A code lets you join as a student or test taker. Teachers and recruiters join by invitation.</p>
+            <form id="join-code-form" class="form-row"><label><span data-t>Join code</span><input name="code" autocomplete="off" maxlength="32" required placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="button primary" type="submit" data-t>Join</button></form>
           </div>
           <div id="onboarding-create" class="onboarding-path hidden">
-            <p class="eyebrow">Start a team</p>
-            <h3>Set up a workspace</h3>
-            <p>Create one only if you will organize assessments and invite people. Academy is for learning and certificates; Talent is for hiring assessments.</p>
+            <p class="eyebrow" data-t>Start your own</p>
+            <h3 data-t>Start an organization</h3>
+            <p data-t>Only start one if you will organize tests and invite people. Academy is for teaching and certificates. Talent is for hiring.</p>
             <form id="create-org-form" class="stack">
-              <label>Workspace name<input name="name" minlength="2" maxlength="120" required placeholder="e.g. Acme Academy"></label>
-              <label>Workspace type<select name="type"><option value="ACADEMY">Academy</option><option value="TALENT">Talent</option></select></label>
-              <button class="button primary" type="submit">Create workspace</button>
+              <label><span data-t>Organization name</span><input name="name" minlength="2" maxlength="120" required placeholder="e.g. Acme Academy" data-t-placeholder="e.g. Acme Academy"></label>
+              <label><span data-t>Type</span><select name="type"><option value="ACADEMY" data-t>Academy</option><option value="TALENT" data-t>Talent</option></select></label>
+              <button class="button primary" type="submit" data-t>Create</button>
             </form>
           </div>
         </div>
@@ -386,13 +388,36 @@
         <div class="card panel"><h3>Enrolled learners</h3><p class="muted">The batch roster exactly as the server reports it. Per-learner scores appear under an assessment above.</p><div id="academy-batch-learners" class="item-list"></div><div id="academy-batch-learners-pagination"></div></div>
       </section>
 
-      <section id="messages-view" class="view hidden">
-        <div class="card panel"><h2>Direct messages</h2><p class="muted">Academy owners can message instructors; instructors and learners can message their permitted Academy partners. New messages refresh while this page is open.</p>
-          <form id="conversation-form" class="form-row"><label>Start with<select id="messaging-partner-select" name="partnerUserId" required></select></label><button class="button primary" type="submit">Open conversation</button></form><div id="messaging-partner-pagination"></div>
-          <div id="conversations-list" class="item-list"></div><div id="conversations-pagination"></div>
-        </div>
-        <div id="conversation-panel" class="card panel hidden"><h2 id="conversation-title">Conversation</h2><div id="conversation-messages" class="item-list"></div><div id="conversation-messages-pagination"></div>
-          <form id="message-form" class="stack"><label>Message<textarea name="body" rows="3" maxlength="1000" required></textarea></label><button class="button secondary" type="submit">Send message</button></form>
+      <section id="messages-view" class="view hidden" aria-label="Messages">
+        <div class="chat">
+          <aside class="chat-side card">
+            <h2 data-t>Your conversations</h2>
+            <div id="conversations-list" class="chat-list"></div>
+            <div id="conversations-pagination"></div>
+            <form id="conversation-form" class="chat-new">
+              <label><span data-t>Start a chat with</span>
+                <select id="messaging-partner-select" name="partnerUserId" required></select></label>
+              <button class="button primary" type="submit" data-t>Start</button>
+            </form>
+            <div id="messaging-partner-pagination"></div>
+          </aside>
+          <div class="chat-main card">
+            <div class="chat-placeholder">
+              <h2 data-t>Select a conversation</h2>
+              <p class="muted" data-t>Pick someone from the list, or start a new chat.</p>
+            </div>
+            <div id="conversation-panel" class="chat-panel hidden">
+              <h2 id="conversation-title" class="chat-title">Conversation</h2>
+              <div id="conversation-messages" class="chat-thread" role="log" aria-live="polite" aria-label="Messages"></div>
+              <div id="conversation-messages-pagination"></div>
+              <form id="message-form" class="chat-composer">
+                <textarea name="body" rows="1" maxlength="1000" required aria-label="Message"
+                          placeholder="Write a message…" data-t-placeholder="Write a message…"></textarea>
+                <button class="button primary" type="submit" data-t>Send</button>
+              </form>
+              <p class="chat-hint" data-t>Enter to send, Shift+Enter for a new line</p>
+            </div>
+          </div>
         </div>
       </section>
 

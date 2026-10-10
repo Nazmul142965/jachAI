@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/index.html", "/app.css", "/app.js", "/public.css", "/engineering.css",
-                                "/theme.css", "/theme.js",
+                                "/theme.css", "/theme.js", "/i18n.js",
                                 "/favicon.svg", "/favicon.ico",
                                 // The React Practice pilot's bundle. A static asset exactly like
                                 // /app.js above: it is fetched by a dynamic import, which carries

@@ -163,3 +163,24 @@ exactly like `/app.js`: fetched by a dynamic import that carries no
 `Authorization` header, holding no secret, with the data still behind the
 authenticated API. That package is not this branch's by default, so flag it when
 integrating — and note the other agent has uncommitted changes to the same file.
+
+## 2026-10-10 — plain-language redesign (supersedes "In flight" above)
+
+Done in place, not in React; see `docs/design/ui-standard.md` for the rules.
+
+- Shell and nav renamed in plain words; the page head says where / what / why once.
+- Home reduced to a greeting, one next action, facts as tiles, then shortcuts.
+- Messages rebuilt as a chat (bubbles by side, names not ids, Enter to send).
+- English / Bangla switch (`static/i18n.js`): shell, sign-in, Home, My organizations,
+  Messages. Everything else is still English.
+- Phone menu starts closed again. `main` had an override that held it open
+  (`.side-nav[data-collapsed="true"] { display: grid }`); removed here.
+- `event.currentTarget` was read after an `await` in eleven submit handlers; fixed on
+  `main` in `2cba535`, and the same fix is carried here by the merge.
+
+**One edit outside the frontend:** `shared/config/SecurityConfig` now permits
+`/i18n.js`, next to `/theme.js`. It is a static module that `app.js` imports; without
+the entry the whole app is a blank page. `JachAiApplicationTests` asserts it.
+
+**Journeys:** `src/test/frontend/run-journeys.js` uses the new nav labels; the phone
+menu check now asserts "starts closed" and "opens as a grid". 154/154.

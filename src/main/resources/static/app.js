@@ -1,3 +1,4 @@
+import { t, applyLanguage, setLanguage, getLanguage, getLocale } from '/i18n.js';
 const $ = (selector) => document.querySelector(selector);
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
   platformAdmin: false, platformUserId: null, platformOrganizationId: null,
@@ -31,46 +32,46 @@ const views = ['start', 'account', 'support', 'practice', 'overview', 'workspace
 // rather than thirteen. The views themselves are unchanged: a screen is a
 // grouping and a route, not a new container.
 const SCREENS = {
-  start: { title: 'My dashboard', subtitle: 'Your learning and work in one place', views: [['start', 'My dashboard']] },
+  start: { title: 'Home', subtitle: 'Your learning and work in one place', views: [['start', 'Home']] },
   account: { title: 'Profile & settings', subtitle: 'Your identity, sign-in and plan', views: [['account', 'Profile & settings']] },
   support: { title: 'Support', subtitle: 'Get help from the JachAI support team', views: [['support', 'Support']] },
   practice: { title: 'Practice', subtitle: 'Learn at your own pace', views: [['practice', 'Practice']] },
   overview: { title: 'Overview', subtitle: '', views: [['overview', 'Overview']] },
-  'workspace-access': { title: 'Your workspaces', subtitle: 'Join or create another workspace',
-    views: [['workspace-access', 'Your workspaces']] },
-  members: { title: 'Members', subtitle: 'People in this workspace', views: [['members', 'Members']] },
+  'workspace-access': { title: 'My organizations', subtitle: 'Join or create another organization',
+    views: [['workspace-access', 'My organizations']] },
+  members: { title: 'Members', subtitle: 'People in this organization', views: [['members', 'Members']] },
   'assessment-studio': {
-    title: 'Assessment Studio',
-    subtitle: 'Author questions, publish assessments, review results',
+    title: 'Create tests',
+    subtitle: 'Write questions, publish tests, review results',
     // One tab per stage of the lifecycle: author a question, publish an
     // assessment, assign it, review what came back.
     views: [['questions', 'Question bank'], ['assessments', 'Assessments'],
       ['assign', 'Assign'], ['review', 'Review & release']]
   },
   academy: {
-    title: 'Academy Workspace',
-    subtitle: 'Courses, batches, learner progress and cohort analytics',
+    title: 'Courses',
+    subtitle: 'Courses, batches and learner progress',
     views: [['academy', 'Courses & batches'], ['academy-batch', 'Batch workspace']]
   },
   talent: {
-    title: 'Talent Campaigns',
-    subtitle: 'Invitations, comparison, integrity review and decisions',
-    views: [['campaigns', 'Campaigns'], ['talent-campaign', 'Campaign workspace']]
+    title: 'Campaigns',
+    subtitle: 'Invite candidates, compare them and decide',
+    views: [['campaigns', 'All campaigns'], ['talent-campaign', 'Campaign workspace']]
   },
-  messages: { title: 'Messages', subtitle: 'Instructor and learner conversations', views: [['messages', 'Messages']] },
+  messages: { title: 'Messages', subtitle: 'Talk with your instructor or learners', views: [['messages', 'Messages']] },
   'my-assessments': {
-    title: 'My Assessments',
-    subtitle: 'Your assignments, attempts and released results',
+    title: 'My tests',
+    subtitle: 'Your tests, attempts and results',
     views: [['attempts', 'Assignments'], ['assessment-detail', 'Assessment detail']]
   },
   certificates: { title: 'Certificates', subtitle: 'Your issued certificates', views: [['certificates', 'Certificates']] },
   billing: {
-    title: 'Organization Billing',
-    subtitle: 'Plan, sandbox orders and quota reconciliation',
+    title: 'Billing',
+    subtitle: 'Plan, orders and usage',
     views: [['billing', 'Plan & usage']]
   },
   platform: {
-    title: 'Platform Operations',
+    title: 'Platform',
     subtitle: 'Administration and support',
     views: [['platform', 'Overview'], ['platform-tenants', 'Organizations'], ['platform-admins', 'Administrators']]
   }
@@ -164,6 +165,12 @@ function focusPanel(panel) {
 }
 const roleLabel = (role) => String(role).replaceAll('_', ' ').toLowerCase();
 const roleTitle = (role) => roleLabel(role).replace(/\b\w/g, (letter) => letter.toUpperCase());
+// What a person is called in the interface. "Owner / Org Admin" is a description of a
+// permission, not a name anyone uses for themselves.
+const ROLE_NAMES = { ORG_ADMIN: 'Admin', INSTRUCTOR: 'Instructor', LEARNER: 'Learner',
+  RECRUITER: 'Recruiter', CANDIDATE: 'Candidate', REVIEWER: 'Reviewer' };
+const myRoleName = (organization) => t(organization.owner ? 'Owner'
+  : ROLE_NAMES[organization.myRole] || roleTitle(organization.myRole));
 const when = (value) => (value ? new Date(value).toLocaleString() : 'not recorded');
 let pendingRequests = 0;
 function updateBusyIndicator() {
@@ -270,6 +277,18 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
   }
   return data;
 }
+// The signed-in person's name, for the header and the Home greeting. A demo sign-in
+// reaches a screen before anything has asked for it, so it is fetched once, here, and
+// shared by every caller that arrives while the request is still in flight.
+let profileRequest = null;
+async function ensureProfile() {
+  if (state.displayName) return;
+  profileRequest ??= request('/auth/me').then((me) => {
+    state.displayName = me.displayName;
+    updateAccountMenu(me);
+  }).catch(() => { /* the greeting falls back to Welcome */ }).finally(() => { profileRequest = null; });
+  await profileRequest;
+}
 function updateAccountMenu(profile) {
   const image = $('#header-avatar');
   const fallback = $('#header-avatar-fallback');
@@ -284,6 +303,7 @@ function updateAccountMenu(profile) {
     fallback.textContent = (profile.displayName || '?').trim().charAt(0).toUpperCase();
   }
   if (name) name.textContent = profile.displayName;
+  state.displayName = profile.displayName;
 }
 function initAccountMenu() {
   $('#account-menu-toggle')?.addEventListener('click', () => {
@@ -313,7 +333,7 @@ function showSignedOut() {
   state.practiceQuestions = []; state.practiceAnswers = []; state.practiceRequestId = null;
   state.practiceRemaining = 0; state.practiceGenerationRemaining = 0; state.homeAction = null;
   state.homeLoadToken++;
-  state.profile = null;
+  state.profile = null; state.displayName = null;
   state.tutorHistory.clear();
   state.activeReviewAttemptId = null;
   state.emailInvitationCampaignId = null;
@@ -540,27 +560,27 @@ async function setOrganization() {
   $('#start-view').classList.add('hidden');
   $('#organization-select').classList.toggle('hidden', !state.organization);
   $('.select-label[for="organization-select"]').classList.toggle('hidden', !state.organization);
-  $('#sidebar-context').textContent = state.organization ? 'Workspace' : 'Your account';
+  $('#sidebar-context').textContent = t(state.organization ? 'Your organization' : 'Your account');
   $('#sidebar-foot').textContent = state.organization
     ? "Your work is saved to your organization's workspace."
     : 'Practice is yours. Join an Academy or Talent workspace when you receive an invitation or code.';
   $('#workspace-role').textContent = state.organization
-    ? `${state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent'} · ${state.organization.owner ? 'Owner / Org Admin' : roleTitle(state.organization.myRole)}`
+    ? `${t(state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent')} · ${myRoleName(state.organization)}`
     : '';
   $('#workspace-role').classList.toggle('hidden', !state.organization);
   $('#page-role-context').textContent = state.organization
-    ? `Current role: ${state.organization.owner ? 'Owner / Org Admin' : roleTitle(state.organization.myRole)} in ${state.organization.name}. Roles in other workspaces may differ.`
-    : 'Personal account · No Academy or Talent role yet';
+    ? `${t('Your role here:')} ${myRoleName(state.organization)}`
+    : '';
   const headerContext = document.querySelector('.topbar-note');
   if (headerContext) headerContext.textContent = state.organization
-    ? `${state.organization.name} · ${state.organization.owner ? 'Owner' : roleTitle(state.organization.myRole)}`
+    ? `${state.organization.name} · ${myRoleName(state.organization)}`
     : 'Your personal learning space';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
     availableScreens = ['start', 'practice', 'account', 'support', ...(state.platformAdmin ? ['platform'] : [])];
-    for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'],
-      ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])]) {
-      const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
+    for (const [key, title] of [['start', 'Home'], ['practice', 'Practice'],
+      ...(state.platformAdmin ? [['platform', 'Platform']] : [])]) {
+      const tab = node('button', t(title)); tab.type = 'button'; tab.dataset.screen = key; tab.dataset.en = title;
       tab.addEventListener('click', () => run(() => showScreen(key)));
       nav.append(tab);
     }
@@ -588,30 +608,31 @@ async function setOrganization() {
   // Talent read as related but distinct products.
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
-  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['workspace-access', 'Your workspaces']]);
-  group('Workspace', [['overview', 'Overview']]);
-  group('Assessment engine', [
-    ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
+  group('Personal', [['start', 'Home'], ['practice', 'Practice'], ['workspace-access', 'My organizations']]);
+  group('This organization', [
+    ['overview', 'Overview'],
     ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : [])
   ]);
+  group('Tests', staff ? [['assessment-studio', 'Create tests']] : []);
   if (academy) {
-    group('Academy', [
+    group('Learning', [
       ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
-        ? [['academy', role === 'LEARNER' ? 'My batches' : 'Academy Workspace']] : []),
+        ? [['academy', role === 'LEARNER' ? 'My batches' : 'Courses']] : []),
       ...(['INSTRUCTOR', 'LEARNER', 'ORG_ADMIN'].includes(role) ? [['messages', 'Messages']] : []),
       ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
     ]);
   }
-  if (talent) group('Talent', staff ? [['talent', 'Talent Campaigns']] : []);
+  if (talent) group('Hiring', staff ? [['talent', 'Campaigns']] : []);
   group('My work', ['LEARNER', 'CANDIDATE'].includes(role)
-    ? [['my-assessments', 'My Assessments']] : []);
-  group('Administration', [
+    ? [['my-assessments', 'My tests']] : []);
+  group('Admin', [
     ...(role === 'ORG_ADMIN' ? [['billing', 'Billing']] : []),
-    ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])
+    ...(state.platformAdmin ? [['platform', 'Platform']] : [])
   ]);
 
   // A learner sees only their own batch list, never the staff batch workspace,
   // so that screen drops its second tab rather than showing a forbidden one.
+  SCREENS.academy.title = role === 'LEARNER' ? 'My batches' : 'Courses';
   SCREENS.academy.views = ['ORG_ADMIN', 'INSTRUCTOR'].includes(role)
     ? [['academy', 'Courses & batches'], ['academy-batch', 'Batch workspace']]
     : [['academy', 'My batches']];
@@ -621,9 +642,9 @@ async function setOrganization() {
   $('#nav-toggle').hidden = false;
   setNavCollapsed(true);
   for (const [heading, items] of groups) {
-    if (heading) nav.append(node('p', heading, 'nav-heading'));
+    if (heading) { const label = node('p', t(heading), 'nav-heading'); label.dataset.en = heading; nav.append(label); }
     for (const [key, title] of items) {
-      const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
+      const tab = node('button', t(title)); tab.type = 'button'; tab.dataset.screen = key; tab.dataset.en = title;
       tab.addEventListener('click', () => run(() => showScreen(key)));
       nav.append(tab);
     }
@@ -654,18 +675,20 @@ async function loadHome() {
   $('#home-messages-entry').classList.toggle('hidden',
     !(academy && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)));
   $('#home-role').textContent = organization
-    ? `${academy ? 'Academy' : 'Talent'} workspace · ${organization.name} · ${organization.owner ? 'Owner / Org Admin' : roleTitle(role)}`
-    : 'Personal account · No workspace role yet';
-  $('#onboarding-title').textContent = !organization ? 'Practice now. Join a team when you are ready.'
-    : participant ? 'Your learning, in one place.' : 'Your workspace, your next decision.';
-  $('#home-intro').textContent = !organization
-    ? 'You can practice without an organization. A join code or invitation adds Academy or Talent access later.'
+    ? `${t(academy ? 'Academy' : 'Talent')} · ${organization.name} · ${myRoleName(organization)}`
+    : t('Personal account');
+  await ensureProfile();
+  updateOnboardingIntent();
+  const firstName = (state.displayName || '').trim().split(/\s+/)[0];
+  $('#onboarding-title').textContent = firstName ? `${t('Hello')}, ${firstName}` : t('Welcome');
+  $('#home-intro').textContent = t(!organization
+    ? 'You can practice right away. A join code or an invitation connects you to an organization.'
     : participant
-      ? 'Your personal practice stays separate from assigned assessments and official results.'
-      : 'Your role applies only to this workspace. Personal practice and other workspaces stay separate.';
+      ? 'Here is your work, and what to do next.'
+      : 'Here is what needs attention in this organization.');
   $('#start-view .start-details').classList.toggle('hidden', !!organization);
-  $('#start-join strong').textContent = organization ? 'Join another workspace' : 'Join a workspace';
-  $('#start-organize strong').textContent = organization ? 'Create another workspace' : 'Run assessments';
+  $('#start-join strong').textContent = t(organization ? 'Join another organization' : 'Join an organization');
+  $('#start-organize strong').textContent = t(organization ? 'Start another organization' : 'Run tests');
   const requests = [
     request('/practice/usage'),
     request('/practice/answers/mine?page=0'),
@@ -687,28 +710,28 @@ async function loadHome() {
   const context = $('#home-context');
   context.replaceChildren();
   context.append(node('p', usage
-    ? `${usage.generationRemaining} AI questions and ${usage.remaining} answers left today`
-    : 'Practice allowance unavailable right now', 'home-fact'));
+    ? t('{q} AI questions and {a} answers left today', { q: usage.generationRemaining, a: usage.remaining })
+    : t('Practice allowance unavailable right now'), 'home-fact'));
   context.append(node('p', state.organizations.length === 0
-    ? 'No workspace joined yet — personal practice is ready'
-    : `${state.organizations.length} workspace${state.organizations.length === 1 ? '' : 's'} connected`, 'home-fact'));
+    ? t('You have not joined an organization yet')
+    : t(state.organizations.length === 1 ? '1 organization' : '{n} organizations', { n: state.organizations.length }), 'home-fact'));
   if (answersResult.status === 'fulfilled') context.append(node('p', answers.length
-    ? `${answers.length} recent practice answer${answers.length === 1 ? '' : 's'} shown`
-    : 'No practice answers yet', 'home-fact'));
-  if (staff && pendingReviews !== null) context.append(node('p', `${pendingReviews} review${pendingReviews === 1 ? '' : 's'} waiting in this workspace`, 'home-fact'));
+    ? t(answers.length === 1 ? '1 recent practice answer' : '{n} recent practice answers', { n: answers.length })
+    : t('No practice answers yet'), 'home-fact'));
+  if (staff && pendingReviews !== null) context.append(node('p', t('{n} to review', { n: pendingReviews }), 'home-fact'));
   renderHomeWork({ organization, participant, staff, academy, assignmentsResult, reviewResult,
     areaResult, assignments, pendingReviews, areaCount, questionsResult, questions });
 
-  let title = 'Start with a skill you want to strengthen';
-  let detail = 'Choose a topic or try a starter question. Personal practice never changes an official assessment result.';
-  let label = 'Open practice';
+  let title = t('Start with a skill you want to strengthen');
+  let detail = t('Choose a topic or try a starter question. Personal practice never changes an official test result.');
+  let label = t('Open practice');
   let action = () => showScreen('practice');
   const lastMiss = answers.find((answer) => !answer.correct);
   const missedQuestion = questions.find((question) => question.id === lastMiss?.questionId);
   if (missedQuestion) {
-    title = `Revisit ${missedQuestion.topic}`;
-    detail = 'A recent answer needs review. Try another question on this topic and check the explanation.';
-    label = 'Practice this topic';
+    title = t('Revisit {topic}', { topic: missedQuestion.topic });
+    detail = t('A recent answer needs review. Try another question on this topic and check the explanation.');
+    label = t('Practice this topic');
     action = async () => {
       await showScreen('practice');
       const topic = $('#practice-generate-form [name="topic"]');
@@ -717,9 +740,11 @@ async function loadHome() {
     };
   }
   if (participant && assignments.length) {
-    title = 'Check your assigned assessments';
-    detail = `You have ${assignments.length} assignment${assignments.length === 1 ? '' : 's'} on the first page of this workspace. Open them to check availability and progress.`;
-    label = 'My assessments';
+    title = t('Check your assigned tests');
+    detail = assignments.length === 1
+      ? t('You have 1 test waiting. Open it to check when it is available.')
+      : t('You have {n} tests waiting. Open them to check when they are available.', { n: assignments.length });
+    label = t('My tests');
     action = () => showScreen('my-assessments');
   } else if (staff && pendingReviews > 0) {
     title = `Review ${pendingReviews} submitted attempt${pendingReviews === 1 ? '' : 's'}`;
@@ -728,12 +753,12 @@ async function loadHome() {
     action = () => showScreen('assessment-studio', 'review');
   } else if (staff && academy && areaCount > 0) {
     title = `Review ${areaCount} draft question${areaCount === 1 ? '' : 's'}`;
-    detail = 'Approve suitable questions before they can be used in a published Academy assessment.';
+    detail = 'Approve suitable questions before they can be used in a published test.';
     label = 'Open question bank';
     action = () => showScreen('assessment-studio', 'questions');
   } else if (staff && !academy && areaCount === 0) {
     title = 'Start your first hiring campaign';
-    detail = 'A campaign connects a published assessment to candidate invitations and review.';
+    detail = 'A campaign connects a published test to candidate invitations and review.';
     label = 'Open campaigns';
     action = () => showScreen('talent');
   } else if (state.organization && !participant) {
@@ -763,9 +788,9 @@ function renderHomeWork({ organization, participant, staff, academy, assignments
   const description = $('#home-work-description');
   const rows = [];
   if (participant) {
-    description.textContent = `Assignments in ${organization.name}. Personal practice is separate.`;
+    description.textContent = t('Assignments in {org}. Personal practice is separate.', { org: organization.name });
     if (assignmentsResult.status !== 'fulfilled') {
-      rows.push(node('p', 'Assignments could not be loaded. Open My assessments to retry.', 'home-work-empty'));
+      rows.push(node('p', t('Assignments could not be loaded. Open My tests to retry.'), 'home-work-empty'));
     } else {
       for (const assignment of assignments.slice(0, 3)) {
         const from = Date.parse(assignment.availableFrom);
@@ -773,26 +798,27 @@ function renderHomeWork({ organization, participant, staff, academy, assignments
         const now = Date.now();
         const status = now < from ? 'Upcoming' : now >= until ? 'Closed' : 'Available';
         const detail = Number.isFinite(until)
-          ? `${status === 'Upcoming' ? 'Opens' : status === 'Closed' ? 'Closed' : 'Closes'} ${new Date(status === 'Upcoming' ? from : until).toLocaleString()}${assignment.durationMinutes ? ` · ${assignment.durationMinutes} min` : ''}`
-          : 'Open to see assessment instructions and availability';
-        rows.push(homeWorkRow(assignment.assessmentTitle || 'Assigned assessment', detail,
-          status, 'Open assessment', () => openAssessmentDetail(assignment)));
+          ? `${t(status === 'Upcoming' ? 'Opens {when}' : status === 'Closed' ? 'Closed {when}' : 'Closes {when}',
+            { when: new Date(status === 'Upcoming' ? from : until).toLocaleString(getLocale()) })}${assignment.durationMinutes ? ` · ${t('{n} min', { n: assignment.durationMinutes })}` : ''}`
+          : t('Open to see the instructions and when it is available');
+        rows.push(homeWorkRow(assignment.assessmentTitle || t('Assigned test'), detail,
+          t(status), t('Open test'), () => openAssessmentDetail(assignment)));
       }
-      if (!assignments.length) rows.push(node('p', 'No assignments in this workspace yet. An organizer can invite you; personal practice is ready now.', 'home-work-empty'));
+      if (!assignments.length) rows.push(node('p', t('No assignments in this workspace yet. An organizer can invite you; personal practice is ready now.'), 'home-work-empty'));
     }
   } else if (staff) {
     description.textContent = `Items needing attention in ${organization.name}.`;
     if (reviewResult.status === 'fulfilled') {
       for (const review of rowsOf(reviewResult.value).slice(0, 3)) {
         const grading = review.percentage == null;
-        rows.push(homeWorkRow(review.assessmentTitle || 'Assessment result',
+        rows.push(homeWorkRow(review.assessmentTitle || 'Test result',
           `${grading ? 'Manual grading needed' : 'Ready for release'} · Submitted ${relative(review.submittedAt)}`,
           grading ? 'Grade' : 'Release', 'Open review', async () => {
             await showScreen('assessment-studio', 'review');
             await showStaffReview(review.attemptId);
           }));
       }
-    } else rows.push(node('p', 'The review queue could not be loaded. Open Assessment Studio to retry.', 'home-work-empty'));
+    } else rows.push(node('p', 'The review queue could not be loaded. Open Create tests to retry.', 'home-work-empty'));
     if (academy && areaResult.status === 'fulfilled' && areaCount > 0) {
       rows.push(homeWorkRow('Draft questions', `${areaCount} awaiting review in this workspace`,
         'Draft', 'Open question bank', () => showScreen('assessment-studio', 'questions')));
@@ -802,18 +828,19 @@ function renderHomeWork({ organization, participant, staff, academy, assignments
         'Active work', 'Open campaigns', () => showScreen('talent')));
     }
     if (reviewResult.status === 'fulfilled' && pendingReviews === 0 && rows.length === 0) {
-      rows.push(node('p', academy ? 'Nothing awaits review. You can build an assessment or invite learners.'
+      rows.push(node('p', academy ? 'Nothing awaits review. You can build a test or invite learners.'
         : 'Nothing awaits review. Open your campaigns to invite candidates.', 'home-work-empty'));
     }
   } else {
-    description.textContent = 'Your private practice is ready; no workspace is required.';
+    description.textContent = t('Your private practice is ready. You do not need an organization.');
     if (questionsResult.status === 'fulfilled' && questions.length) {
-      rows.push(homeWorkRow('Continue personal practice', `${questions.length} question${questions.length === 1 ? '' : 's'} available to this account`,
-        'Ready', 'Open practice', () => showScreen('practice')));
+      rows.push(homeWorkRow(t('Continue personal practice'),
+        t(questions.length === 1 ? '1 question available to this account' : '{n} questions available to this account', { n: questions.length }),
+        t('Ready'), t('Open practice'), () => showScreen('practice')));
     } else if (questionsResult.status !== 'fulfilled') {
-      rows.push(node('p', 'Practice history could not be loaded. Open Practice to retry.', 'home-work-empty'));
-    } else rows.push(homeWorkRow('Start personal practice', 'Choose a topic or try a starter question.',
-      'Ready', 'Open practice', () => showScreen('practice')));
+      rows.push(node('p', t('Practice history could not be loaded. Open Practice to retry.'), 'home-work-empty'));
+    } else rows.push(homeWorkRow(t('Start personal practice'), t('Choose a topic or try a starter question.'),
+      t('Ready'), t('Open practice'), () => showScreen('practice')));
   }
   list.replaceChildren(...rows);
 }
@@ -1414,7 +1441,7 @@ function renderScreenTabs(screenKey, activeView) {
   strip.classList.toggle('hidden', tabs.length < 2);
   if (tabs.length < 2) { strip.replaceChildren(); return; }
   strip.replaceChildren(...tabs.map(([id, label]) => {
-    const tab = node('button', label, 'tab');
+    const tab = node('button', t(label), 'tab');
     tab.type = 'button';
     tab.setAttribute('role', 'tab');
     tab.dataset.view = id;
@@ -1439,6 +1466,55 @@ function readRoute() {
   const [screenKey, viewKey] = parts;
   return SCREENS[screenKey] ? { screenKey, viewKey } : null;
 }
+// Paints the page head — scope line, title, subtitle — for one view. A function of its
+// own because a change of language has to repaint it without reloading the screen,
+// and a reload would end the session: the access token lives only in memory.
+//
+// Order of the three lines: where (the organization, or "Personal"), what (the title),
+// why (the subtitle). The organization used to be repeated in all three places.
+function paintPageHead(key) {
+  const screenKey = screenOfView(key) || 'overview';
+  const screen = SCREENS[screenKey];
+  if (!screen) return;
+  const personal = ['start', 'practice', 'account', 'workspace-access', 'platform'].includes(screenKey);
+  const tabLabel = (screen.views.find(([id]) => id === key) || [, screen.title])[1];
+  $('#page-title').textContent = t(screen.title);
+  setNavToggleLabel(t(screen.title));
+  document.title = screen.views.length > 1
+    ? `${t(tabLabel)} · ${t(screen.title)} · JachAI`
+    : `${t(screen.title)} · JachAI`;
+  $('#page-subtitle').textContent = t(screen.subtitle);
+  $('#page-scope').textContent = personal || !state.organization ? t('Personal') : state.organization.name;
+  $('#page-role-context').classList.toggle('hidden', personal);
+}
+// A language change repaints what the person is looking at in place.
+function relabelShell() {
+  applyLanguage();
+  for (const control of $('#workspace-nav').querySelectorAll('[data-en]')) control.textContent = t(control.dataset.en);
+  const key = state.view;
+  if (key) {
+    paintPageHead(key);
+    renderScreenTabs(screenOfView(key) || 'overview', key);
+  }
+  if (state.organization) {
+    $('#sidebar-context').textContent = t('Your organization');
+    $('#workspace-role').textContent = `${t(state.organization.type === 'ACADEMY' ? 'Academy' : 'Talent')} · ${myRoleName(state.organization)}`;
+    $('#page-role-context').textContent = `${t('Your role here:')} ${myRoleName(state.organization)}`;
+  }
+  paintLanguageToggle();
+  if (key === 'messages' && state.activeConversationId) loadConversationMessages().catch(() => {});
+  if (key === 'messages') loadConversations().catch(() => {});
+  if (key === 'start') loadHome().catch(() => {});
+}
+function paintLanguageToggle() {
+  const toggle = $('#lang-toggle');
+  if (toggle) toggle.textContent = getLanguage() === 'bn' ? 'English' : 'বাংলা';
+}
+document.addEventListener('jachai:language', relabelShell);
+$('#lang-toggle')?.addEventListener('click', () => setLanguage(getLanguage() === 'bn' ? 'en' : 'bn'));
+applyLanguage();
+paintLanguageToggle();
+
 async function showView(key) {
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
@@ -1453,31 +1529,12 @@ async function showView(key) {
   writeRoute(screenKey, key);
   const screen = SCREENS[screenKey];
   // Choosing a section closes the menu, so the content it opened is what you see.
-  setNavToggleLabel(screen.title);
   setNavCollapsed(true);
-  const tabLabel = (screen.views.find(([id]) => id === key) || [, screen.title])[1];
-  $('#page-title').textContent = screen.title;
-  document.title = screen.views.length > 1
-    ? `${tabLabel} · ${screen.title} · JachAI`
-    : `${screen.title} · JachAI`;
+  paintPageHead(key);
+  void ensureProfile();
   const heading = $('#page-title');
   heading.setAttribute('tabindex', '-1');
   heading.focus({ preventScroll: true });
-  // The subtitle says what the screen is for, and which workspace it belongs
-  // to when there is one, because a person may belong to several.
-  // Four screens belong to the account, not to a workspace: the dashboard,
-  // practice, the profile and the workspace list itself. Naming an organization
-  // on them is wrong rather than merely noisy — personal practice in particular
-  // is never visible to a workspace, and saying "Demo Academy" there suggests
-  // it is. Platform Operations is cross-tenant, so it is in the same bucket.
-  const accountScope = ['start', 'practice', 'account', 'workspace-access', 'platform'];
-  const personal = accountScope.includes(screenKey);
-  $('#page-subtitle').textContent = [screen.subtitle,
-    personal ? '' : state.organization?.name || '']
-    .filter(Boolean).join(' · ');
-  // The three places the page says whose scope you are in, kept in agreement.
-  $('#page-scope').textContent = personal ? 'Your account' : 'JachAI workspace';
-  $('#page-role-context').classList.toggle('hidden', personal);
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'start') { await loadHome(); return; }
   if (key === 'account') { await loadAccount(); return; }
@@ -4226,13 +4283,22 @@ async function loadMessagingPartners(pageNumber = 0) {
 
 async function loadConversations(pageNumber = 0) {
   const page = await request(ownOrg(`/messaging/conversations?page=${pageNumber}`));
-  setList('#conversations-list', (page.content || []).map((conversation) => item(
-    conversation.counterpartDisplayName,
-    `Started ${new Date(conversation.createdAt).toLocaleDateString()}`,
-    [button('Open', () => openConversation(conversation))])), 'No conversations yet. Use “Open conversation” above to start one with an instructor or a learner in this workspace.');
+  const rows = (page.content || []).map((conversation) => {
+    const row = node('button', '', 'chat-row');
+    row.type = 'button';
+    row.dataset.conversationId = conversation.id;
+    row.classList.toggle('active', conversation.id === state.activeConversationId);
+    const text = node('span', '', 'chat-row-text');
+    text.append(node('strong', conversation.counterpartDisplayName),
+      node('small', `${t('Started')} ${new Date(conversation.createdAt).toLocaleDateString(getLocale())}`));
+    row.append(initialsAvatar(conversation.counterpartDisplayName), text);
+    row.addEventListener('click', () => run(() => openConversation(conversation)));
+    return row;
+  });
+  setList('#conversations-list', rows,
+    'No conversations yet. Choose someone below and press Start.');
   renderPageControls('#conversations-pagination', page, loadConversations);
 }
-
 async function loadMessaging() {
   await loadMessagingPartners();
   await loadConversations();
@@ -4246,15 +4312,27 @@ async function loadMessaging() {
 
 async function openConversation(conversation) {
   state.activeConversationId = conversation.id;
+  state.activeConversationName = conversation.counterpartDisplayName;
   state.messagePage = 0;
   state.messageLoadToken++;
-  $('#conversation-title').textContent = `Conversation with ${conversation.counterpartDisplayName}`;
+  state.messageStickToBottom = true;
+  const title = $('#conversation-title');
+  title.replaceChildren(initialsAvatar(conversation.counterpartDisplayName),
+    node('span', conversation.counterpartDisplayName));
   $('#conversation-panel').classList.remove('hidden');
+  for (const row of $('#conversations-list').querySelectorAll('.chat-row')) {
+    row.classList.toggle('active', row.dataset.conversationId === conversation.id);
+  }
   await loadConversationMessages();
   startMessageRefresh();
-  $('#conversation-panel').scrollIntoView({ behavior: 'smooth' });
+  // Side by side on a wide screen, stacked on a phone: there the thread is below the
+  // list and has to be brought into view, or choosing someone appears to do nothing.
+  if (matchMedia('(max-width: 820px)').matches) {
+    $('#conversation-panel').scrollIntoView({ block: 'start' });
+  } else {
+    $('#message-form textarea').focus({ preventScroll: true });
+  }
 }
-
 async function loadConversationMessages(pageNumber = state.messagePage) {
   const conversationId = state.activeConversationId;
   if (!conversationId) return;
@@ -4269,12 +4347,53 @@ async function loadConversationMessages(pageNumber = state.messagePage) {
     throw error;
   }
   if (conversationId !== state.activeConversationId || loadToken !== state.messageLoadToken) return;
-  const rows = [...(page.content || [])].reverse().map((message) => item(message.body,
-    `${message.senderUserId} · ${new Date(message.sentAt).toLocaleString()}`));
+  const thread = $('#conversation-messages');
+  // Stay where the reader is: follow new messages only if they were already at the
+  // bottom, so a refresh never yanks someone away from what they were reading.
+  const nearBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80;
+  const me = myUserId();
+  const rows = [];
+  let lastDay = '';
+  for (const message of [...(page.content || [])].reverse()) {
+    const sent = new Date(message.sentAt);
+    const day = sent.toDateString();
+    if (day !== lastDay) { rows.push(node('div', dayLabel(sent), 'chat-day')); lastDay = day; }
+    const mine = message.senderUserId === me;
+    const bubble = node('div', '', `bubble ${mine ? 'mine' : 'theirs'}`);
+    bubble.append(node('p', message.body, 'bubble-text'),
+      node('span', sent.toLocaleTimeString(getLocale(), { hour: 'numeric', minute: '2-digit' }), 'bubble-time'));
+    // Who sent it is the side of the screen, as in every chat; the name is for screen readers.
+    bubble.setAttribute('aria-label', `${mine ? t('You') : state.activeConversationName}, ${sent.toLocaleString()}`);
+    rows.push(bubble);
+  }
   setList('#conversation-messages', rows, 'No messages yet. Say hello.');
   renderPageControls('#conversation-messages-pagination', page, loadConversationMessages);
+  if (pageNumber === 0 && (nearBottom || state.messageStickToBottom)) {
+    thread.scrollTop = thread.scrollHeight;
+    state.messageStickToBottom = false;
+  }
 }
 
+// The signed-in user's id is the subject of their access token. Reading it here changes
+// nothing about where the token lives: it is decoded, never stored or sent anywhere.
+function myUserId() {
+  try {
+    const payload = state.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, '='))).sub || null;
+  } catch { return null; }
+}
+function initialsAvatar(name) {
+  const avatar = node('span', (name || '?').trim().charAt(0).toUpperCase(), 'chat-avatar');
+  avatar.setAttribute('aria-hidden', 'true');
+  return avatar;
+}
+function dayLabel(date) {
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return t('Today');
+  if (date.toDateString() === yesterday.toDateString()) return t('Yesterday');
+  return date.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
+}
 $('#verify-code-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const code = $('#verify-code').value.trim();
   if (!code) throw new Error('Enter the verification code printed on the certificate.');
@@ -4709,12 +4828,12 @@ function loadWorkspaceAccess() {
 function updateOnboardingIntent() {
   const intent = $('#onboarding-intent').value;
   const guidance = {
-    learner: 'Open Practice now. To take an Academy or Talent assessment, join with an organizer’s code or invitation.',
-    instructor: 'Join an existing Academy when invited. If you create a new Academy, you become its owner and can invite other instructors.',
-    recruiter: 'Join an existing Talent workspace when invited. If you create a new one, you become its owner and can invite recruiters.',
-    owner: 'Create an Academy for training and certificates, or a Talent workspace for hiring assessments.'
+    learner: 'Open Practice now. To take a test from an Academy or a company, use the code or invitation they gave you.',
+    instructor: 'Join an Academy when you are invited. If you start a new Academy, you become its owner and can invite other instructors.',
+    recruiter: 'Join a company when you are invited. If you start a new one, you become its owner and can invite recruiters.',
+    owner: 'Start an Academy to teach and give certificates, or a Talent organization to hire.'
   };
-  $('#onboarding-next-step').textContent = guidance[intent] || 'Select a path above. You can change it at any time.';
+  $('#onboarding-next-step').textContent = t(guidance[intent] || 'Choose one above. You can change it any time.');
   $('#onboarding-join').classList.toggle('hidden', !['learner', 'instructor', 'recruiter'].includes(intent));
   $('#onboarding-create').classList.toggle('hidden', !['instructor', 'recruiter', 'owner'].includes(intent));
   if (intent === 'instructor') $('#create-org-form [name="type"]').value = 'ACADEMY';
@@ -5123,11 +5242,32 @@ $('#conversation-form').addEventListener('submit', (event) => { event.preventDef
 $('#message-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const conversationId = state.activeConversationId;
   if (!conversationId) throw new Error('Open a conversation first.');
-  const form = new FormData(element);
-  await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages`),
-    { method: 'POST', body: { body: form.get('body').trim() } });
-  element.reset(); await loadConversationMessages(0);
+  const body = new FormData(element).get('body').trim();
+  if (!body) return;
+  const send = element.querySelector('button[type="submit"]');
+  send.disabled = true;
+  try {
+    await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages`),
+      { method: 'POST', body: { body } });
+    element.reset();
+    element.querySelector('textarea').style.height = '';
+    state.messageStickToBottom = true;
+    await loadConversationMessages(0);
+  } finally { send.disabled = false; }
 }); });
+// Enter sends, Shift+Enter adds a line, and the box grows with what is typed. An
+// input method still composing a character (isComposing) must not be cut short.
+$('#message-form textarea').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $('#message-form').requestSubmit();
+  }
+});
+$('#message-form textarea').addEventListener('input', (event) => {
+  const box = event.currentTarget;
+  box.style.height = 'auto';
+  box.style.height = `${Math.min(box.scrollHeight, 140)}px`;
+});
 $('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const form = new FormData(element);
   await request(ownOrg('/talent/campaigns'), { method: 'POST',

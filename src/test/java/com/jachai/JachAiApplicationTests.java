@@ -434,6 +434,9 @@ class JachAiApplicationTests {
         mvc.perform(get("/app.css")).andExpect(status().isOk());
         mvc.perform(get("/theme.css")).andExpect(status().isOk());
         mvc.perform(get("/theme.js")).andExpect(status().isOk());
+        // app.js imports this as a module. If the allow-list ever loses it the import fails
+        // and the whole application is a blank page, not just the language switch.
+        mvc.perform(get("/i18n.js")).andExpect(status().isOk());
     }
 
     @Test
