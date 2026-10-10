@@ -1,9 +1,21 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
+
+# Maven Central answers 429 to a busy shared build network, and a single refused
+# download fails the whole build after eight minutes of work. Retrying the
+# individual request costs nothing when it succeeds and saves the build when it
+# does not.
+ENV MVN_FLAGS="-B -q -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=120"
+
+# -Dmaven.test.skip=true, not -DskipTests. -DskipTests still COMPILES the tests,
+# so the image was resolving Mockito, Byte Buddy and the rest of the test tree
+# only to throw the classes away — and those were among the artifacts that got
+# refused. The container build already does not run tests; test the same
+# revision before publishing an image, as SYSTEM.md says.
+RUN mvn $MVN_FLAGS -Dmaven.test.skip=true dependency:go-offline
 COPY src ./src
-RUN mvn -B -q -DskipTests package
+RUN mvn $MVN_FLAGS -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
