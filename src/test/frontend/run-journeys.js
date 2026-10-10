@@ -386,12 +386,12 @@ async function main() {
   // The brand is the reported bug: a plain href="/" reloaded the document and
   // the in-memory token went with it. The href must be a same-document target
   // while signed in, so even an activation our handler never sees is safe.
-  check(journey, 'signed-in brand href cannot trigger a document load',
-    await ev(`document.querySelector('.topbar .brand').getAttribute('href') === '#/overview'`),
+  check(journey, 'signed-in brand href cannot trigger a document load, and names the current screen',
+    await ev(`document.querySelector('.topbar .brand').getAttribute('href') === location.hash`),
     await ev(`document.querySelector('.topbar .brand').getAttribute('href')`));
-  check(journey, 'clicking the brand opens Overview and keeps the session',
-    await ev(`(() => { document.querySelector('.topbar .brand').click();
-      return location.hash === '#/overview'
+  check(journey, 'clicking the brand stays on the same screen and keeps the session',
+    await ev(`(() => { const here = location.hash; document.querySelector('.topbar .brand').click();
+      return location.hash === here
         && !document.querySelector('#app').classList.contains('hidden')
         && document.querySelector('#auth').classList.contains('hidden'); })()`));
   // Keyboard activation is the browser following the href, not our listener.
@@ -400,8 +400,14 @@ async function main() {
   await wait(500);
   check(journey, 'keyboard activation of the brand also keeps the session',
     await ev(`!document.querySelector('#app').classList.contains('hidden')`));
-  check(journey, 'the brand names where it goes while signed in',
-    await ev(`/Overview/.test(document.querySelector('.topbar .brand').getAttribute('aria-label'))`));
+  check(journey, 'the brand says it stays on this page while signed in',
+    await ev(`/this page/.test(document.querySelector('.topbar .brand').getAttribute('aria-label'))`));
+  // The report: on Messages, the logo must not move the person elsewhere.
+  await view('Practice'); await wait(500);
+  check(journey, 'on another screen the brand still leaves the person where they are',
+    await ev(`(() => { const here = location.hash; document.querySelector('.topbar .brand').click();
+      return here === '#/practice' && location.hash === here
+        && document.querySelector('.topbar .brand').getAttribute('href') === here; })()`));
   await view('My organizations'); await wait(400);
   check(journey, 'a learner can open the add-workspace path',
     await ev(`!document.querySelector('#workspace-access-view').classList.contains('hidden')`));

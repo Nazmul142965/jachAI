@@ -512,8 +512,11 @@ function setInAppLinks(signedInNow) {
     // same-document navigation, which the router picks up and which cannot
     // end the session. Keyboard Enter and middle-click get the same guarantee,
     // because they are the browser following the href rather than our handler.
-    brand.setAttribute('href', signedInNow ? '#/overview' : '/');
-    brand.setAttribute('aria-label', signedInNow ? 'JachAI — go to Overview' : 'JachAI home');
+    // Signed in, the logo stays where the person is: the href is the CURRENT screen, which is
+    // still a same-document target. It used to throw them to Overview, which read as being
+    // moved away from what they were doing. writeRoute keeps it in step as they navigate.
+    brand.setAttribute('href', signedInNow ? (location.hash || '#/start') : '/');
+    brand.setAttribute('aria-label', signedInNow ? t('JachAI — top of this page') : 'JachAI home');
     if (!brand.dataset.bound) {
       brand.dataset.bound = 'true';
       brand.addEventListener('click', (event) => {
@@ -521,7 +524,9 @@ function setInAppLinks(signedInNow) {
         // Let a modifier-click open a tab as the browser normally would.
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.button > 0) return;
         event.preventDefault();
-        run(() => showScreen('overview'));
+        // Stay on this screen. Back to the top of it, with focus on its title.
+        window.scrollTo({ top: 0 });
+        $('#page-title')?.focus({ preventScroll: true });
       });
     }
   }
@@ -1567,6 +1572,7 @@ function writeRoute(screenKey, viewKey) {
   const screen = SCREENS[screenKey];
   const route = screen && screen.views.length > 1 ? `#/${screenKey}/${viewKey}` : `#/${screenKey}`;
   if (location.hash !== route) history.replaceState(null, '', route);
+  if (state.accessToken) document.querySelector('.topbar .brand')?.setAttribute('href', route);
 }
 function readRoute() {
   const parts = (location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);

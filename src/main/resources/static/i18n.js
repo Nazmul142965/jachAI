@@ -228,6 +228,7 @@ const BN = {
     'ব্রাউজারের ফিরে আসা দিয়ে পেমেন্ট নিশ্চিত হয় না; এখানে সার্ভারের অবস্থাই দেখানো হয়।',
   'Did the payment page not open? ': 'পেমেন্ট পাতা খোলেনি? ',
   'open the payment page again': 'পেমেন্ট পাতা আবার খুলুন',
+  'JachAI — top of this page': 'JachAI — এই পাতার ওপরে',
   // Sidebar chrome
   'Your organization': 'আপনার প্রতিষ্ঠান',
   'Your account': 'আপনার অ্যাকাউন্ট',
