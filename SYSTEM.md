@@ -81,9 +81,11 @@ Eight variables have no default in `application-prod.properties` and the applica
 
 Add the domain under the service's **Settings → Custom Domains**, then create a `CNAME` for the subdomain pointing at `<service>.onrender.com` in the DNS zone. Render issues the certificate once the record resolves. After it is live, three things must be changed together or the deployment is half-migrated: set `APP_PUBLIC_BASE_URL` to the new origin, add that origin to the Google OAuth client's **Authorised JavaScript origins**, and update the sandbox payment callbacks. Old certificate-verification links keep pointing at the previous origin.
 
-#### Known limitation on Render Free
+#### Mail on Render Free
 
-[Render Free blocks outbound SMTP on ports 25, 465 and 587](https://render.com/docs/free). The `MAIL_*` settings are still required to start, and the queue still accepts messages, but Gmail SMTP will not deliver from that host: verification, password reset and invitation mail silently fail. Treat a queued `email_jobs` row as evidence of nothing. Either move to a paid instance or a host that permits SMTP, or implement an HTTPS mail API transport, before real sign-ups.
+[Render Free blocks outbound SMTP on ports 25, 465 and 587](https://render.com/docs/free), so the old Gmail transport cannot deliver from that host. This deployment does not use it: `MAIL_HOST=smtp.resend.com` on **port 2587**, which Resend offers precisely because the standard ports are commonly blocked, and which Render does not block. `EmailTransportConfig` enforces the rest of that pairing — `MAIL_USERNAME=resend` and a `MAIL_FROM` on a domain verified in Resend, never a Gmail address.
+
+Two things still have to be true outside this repository: the `MAIL_FROM` domain is verified in Resend, and its API key is live. Neither is visible from the application, so verify one real inbox and the final `email_jobs` state after the first deploy. A queued row proves nothing.
 
 ### Free hosting path using the credentials already configured locally
 
