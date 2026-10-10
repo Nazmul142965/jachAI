@@ -22,6 +22,12 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -36,6 +42,7 @@ public class AcademyMessagingService {
     private final OrganizationRepository organizations;
     private final UserRepository users;
     private final TenantAccessService access;
+    private final MongoTemplate mongo;
 
     public Page<MessagingPartnerView> partners(String actorId, String organizationId, Pageable pageable) {
         OrganizationRole actorRole = requireMessagingRole(actorId, organizationId);
@@ -95,7 +102,7 @@ public class AcademyMessagingService {
 
     public ChatMessageView send(String actorId, String organizationId, String conversationId,
                                 String body) {
-        ownConversation(actorId, organizationId, conversationId);
+        Conversation conversation = ownConversation(actorId, organizationId, conversationId);
         String trimmed = body.trim();
         if (trimmed.isEmpty() || trimmed.length() > 1000) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_MESSAGE",
@@ -109,7 +116,50 @@ public class AcademyMessagingService {
         Instant now = Instant.now();
         ChatMessage message = new ChatMessage(UUID.randomUUID().toString(), organizationId,
                 conversationId, actorId, trimmed, now, now.plus(MESSAGE_RETENTION));
-        return ChatMessageView.from(messages.insert(message));
+        ChatMessageView sent = ChatMessageView.from(messages.insert(message));
+        // Atomic $set rather than read-modify-write: two people can send at once. Whoever sends
+        // has, by definition, read everything up to this moment.
+        mongo.updateFirst(Query.query(Criteria.where("_id").is(conversationId)),
+                new Update().set("lastMessageAt", now)
+                        .set("lastMessagePreview", preview(trimmed))
+                        .set(readField(conversation, actorId), now),
+                Conversation.class);
+        return sent;
+    }
+
+    /** The person has opened the thread: everything up to now counts as read. */
+    public void markRead(String actorId, String organizationId, String conversationId) {
+        Conversation conversation = ownConversation(actorId, organizationId, conversationId);
+        mongo.updateFirst(Query.query(Criteria.where("_id").is(conversationId)),
+                new Update().set(readField(conversation, actorId), Instant.now()), Conversation.class);
+    }
+
+    /** Unread messages across this person's conversations in the organization, for a badge. */
+    public int unreadTotal(String actorId, String organizationId) {
+        OrganizationRole role = requireMessagingRole(actorId, organizationId);
+        // A badge past a hundred conversations says nothing more than "a lot".
+        PageRequest first = PageRequest.of(0, 100, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Conversation> page = role == OrganizationRole.INSTRUCTOR
+                ? conversations.findByOrganizationIdAndInstructorUserId(organizationId, actorId, first)
+                : conversations.findByOrganizationIdAndLearnerUserId(organizationId, actorId, first);
+        return page.getContent().stream().mapToInt(conversation -> unread(conversation, actorId)).sum();
+    }
+
+    private int unread(Conversation conversation, String actorId) {
+        Instant lastRead = actorId.equals(conversation.instructorUserId())
+                ? conversation.instructorLastReadAt() : conversation.learnerLastReadAt();
+        return (int) messages.countByOrganizationIdAndConversationIdAndSenderUserIdNotAndSentAtAfter(
+                conversation.organizationId(), conversation.id(), actorId,
+                lastRead == null ? Instant.EPOCH : lastRead);
+    }
+
+    private static String readField(Conversation conversation, String actorId) {
+        return actorId.equals(conversation.instructorUserId()) ? "instructorLastReadAt" : "learnerLastReadAt";
+    }
+
+    private static String preview(String body) {
+        String flat = body.replaceAll("\\s+", " ");
+        return flat.length() <= 80 ? flat : flat.substring(0, 79) + "…";
     }
 
     private Conversation ownConversation(String actorId, String organizationId, String conversationId) {
@@ -151,6 +201,7 @@ public class AcademyMessagingService {
         String displayName = users.findById(counterpartId)
                 .map(user -> user.displayName()).orElse("Former member");
         return new ConversationView(conversation.id(), conversation.instructorUserId(),
-                conversation.learnerUserId(), displayName, conversation.createdAt());
+                conversation.learnerUserId(), displayName, conversation.createdAt(),
+                unread(conversation, actorId), conversation.lastMessageAt(), conversation.lastMessagePreview());
     }
 }

@@ -1,7 +1,9 @@
 import { t, applyLanguage, setLanguage, getLanguage, getLocale } from '/i18n.js';
+import { createAssistant } from '/assistant.js';
 const $ = (selector) => document.querySelector(selector);
 // Sent with a refresh so the server uses the session cookie. Only this site's own script can
 // add a custom header to a same-origin request, which is what makes the cookie safe to honour.
+let assistant = null; // the floating AI Tutor, created once the page is ready
 const SESSION_MARKER = { 'X-JachAI-Session': '1' };
 const SESSION_HINT = 'jachaiSessionHint';
 const sessionHint = {
@@ -333,7 +335,16 @@ function initAccountMenu() {
   $('#account-menu-logout')?.addEventListener('click', () => $('#logout')?.click());
 }
 document.addEventListener('DOMContentLoaded', initAccountMenu);
+// An attempt starting or ending. The AI Tutor goes off at once while one is open (the server
+// refuses it too, which is the real rule), and a message badge is not a distraction to offer
+// in the middle of an exam.
+function setActiveAttempt(attempt) {
+  state.activeAttempt = attempt;
+  assistant?.setExam(Boolean(attempt));
+  void refreshUnread();
+}
 function showSignedOut() {
+  assistant?.reset();
   sessionHint.clear();
   window.clearInterval(state.timer);
   stopMessageRefresh();
@@ -474,6 +485,7 @@ async function signedIn(tokens) {
   state.accessToken = tokens.accessToken;
   state.refreshToken = tokens.refreshToken;
   sessionHint.set();
+  assistant?.setSignedIn(true);
   $('#account-menu-panel')?.classList.add('hidden');
   $('#account-menu-toggle')?.setAttribute('aria-expanded', 'false');
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
@@ -541,7 +553,7 @@ async function setOrganization() {
   updateAssessmentEditor();
   $('#recent-assignment')?.remove();
   state.tutorHistory.clear();
-  state.activeAttempt = null;
+  setActiveAttempt(null);
   state.certificateDesign = null;
   $('#certificate-display-panel').classList.add('hidden');
   state.activeReviewAttemptId = null;
@@ -666,6 +678,7 @@ async function setOrganization() {
   } else {
     await showScreen(['LEARNER', 'CANDIDATE'].includes(role) ? 'start' : 'overview');
   }
+  void refreshUnread();
 }
 // The account home is not tied to one tenant. Personal practice stays private;
 // workspace assignments and staff work remain inside their own organization.
@@ -1505,6 +1518,7 @@ function paintPageHead(key) {
   document.title = screen.views.length > 1
     ? `${t(tabLabel)} · ${t(screen.title)} · JachAI`
     : `${t(screen.title)} · JachAI`;
+  titleBadge();
   $('#page-subtitle').textContent = t(screen.subtitle);
   $('#page-scope').textContent = personal || !state.organization ? t('Personal') : state.organization.name;
   $('#page-role-context').classList.toggle('hidden', personal);
@@ -1512,6 +1526,8 @@ function paintPageHead(key) {
 // A language change repaints what the person is looking at in place.
 function relabelShell() {
   applyLanguage();
+  assistant?.relabel();
+  paintUnread();
   for (const control of $('#workspace-nav').querySelectorAll('[data-en]')) {
     (control.querySelector('.nav-label') || control).textContent = t(control.dataset.en);
   }
@@ -3079,7 +3095,7 @@ async function startAttempt(assignment, target = '#attempt-panel', resultTarget 
   await beginAttempt(assignment?.id || assignment, target, resultTarget);
 }
 async function beginAttempt(assignmentId, target = '#attempt-panel', resultTarget = '#result-panel') {
-  state.activeAttempt = await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts`), { method: 'POST' });
+  setActiveAttempt(await request(ownOrg(`/assignments/${encodeURIComponent(assignmentId)}/attempts`), { method: 'POST' }));
   rememberAttempt(assignmentId, state.activeAttempt);
   $(resultTarget).classList.add('hidden');
   renderAttempt(target, resultTarget);
@@ -3260,7 +3276,7 @@ function renderAttempt(target = '#attempt-panel', resultTarget = '#result-panel'
     try {
       const result = await request(ownOrg(`/attempts/${encodeURIComponent(attempt.id)}/submit`), { method: 'POST' });
       window.clearInterval(state.timer);
-      state.activeAttempt = null;
+      setActiveAttempt(null);
       forgetAttempt();
       panel.classList.add('hidden');
       renderResult(result, resultTarget);
@@ -4296,6 +4312,73 @@ function startMessageRefresh() {
   }, 15000);
 }
 
+// ---------------------------------------------------------------- unread messages
+// How many messages are waiting, beside Messages in the sidebar, in the tab title, and on Home.
+// Fetched when an organization is chosen, every thirty seconds while the tab is visible, and when
+// it becomes visible again. A badge that cannot refresh keeps its last value rather than flicker.
+state.unread = 0;
+state.readThrough = new Map();
+const MESSAGING_ROLES = ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'];
+function messagingAvailable() {
+  const organization = state.organization;
+  return Boolean(state.accessToken && organization && organization.type === 'ACADEMY'
+    && MESSAGING_ROLES.includes(organization.myRole) && !state.activeAttempt);
+}
+async function refreshUnread() {
+  if (!messagingAvailable()) { setUnread(0); return; }
+  const token = state.accessToken; const organizationId = state.organization.id;
+  try {
+    const result = await request(ownOrg('/messaging/unread'));
+    if (token !== state.accessToken || organizationId !== state.organization?.id) return;
+    setUnread(result.unread || 0);
+  } catch { /* keep the last count */ }
+}
+function setUnread(count) {
+  state.unread = count;
+  paintUnread();
+}
+function unreadLabel(count) { return count > 99 ? '99+' : String(count); }
+function paintUnread() {
+  const button = document.querySelector('#workspace-nav [data-screen="messages"]');
+  if (button) {
+    let badge = button.querySelector('.nav-badge');
+    if (state.unread > 0) {
+      if (!badge) { badge = node('span', '', 'nav-badge'); button.append(badge); }
+      badge.textContent = unreadLabel(state.unread);
+      badge.setAttribute('aria-label', t(state.unread === 1 ? '1 unread message' : '{n} unread messages', { n: state.unread }));
+    } else { badge?.remove(); }
+  }
+  const note = $('#home-messages-unread');
+  if (note) {
+    note.hidden = state.unread === 0;
+    note.textContent = state.unread === 0 ? '' : t(state.unread === 1 ? '1 new message' : '{n} new messages', { n: state.unread });
+  }
+  titleBadge();
+}
+// "(3) Messages · JachAI": the count in the browser tab, where it is seen from another tab.
+function titleBadge() {
+  const base = document.title.replace(/^\((\d+|99\+)\)\s*/, '');
+  document.title = state.unread > 0 ? `(${unreadLabel(state.unread)}) ${base}` : base;
+}
+async function markConversationRead(conversationId) {
+  try {
+    await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/read`), { method: 'POST' });
+  } catch { return; }
+  const row = document.querySelector(`#conversations-list .chat-row[data-conversation-id="${CSS.escape(conversationId)}"]`);
+  row?.classList.remove('unread');
+  row?.querySelector('.unread-pill')?.remove();
+  void refreshUnread();
+}
+function shortTime(value) {
+  const when = new Date(value);
+  const today = new Date();
+  return when.toDateString() === today.toDateString()
+    ? when.toLocaleTimeString(getLocale(), { hour: 'numeric', minute: '2-digit' })
+    : when.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' });
+}
+setInterval(() => { if (document.visibilityState === 'visible') void refreshUnread(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refreshUnread(); });
+
 async function loadMessagingPartners(pageNumber = 0) {
   const partners = await request(ownOrg(`/messaging/partners?page=${pageNumber}`));
   $('#messaging-partner-select').replaceChildren(...(partners.content || []).map((partner) => {
@@ -4312,10 +4395,20 @@ async function loadConversations(pageNumber = 0) {
     row.type = 'button';
     row.dataset.conversationId = conversation.id;
     row.classList.toggle('active', conversation.id === state.activeConversationId);
+    row.classList.toggle('unread', conversation.unread > 0);
     const text = node('span', '', 'chat-row-text');
+    // What was said last, as in any chat list; a thread nobody has written in says when it began.
     text.append(node('strong', conversation.counterpartDisplayName),
-      node('small', `${t('Started')} ${new Date(conversation.createdAt).toLocaleDateString(getLocale())}`));
-    row.append(initialsAvatar(conversation.counterpartDisplayName), text);
+      node('small', conversation.lastMessagePreview
+        || `${t('Started')} ${new Date(conversation.createdAt).toLocaleDateString(getLocale())}`, 'chat-preview'));
+    const meta = node('span', '', 'chat-row-meta');
+    if (conversation.lastMessageAt) meta.append(node('small', shortTime(conversation.lastMessageAt)));
+    if (conversation.unread > 0) {
+      const pill = node('span', unreadLabel(conversation.unread), 'unread-pill');
+      pill.setAttribute('aria-label', t(conversation.unread === 1 ? '1 unread message' : '{n} unread messages', { n: conversation.unread }));
+      meta.append(pill);
+    }
+    row.append(initialsAvatar(conversation.counterpartDisplayName), text, meta);
     row.addEventListener('click', () => run(() => openConversation(conversation)));
     return row;
   });
@@ -4348,6 +4441,7 @@ async function openConversation(conversation) {
     row.classList.toggle('active', row.dataset.conversationId === conversation.id);
   }
   await loadConversationMessages();
+  void markConversationRead(conversation.id);
   startMessageRefresh();
   // Side by side on a wide screen, stacked on a phone: there the thread is below the
   // list and has to be brought into view, or choosing someone appears to do nothing.
@@ -4392,6 +4486,13 @@ async function loadConversationMessages(pageNumber = state.messagePage) {
   }
   setList('#conversation-messages', rows, 'No messages yet. Say hello.');
   renderPageControls('#conversation-messages-pagination', page, loadConversationMessages);
+  // A message from the other person landed while this thread is open and on screen: it is read.
+  const newest = (page.content || [])[0];
+  if (pageNumber === 0 && newest && newest.senderUserId !== me && document.visibilityState === 'visible'
+      && state.readThrough.get(conversationId) !== newest.sentAt) {
+    state.readThrough.set(conversationId, newest.sentAt);
+    void markConversationRead(conversationId);
+  }
   if (pageNumber === 0 && (nearBottom || state.messageStickToBottom)) {
     thread.scrollTop = thread.scrollHeight;
     state.messageStickToBottom = false;
@@ -5407,4 +5508,5 @@ async function restoreSession() {
   }
   if (tokens) await run(() => signedIn(tokens));
 }
+assistant = createAssistant({ request: (path, init) => request(path, init) });
 restoreSession();

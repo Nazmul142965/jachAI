@@ -186,6 +186,38 @@ const BN = {
   'Technical assessment and certification.': 'প্রযুক্তিগত দক্ষতা যাচাই ও সনদ।',
   'Verify a certificate': 'সনদ যাচাই করুন',
   'All rights reserved.': 'সর্বস্বত্ব সংরক্ষিত।',
+  // AI Tutor widget
+  'Drag to move, or use the arrow keys': 'টেনে সরান, অথবা তীর চিহ্নের কী চাপুন',
+  'New chat': 'নতুন কথোপকথন',
+  'Minimize': 'ছোট করুন',
+  'Ask anything about your studies…': 'পড়াশোনা নিয়ে যেকোনো কিছু জিজ্ঞেস করুন…',
+  'Your message': 'আপনার বার্তা',
+  'Back tomorrow': 'কাল আবার পাবেন',
+  'Ask me anything': 'যা খুশি জিজ্ঞেস করুন',
+  '{n} messages left today': 'আজ আর {n}টি বার্তা বাকি',
+  'AI can make mistakes. Check anything important. Switched off during exams.':
+    'এআই ভুল করতে পারে। জরুরি কিছু যাচাই করে নিন। পরীক্ষার সময় বন্ধ থাকে।',
+  'Explain Java interfaces in simple words': 'জাভার ইন্টারফেস সহজ ভাষায় বুঝিয়ে দিন',
+  'Make me a one-week study plan': 'আমাকে এক সপ্তাহের পড়ার পরিকল্পনা বানিয়ে দিন',
+  'How should I prepare for a test?': 'পরীক্ষার জন্য কীভাবে প্রস্তুতি নেব?',
+  'How do I join an organization on JachAI?': 'JachAI-তে কোনো প্রতিষ্ঠানে কীভাবে যোগ দেব?',
+  'Hi! I am your AI Tutor. Ask me about anything you are studying, in English or বাংলা. I am switched off during exams.':
+    'হ্যালো! আমি আপনার এআই টিউটর। আপনি যা পড়ছেন তা নিয়ে ইংরেজি বা বাংলায় জিজ্ঞেস করুন। পরীক্ষার সময় আমি বন্ধ থাকি।',
+  'The AI Tutor is typing': 'এআই টিউটর লিখছে',
+  'The AI Tutor is not switched on for this site yet.': 'এই সাইটে এআই টিউটর এখনো চালু করা হয়নি।',
+  'You have used your AI Tutor messages for today. They come back tomorrow.':
+    'আজকের এআই টিউটরের বার্তা শেষ। কাল আবার পাবেন।',
+  'The AI Tutor is very busy today. Please try again later.': 'আজ এআই টিউটরে অনেক চাপ। একটু পরে আবার চেষ্টা করুন।',
+  'You are sending messages very fast. Wait a few seconds and try again.':
+    'আপনি খুব দ্রুত বার্তা পাঠাচ্ছেন। কয়েক সেকেন্ড থেমে আবার চেষ্টা করুন।',
+  'The AI Tutor could not answer just now. Please try again in a minute.':
+    'এআই টিউটর এই মুহূর্তে উত্তর দিতে পারল না। এক মিনিট পরে আবার চেষ্টা করুন।',
+  'Try again': 'আবার চেষ্টা করুন',
+  // Unread messages
+  '1 unread message': '১টি অপঠিত বার্তা',
+  '{n} unread messages': '{n}টি অপঠিত বার্তা',
+  '1 new message': '১টি নতুন বার্তা',
+  '{n} new messages': '{n}টি নতুন বার্তা',
   // Sidebar chrome
   'Your organization': 'আপনার প্রতিষ্ঠান',
   'Your account': 'আপনার অ্যাকাউন্ট',

@@ -53,8 +53,24 @@ public class AcademyMessagingController {
     @GetMapping("/conversations")
     public Page<ConversationView> conversations(@AuthenticationPrincipal Jwt jwt,
             @PathVariable String organizationId, @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
+        // Most recently active first, as in any chat. Conversations nobody has written in yet have no
+        // lastMessageAt and fall to the end, newest first.
         return messaging.list(jwt.getSubject(), organizationId,
-                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")));
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "lastMessageAt")
+                        .and(Sort.by(Sort.Direction.DESC, "createdAt"))));
+    }
+
+    @GetMapping("/unread")
+    public java.util.Map<String, Integer> unread(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId) {
+        return java.util.Map.of("unread", messaging.unreadTotal(jwt.getSubject(), organizationId));
+    }
+
+    @PostMapping("/conversations/{conversationId}/read")
+    public ResponseEntity<Void> markRead(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String conversationId) {
+        messaging.markRead(jwt.getSubject(), organizationId, conversationId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/conversations/{conversationId}/messages")

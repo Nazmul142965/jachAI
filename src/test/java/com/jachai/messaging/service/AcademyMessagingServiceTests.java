@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,6 +35,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.query.Query;
 
 @ExtendWith(MockitoExtension.class)
 class AcademyMessagingServiceTests {
@@ -43,12 +47,13 @@ class AcademyMessagingServiceTests {
     @Mock OrganizationRepository organizations;
     @Mock UserRepository users;
     @Mock TenantAccessService access;
+    @Mock MongoTemplate mongo;
     AcademyMessagingService service;
 
     @BeforeEach
     void setUp() {
         service = new AcademyMessagingService(conversations, messages, memberships,
-                organizations, users, access);
+                organizations, users, access, mongo);
     }
 
     @Test
@@ -208,6 +213,86 @@ class AcademyMessagingServiceTests {
 
         assertEquals("ACADEMY_ONLY", error.code());
         verify(conversations, never()).findByOrganizationIdAndInstructorUserId(any(), any(), any());
+    }
+
+    @Test
+    void unreadCountsOnlyWhatTheOtherPersonWroteSinceThisPersonLastOpenedTheThread() {
+        academy("learner", OrganizationRole.LEARNER);
+        Instant opened = Instant.parse("2026-10-10T08:00:00Z");
+        Conversation read = new Conversation("c1", "org-a", "teacher", "learner", Instant.now(),
+                null, opened, null, null);
+        when(conversations.findByOrganizationIdAndLearnerUserId(eq("org-a"), eq("learner"), any()))
+                .thenReturn(new PageImpl<>(List.of(read)));
+        when(messages.countByOrganizationIdAndConversationIdAndSenderUserIdNotAndSentAtAfter(
+                "org-a", "c1", "learner", opened)).thenReturn(3L);
+
+        assertEquals(3, service.unreadTotal("learner", "org-a"));
+    }
+
+    @Test
+    void aThreadNeverOpenedCountsEverythingTheOtherPersonSent() {
+        academy("learner", OrganizationRole.LEARNER);
+        when(conversations.findByOrganizationIdAndLearnerUserId(eq("org-a"), eq("learner"), any()))
+                .thenReturn(new PageImpl<>(List.of(conversation())));
+        when(messages.countByOrganizationIdAndConversationIdAndSenderUserIdNotAndSentAtAfter(
+                "org-a", "c1", "learner", Instant.EPOCH)).thenReturn(2L);
+
+        assertEquals(2, service.unreadTotal("learner", "org-a"));
+    }
+
+    @Test
+    void openingTheThreadMarksOnlyThisPersonsSideRead() {
+        academy("learner", OrganizationRole.LEARNER);
+        when(conversations.findByIdAndOrganizationId("c1", "org-a")).thenReturn(Optional.of(conversation()));
+
+        service.markRead("learner", "org-a", "c1");
+
+        ArgumentCaptor<Update> update = ArgumentCaptor.forClass(Update.class);
+        verify(mongo).updateFirst(any(Query.class), update.capture(), eq(Conversation.class));
+        assertTrue(update.getValue().getUpdateObject().toString().contains("learnerLastReadAt"));
+        assertTrue(!update.getValue().getUpdateObject().toString().contains("instructorLastReadAt"));
+    }
+
+    @Test
+    void anOutsiderCannotMarkSomeoneElsesThreadRead() {
+        academy("other-learner", OrganizationRole.LEARNER);
+        when(conversations.findByIdAndOrganizationId("c1", "org-a")).thenReturn(Optional.of(conversation()));
+
+        assertThrows(ApiException.class, () -> service.markRead("other-learner", "org-a", "c1"));
+        verify(mongo, never()).updateFirst(any(Query.class), any(Update.class), eq(Conversation.class));
+    }
+
+    @Test
+    void sendingRecordsThePreviewAndCountsAsReadForTheSender() {
+        academy("teacher", OrganizationRole.INSTRUCTOR);
+        when(conversations.findByIdAndOrganizationId("c1", "org-a")).thenReturn(Optional.of(conversation()));
+        when(messages.insert(any(ChatMessage.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.send("teacher", "org-a", "c1", "  A long\n   message with   spacing  ");
+
+        ArgumentCaptor<Update> update = ArgumentCaptor.forClass(Update.class);
+        verify(mongo).updateFirst(any(Query.class), update.capture(), eq(Conversation.class));
+        String set = update.getValue().getUpdateObject().toString();
+        assertTrue(set.contains("lastMessageAt"), set);
+        assertTrue(set.contains("A long message with spacing"), "whitespace is collapsed in the preview: " + set);
+        assertTrue(set.contains("instructorLastReadAt"), "the sender has read everything so far: " + set);
+        assertTrue(!set.contains("learnerLastReadAt"), set);
+    }
+
+    @Test
+    void aLongMessageIsCutToAShortPreview() {
+        academy("teacher", OrganizationRole.INSTRUCTOR);
+        when(conversations.findByIdAndOrganizationId("c1", "org-a")).thenReturn(Optional.of(conversation()));
+        when(messages.insert(any(ChatMessage.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.send("teacher", "org-a", "c1", "x".repeat(300));
+
+        ArgumentCaptor<Update> update = ArgumentCaptor.forClass(Update.class);
+        verify(mongo).updateFirst(any(Query.class), update.capture(), eq(Conversation.class));
+        String preview = (String) ((org.bson.Document) update.getValue().getUpdateObject().get("$set"))
+                .get("lastMessagePreview");
+        assertEquals(80, preview.length());
+        assertTrue(preview.endsWith("…"));
     }
 
     private void academy(String actorId, OrganizationRole role) {

@@ -13,6 +13,9 @@ public interface AttemptRepository extends MongoRepository<Attempt, String> {
     Optional<Attempt> findByIdAndOrganizationIdAndUserId(String id, String organizationId, String userId);
     List<Attempt> findByAssignmentIdAndOrganizationIdAndUserId(
             String assignmentId, String organizationId, String userId);
+    /** Whether this person has an exam running in any organization. */
+    boolean existsByUserIdAndStatusAndDeadlineAfter(String userId, AttemptStatus status, java.time.Instant now);
+
     boolean existsByOrganizationIdAndUserIdAndStatusAndDeadlineAfter(
             String organizationId, String userId, AttemptStatus status, java.time.Instant deadline);
     List<Attempt> findByOrganizationIdAndAssignmentIdInAndStatus(

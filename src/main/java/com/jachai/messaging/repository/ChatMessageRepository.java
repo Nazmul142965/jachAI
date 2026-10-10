@@ -9,4 +9,8 @@ public interface ChatMessageRepository extends MongoRepository<ChatMessage, Stri
     Page<ChatMessage> findByOrganizationIdAndConversationId(
             String organizationId, String conversationId, Pageable pageable);
     long countByOrganizationIdAndConversationId(String organizationId, String conversationId);
+
+    /** Messages not written by {@code senderUserId} after {@code after}: what that person has not read. */
+    long countByOrganizationIdAndConversationIdAndSenderUserIdNotAndSentAtAfter(
+            String organizationId, String conversationId, String senderUserId, java.time.Instant after);
 }
