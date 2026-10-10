@@ -179,6 +179,10 @@ const BN = {
   'Start your own organization': 'নিজের প্রতিষ্ঠান খুলুন',
   'Become the owner of a separate Academy or Talent organization. Your existing access stays as it is.':
     'আলাদা একটি একাডেমি বা ট্যালেন্ট প্রতিষ্ঠানের মালিক হোন। আপনার আগের অ্যাক্সেস যেমন আছে তেমনই থাকবে।',
+  'Restoring your session…': 'আপনার সেশন ফিরিয়ে আনা হচ্ছে…',
+  'Pricing': 'মূল্য',
+  'How it works': 'কীভাবে কাজ করে',
+  "How it's built": 'কীভাবে বানানো',
   // Sidebar chrome
   'Your organization': 'আপনার প্রতিষ্ঠান',
   'Your account': 'আপনার অ্যাকাউন্ট',

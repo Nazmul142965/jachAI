@@ -382,3 +382,61 @@
 @media (prefers-reduced-motion: reduce) {
   .theme-toggle button { transition: none; }
 }
+
+/* ==========================================================================
+   Icons
+   --------------------------------------------------------------------------
+   One family of line icons, used as CSS masks. A mask takes the colour of the text
+   beside it, so an icon is correct in light and dark and when a link is hovered,
+   with no second asset per theme. They are decoration: the label always carries the
+   meaning, so every icon is aria-hidden. Emoji are deliberately not used; they look
+   different on every device and cannot follow the theme.
+   ========================================================================== */
+.ic {
+  display: inline-block;
+  flex: none;
+  width: 1.2em;
+  height: 1.2em;
+  background-color: currentColor;
+  -webkit-mask: var(--ic) center / contain no-repeat;
+  mask: var(--ic) center / contain no-repeat;
+}
+.ic[data-ic="home"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 11 12 3l9 8'/%3E%3Cpath d='M5 10v10h5v-6h4v6h5V10'/%3E%3C/svg%3E"); }
+.ic[data-ic="practice"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Ccircle cx='12' cy='12' r='1'/%3E%3C/svg%3E"); }
+.ic[data-ic="building"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='1'/%3E%3Cpath d='M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4'/%3E%3C/svg%3E"); }
+.ic[data-ic="overview"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='9' rx='1'/%3E%3Crect x='14' y='3' width='7' height='5' rx='1'/%3E%3Crect x='14' y='12' width='7' height='9' rx='1'/%3E%3Crect x='3' y='16' width='7' height='5' rx='1'/%3E%3C/svg%3E"); }
+.ic[data-ic="members"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='8' r='3.5'/%3E%3Cpath d='M2.5 20c.5-3.5 3-5.5 6.5-5.5s6 2 6.5 5.5'/%3E%3Cpath d='M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .6 3.3 2.4 3.5 5.2'/%3E%3C/svg%3E"); }
+.ic[data-ic="clipboard"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='4' width='14' height='17' rx='2'/%3E%3Cpath d='M9 4V3h6v1M9 11h6M9 15h4'/%3E%3C/svg%3E"); }
+.ic[data-ic="book"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H2z'/%3E%3Cpath d='M22 5h-7a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h8z'/%3E%3C/svg%3E"); }
+.ic[data-ic="message"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12z'/%3E%3C/svg%3E"); }
+.ic[data-ic="award"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='9' r='6'/%3E%3Cpath d='m8.5 14-1.5 7 5-3 5 3-1.5-7'/%3E%3C/svg%3E"); }
+.ic[data-ic="check"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='3' width='14' height='18' rx='2'/%3E%3Cpath d='m9 12 2 2 4-4M9 17h6'/%3E%3C/svg%3E"); }
+.ic[data-ic="briefcase"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='7' width='18' height='13' rx='2'/%3E%3Cpath d='M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18'/%3E%3C/svg%3E"); }
+.ic[data-ic="card"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2.5' y='5' width='19' height='14' rx='2'/%3E%3Cpath d='M2.5 10h19M6 15h4'/%3E%3C/svg%3E"); }
+.ic[data-ic="shield"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3 4 6v6c0 4.5 3.2 7.8 8 9 4.8-1.2 8-4.5 8-9V6z'/%3E%3C/svg%3E"); }
+.ic[data-ic="cap"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 9 12 4 2 9l10 5z'/%3E%3Cpath d='M6 11.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5M22 9v6'/%3E%3C/svg%3E"); }
+.ic[data-ic="tag"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12V4h8l9 9a2 2 0 0 1 0 2.8l-5.2 5.2a2 2 0 0 1-2.8 0z'/%3E%3Ccircle cx='7.5' cy='8.5' r='1'/%3E%3C/svg%3E"); }
+.ic[data-ic="compass"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m15.5 8.5-2 5-5 2 2-5z'/%3E%3C/svg%3E"); }
+.ic[data-ic="code"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14'/%3E%3C/svg%3E"); }
+.ic[data-ic="login"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3'/%3E%3Cpath d='m10 16 4-4-4-4M14 12H3'/%3E%3C/svg%3E"); }
+
+/* Top navigation: the same on every page, icon beside the word. */
+.topnav a { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.topnav a .ic { width: 1.1em; height: 1.1em; opacity: 0.8; }
+.topnav a:hover .ic,
+.topnav a[aria-current="page"] .ic { opacity: 1; }
+.topnav a.nav-cta {
+  padding: 6px var(--sp-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+.topnav a.nav-cta:hover { background: var(--surface-brand); }
+
+/* Six links with icons do not fit one row on a phone. Wrap them rather than let the page grow
+   sideways, which on a phone also makes the browser zoom the whole page out. */
+.topnav { flex-wrap: wrap; row-gap: var(--sp-2); }
+@media (max-width: 640px) {
+  .topnav { gap: var(--sp-2) var(--sp-4); }
+  .topnav a.nav-cta { margin-left: auto; }
+}

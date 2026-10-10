@@ -184,3 +184,25 @@ the entry the whole app is a blank page. `JachAiApplicationTests` asserts it.
 
 **Journeys:** `src/test/frontend/run-journeys.js` uses the new nav labels; the phone
 menu check now asserts "starts closed" and "opens as a grid". 154/154.
+
+### Later the same day — sessions that survive a reload, one menu with icons
+
+**API contract change (additive, backward compatible).** Needs the backend owner's review.
+
+- Every response that issues a session (`/auth/login`, `/auth/google`, `/demo/login/{key}`,
+  `/auth/refresh`) now also sets `jachai_rt`, an HttpOnly, SameSite=Strict cookie on
+  `Path=/api/v1/auth`. The body is unchanged, so existing clients keep working.
+- `POST /auth/refresh` and `/auth/logout` accept the cookie when the request carries
+  `X-JachAI-Session: 1`. The body token is still accepted and is the only source when the
+  header is absent. A cookie without the header is rejected (`INVALID_REFRESH`).
+- `/auth/refresh` body is now optional; `/auth/logout` clears the cookie.
+- New: `SessionCookies`, `SessionCookieAdvice` in `auth.controller`; 16 tests in
+  `SessionCookieTests`. `AuthController` has a fifth constructor argument.
+- `AuthService.logout` tolerates a null refresh token (still revokes the access token).
+
+Sessions are browser-session cookies, not 30 days: no "stay signed in" box yet. If wanted,
+it is a `rememberMe` field on login and a `Max-Age`.
+
+Menu: the nine pages share one nav block (Academy, Talent, Pricing, How it works,
+How it's built, Sign in) with SVG-mask icons in `theme.css` (`.ic[data-ic]`). The sidebar
+uses the same family. `JachAiApplicationTests` and the journeys cover it; 154/154.

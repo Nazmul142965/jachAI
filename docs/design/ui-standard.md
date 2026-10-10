@@ -69,6 +69,35 @@ choosing a screen closes it. Tap targets are 44px.
 verified or passed, coral asks for attention, red failed. A shortcut card is not a
 result, so it is not green. Chat uses the brand colour, not the accent.
 
+**7. Reloading, Back, or another page never signs you out.** Every product people
+already trust works this way. The access token still lives only in memory; what
+survives is the ability to ask for a new one, held in an `HttpOnly` cookie
+(`jachai_rt`) that script cannot read. On load, if this browser had a session, the page
+asks the server for a fresh token and puts the person back on the screen the address
+names. Signing out clears it, and clears the hint, so a reload after signing out does
+not sign anyone back in.
+Why it is safe, and why each piece must stay:
+
+| Piece | Reason |
+| --- | --- |
+| `HttpOnly` | A script that runs on the page cannot copy the credential away |
+| `SameSite=Strict`, `Path=/api/v1/auth` | Never sent with a request another site causes, nor to other API calls |
+| `Secure` follows `APP_PUBLIC_BASE_URL` | TLS ends at the host's proxy and forwarded headers are deliberately not trusted, so the request cannot say whether it was https |
+| No `Max-Age` | Gone when the browser closes. Students use shared lab machines |
+| `X-JachAI-Session` header required to use the cookie | Only this site's own script can add it; a second, independent check |
+| Refresh token is single-use | A stolen, already-used token is dead. Another tab's rotation wins over a stale in-memory token |
+| A `localStorage` hint gates the restore | Without it every visitor's page load would ask the server, and the server counts per address; behind one proxy that is one shared bucket |
+
+*Check:* `SessionCookieTests` (16), and in a browser: sign in, reload, still signed in;
+open `/reset-password.html`, click the logo, still signed in; sign out, reload, signed out.
+
+**8. One menu, the same on every page, with icons that carry no meaning alone.**
+Academy, Talent, Pricing, How it works, How it's built, Sign in. Line icons (SVG masks
+in `theme.css`), never emoji: emoji differ on every device, cannot follow the theme, and
+are read aloud as their cartoon names. An icon is `aria-hidden`; the label is the meaning.
+The same family is used in the sidebar. Six links wrap onto two rows on a phone rather
+than push the page sideways.
+
 ## Language: English and Bangla
 
 `static/i18n.js`. The switch is in the top bar, works signed out, and is remembered

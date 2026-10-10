@@ -1,5 +1,14 @@
 import { t, applyLanguage, setLanguage, getLanguage, getLocale } from '/i18n.js';
 const $ = (selector) => document.querySelector(selector);
+// Sent with a refresh so the server uses the session cookie. Only this site's own script can
+// add a custom header to a same-origin request, which is what makes the cookie safe to honour.
+const SESSION_MARKER = { 'X-JachAI-Session': '1' };
+const SESSION_HINT = 'jachaiSessionHint';
+const sessionHint = {
+  get() { try { return localStorage.getItem(SESSION_HINT) === '1'; } catch { return false; } },
+  set() { try { localStorage.setItem(SESSION_HINT, '1'); } catch { /* storage blocked: no restore, no harm */ } },
+  clear() { try { localStorage.removeItem(SESSION_HINT); } catch { /* nothing to clear */ } }
+};
 const state = { accessToken: null, refreshToken: null, organizations: [], organization: null,
   platformAdmin: false, platformUserId: null, platformOrganizationId: null,
   platformLoadToken: 0, platformTargetUserId: null, platformUserLoadToken: 0,
@@ -250,7 +259,8 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
   if (response.status === 401 && auth && retry && state.refreshToken) {
     try {
       const renewed = await request('/auth/refresh', {
-        method: 'POST', body: { refreshToken: state.refreshToken }, auth: false, retry: false
+        method: 'POST', body: { refreshToken: state.refreshToken }, auth: false, retry: false,
+        extraHeaders: SESSION_MARKER
       });
       state.accessToken = renewed.accessToken;
       state.refreshToken = renewed.refreshToken;
@@ -324,6 +334,7 @@ function initAccountMenu() {
 }
 document.addEventListener('DOMContentLoaded', initAccountMenu);
 function showSignedOut() {
+  sessionHint.clear();
   window.clearInterval(state.timer);
   stopMessageRefresh();
   state.accessToken = null; state.refreshToken = null; state.organization = null; state.organizations = [];
@@ -462,6 +473,7 @@ function setInAppLinks(signedInNow) {
 async function signedIn(tokens) {
   state.accessToken = tokens.accessToken;
   state.refreshToken = tokens.refreshToken;
+  sessionHint.set();
   $('#account-menu-panel')?.classList.add('hidden');
   $('#account-menu-toggle')?.setAttribute('aria-expanded', 'false');
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
@@ -580,9 +592,7 @@ async function setOrganization() {
     availableScreens = ['start', 'practice', 'account', 'support', ...(state.platformAdmin ? ['platform'] : [])];
     for (const [key, title] of [['start', 'Home'], ['practice', 'Practice'],
       ...(state.platformAdmin ? [['platform', 'Platform']] : [])]) {
-      const tab = node('button', t(title)); tab.type = 'button'; tab.dataset.screen = key; tab.dataset.en = title;
-      tab.addEventListener('click', () => run(() => showScreen(key)));
-      nav.append(tab);
+      nav.append(navButton(key, title));
     }
     const route = readRoute();
     await showScreen(route && availableScreens.includes(route.screenKey) ? route.screenKey : 'start', route?.viewKey);
@@ -644,9 +654,7 @@ async function setOrganization() {
   for (const [heading, items] of groups) {
     if (heading) { const label = node('p', t(heading), 'nav-heading'); label.dataset.en = heading; nav.append(label); }
     for (const [key, title] of items) {
-      const tab = node('button', t(title)); tab.type = 'button'; tab.dataset.screen = key; tab.dataset.en = title;
-      tab.addEventListener('click', () => run(() => showScreen(key)));
-      nav.append(tab);
+      nav.append(navButton(key, title));
     }
   }
   // A route in the URL is honoured only if this person's role actually has
@@ -1377,6 +1385,20 @@ function setNavCollapsed(collapsed) {
   toggle.setAttribute('aria-expanded', String(!collapsed));
 }
 // The control names the screen you are on, so the menu never costs you your place.
+const SCREEN_ICONS = { start: 'home', practice: 'practice', 'workspace-access': 'building', overview: 'overview',
+  members: 'members', 'assessment-studio': 'clipboard', academy: 'book', messages: 'message',
+  certificates: 'award', 'my-assessments': 'check', talent: 'briefcase', billing: 'card', platform: 'shield' };
+// The icon is decoration and the label carries the meaning, so the two are separate elements:
+// a change of language rewrites the label and leaves the icon alone.
+function navButton(key, title) {
+  const button = node('button', ''); button.type = 'button';
+  button.dataset.screen = key; button.dataset.en = title;
+  const icon = node('span', '', 'ic'); icon.dataset.ic = SCREEN_ICONS[key] || 'overview';
+  icon.setAttribute('aria-hidden', 'true');
+  button.append(icon, node('span', t(title), 'nav-label'));
+  button.addEventListener('click', () => run(() => showScreen(key)));
+  return button;
+}
 function setNavToggleLabel(text) {
   const label = $('.nav-toggle-label');
   if (label) label.textContent = text || 'Menu';
@@ -1490,7 +1512,9 @@ function paintPageHead(key) {
 // A language change repaints what the person is looking at in place.
 function relabelShell() {
   applyLanguage();
-  for (const control of $('#workspace-nav').querySelectorAll('[data-en]')) control.textContent = t(control.dataset.en);
+  for (const control of $('#workspace-nav').querySelectorAll('[data-en]')) {
+    (control.querySelector('.nav-label') || control).textContent = t(control.dataset.en);
+  }
   const key = state.view;
   if (key) {
     paintPageHead(key);
@@ -4590,8 +4614,17 @@ $('#register-form').addEventListener('submit', (event) => { event.preventDefault
   } finally { if (control) control.disabled = false; }
 }); });
 $('#logout').addEventListener('click', () => run(async () => {
-  try { await request('/auth/logout', { method: 'POST', body: { refreshToken: state.refreshToken } }); }
-  finally { showSignedOut(); notice('Signed out.'); }
+  let ended = true;
+  try {
+    await request('/auth/logout', { method: 'POST', body: { refreshToken: state.refreshToken },
+      extraHeaders: SESSION_MARKER });
+  } catch (error) {
+    // A 401 means the session was already gone. Anything else means the server was not told.
+    ended = error.status === 401;
+  } finally { showSignedOut(); }
+  notice(ended ? 'Signed out.'
+    : 'Signed out here, but the server could not be reached to end the session. Close the browser to be sure.',
+  !ended);
 }));
 $('#organization-select').addEventListener('change', (event) => run(async () => {
   state.organization = state.organizations.find((item) => item.id === event.target.value);
@@ -5351,3 +5384,27 @@ $('#platform-manual-revoke-form').addEventListener('submit', (event) => {
   event.preventDefault();
   run(submitManualPlanRevoke);
 });
+
+// A reload, the Back button, or coming back from another page (the password-reset page, the
+// verification page) loads this script from nothing, and the access token only ever lived in
+// memory. If a session was open in this browser, ask the server for a fresh access token with
+// the HttpOnly cookie, and put the person back on the screen the address names.
+async function restoreSession() {
+  if (state.accessToken || !sessionHint.get()) return;
+  document.body.dataset.restoring = 'true';
+  document.body.dataset.restoringLabel = t('Restoring your session…');
+  let tokens = null;
+  try {
+    tokens = await request('/auth/refresh', { method: 'POST', body: {}, auth: false, retry: false,
+      extraHeaders: SESSION_MARKER });
+  } catch (error) {
+    // Only a definite "no" clears the hint. A dropped connection or a busy server (429) says
+    // nothing about the session, and the person can simply try again.
+    if (error.status === 401) sessionHint.clear();
+  } finally {
+    delete document.body.dataset.restoring;
+    delete document.body.dataset.restoringLabel;
+  }
+  if (tokens) await run(() => signedIn(tokens));
+}
+restoreSession();

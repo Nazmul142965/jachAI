@@ -715,7 +715,8 @@ async function main() {
         return b ? Math.round(b.getBoundingClientRect().height) : null; })() }))()`);
     check(mobile, `${width}px viewport has no horizontal overflow`, layout.scroll <= layout.inner + 1, `scroll=${layout.scroll} inner=${layout.inner}`);
     check(mobile, `${width}px menu starts closed`, collapsed, `collapsed=${collapsed}`);
-    check(mobile, `${width}px opened menu is a grid`, layout.nav === 'grid' && layout.columns >= 2, `${layout.nav}/${layout.columns}`);
+    check(mobile, `${width}px opened menu is a grid`, layout.nav === 'grid' && layout.columns >= (width <= 360 ? 1 : 2), `${layout.nav}/${layout.columns}`);
+    // Two columns cut words in half at 320px, so the narrowest phones get one.
     await ev(`document.querySelector('#nav-toggle').click()`); await wait(150);
     check(mobile, `${width}px small action buttons reach 44px`, layout.small !== null && layout.small >= 44, `height=${layout.small}`);
     await shot(`members-${width}px`);
