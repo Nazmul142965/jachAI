@@ -23,10 +23,19 @@ class EmailTransportProfileTests {
 
     @Test
     void completeMailEnvironmentSelectsSmtpWithoutAnExtraProfile() {
-        try (var context = context(mailSettings(), "local")) {
-            assertEquals(1, context.getBeansOfType(EmailTransport.class).size());
-            assertInstanceOf(SmtpEmailSender.class, context.getBean(EmailTransport.class));
-            assertEquals(EmailTransport.Mode.SMTP, context.getBean(EmailTransport.class).mode());
+        for (String profile : new String[] {"local", "demo"}) {
+            try (var context = context(mailSettings(), profile)) {
+                assertEquals(1, context.getBeansOfType(EmailTransport.class).size());
+                assertInstanceOf(SmtpEmailSender.class, context.getBean(EmailTransport.class));
+                assertEquals(EmailTransport.Mode.SMTP, context.getBean(EmailTransport.class).mode());
+            }
+        }
+    }
+
+    @Test
+    void demoWithoutMailSettingsKeepsConsoleDelivery() {
+        try (var context = context(Map.of(), "demo")) {
+            assertInstanceOf(LocalEmailSender.class, context.getBean(EmailTransport.class));
         }
     }
 
@@ -43,6 +52,7 @@ class EmailTransportProfileTests {
     @Test
     void partialMailEnvironmentFailsInsteadOfSilentlyLoggingVerificationLinks() {
         assertThrows(Exception.class, () -> context(Map.of("MAIL_HOST", "smtp.example.test"), "local"));
+        assertThrows(Exception.class, () -> context(Map.of("MAIL_HOST", "smtp.example.test"), "demo"));
     }
 
     @Test
