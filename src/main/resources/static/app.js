@@ -119,7 +119,19 @@ function notice(message, error = false) {
   area.classList.toggle('error', error);
   area.classList.remove('hidden');
   window.clearTimeout(notice.timeout);
-  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), error ? 12000 : 7000);
+  // Twelve seconds for an error and seven for a confirmation were long enough that a
+  // banner from one action was still on screen during the next, which reads as the new
+  // action having failed. An error stays longer than a confirmation because it is worth
+  // reading; neither outlives the work that produced it. A click dismisses either.
+  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), error ? 6000 : 3500);
+  if (!notice.dismissable) {
+    notice.dismissable = true;
+    area.addEventListener('click', () => {
+      window.clearTimeout(notice.timeout);
+      area.classList.add('hidden');
+    });
+    area.title = 'Click to dismiss';
+  }
 }
 async function run(action) {
   try { await action(); } catch (error) { notice(error.message || 'Something went wrong.', true); }
@@ -4763,16 +4775,16 @@ $('#organization-settings-form').addEventListener('submit', (event) => { event.p
   } });
   await loadOrganizationSettings(); notice('Result release default saved.');
 }); });
-$('#add-member-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#add-member-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/members'), { method: 'POST', body: { email: form.get('email'), role: form.get('role') } });
-  event.currentTarget.reset(); await loadMembers(); notice('Member added.');
+  element.reset(); await loadMembers(); notice('Member added.');
 }); });
-$('#invite-member-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#invite-member-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/invitations'), { method: 'POST',
     body: { email: form.get('email').trim(), role: form.get('role') } });
-  event.currentTarget.reset();
+  element.reset();
   await loadMemberInvitations(0);
   notice(mailDeliveryMode === 'SMTP'
     ? 'Invitation recorded and queued for SMTP delivery. Check the recipient inbox and the email_jobs status if it does not arrive.'
@@ -4901,8 +4913,8 @@ $('#assessment-form').addEventListener('submit', (event) => { event.preventDefau
   } catch (error) { fieldErrors(element, error); throw error; }
   finally { submit.disabled = false; }
 }); });
-$('#assignment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#assignment-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   if (!form.get('assessmentId')) throw new Error('Publish an assessment first.');
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
@@ -4910,7 +4922,7 @@ $('#assignment-form').addEventListener('submit', (event) => { event.preventDefau
   const assignment = await request(ownOrg(`/assessments/${encodeURIComponent(form.get('assessmentId'))}/assignments`),
     { method: 'POST', body: { userId: form.get('userId').trim(), attemptsAllowed: Number(form.get('attemptsAllowed')),
       availableFrom, availableUntil } });
-  event.currentTarget.reset();
+  element.reset();
   let recent = $('#recent-assignment');
   if (!recent) {
     recent = node('div', '', 'item-list'); recent.id = 'recent-assignment';
@@ -5060,38 +5072,38 @@ $('#academy-course-select').addEventListener('change', () => run(loadAcademyBatc
 $('#academy-batch-select').addEventListener('change', () => run(async () => {
   await loadAcademyBatchLearners(); await loadBatchAssessments();
 }));
-$('#course-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#course-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/academy/courses'), { method: 'POST',
     body: { name: form.get('name').trim(), description: form.get('description').trim() } });
-  event.currentTarget.reset(); await loadAcademyCatalog(); notice('Course created.');
+  element.reset(); await loadAcademyCatalog(); notice('Course created.');
 }); });
-$('#batch-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#batch-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const courseId = $('#academy-course-select').value;
   if (!courseId) throw new Error('Create a course first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   const startsAt = new Date(form.get('startsAt')).toISOString();
   const endsAt = new Date(form.get('endsAt')).toISOString();
   if (endsAt <= startsAt) throw new Error('Batch end must follow start.');
   await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches`), { method: 'POST',
     body: { name: form.get('name').trim(), startsAt, endsAt } });
-  event.currentTarget.reset(); await loadAcademyBatches(); notice('Batch created.');
+  element.reset(); await loadAcademyBatches(); notice('Batch created.');
 }); });
-$('#enrollment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#enrollment-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   if (!courseId || !batchId) throw new Error('Create and select a batch first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners`),
     { method: 'POST', body: { learnerUserId: form.get('learnerUserId').trim() } });
-  event.currentTarget.reset(); await loadAcademyBatchLearners(); notice('Learner enrolled.');
+  element.reset(); await loadAcademyBatchLearners(); notice('Learner enrolled.');
 }); });
-$('#batch-assessment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#batch-assessment-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   const batch = state.academyBatches.find((item) => item.id === batchId);
   if (!courseId || !batch) throw new Error('Select a batch first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
   if (availableUntil <= availableFrom || availableFrom < batch.startsAt || availableUntil > batch.endsAt)
@@ -5099,7 +5111,7 @@ $('#batch-assessment-form').addEventListener('submit', (event) => { event.preven
   await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments`),
     { method: 'POST', body: { assessmentId: form.get('assessmentId'),
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
-  event.currentTarget.reset(); await loadBatchAssessments(); notice('Assessment assigned to batch learners.');
+  element.reset(); await loadBatchAssessments(); notice('Assessment assigned to batch learners.');
 }); });
 $('#conversation-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const partnerUserId = new FormData(event.currentTarget).get('partnerUserId');
@@ -5108,22 +5120,22 @@ $('#conversation-form').addEventListener('submit', (event) => { event.preventDef
     { method: 'POST', body: { partnerUserId } });
   await loadMessaging(); await openConversation(conversation);
 }); });
-$('#message-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#message-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const conversationId = state.activeConversationId;
   if (!conversationId) throw new Error('Open a conversation first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages`),
     { method: 'POST', body: { body: form.get('body').trim() } });
-  event.currentTarget.reset(); await loadConversationMessages(0);
+  element.reset(); await loadConversationMessages(0);
 }); });
-$('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/talent/campaigns'), { method: 'POST',
     body: { title: form.get('title'), assessmentId: form.get('assessmentId') } });
-  event.currentTarget.reset(); await loadCampaigns(); notice('Hiring campaign created.');
+  element.reset(); await loadCampaigns(); notice('Hiring campaign created.');
 }); });
-$('#campaign-invite-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#campaign-invite-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   if (!form.get('campaignId')) throw new Error('Create an open campaign first.');
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
@@ -5131,10 +5143,10 @@ $('#campaign-invite-form').addEventListener('submit', (event) => { event.prevent
   await request(ownOrg(`/talent/campaigns/${encodeURIComponent(form.get('campaignId'))}/invitations`),
     { method: 'POST', body: { userId: form.get('userId').trim(),
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
-  event.currentTarget.reset(); notice('Candidate invited to campaign.');
+  element.reset(); notice('Candidate invited to campaign.');
 }); });
-$('#campaign-email-invite-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#campaign-email-invite-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   if (!form.get('campaignId')) throw new Error('Create an open campaign first.');
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
@@ -5144,7 +5156,7 @@ $('#campaign-email-invite-form').addEventListener('submit', (event) => { event.p
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
   if (state.emailInvitationCampaignId === form.get('campaignId'))
     await loadEmailInvitations(state.emailInvitationCampaignId);
-  event.currentTarget.reset(); notice('Invitation created. The server queues the email; this screen cannot confirm delivery.');
+  element.reset(); notice('Invitation created. The server queues the email; this screen cannot confirm delivery.');
 }); });
 $('#platform-refresh').addEventListener('click', () => run(loadPlatformView));
 $('#platform-inspect').addEventListener('click', () => run(() =>
