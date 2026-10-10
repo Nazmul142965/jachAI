@@ -27,8 +27,17 @@ import org.springframework.core.env.Profiles;
  */
 public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered {
 
-    /** Property, the environment variable that supplies it, and what it is for. */
-    private record Required(String property, String variable, String purpose) { }
+    /**
+     * Property, the environment variable that supplies it, and what it is for.
+     *
+     * <p>{@code instead} names a second property that satisfies the same need on its own, for the
+     * one setting that can arrive two ways. It is blank when there is only one way.
+     */
+    private record Required(String property, String variable, String purpose, String instead) {
+        Required(String property, String variable, String purpose) {
+            this(property, variable, purpose, "");
+        }
+    }
 
     private static final List<Required> REQUIRED = List.of(
             new Required("app.jwt.secret", "JWT_SECRET",
@@ -48,7 +57,9 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
                     "the public HTTPS origin, e.g. https://example.com — used in email links, "
                             + "certificate verification links, OAuth origins and payment callbacks"),
             new Required("spring.data.redis.host", "REDIS_HOST",
-                    "rate limits, token revocation and AI quotas; without it sign-in answers 503"),
+                    "rate limits, token revocation and AI quotas; without it sign-in answers 503. "
+                            + "A single SPRING_DATA_REDIS_URL (redis://user:pass@host:port) does instead",
+                    "spring.data.redis.url"),
             new Required("spring.mail.host", "MAIL_HOST", "the SMTP server that sends mail"),
             new Required("spring.mail.username", "MAIL_USERNAME", "the SMTP account"),
             new Required("spring.mail.password", "MAIL_PASSWORD", "the SMTP account's password"),
@@ -80,9 +91,14 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
         List<Required> missing = new ArrayList<>();
         List<Required> unedited = new ArrayList<>();
         for (Required setting : checked) {
-            String value = resolve(environment, setting);
-            if (value == null || value.isBlank()) missing.add(setting);
-            else if (looksLikeATemplate(value)) unedited.add(setting);
+            String value = resolve(environment, setting.property());
+            if (value == null || value.isBlank()) {
+                String alternative = setting.instead().isBlank()
+                        ? null : resolve(environment, setting.instead());
+                if (alternative == null || alternative.isBlank()) missing.add(setting);
+            } else if (looksLikeATemplate(value)) {
+                unedited.add(setting);
+            }
         }
         if (!unedited.isEmpty()) {
             // A template left as it came is not a missing setting, and reporting it as one sends
@@ -178,9 +194,9 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
      * nothing supplied the variable. That throw is the unreadable failure this guard exists to
      * replace, so here it simply means the setting is absent.
      */
-    private String resolve(ConfigurableEnvironment environment, Required setting) {
+    private String resolve(ConfigurableEnvironment environment, String property) {
         try {
-            return environment.getProperty(setting.property(), String.class, null);
+            return environment.getProperty(property, String.class, null);
         } catch (RuntimeException unresolvedPlaceholder) {
             return null;
         }
