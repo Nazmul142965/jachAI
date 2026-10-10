@@ -2101,3 +2101,8 @@ body[data-restoring]::before {
 
 .home-unread { margin: 0 0 var(--sp-3); color: var(--accent-ink, var(--ink)); font-weight: var(--weight-semibold); font-size: var(--text-sm); }
 .home-unread[hidden] { display: none; }
+
+/* The tab a payment gateway returned to, once it has told the original tab. */
+.handoff { max-width: 460px; margin: 18vh auto 0; padding: var(--sp-7) var(--sp-6); text-align: center; }
+.handoff h1 { font-size: var(--text-2xl); margin: 0 0 var(--sp-3); }
+.handoff p { color: var(--muted); margin: 0 0 var(--sp-5); }

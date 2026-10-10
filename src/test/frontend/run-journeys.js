@@ -448,6 +448,24 @@ async function main() {
   await view('Billing'); await wait(1500); await shotBoth('screen-billing');
   check(staff, 'billing is its own screen with its own route',
     (await route()) === '#/billing', await route());
+  // A payment gateway returned in ANOTHER tab. Only the outcome crosses between tabs; this
+  // signed-in tab comes forward to Billing and says what happened.
+  await view('Overview'); await wait(600);
+  const returned = await ev(`(async () => {
+    const other = new BroadcastChannel('jachai-billing');
+    const heard = []; other.onmessage = (e) => heard.push(e.data);
+    other.postMessage({ type: 'billing-return', outcome: 'canceled' });
+    await new Promise((r) => setTimeout(r, 1200));
+    other.close();
+    return { heard, hash: location.hash, notice: document.querySelector('#notice').textContent };
+  })()`);
+  check(staff, 'a payment returning in another tab is acknowledged by this signed-in tab',
+    returned.heard.some((message) => message.type === 'billing-ack'), JSON.stringify(returned.heard));
+  check(staff, 'and that tab is brought back to Billing', returned.hash === '#/billing', returned.hash);
+  check(staff, 'the wording names the outcome and defers to the server, not the redirect',
+    /cancelled/.test(returned.notice) && /server/.test(returned.notice), returned.notice.slice(0, 140));
+  check(staff, 'the acknowledgement carries nothing but its type: no token, no order id',
+    returned.heard.every((message) => Object.keys(message).join() === 'type'));
   // Billing order detail: the lifecycle the history row cannot show.
   await clickText('#payment-history', 'Details'); await wait(800);
   const order = await ev(`document.querySelector('#order-detail').textContent`);

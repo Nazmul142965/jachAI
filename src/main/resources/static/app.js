@@ -102,15 +102,73 @@ if (memberInvitationFromLink) {
   sessionStorage.setItem('jachaiPendingMemberInvitation', memberInvitationFromLink);
   history.replaceState(null, '', location.pathname);
 }
+// ---------------------------------------------------------------------------------------
+// Coming back from a payment gateway.
+//
+// Checkout opens in a NEW tab so this signed-in tab keeps its session, because the access token
+// lives only in this tab's memory. The gateway then sends the person to /?billing=... in that
+// same new tab, which is a fresh page with no token, and used to greet them with a sign-in form.
+// That is not a sign-out, but it looks exactly like one.
+//
+// So the returning tab first tells any signed-in tab of this site that the payment came back,
+// and that tab does the work: it comes forward, shows Billing, re-reads it from the server, and
+// says what happened. Only the OUTCOME crosses between tabs. No token, no order id, no
+// secret, and nothing is written to storage: a BroadcastChannel keeps nothing.
+//
+// A redirect never confirms a payment. The outcome here only decides the wording; what Billing
+// shows afterwards is whatever the server says.
+const BILLING_OUTCOMES = {
+  verified: 'Returned from the sandbox. Use Check payment below to read the server-verified result.',
+  canceled: 'The payment was cancelled at the sandbox. The order below shows the status the server recorded.',
+  failed: 'The payment did not complete at the sandbox. The order below shows the status the server recorded.'
+};
+const normalizeBillingOutcome = (value) => (value === 'cancelled' ? 'canceled' : value);
+const billingChannel = 'BroadcastChannel' in window ? new BroadcastChannel('jachai-billing') : null;
+let billingHandoff = Promise.resolve(false);
 if (billingReturn) {
-  // Drop the gateway's query string, but route to Billing, which is where the
-  // order and its Check payment control now live.
+  const outcome = normalizeBillingOutcome(billingReturn);
+  // Drop the gateway's query string and name the screen, whatever happens next.
   history.replaceState(null, '', `${location.pathname}#/billing`);
-  const outcome = { verified: 'returned from the sandbox gateway', cancelled: 'was cancelled at the sandbox gateway',
-    failed: 'did not complete at the sandbox gateway' }[billingReturn];
-  notice(`${outcome ? `Sandbox checkout ${outcome}.` : `Sandbox checkout returned "${billingReturn}".`} `
-    + 'A browser redirect cannot confirm a payment — sign in and open Billing, then use Check payment '
-    + 'to read the server-verified result.');
+  billingHandoff = new Promise((resolve) => {
+    if (!billingChannel || !Object.hasOwn(BILLING_OUTCOMES, outcome)) { resolve(false); return; }
+    document.body.dataset.restoring = 'true';
+    document.body.dataset.restoringLabel = 'Returning to your payment…';
+    const finish = (handedOver) => {
+      clearTimeout(timer);
+      billingChannel.removeEventListener('message', onMessage);
+      delete document.body.dataset.restoring; delete document.body.dataset.restoringLabel;
+      resolve(handedOver);
+    };
+    const onMessage = (event) => { if (event.data?.type === 'billing-ack') finish(true); };
+    // Nobody answered: this is the only tab, or the original was closed. Carry on as a normal page
+    // load, which restores the session if there is one and says what came back either way.
+    const timer = setTimeout(() => finish(false), 1200);
+    billingChannel.addEventListener('message', onMessage);
+    billingChannel.postMessage({ type: 'billing-return', outcome });
+  }).then((handedOver) => {
+    if (handedOver) showBillingHandoffDone(outcome);
+    else queueMicrotask(() => notice(`${BILLING_OUTCOMES[outcome] || `Sandbox checkout returned "${billingReturn}".`}`
+      + ' A browser redirect cannot confirm a payment; sign in and open Billing to read the server-verified status.'));
+    return handedOver;
+  });
+}
+// The returning tab has done its job. Close it if the browser allows (it does for a tab a script
+// opened), and say plainly where to go if it does not.
+function showBillingHandoffDone(outcome) {
+  const panel = document.createElement('main');
+  panel.className = 'handoff';
+  panel.setAttribute('role', 'status');
+  const heading = document.createElement('h1');
+  heading.textContent = outcome === 'verified' ? 'Payment page closed' : 'Back to JachAI';
+  const text = document.createElement('p');
+  text.textContent = 'Your original JachAI tab has been updated with the result. You can close this tab.';
+  const close = document.createElement('button');
+  close.type = 'button'; close.className = 'button primary'; close.textContent = 'Close this tab';
+  close.addEventListener('click', () => window.close());
+  panel.append(heading, text, close);
+  document.body.append(panel);
+  document.querySelector('#auth')?.classList.add('hidden');
+  window.close();
 }
 
 function node(tag, text = '', className = '') {
@@ -1412,6 +1470,21 @@ function navButton(key, title) {
   button.addEventListener('click', () => run(() => showScreen(key)));
   return button;
 }
+// The original, signed-in tab: a payment came back in another tab. Come forward, show Billing,
+// read it from the server, and say what happened. Only signed-in tabs answer, so a tab at the
+// sign-in form never claims to have handled it.
+billingChannel?.addEventListener('message', (event) => {
+  if (event.data?.type !== 'billing-return' || !state.accessToken) return;
+  const outcome = normalizeBillingOutcome(event.data.outcome);
+  if (!Object.hasOwn(BILLING_OUTCOMES, outcome)) return;
+  billingChannel.postMessage({ type: 'billing-ack' });
+  window.focus();
+  document.querySelector('#checkout-fallback')?.remove();
+  run(async () => {
+    await showScreen('billing');
+    notice(`${t(BILLING_OUTCOMES[outcome])} ${t('A browser redirect cannot confirm a payment; the status shown here is the server\'s.')}`);
+  });
+});
 function setNavToggleLabel(text) {
   const label = $('.nav-toggle-label');
   if (label) label.textContent = text || 'Menu';
@@ -4525,6 +4598,25 @@ $('#verify-code-form').addEventListener('submit', (event) => { event.preventDefa
   window.location.assign(`/certificates/${encodeURIComponent(code)}`);
 }); });
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
+// 'noopener' makes window.open return null even when the tab DID open, so null cannot mean
+// "blocked", and an error built on it is wrong most of the time it appears. Open it, and leave a
+// plain link beside the button for the rare browser that really did refuse.
+function openCheckout(control, url) {
+  let target;
+  try { target = new URL(url); } catch { target = null; }
+  if (!target || !['https:', 'http:'].includes(target.protocol)) {
+    throw new Error('The payment page address was not valid. Try again.');
+  }
+  window.open(target.href, '_blank', 'noopener,noreferrer');
+  let fallback = document.querySelector('#checkout-fallback');
+  if (!fallback) {
+    fallback = node('p', '', 'muted'); fallback.id = 'checkout-fallback';
+    control.closest('.card, .panel, div')?.append(fallback);
+  }
+  const link = node('a', t('open the payment page again'), 'inline-link');
+  link.href = target.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
+  fallback.replaceChildren(t('Did the payment page not open? '), link, '.');
+}
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   if (!await confirmDialog('Open the SSLCommerz sandbox?\n\n'
       + 'The sandbox opens in a new tab, so this signed-in tab stays available. '
@@ -4535,11 +4627,9 @@ $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   try {
     const checkout = await request(ownOrg('/billing/orders'),
       { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
-    const gatewayWindow = window.open(checkout.checkoutUrl, '_blank', 'noopener,noreferrer');
-    if (!gatewayWindow) throw new Error('The browser blocked the sandbox popup. Allow popups for this site and try again.');
-  } catch (error) {
+    openCheckout(control, checkout.checkoutUrl);
+  } finally {
     control.disabled = false; control.textContent = 'Pay with SSLCommerz sandbox';
-    throw error;
   }
 }));
 $('#start-bkash-demo').addEventListener('click', () => run(async () => {
@@ -4552,11 +4642,9 @@ $('#start-bkash-demo').addEventListener('click', () => run(async () => {
   try {
     const checkout = await request(ownOrg('/billing/orders'),
       { method: 'POST', body: { provider: 'BKASH' } });
-    const gatewayWindow = window.open(checkout.checkoutUrl, '_blank', 'noopener,noreferrer');
-    if (!gatewayWindow) throw new Error('The browser blocked the sandbox popup. Allow popups for this site and try again.');
-  } catch (error) {
+    openCheckout(control, checkout.checkoutUrl);
+  } finally {
     control.disabled = false; control.textContent = 'Pay with direct bKash sandbox';
-    throw error;
   }
 }));
 $('#register-tab').addEventListener('click', () => switchAuth('register'));
@@ -5491,6 +5579,8 @@ $('#platform-manual-revoke-form').addEventListener('submit', (event) => {
 // memory. If a session was open in this browser, ask the server for a fresh access token with
 // the HttpOnly cookie, and put the person back on the screen the address names.
 async function restoreSession() {
+  // A tab that has just handed a payment result to the original tab has nothing more to do.
+  if (await billingHandoff) return;
   if (state.accessToken || !sessionHint.get()) return;
   document.body.dataset.restoring = 'true';
   document.body.dataset.restoringLabel = t('Restoring your session…');

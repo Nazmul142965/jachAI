@@ -218,6 +218,16 @@ const BN = {
   '{n} unread messages': '{n}টি অপঠিত বার্তা',
   '1 new message': '১টি নতুন বার্তা',
   '{n} new messages': '{n}টি নতুন বার্তা',
+  'Returned from the sandbox. Use Check payment below to read the server-verified result.':
+    'স্যান্ডবক্স থেকে ফিরেছেন। সার্ভারের যাচাই করা ফল দেখতে নিচে "Check payment" চাপুন।',
+  'The payment was cancelled at the sandbox. The order below shows the status the server recorded.':
+    'পেমেন্টটি স্যান্ডবক্সে বাতিল হয়েছে। নিচের অর্ডারে সার্ভার যে অবস্থা লিখেছে তা দেখুন।',
+  'The payment did not complete at the sandbox. The order below shows the status the server recorded.':
+    'পেমেন্ট স্যান্ডবক্সে সম্পূর্ণ হয়নি। নিচের অর্ডারে সার্ভার যে অবস্থা লিখেছে তা দেখুন।',
+  "A browser redirect cannot confirm a payment; the status shown here is the server's.":
+    'ব্রাউজারের ফিরে আসা দিয়ে পেমেন্ট নিশ্চিত হয় না; এখানে সার্ভারের অবস্থাই দেখানো হয়।',
+  'Did the payment page not open? ': 'পেমেন্ট পাতা খোলেনি? ',
+  'open the payment page again': 'পেমেন্ট পাতা আবার খুলুন',
   // Sidebar chrome
   'Your organization': 'আপনার প্রতিষ্ঠান',
   'Your account': 'আপনার অ্যাকাউন্ট',
