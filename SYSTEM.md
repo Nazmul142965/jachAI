@@ -63,6 +63,28 @@ Create `.env.production` locally; it is Git-ignored and must not be uploaded to 
 
 The developer's IntelliJ run configuration currently has Gmail SMTP on port 587 with the `MAIL_*` credentials. Those credentials are for the existing SMTP transport; this codebase has no Brevo or Resend HTTPS-mail API transport or API key configured. Do not claim one is ready. [Render Free blocks outbound SMTP ports 25, 465, and 587](https://render.com/docs/free), so copying the current Gmail settings to Render Free will not deliver verification/reset/invitation mail. Before using that host for real sign-ups, either implement and test an HTTPS mail API with its own verified sender and credential, or choose a host whose outbound SMTP policy permits the existing Gmail transport. A healthy app or queued outbox job does not prove delivery; verify an actual inbox and the final `email_jobs` state.
 
+### Render deployment checklist
+
+The container itself is correct: `SPRING_PROFILES_ACTIVE=prod` and `JAVA_TOOL_OPTIONS` come from the Dockerfile, and `EXPOSE 8080` matches the port Spring listens on. Everything that remains is environment. A Render environment variable overrides the Dockerfile's `ENV` of the same name, so do not re-declare `SPRING_PROFILES_ACTIVE` or `JAVA_TOOL_OPTIONS` there unless you intend to replace them; an earlier deploy failed because a re-declared `JAVA_TOOL_OPTIONS` had lost its leading dash.
+
+Eight variables have no default in `application-prod.properties` and the application refuses to start without them. `RequiredSettingsGuard` now reports all eight at once, before any bean is built, rather than surfacing one per deploy as whichever bean happened to need it first:
+
+`MONGODB_URI`, `JWT_SECRET`, `APP_PUBLIC_BASE_URL`, `REDIS_HOST`, `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`.
+
+- **`APP_PUBLIC_BASE_URL`** is the public HTTPS origin with no trailing slash — the custom domain once one is attached, otherwise `https://<service>.onrender.com`. It is not cosmetic: email links, certificate verification links and payment callbacks are built from it, and both gateway adapters reject a non-loopback HTTP origin.
+- **`REDIS_HOST`** needs an actual Redis. Create a Render Key Value instance and use its internal connection details; set `REDIS_PASSWORD` and `REDIS_SSL_ENABLED=true` only if the chosen connection requires them. Production enables rate limits, token revocation and AI quotas by default, and all three fail closed: without a reachable Redis, sign-in answers 503 rather than skipping protection.
+- Paste `MONGODB_URI` as a single unescaped line. A shell-escaped copy produced `unsupported option 'compressors\'` and `'appname\'` warnings from the driver — the trailing backslashes are the giveaway.
+
+`TRUSTED_PROXY_CIDRS` stays empty unless the platform's proxy addresses are known. Empty is the safe default, but behind Render's load balancer every request then shares one socket peer, so IP-scoped limits become a single bucket for all users; email-scoped login limits are unaffected. Determine the actual peer address from a live request before trusting any range, and keep `server.forward-headers-strategy=none` — startup rejects an override.
+
+#### Custom domain
+
+Add the domain under the service's **Settings → Custom Domains**, then create a `CNAME` for the subdomain pointing at `<service>.onrender.com` in the DNS zone. Render issues the certificate once the record resolves. After it is live, three things must be changed together or the deployment is half-migrated: set `APP_PUBLIC_BASE_URL` to the new origin, add that origin to the Google OAuth client's **Authorised JavaScript origins**, and update the sandbox payment callbacks. Old certificate-verification links keep pointing at the previous origin.
+
+#### Known limitation on Render Free
+
+[Render Free blocks outbound SMTP on ports 25, 465 and 587](https://render.com/docs/free). The `MAIL_*` settings are still required to start, and the queue still accepts messages, but Gmail SMTP will not deliver from that host: verification, password reset and invitation mail silently fail. Treat a queued `email_jobs` row as evidence of nothing. Either move to a paid instance or a host that permits SMTP, or implement an HTTPS mail API transport, before real sign-ups.
+
 ### Free hosting path using the credentials already configured locally
 
 For an always-on faculty preview without replacing Gmail SMTP, the best candidate to **test**, not a verified deployment, is an [Oracle Cloud Always Free Ampere A1 VM](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm). The current free allowance is equivalent to 2 OCPUs and 12 GB RAM, enough to allocate separate memory to the Spring Boot app and a local Redis service while keeping MongoDB on Atlas. Oracle documents an outbound block on SMTP port 25; it does not establish that this application's Gmail port 587 and authentication will succeed from a newly created VM. Test TCP 587, STARTTLS, actual inbox delivery, and `email_jobs` before declaring mail ready. Use a stable hostname with HTTPS, set `APP_PUBLIC_BASE_URL` to it, and update Google OAuth origin and sandbox payment callbacks. Oracle requires a payment card to create an account, Always Free shapes can be out of capacity, and resources outside the Always Free allowance can incur charges. Do not create or upgrade an account or deploy against customer data without the owner's approval.

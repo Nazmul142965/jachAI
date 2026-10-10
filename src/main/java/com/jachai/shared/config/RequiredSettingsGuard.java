@@ -36,6 +36,24 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
             new Required("spring.data.mongodb.uri", "MONGODB_URI",
                     "the database cluster to connect to"));
 
+    /**
+     * Settings that only production has no default for, so only production can be missing them.
+     *
+     * <p>Each of these used to surface one restart at a time, as whichever bean happened to need
+     * it first: a missing APP_PUBLIC_BASE_URL arrived as a failure to create certificateService.
+     * Deploying is slow enough without learning about six variables across six deploys.
+     */
+    private static final List<Required> REQUIRED_IN_PRODUCTION = List.of(
+            new Required("app.public-base-url", "APP_PUBLIC_BASE_URL",
+                    "the public HTTPS origin, e.g. https://example.com — used in email links, "
+                            + "certificate verification links, OAuth origins and payment callbacks"),
+            new Required("spring.data.redis.host", "REDIS_HOST",
+                    "rate limits, token revocation and AI quotas; without it sign-in answers 503"),
+            new Required("spring.mail.host", "MAIL_HOST", "the SMTP server that sends mail"),
+            new Required("spring.mail.username", "MAIL_USERNAME", "the SMTP account"),
+            new Required("spring.mail.password", "MAIL_PASSWORD", "the SMTP account's password"),
+            new Required("app.mail.from", "MAIL_FROM", "the From address on every message sent"));
+
     @Override
     public int getOrder() {
         // After Boot has loaded application.properties and applied profiles, so a value set
@@ -55,9 +73,13 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
             throw new IllegalStateException("JachAI cannot start with local and prod profiles together.");
         }
 
+        boolean production = environment.acceptsProfiles(Profiles.of("prod"));
+        List<Required> checked = new ArrayList<>(REQUIRED);
+        if (production) checked.addAll(REQUIRED_IN_PRODUCTION);
+
         List<Required> missing = new ArrayList<>();
         List<Required> unedited = new ArrayList<>();
-        for (Required setting : REQUIRED) {
+        for (Required setting : checked) {
             String value = resolve(environment, setting);
             if (value == null || value.isBlank()) missing.add(setting);
             else if (looksLikeATemplate(value)) unedited.add(setting);
@@ -95,6 +117,16 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
                     .append("    ").append(setting.purpose())
                     .append(System.lineSeparator());
         }
+        if (production) {
+            // A deployed container has no secrets file, and pointing at one inside the image
+            // sends the reader looking in the wrong place for something only the hosting
+            // platform can supply.
+            message.append(System.lineSeparator())
+                    .append("Set each variable above in the deployment environment, then deploy again.")
+                    .append(System.lineSeparator());
+            throw new IllegalStateException(message.toString());
+        }
+
         // Where it looked, and what it found. Without this the reader cannot tell a file
         // that is absent from one that is present but in the wrong folder, or present and
         // missing the line they thought they wrote.
