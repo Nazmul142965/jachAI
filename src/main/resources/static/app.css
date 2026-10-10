@@ -2106,3 +2106,12 @@ body[data-restoring]::before {
 .handoff { max-width: 460px; margin: 18vh auto 0; padding: var(--sp-7) var(--sp-6); text-align: center; }
 .handoff h1 { font-size: var(--text-2xl); margin: 0 0 var(--sp-3); }
 .handoff p { color: var(--muted); margin: 0 0 var(--sp-5); }
+
+/* One scroll, not two. The sidebar used to be sticky with its own max-height and overflow, so it
+   was a second scrolling box beside the page: scroll the page and the sidebar kept whatever
+   position it had been left in, its top cut off and a scrollbar of its own beside the real one.
+   Letting it scroll with the page keeps the two aligned. It stretches the full height of the row,
+   so its background still reaches the bottom. */
+@media (min-width: 701px) {
+  .sidebar { position: static; max-height: none; overflow: visible; align-self: stretch; }
+}
