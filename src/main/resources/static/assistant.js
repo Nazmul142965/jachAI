@@ -12,7 +12,7 @@
 //
 // Safe output. Replies are built from DOM nodes. Nothing the model says is ever put through
 // innerHTML, so a reply cannot inject markup or script.
-import { t, getLocale } from '/i18n.js';
+import { t, getLanguage } from '/i18n.js';
 
 const POSITION_KEY = 'jachaiAssistantPosition';
 const TURNS_KEY = 'jachaiAssistantTurns';
@@ -358,7 +358,7 @@ export function createAssistant({ request }) {
     try {
       const history = state.turns.slice(0, -1).slice(-SENT_TURNS)
         .map((turn) => ({ role: turn.role, content: turn.content.slice(0, 800) }));
-      const answer = await request('/assistant/chat', { method: 'POST', body: { message, history } });
+      const answer = await request('/assistant/chat', { method: 'POST', body: { message, history, language: getLanguage() } });
       wait.remove();
       state.turns.push({ role: 'TUTOR', content: answer.reply });
       remember();

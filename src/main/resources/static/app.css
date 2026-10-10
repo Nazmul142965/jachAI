@@ -1720,7 +1720,7 @@ html[lang="bn"] * { letter-spacing: normal !important; text-transform: none !imp
 .sidebar-foot { display: none; }
 .sidebar .eyebrow { margin-bottom: var(--sp-2); }
 .nav-heading { margin-top: var(--sp-6); font-size: var(--text-xs); }
-.side-nav button { min-height: 44px; font-size: var(--text-base); }
+.side-nav button { min-height: 40px; font-size: var(--text-md); }
 
 /* ---- Home --------------------------------------------------------------- */
 
@@ -2115,3 +2115,29 @@ body[data-restoring]::before {
 @media (min-width: 701px) {
   .sidebar { position: static; max-height: none; overflow: visible; align-self: stretch; }
 }
+
+/* The language switch: two options, one filled. */
+.lang-switch {
+  margin-left: auto;
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+}
+.lang-switch button {
+  min-width: 44px;
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.lang-switch button:hover { color: var(--ink); }
+.lang-switch button.active { background: var(--brand-600); color: var(--on-brand); }
+.lang-switch button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }

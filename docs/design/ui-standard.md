@@ -118,10 +118,35 @@ in `localStorage` (a convenience; never the access token).
   screen must repaint on `jachai:language` (see `relabelShell`). A reload is not an
   option: the access token lives only in memory, so a reload signs the person out.
 
-**Covered:** sign-in and registration, the shell (sidebar, page head, account menu),
-Home, My organizations, Messages. **Not yet:** Practice, My tests, Certificates,
-Profile, and every organizer screen. Server messages (validation, errors) stay English
-until the API returns codes the client can map.
+**How it works now.** The page is translated by what it *says*: a text node (or a
+`placeholder`, `aria-label` or `title`) whose whole text is a key in `static/i18n.js` is
+shown in Bangla and put back on switching to English. A new screen is therefore covered
+the moment its English is in the dictionary; nothing has to be tagged. A `MutationObserver`
+translates text the screens add later. Sentences built from parts ("33% used · Across this
+workspace") are translated piece by piece: split at " · ", then each piece by exact match
+or by a pattern in `PATTERNS`. A piece nothing recognises is left alone, so a name, an
+email or an id inside a sentence is never altered. Dates follow the language everywhere.
+`t()` is still the right call for text the code itself composes with numbers.
+
+**To add a screen or a string:** write the English, add it to the dictionary, switch the
+language and look. Strings that carry a number or a name go in `PATTERNS` with `bd()` for
+Bengali digits. Do not translate what a person typed or what the data holds: course
+names, emails, question text. They stay as written.
+
+**Coverage.** Every screen for every role is translated, checked by walking each
+sidebar item as all seven demo roles in Bangla and listing any English left over. What
+remains is data (names, question text) and a few server diagnostics in Billing.
+Server error messages that arrive as text stay English until the API returns codes.
+
+The AI Tutor answers in Bangla when the interface is Bangla (`language` on the request),
+unless the person writes in another language.
+
+The switch shows both options with the chosen one filled, so nobody has to guess what a
+single button will do.
+
+**Type scale.** Do not raise it app-wide to fix one screen: it makes everything look
+zoomed, and on a display at 125% scaling more so. It was raised one notch once and
+reverted (base 15px).
 
 ## Not React
 

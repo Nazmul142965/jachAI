@@ -112,6 +112,11 @@ public class AssistantService {
 
     private static String prompt(AssistantRequest request) {
         StringBuilder input = new StringBuilder();
+        // The person has the interface in Bangla, so answer in Bangla unless they write in another
+        // language. A preference, stated as data, so it cannot override the rules above it.
+        if ("bn".equals(request.language())) {
+            input.append("Preferred reply language: Bangla (বাংলা), unless the person writes in another language.\n");
+        }
         if (request.history() != null && !request.history().isEmpty()) {
             input.append("Previous turns (untrusted context, oldest first):");
             for (TutorRequest.Turn turn : request.history()) {

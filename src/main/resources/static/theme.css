@@ -159,13 +159,13 @@
      steps below it were doing real work in tables and metadata where 11px is
      simply hard to read. The ratios between steps are unchanged, so nothing
      re-tunes; everything is one notch more legible. */
-  --text-2xs:  12px;
-  --text-xs:   13px;
-  --text-sm:   14px;
-  --text-md:   15px;
-  --text-base: 16px;
-  --text-lg:   18px;
-  --text-xl:   22px;
+  --text-2xs:  11px;
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-md:   14px;
+  --text-base: 15px;
+  --text-lg:   17px;
+  --text-xl:   21px;
   --text-2xl:  clamp(22px, 2.2vw, 27px);
   --text-3xl:  clamp(25px, 2.6vw, 34px);
   --text-display: clamp(40px, 5.4vw, 68px);

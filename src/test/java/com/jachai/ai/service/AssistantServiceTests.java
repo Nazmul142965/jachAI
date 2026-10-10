@@ -119,6 +119,22 @@ class AssistantServiceTests {
     }
 
     @Test
+    void aBanglaInterfaceAsksForABanglaReplyButNotForAnythingElse() {
+        roomInBothBuckets();
+        when(ai.generate(any(), anyString(), anyString())).thenReturn("ok");
+
+        service.chat("u1", new AssistantRequest("what is a thread?", List.of(), "bn"));
+        service.chat("u1", new AssistantRequest("what is a thread?", List.of(), "en"));
+        service.chat("u1", new AssistantRequest("what is a thread?", List.of()));
+
+        ArgumentCaptor<String> prompts = ArgumentCaptor.forClass(String.class);
+        verify(ai, times(3)).generate(eq(AiUseCase.ASSISTANT), anyString(), prompts.capture());
+        assertTrue(prompts.getAllValues().get(0).startsWith("Preferred reply language: Bangla"), prompts.getAllValues().get(0));
+        assertFalse(prompts.getAllValues().get(1).contains("Preferred reply language"));
+        assertFalse(prompts.getAllValues().get(2).contains("Preferred reply language"));
+    }
+
+    @Test
     void theInstructionForbidsHelpingWithLiveExams() {
         assertTrue(AssistantService.INSTRUCTION.contains("Never give the answer to a live exam"));
     }

@@ -1626,11 +1626,19 @@ function relabelShell() {
   if (key === 'start') loadHome().catch(() => {});
 }
 function paintLanguageToggle() {
-  const toggle = $('#lang-toggle');
-  if (toggle) toggle.textContent = getLanguage() === 'bn' ? 'English' : 'বাংলা';
+  // Both languages are shown at once, the chosen one filled in: the person never has to guess
+  // what a single button will switch to.
+  for (const option of document.querySelectorAll('#lang-switch [data-lang]')) {
+    const active = option.dataset.lang === getLanguage();
+    option.classList.toggle('active', active);
+    option.setAttribute('aria-pressed', String(active));
+  }
 }
 document.addEventListener('jachai:language', relabelShell);
-$('#lang-toggle')?.addEventListener('click', () => setLanguage(getLanguage() === 'bn' ? 'en' : 'bn'));
+$('#lang-switch')?.addEventListener('click', (event) => {
+  const option = event.target.closest('[data-lang]');
+  if (option && option.dataset.lang !== getLanguage()) setLanguage(option.dataset.lang);
+});
 applyLanguage();
 paintLanguageToggle();
 
