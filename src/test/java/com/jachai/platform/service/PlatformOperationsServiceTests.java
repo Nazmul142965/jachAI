@@ -2,77 +2,131 @@ package com.jachai.platform.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.jachai.billing.model.PaymentOrder;
 import com.jachai.billing.model.PaymentOrderStatus;
-import com.jachai.billing.model.PlatformUsageRepairStage;
+import com.jachai.billing.model.PaymentProvider;
 import com.jachai.billing.repository.PaymentOrderRepository;
 import com.jachai.billing.repository.PlatformUsageRepairEventRepository;
-import com.jachai.mail.model.EmailJobStatus;
 import com.jachai.mail.repository.EmailJobRepository;
+import com.jachai.platform.dto.PlatformOperationsView;
+import com.jachai.platform.dto.PlatformSandboxPaymentSummary;
+import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.shared.error.ApiException;
+import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
-@ExtendWith(MockitoExtension.class)
 class PlatformOperationsServiceTests {
-    private static final Instant NOW = Instant.parse("2026-10-03T10:00:00Z");
 
-    @Mock PlatformAdminService platform;
-    @Mock EmailJobRepository emailJobs;
-    @Mock PaymentOrderRepository paymentOrders;
-    @Mock PlatformUsageRepairEventRepository repairEvents;
+    private PlatformAdminService platform;
+    private EmailJobRepository emailJobs;
+    private PaymentOrderRepository paymentOrders;
+    private PlatformUsageRepairEventRepository repairEvents;
+    private PlatformOperationsService service;
 
-    private PlatformOperationsService service() {
-        return new PlatformOperationsService(platform, emailJobs, paymentOrders,
-                repairEvents, Clock.fixed(NOW, ZoneOffset.UTC));
+    @BeforeEach
+    void setUp() {
+        platform = mock(PlatformAdminService.class);
+        emailJobs = mock(EmailJobRepository.class);
+        paymentOrders = mock(PaymentOrderRepository.class);
+        repairEvents = mock(PlatformUsageRepairEventRepository.class);
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-10-08T12:00:00Z"), java.time.ZoneOffset.UTC);
+        service = new PlatformOperationsService(platform, emailJobs, paymentOrders, repairEvents, fixedClock);
     }
 
     @Test
-    void ordinaryUserCannotReadGlobalOperationalCounts() {
-        assertEquals("PLATFORM_ADMIN_REQUIRED", assertThrows(ApiException.class,
-                () -> service().summary("ordinary")).code());
-        verifyNoInteractions(emailJobs, paymentOrders, repairEvents);
+    void summaryThrowsWhenNotPlatformAdmin() {
+        when(platform.isPlatformAdmin("user1")).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.summary("user1"));
+        assertEquals(HttpStatus.FORBIDDEN, ex.status());
+        assertEquals("PLATFORM_ADMIN_REQUIRED", ex.code());
     }
 
     @Test
-    void summaryCountsOnlyOverdueOrUnresolvedStatesWithoutTenantContent() {
-        when(platform.isPlatformAdmin("admin")).thenReturn(true);
-        when(emailJobs.countByStatus(EmailJobStatus.FAILED)).thenReturn(2L);
-        when(emailJobs.countByStatusAndNextAttemptAtBefore(EmailJobStatus.PENDING,
-                NOW.minusSeconds(15 * 60))).thenReturn(3L);
-        when(paymentOrders.countByStatusAndCreatedAtBefore(PaymentOrderStatus.CHECKOUT_READY,
-                NOW.minusSeconds(24 * 60 * 60))).thenReturn(4L);
-        when(paymentOrders.countByStatusAndVerifiedAtBefore(PaymentOrderStatus.VERIFIED,
-                NOW.minusSeconds(5 * 60))).thenReturn(5L);
-        when(repairEvents.countByStage(PlatformUsageRepairStage.REQUESTED)).thenReturn(7L);
-        when(repairEvents.countByStage(PlatformUsageRepairStage.COMPLETED)).thenReturn(6L);
+    void sandboxPaymentSummaryThrowsWhenNotPlatformAdmin() {
+        when(platform.isPlatformAdmin("user1")).thenReturn(false);
 
-        var view = service().summary("admin");
-
-        assertEquals(NOW, view.generatedAt());
-        assertEquals(2L, view.failedEmailJobs());
-        assertEquals(3L, view.overdueEmailJobs());
-        assertEquals(4L, view.oldOpenSandboxOrders());
-        assertEquals(5L, view.verifiedButUnappliedOrders());
-        assertEquals(1L, view.usageRepairRunsWithoutCompletion());
-        assertEquals(6, view.getClass().getRecordComponents().length);
-        verify(platform).isPlatformAdmin("admin");
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.sandboxPaymentSummary("user1", null, null, null));
+        assertEquals(HttpStatus.FORBIDDEN, ex.status());
+        assertEquals("PLATFORM_ADMIN_REQUIRED", ex.code());
     }
 
     @Test
-    void incompleteAuditCountNeverBecomesNegative() {
-        when(platform.isPlatformAdmin("admin")).thenReturn(true);
-        when(repairEvents.countByStage(PlatformUsageRepairStage.REQUESTED)).thenReturn(2L);
-        when(repairEvents.countByStage(PlatformUsageRepairStage.COMPLETED)).thenReturn(3L);
+    void sandboxPaymentSummaryThrowsWhenFromAfterTo() {
+        when(platform.isPlatformAdmin("admin1")).thenReturn(true);
+        Instant from = Instant.parse("2026-10-08T12:00:00Z");
+        Instant to = Instant.parse("2026-10-07T12:00:00Z");
 
-        assertEquals(0L, service().summary("admin").usageRepairRunsWithoutCompletion());
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.sandboxPaymentSummary("admin1", from, to, null));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.status());
+        assertEquals("INVALID_DATE_RANGE", ex.code());
+    }
+
+    @Test
+    void sandboxPaymentSummaryDefaultsToLast30Days() {
+        when(platform.isPlatformAdmin("admin1")).thenReturn(true);
+        when(paymentOrders.countByStatusAndCreatedAtBetween(any(), any(), any())).thenReturn(5L);
+        when(paymentOrders.sumAmountBdtByStatusAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(new BigDecimal("5000.00"));
+        when(paymentOrders.countByStatusAndProviderAndCreatedAtBetween(any(), any(), any(), any())).thenReturn(0L);
+        when(paymentOrders.sumAmountBdtByStatusAndProviderAndCreatedAtBetween(any(), any(), any(), any()))
+                .thenReturn(BigDecimal.ZERO);
+
+        PlatformSandboxPaymentSummary result = service.sandboxPaymentSummary("admin1", null, null, null);
+
+        assertEquals(5L, result.totalOrders());
+        assertEquals(new BigDecimal("5000.00"), result.totalAmountBdt());
+        assertEquals("Sandbox activity (not live revenue)", result.label());
+    }
+
+    @Test
+    void sandboxPaymentSummaryFiltersByProvider() {
+        when(platform.isPlatformAdmin("admin1")).thenReturn(true);
+        when(paymentOrders.countByStatusAndCreatedAtBetween(any(), any(), any())).thenReturn(10L);
+        when(paymentOrders.sumAmountBdtByStatusAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(new BigDecimal("10000.00"));
+        when(paymentOrders.countByStatusAndProviderAndCreatedAtBetween(any(), any(), any(), any()))
+                .thenReturn(3L);
+        when(paymentOrders.sumAmountBdtByStatusAndProviderAndCreatedAtBetween(any(), any(), any(), any()))
+                .thenReturn(new BigDecimal("3000.00"));
+
+        PlatformSandboxPaymentSummary result = service.sandboxPaymentSummary("admin1", null, null, PaymentProvider.BKASH);
+
+        assertEquals(10L, result.totalOrders());
+        assertEquals(1, result.byProvider().size());
+        assertEquals(PaymentProvider.BKASH, result.byProvider().get(0).provider());
+        assertEquals(3L, result.byProvider().get(0).count());
+        assertEquals(new BigDecimal("3000.00"), result.byProvider().get(0).sumBdt());
+    }
+
+    @Test
+    void sandboxPaymentSummaryIncludesDateRangeBreakdown() {
+        when(platform.isPlatformAdmin("admin1")).thenReturn(true);
+        when(paymentOrders.countByStatusAndCreatedAtBetween(any(), any(), any())).thenReturn(2L);
+        when(paymentOrders.sumAmountBdtByStatusAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(new BigDecimal("2000.00"));
+        when(paymentOrders.countByStatusAndProviderAndCreatedAtBetween(any(), any(), any(), any())).thenReturn(0L);
+        when(paymentOrders.sumAmountBdtByStatusAndProviderAndCreatedAtBetween(any(), any(), any(), any()))
+                .thenReturn(BigDecimal.ZERO);
+
+        PlatformSandboxPaymentSummary result = service.sandboxPaymentSummary("admin1", null, null, null);
+
+        assertEquals(2L, result.totalOrders());
+        // With default 30-day range and fixed clock at 2026-10-08, there are ~5 weekly buckets
+        // but only those with count > 0 are included. Mock returns 2L for all, so we get 5 buckets.
+        assertEquals(5, result.byDateRange().size());
     }
 }

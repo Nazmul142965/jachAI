@@ -181,6 +181,13 @@ async function main() {
     check('demo', 'local demo roles appear only when the endpoint is available',
       await ev(`!document.querySelector('#demo-access').classList.contains('hidden')
         && document.querySelectorAll('#demo-access-roles button').length === 2`));
+    await ev(`document.querySelector('#register-tab').click()`);
+    check('demo', 'registration hides login-only demo roles and Google sign-in',
+      await ev(`getComputedStyle(document.querySelector('#demo-access')).display === 'none'
+        && getComputedStyle(document.querySelector('#google-login-area')).display === 'none'`));
+    await ev(`document.querySelector('#login-tab').click()`);
+    check('demo', 'sign-in shows demo roles again',
+      await ev(`getComputedStyle(document.querySelector('#demo-access')).display !== 'none'`));
     await ev(`document.querySelector('#demo-access-roles button').click()`); await wait(1400);
     check('demo', 'role shortcut signs in without typing credentials',
       await ev(`document.querySelector('#auth').classList.contains('hidden')
@@ -261,7 +268,7 @@ async function main() {
     nav.includes('My Assessments') && !nav.includes('Platform Operations') && !nav.includes('Billing'),
     nav.join(', '));
   check(journey, 'nav lists screens, not every view',
-    nav.length <= 9 && !nav.includes('Batch workspace'), nav.join(', '));
+    nav.length <= 10 && !nav.includes('Batch workspace'), nav.join(', '));
   check(journey, 'account-level Practice is reachable', nav.includes('Practice'), nav.join(', '));
   await view('Practice'); await wait(450);
   check(journey, 'Practice shows a private question without its answer key',
@@ -279,7 +286,8 @@ async function main() {
       && /Records generate/.test(await ev(`document.querySelector('#practice-result').textContent`)));
   check(journey, 'Practice shows the consumed free allowance',
     await ev(`document.querySelector('#practice-usage').textContent.includes('1/20 answers checked (19 left)')`));
-  await view('Profile & settings'); await wait(450);
+  await ev(`document.querySelector('#account-menu-toggle').click()`);
+  await ev(`document.querySelector('#account-menu-profile').click()`); await wait(450);
   check(journey, 'account usage uses the API limit field',
     await ev(`document.querySelector('#account-plan').textContent.includes('1 of 20 answers used')
       && document.querySelectorAll('#account-plan progress')[1].max === 20`));
@@ -637,6 +645,8 @@ async function main() {
   const platform = 'platform-admin';
   await view('Platform Operations'); await wait(1600);
   const platformText = await ev(`document.querySelector('#platform-view').textContent`);
+  check(platform, 'dashboard separates sandbox activity from revenue',
+    /Sandbox value · not revenue/.test(platformText) && /Applied sandbox orders/.test(platformText));
   check(platform, 'operations render with a timestamp', /Counts generated/.test(platformText));
   check(platform, 'storage estimate is labelled as an estimate', /Storage estimate/.test(platformText));
   check(platform, 'storage shows the estimated size and breakdown', /Estimated logical size/.test(platformText) && /Data .* · Indexes/.test(platformText));

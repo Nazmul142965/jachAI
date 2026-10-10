@@ -1,10 +1,12 @@
 package com.jachai.auth.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.jachai.auth.dto.AuthResponse;
@@ -20,6 +22,7 @@ import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.core.env.Environment;
 
 class DemoAccountServiceTests {
     private final MongoTemplate mongo = mock(MongoTemplate.class);
@@ -28,32 +31,60 @@ class DemoAccountServiceTests {
     private final MembershipRepository memberships = mock(MembershipRepository.class);
     private final AuthService auth = mock(AuthService.class);
     private final DemoFixtureService fixtures = mock(DemoFixtureService.class);
+    private final Environment environment = mock(Environment.class);
     private final DemoAccountService service = new DemoAccountService(mongo,
-            users, organizations, memberships, auth, fixtures);
+            users, organizations, memberships, auth, fixtures, environment);
 
     @Test
-    void refusesToExposeRolesAgainstNormalDatabase() {
-        MongoDatabase database = mock(MongoDatabase.class);
-        when(mongo.getDb()).thenReturn(database);
-        when(database.getName()).thenReturn("jachai_dev");
-        ApiException error = assertThrows(ApiException.class, service::accounts);
-        assertEquals("DEMO_DATABASE_REQUIRED", error.code());
+    void anyDatabaseListsAllSixRoles() {
+        assertEquals(6, service.accounts().size());
+        assertEquals("ORG_ADMIN", service.accounts().get(0).role());
+        assertEquals("DEMO_ROLE_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.login("platform-admin")).code());
     }
 
     @Test
-    void dedicatedDemoDatabaseListsAllSixRoles() {
+    void isolatedDemoListsPlatformAdministratorWithoutWorkspaceMembership() {
         MongoDatabase database = mock(MongoDatabase.class);
+        when(environment.matchesProfiles("demo")).thenReturn(true);
         when(mongo.getDb()).thenReturn(database);
-        when(database.getName()).thenReturn("jachai_demo_local");
+        when(database.getName()).thenReturn("jachai_demo_faculty");
+        assertEquals(7, service.accounts().size());
+        assertEquals("PLATFORM_ADMIN", service.accounts().get(6).role());
+
+        User admin = new User("demo-account-platform-admin", "platform-admin@demo.jachai.invalid",
+                "Platform administrator", null, true, false, 0, Instant.now());
+        when(users.findById(anyString())).thenReturn(Optional.of(admin));
+        when(organizations.findById(anyString())).thenReturn(Optional.of(mock(Organization.class)));
+        when(memberships.findById(anyString())).thenReturn(Optional.of(mock(Membership.class)));
+        AuthResponse response = mock(AuthResponse.class);
+        when(auth.issueSession(admin)).thenReturn(response);
+        assertSame(response, service.login("platform-admin"));
+        verify(memberships, never()).findById("demo-member-platform-admin");
+    }
+
+    @Test
+    void demoProfileOnNormalDatabaseDoesNotExposePlatformAdministrator() {
+        MongoDatabase database = mock(MongoDatabase.class);
+        when(environment.matchesProfiles("demo")).thenReturn(true);
+        when(mongo.getDb()).thenReturn(database);
+        when(database.getName()).thenReturn("jachai_prod");
         assertEquals(6, service.accounts().size());
-        assertEquals("ORG_ADMIN", service.accounts().get(0).role());
+        assertEquals("DEMO_ROLE_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.login("platform-admin")).code());
+    }
+
+    @Test
+    void productionProfileNeverExposesDemoPlatformAdministrator() {
+        when(environment.matchesProfiles("demo")).thenReturn(true);
+        when(environment.matchesProfiles("prod")).thenReturn(true);
+        assertEquals(6, service.accounts().size());
+        assertEquals("DEMO_ROLE_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.login("platform-admin")).code());
     }
 
     @Test
     void brokenExampleSeedDoesNotLockOutDemoAccount() {
-        MongoDatabase database = mock(MongoDatabase.class);
-        when(mongo.getDb()).thenReturn(database);
-        when(database.getName()).thenReturn("jachai_demo_local");
         User learner = new User("demo-account-learner", "learner@demo.jachai.invalid", "Learner",
                 null, true, false, 0, Instant.now());
         when(users.findById(anyString())).thenReturn(Optional.of(learner));

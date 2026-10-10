@@ -6,4 +6,5 @@ import java.util.Map;
 public record IntegrityReport(String attemptId, int totalEvents,
                               Map<TelemetryEventType, Long> eventCounts,
                               int clientReportedRapidAnswerIntervals,
+                              long tabSwitchCount, boolean tabSwitchLimitReached,
                               String interpretation) { }

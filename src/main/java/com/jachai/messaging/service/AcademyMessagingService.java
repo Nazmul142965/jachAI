@@ -39,7 +39,8 @@ public class AcademyMessagingService {
 
     public Page<MessagingPartnerView> partners(String actorId, String organizationId, Pageable pageable) {
         OrganizationRole actorRole = requireMessagingRole(actorId, organizationId);
-        OrganizationRole partnerRole = otherRole(actorRole);
+        OrganizationRole partnerRole = actorRole == OrganizationRole.ORG_ADMIN
+                ? OrganizationRole.INSTRUCTOR : otherRole(actorRole);
         return memberships.findByOrganizationIdAndRoleAndActiveTrue(organizationId, partnerRole, pageable)
                 .map(member -> users.findById(member.userId())
                         .filter(user -> user.emailVerified() && !user.disabled())
@@ -50,13 +51,17 @@ public class AcademyMessagingService {
 
     public ConversationView create(String actorId, String organizationId, String partnerUserId) {
         OrganizationRole actorRole = requireMessagingRole(actorId, organizationId);
-        access.requireRole(partnerUserId, organizationId, otherRole(actorRole));
+        OrganizationRole partnerRole = actorRole == OrganizationRole.ORG_ADMIN
+                ? OrganizationRole.INSTRUCTOR : otherRole(actorRole);
+        access.requireRole(partnerUserId, organizationId, partnerRole);
         users.findById(partnerUserId)
                 .filter(user -> user.emailVerified() && !user.disabled())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PARTNER_UNAVAILABLE",
                         "Partner account is unavailable"));
-        String instructorId = actorRole == OrganizationRole.INSTRUCTOR ? actorId : partnerUserId;
-        String learnerId = actorRole == OrganizationRole.LEARNER ? actorId : partnerUserId;
+        String instructorId = actorRole == OrganizationRole.INSTRUCTOR ? actorId
+                : actorRole == OrganizationRole.ORG_ADMIN ? partnerUserId : partnerUserId;
+        String learnerId = actorRole == OrganizationRole.LEARNER ? actorId
+                : actorRole == OrganizationRole.ORG_ADMIN ? actorId : partnerUserId;
         Conversation existing = conversations.findByOrganizationIdAndInstructorUserIdAndLearnerUserId(
                 organizationId, instructorId, learnerId).orElse(null);
         if (existing != null) return view(existing, actorId);
@@ -128,9 +133,10 @@ public class AcademyMessagingService {
             throw new ApiException(HttpStatus.FORBIDDEN, "ACADEMY_ONLY",
                     "Direct messaging is available in Academy organizations");
         }
-        if (role != OrganizationRole.INSTRUCTOR && role != OrganizationRole.LEARNER) {
+        if (role != OrganizationRole.INSTRUCTOR && role != OrganizationRole.LEARNER
+                && role != OrganizationRole.ORG_ADMIN) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN",
-                    "Only instructors and learners can use direct messaging");
+                    "Only Academy owners, instructors and learners can use direct messaging");
         }
         return role;
     }

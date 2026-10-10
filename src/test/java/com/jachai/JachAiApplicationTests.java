@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.jachai.auth.service.AuthService;
 import com.jachai.auth.service.GoogleAuthService;
@@ -44,15 +46,36 @@ import com.jachai.messaging.service.AcademyMessagingService;
 import com.jachai.academy.dto.CertificateVerificationView;
 import com.jachai.talent.service.TalentCampaignService;
 import com.jachai.talent.service.CampaignEmailInvitationService;
+import com.jachai.billing.repository.PaymentOrderRepository;
+import com.jachai.billing.repository.PlatformUsageRepairEventRepository;
+import com.jachai.billing.repository.SubscriptionRepository;
 import com.jachai.billing.service.EntitlementService;
 import com.jachai.billing.service.PaymentBillingService;
 import com.jachai.billing.service.EntitlementUsageReconciliationService;
+import com.jachai.mail.repository.EmailJobRepository;
+import com.jachai.organization.repository.MembershipRepository;
+import com.jachai.organization.repository.OrganizationRepository;
+import com.jachai.organization.repository.OrganizationInvitationRepository;
+import com.jachai.organization.repository.OrganizationSettingsRepository;
+import com.jachai.organization.repository.WorkspaceJoinCodeRepository;
+import com.jachai.organization.repository.WorkspaceJoinRedemptionRepository;
+import com.jachai.organization.service.OrganizationService;
+import com.jachai.organization.service.OrganizationAuditRecoveryService;
+import com.jachai.organization.service.OrganizationSettingsService;
+import com.jachai.organization.service.OrganizationInvitationService;
+import com.jachai.organization.service.TenantAccessService;
+import com.jachai.organization.service.MembershipService;
+import com.jachai.platform.repository.PlatformPlanEventRepository;
 import com.jachai.platform.service.PlatformAdminService;
 import com.jachai.platform.service.PlatformBillingSupportService;
+import com.jachai.platform.service.PlatformDashboardService;
 import com.jachai.platform.service.PlatformOperationsService;
 import com.jachai.platform.service.PlatformStorageService;
 import com.jachai.platform.service.PlatformPlanService;
 import com.jachai.platform.service.PlatformSupportAccessService;
+import com.jachai.support.repository.SupportTicketReplyRepository;
+import com.jachai.support.repository.SupportTicketRepository;
+import com.jachai.support.service.SupportTicketService;
 import com.jachai.academy.service.CertificateDesignService;
 import com.jachai.auth.repository.UserRepository;
 import com.jachai.practice.service.PersonalPracticeGenerationService;
@@ -73,9 +96,9 @@ import java.time.Instant;
 @ActiveProfiles("test")
 class JachAiApplicationTests {
     @Autowired MockMvc mvc;
+    @Autowired com.jachai.shared.web.PageController pageController;
     @MockitoBean AuthService authService;
     @MockitoBean GoogleAuthService googleAuthService;
-    @MockitoBean EmailSender emailSender;
     @MockitoBean UserRepository userRepository;
     @MockitoBean AccessRevocationService accessRevocationService;
     @MockitoBean OrganizationService organizationService;
@@ -111,6 +134,9 @@ class JachAiApplicationTests {
     @MockitoBean AcademyMessagingService academyMessagingService;
     @MockitoBean TalentCampaignService talentCampaignService;
     @MockitoBean CampaignEmailInvitationService campaignEmailInvitationService;
+    @MockitoBean PaymentOrderRepository paymentOrderRepository;
+    @MockitoBean SubscriptionRepository subscriptionRepository;
+    @MockitoBean PlatformUsageRepairEventRepository platformUsageRepairEventRepository;
     @MockitoBean EntitlementService entitlementService;
     @MockitoBean PaymentBillingService paymentBillingService;
     @MockitoBean EntitlementUsageReconciliationService entitlementUsageReconciliationService;
@@ -120,6 +146,18 @@ class JachAiApplicationTests {
     @MockitoBean PlatformStorageService platformStorageService;
     @MockitoBean PlatformPlanService platformPlanService;
     @MockitoBean PlatformSupportAccessService platformSupportAccessService;
+    @MockitoBean PlatformDashboardService platformDashboardService;
+    @MockitoBean PlatformPlanEventRepository platformPlanEventRepository;
+    @MockitoBean SupportTicketRepository supportTicketRepository;
+    @MockitoBean SupportTicketReplyRepository supportTicketReplyRepository;
+    @MockitoBean EmailJobRepository emailJobRepository;
+    @MockitoBean MembershipRepository membershipRepository;
+    @MockitoBean OrganizationRepository organizationRepository;
+    @MockitoBean OrganizationInvitationRepository organizationInvitationRepository;
+    @MockitoBean OrganizationSettingsRepository organizationSettingsRepository;
+    @MockitoBean WorkspaceJoinCodeRepository workspaceJoinCodeRepository;
+    @MockitoBean WorkspaceJoinRedemptionRepository workspaceJoinRedemptionRepository;
+    @MockitoBean SupportTicketService supportTicketService;
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {
@@ -132,6 +170,17 @@ class JachAiApplicationTests {
         mvc.perform(get("/actuator/health/readiness"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void engineeringStoryAndStylesArePublic() throws Exception {
+        mvc.perform(get("/engineering.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Problems that changed the design")))
+                .andExpect(content().string(containsString("what still needs live verification")));
+        mvc.perform(get("/engineering.css"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(".build-hero")));
     }
 
     @Test
@@ -385,6 +434,32 @@ class JachAiApplicationTests {
         mvc.perform(get("/app.css")).andExpect(status().isOk());
         mvc.perform(get("/theme.css")).andExpect(status().isOk());
         mvc.perform(get("/theme.js")).andExpect(status().isOk());
+    }
+
+    @Test
+    void configuredFacultyPreviewShowsRoleLinksOnMainSignIn() throws Exception {
+        ReflectionTestUtils.setField(pageController, "demoPreviewUrl", "https://demo.jachai.example");
+        try {
+            mvc.perform(get("/"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("demoRole=academy-admin")))
+                    .andExpect(content().string(containsString("demoRole=instructor")))
+                    .andExpect(content().string(containsString("demoRole=learner")))
+                    .andExpect(content().string(containsString("demoRole=talent-admin")))
+                    .andExpect(content().string(containsString("demoRole=recruiter")))
+                    .andExpect(content().string(containsString("demoRole=candidate")));
+        } finally {
+            ReflectionTestUtils.setField(pageController, "demoPreviewUrl", "");
+        }
+    }
+
+    @Test
+    void missingFacultyPreviewDoesNotRenderClickableRoleLinks() throws Exception {
+        ReflectionTestUtils.setField(pageController, "demoPreviewUrl", "");
+        mvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("demoRole=academy-admin"))))
+                .andExpect(content().string(not(containsString("demoRole=candidate"))));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.jachai.billing.controller;
 
 import com.jachai.billing.service.PaymentBillingService;
+import com.jachai.billing.model.PaymentProvider;
 import com.jachai.shared.error.ApiException;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,7 @@ public class SslCommerzCallbackController {
             billing.verifySslCallback(orderId, validationId);
             result = "verified";
         } else if ("failed".equals(outcome) || "canceled".equals(outcome)) {
+            billing.cancel(orderId, PaymentProvider.SSLCOMMERZ);
             result = outcome;
         } else {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_CALLBACK",

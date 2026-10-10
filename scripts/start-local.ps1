@@ -3,7 +3,8 @@ param(
     [ValidatePattern('^jachai_(dev|demo_[A-Za-z0-9_-]+|smtp_[A-Za-z0-9_-]+)$')]
     [string]$DatabaseName = 'jachai_dev',
     [switch]$Smtp,
-    [switch]$Demo
+    [switch]$Demo,
+    [switch]$SkipMongoCheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +17,24 @@ if ($Demo) {
     }
 }
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+# IntelliJ may have a private run environment that a separate PowerShell shell
+# cannot inherit. Reuse the owner's ignored local properties when present, but
+# let explicit environment variables take precedence. Never print their values.
+$privateProperties = Join-Path $projectRoot 'application-local-secret.properties'
+if (Test-Path -LiteralPath $privateProperties -PathType Leaf) {
+    foreach ($line in [IO.File]::ReadLines($privateProperties)) {
+        if ($line -notmatch '^\s*(spring\.data\.mongodb\.uri|app\.jwt\.secret)\s*[=:]\s*(.*?)\s*$') { continue }
+        $setting = $Matches[1]
+        $value = $Matches[2]
+        if ([string]::IsNullOrWhiteSpace($value) -or $value.StartsWith('${')) { continue }
+        if ($setting -eq 'spring.data.mongodb.uri' -and -not $env:MONGODB_URI) {
+            $env:MONGODB_URI = $value
+        }
+        if ($setting -eq 'app.jwt.secret' -and -not $env:JWT_SECRET) {
+            $env:JWT_SECRET = $value
+        }
+    }
+}
 $logDir = Join-Path $projectRoot 'target\local-dev'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $appLog = if ($Port -eq 8080) { 'app.out.log' } else { "app.$Port.out.log" }
@@ -53,6 +72,27 @@ if (Test-LocalPort $Port) {
     }
 }
 
+# MongoDB preflight check - fail fast with a clear message if MongoDB is not reachable
+if (-not $SkipMongoCheck) {
+    Write-Host "Preflight: checking MongoDB connectivity..."
+    try {
+        & (Join-Path $PSScriptRoot 'check-mongo.ps1')
+        Write-Host "Preflight: MongoDB is reachable."
+    } catch {
+        $err = $_.Exception.Message
+        Write-Error "Preflight FAILED: MongoDB is not reachable."
+        Write-Error "  $err"
+        Write-Error ""
+        Write-Error "Fix one of these, then retry:"
+        Write-Error "  1. Start a local MongoDB on localhost:27017, OR"
+        Write-Error "  2. Set MONGODB_URI in this shell to a running Atlas cluster (mongodb+srv://...), OR"
+        Write-Error "  3. Run with -SkipMongoCheck to bypass (only for non-Demo, non-SMTP modes where MongoDB is optional)."
+        Write-Error ""
+        Write-Error "The application requires MongoDB for all runtime data. It will not start without it."
+        throw "Aborted: MongoDB preflight check failed."
+    }
+}
+
 $java21Home = Join-Path $env:USERPROFILE '.jdks\ms-21.0.12.1'
 function Test-Java21Home([string]$JdkDirectory) {
     if (-not $JdkDirectory) { return $false }
@@ -82,6 +122,7 @@ $env:CACHE_ENABLED = 'false'
 $env:REDIS_REVOCATION_ENABLED = 'false'
 $env:AI_PROVIDER = 'none'
 $env:AI_TUTOR_PROVIDER = 'none'
+
 if (-not $env:JWT_SECRET) {
     $secretBytes = New-Object byte[] 48
     $random = [Security.Cryptography.RandomNumberGenerator]::Create()

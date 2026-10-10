@@ -16,10 +16,6 @@ class EmailTransportConfig {
 
     @Bean
     EmailTransport emailTransport(Environment environment) {
-        if (environment.matchesProfiles("demo") && !environment.matchesProfiles("prod")) {
-            log.info("Email delivery mode: LOCAL CONSOLE for disposable demo accounts.");
-            return new LocalEmailSender();
-        }
         String host = value(environment, "MAIL_HOST");
         String username = value(environment, "MAIL_USERNAME");
         String password = value(environment, "MAIL_PASSWORD");

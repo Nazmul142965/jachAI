@@ -49,12 +49,18 @@ class GoogleAuthServiceTests {
     }
 
     @Test
-    void doesNotSilentlyMergeExistingPasswordAccountByEmail() {
+    void signsInExistingVerifiedAccountAndLinksGoogleByMatchingAuthoritativeEmail() {
         when(google.verify("token")).thenReturn(profile("learner@gmail.com", true));
-        when(users.findByEmail("learner@gmail.com")).thenReturn(Optional.of(user("other-sub")));
+        User existing = user(null);
+        when(users.findByEmail("learner@gmail.com")).thenReturn(Optional.of(existing));
+        when(mongo.updateFirst(any(Query.class), any(Update.class),
+                org.mockito.ArgumentMatchers.eq(User.class))).thenReturn(UpdateResult.acknowledged(1, 1L, null));
 
-        assertEquals("ACCOUNT_LINK_REQUIRED", assertThrows(ApiException.class,
-                () -> service().login("token")).code());
+        service().login("token");
+
+        ArgumentCaptor<User> linked = ArgumentCaptor.forClass(User.class);
+        verify(auth).issueSession(linked.capture());
+        assertEquals("google-sub", linked.getValue().googleSubject());
     }
 
     @Test

@@ -1,6 +1,16 @@
 # JachAI
 
-JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical assessments. `ARCHITECTURE.md` is the product specification. The implementation is in progress; this is not yet a deployable SaaS release.
+JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical assessments. The implementation is in progress; a passing local demo is not a verified production release.
+
+## Documentation map
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): product rules, roles, data boundaries, and acceptance criteria.
+- [FRONTEND.md](FRONTEND.md): the current HTML/CSS/JavaScript UI and its conventions.
+- [BACKEND.md](BACKEND.md): current backend boundaries, demo-account rules, and test entry points.
+- [SYSTEM.md](SYSTEM.md): configuration, deployment, health checks, and release gates.
+- [docs/ENGINEERING.md](docs/ENGINEERING.md): the stack, engineering challenges, and how we addressed them. The same story is available in the app at `/engineering.html`.
+
+Completed delivery reports and old branch/commit notes are indexed in [docs/archive/completed/](docs/archive/completed/README.md). The [React design experiment](docs/design/react/README.md) is deliberately kept separately for future work; it is not the current UI.
 
 ## Current workflows
 
@@ -8,7 +18,7 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Platform admins can inspect `GET /api/v1/platform/operations/summary` for counts of failed/overdue email jobs, old open sandbox checkouts, verified but unapplied orders, and quota-repair runs without completion. Counts do not expose tenant content or payment credentials. This is an operator signal, not a substitute for MongoDB/Redis readiness or external provider monitoring.
 - Platform quota repair has a tenant-scoped, append-only audit at `GET /api/v1/platform/organizations/{organizationId}/billing/usage-reconciliation/audit?page=0`. It records `REQUESTED` before any bucket mutation and `COMPLETED` afterward; missing completion or `OUTCOME_UNCONFIRMED` requires a fresh report and operator review because the two collections are not updated in one transaction.
 - Email registration, verification, login, refresh rotation, access-token/refresh-session logout, and single-use password reset by email. Password reset invalidates earlier access and refresh tokens through a per-user security version.
-- Optional Sign in with Google using a configured Google Identity Services web client ID. The server checks Google's signature, audience, issuer, expiry, and verified email, then identifies the account by Google's stable subject. Existing password accounts require an authenticated same-email link; non-Gmail/non-Workspace addresses must first complete JachAI email verification. No Google Cloud Identity Platform is required.
+- Optional Sign in with Google using a configured Google Identity Services web client ID. The server verifies Google's ID token and stable subject. A Google-authoritative verified email can create an account or link an existing verified, enabled same-email account; other addresses must complete JachAI email verification before authenticated linking. No Google Cloud Identity Platform is required.
 - MongoDB-backed email outbox for verification, reset, and Talent invitation links. Queue payloads are encrypted at rest, processed with bounded retries, and discarded after delivery, expiry, or five failed attempts. The worker checks that each link token is still current before sending. Local MongoDB tests cover atomic claims, lease fencing, and retry backoff; SMTP delivery remains unverified. Like any SMTP outbox, it is at-least-once: a crash after SMTP accepts a message but before the job is marked sent can produce a duplicate email.
 - Redis-backed fixed-window request limits for registration/login/reset/refresh, certificate verification, invitations, and AI bursts. Redis keys contain HMAC digests instead of raw IP addresses or email addresses; production fails closed if Redis cannot enforce a limit.
 - Organization-level `FREE`/`TEAM` plan entitlements with server-side gates for published assessments, invitations (including batch distribution), AI daily use, and certificate issuance. An organization admin can see its limits in the dashboard. Missing or inactive subscription state falls back to `FREE`; only a verified billing update should grant `TEAM`.
@@ -29,18 +39,13 @@ JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical asse
 - Academy organization admins can save a certificate design with wording, signer name, and optional PNG/JPEG logo and signature (64 KiB and 1200 pixels per image maximum; at most ten saves per workspace in a rolling 30 days to bound free-tier storage). New designs are immutable versions; issuance freezes the active design ID. A learner can open and print their own certificate from My certificates. Public code verification remains deliberately minimal and never returns holder identity, logo, or signature. The private design/display API requires active tenant membership and restricts full display to the holder or Academy staff. Browser fixture and focused service tests cover this workflow; live Atlas image persistence and print output remain unverified.
 - Talent attempt integrity signals (tab visibility, optional fullscreen exit, copy/paste, and client-reported answer-save timing) stored separately from attempts. Recruiters can inspect an evidence-only summary and paged events after submission; no automatic cheating decision is made.
 
-Not yet complete: live browser verification of the narrow audited support-access workflow, remaining Academy/Talent and frontend workflows, live ownership-transfer and membership/certificate audit verification, live bKash/SSLCOMMERZ sandbox verification, historical quota backfill, full integration/load testing, and a verified deployment. A container recipe and readiness probes now exist in [DEPLOYMENT.md](DEPLOYMENT.md), but no container or live service has been exercised here. The outbox, rate limits, plan events, and quota counters still need live MongoDB/SMTP/Redis and proxy-aware runtime verification. Do not use the current API as a production system.
+The [system release gates](SYSTEM.md#release-gates-still-open) still require hosted verification of dependencies and enabled external services. The last local pre-deployment evidence is preserved in [the release check](docs/archive/completed/RELEASE_CHECK_2026-10-09.md); do not interpret that historical revision as a production pass.
 
 ## Run locally
 
 For a disposable role walkthrough, run
 `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -Demo`.
-It uses port 8093 by default. Alternatively, run with the explicit `demo` profile and
-your private `MONGODB_URI` and `JWT_SECRET`. The profile binds to `127.0.0.1`
-and uses Atlas database `jachai_demo_local` by default. If overriding it with
-`DEMO_MONGODB_DATABASE`, the name **must** start with `jachai_demo_`; the demo
-endpoints refuse any other database. Do not combine `demo` with `prod` or use a
-production URI. On the sign-in page, choose Academy owner, instructor, learner,
+The launcher uses port 8093 and `jachai_demo_local` by default for an isolated test. The current demo login service itself has no database-name restriction: the six roles can use the configured database. Local access is loopback-only unless public demo access is deliberately enabled with HTTPS as described in [SYSTEM.md](SYSTEM.md). On the sign-in page, choose Academy owner, instructor, learner,
 Talent owner, recruiter, or candidate. Clicking signs in without copying a
 password. These are passwordless demo-only accounts (`@demo.jachai.invalid`),
 not real identities; password change/reset and Google linking are blocked for
@@ -50,12 +55,60 @@ workspaces. Their first sign-in seeds one approved question, published assessmen
 and learner/candidate invitation per workspace through the normal application
 services; repeat sign-ins reuse the same examples. Demo mode disables cloud AI and SMTP delivery.
 Use the role accounts to create additional content and exercise the workflows
-in the separate database. Demo mode is not a public
-hosted trial or a way to grant production access.
+in the selected database. Demo identities are shared examples, not private customer or faculty accounts.
 
 On this Windows development machine, set `MONGODB_URI` in the shell, then run `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1` from the repository root. It selects JDK 21 and launches JachAI at `http://127.0.0.1:8080/`, connecting to MongoDB Atlas with the environment URI. It does not start a local MongoDB server. Logs are under ignored `target/local-dev/`. Without SMTP settings, local verification/reset links appear in the app log and must not be shared. After registering, wait a few seconds, then run `powershell -ExecutionPolicy Bypass -File .\scripts\open-local-verification.ps1 -Email you@example.com` to open your verification link without copying its token; add `-Port 8092` if that is your app port. A generated local JWT secret expires sign-ins on restart; set your own stable `JWT_SECRET` privately if sessions must survive restarts. To use a separate development database and port, pass `-Port 8092 -DatabaseName jachai_demo_20261004`; the helper never points at the production database.
 
-To test real email locally, configure `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` (and optionally `MAIL_PORT`, default 587) plus a stable 32+ byte `JWT_SECRET` privately in your shell or IntelliJ run environment; a separate stable `MAIL_JOB_ENCRYPTION_KEY` is recommended. Complete `MAIL_*` settings automatically select SMTP even when IntelliJ uses the default `local` profile. The existing `smtp` profile and `scripts/start-local.ps1 -Smtp` remain valid. Missing or partial SMTP settings fail startup rather than silently logging links. SMTP uses STARTTLS and short network timeouts. Register only an inbox you control; successful delivery must be checked in that inbox and the `email_jobs` state, not inferred from a 202 registration response. SMTP delivery is still unverified here because no provider account is configured.
+## MongoDB Preflight (run before starting)
+
+JachAI requires a reachable MongoDB (Atlas or local) for all runtime data. The startup script now checks connectivity and will fail fast with a clear message if MongoDB is not reachable.
+
+**Quick check (manual):**
+```powershell
+# Run from repo root in the SAME shell where you set MONGODB_URI
+powershell -ExecutionPolicy Bypass -File .\scripts\check-mongo.ps1
+```
+- Exit 0 = OK, MongoDB is reachable
+- Exit 1 = Configuration issue (URI not set, malformed, no database named)
+- Exit 2 = Authentication failed (bad credentials or missing permissions)
+- Exit 3 = Network/unreachable (server down, IP not whitelisted, cluster paused)
+- Exit 4 = Other error
+
+The check prints nothing sensitive (no URI, no credentials). It uses the same `MONGODB_URI` and `MONGODB_DATABASE` you set in the shell.
+
+**Automatic preflight on startup:**
+`start-local.ps1` runs `check-mongo.ps1` before launching. If MongoDB is not reachable, you will see:
+```
+Preflight FAILED: MongoDB is not reachable.
+  No server answered within the time limit.
+  This is usually the network, not the credentials.
+  ...
+
+Fix one of these, then retry:
+  1. Start a local MongoDB on localhost:27017, OR
+  2. Set MONGODB_URI in this shell to a running Atlas cluster (mongodb+srv://...), OR
+  3. Run with -SkipMongoCheck to bypass (only for non-Demo, non-SMTP modes where MongoDB is optional).
+```
+To bypass the preflight (not recommended for demo/SMTP modes):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -SkipMongoCheck
+```
+
+**Port and database discovery:**
+Do not hard-code ports or database names. When the app starts, it prints:
+```
+JachAI is ready at http://127.0.0.1:8080/
+Local demo mode is active. Choose a role on the sign-in page; no password is needed.
+```
+Or in `target/local-dev/app.<port>.out.log`:
+```
+Tomcat started on port(s): 8080 (http) with context path ''
+...
+spring.data.mongodb.database: jachai_dev
+```
+Use the printed `http://127.0.0.1:<port>/` and the logged database name. The ports 8093/8095 in older docs are examples only — the script picks a free port and prints the actual one.
+
+To test real email locally, configure `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` (and optionally `MAIL_PORT`, default 587) plus a stable 32+ byte `JWT_SECRET` privately in your shell or IntelliJ run environment; a separate stable `MAIL_JOB_ENCRYPTION_KEY` is recommended. Complete `MAIL_*` settings automatically select SMTP even when IntelliJ uses the default `local` profile. The existing `smtp` profile and `scripts/start-local.ps1 -Smtp` remain valid. Missing or partial SMTP settings fail startup rather than silently logging links. SMTP uses STARTTLS and short network timeouts. Register only an inbox you control; successful delivery must be checked in that inbox and the `email_jobs` state, not inferred from a 202 registration response. The developer's IntelliJ configuration has Gmail SMTP credentials on port 587, but inbox delivery has not been independently verified; these settings are not present in every shell or deployment. See `SYSTEM.md` before choosing a free host.
 
 Use JDK 21, Maven, and a MongoDB instance. Set environment variables in your terminal or IntelliJ run configuration; Spring Boot does not load `.env` automatically. `.env.example` contains only placeholders. Never commit actual credentials.
 
@@ -76,7 +129,7 @@ $env:MONGODB_URI = '<private-Atlas-connection-string-without-database-name>'
 .\mvnw.cmd spring-boot:run
 ```
 
-`GET /api/v1/health` checks app liveness only. `GET /actuator/health/liveness` is the Actuator liveness probe; `GET /actuator/health/readiness` checks MongoDB and Redis in the production profile. To perform an opt-in MongoDB save/read/delete check, use the `local,mongo-smoke` profiles. Deployment prerequisites and remaining release gates are in [DEPLOYMENT.md](DEPLOYMENT.md).
+`GET /api/v1/health` checks app liveness only. `GET /actuator/health/liveness` is the Actuator liveness probe; `GET /actuator/health/readiness` checks MongoDB and Redis in the production profile. To perform an opt-in MongoDB save/read/delete check, use the `local,mongo-smoke` profiles. Deployment prerequisites and remaining release gates are in [SYSTEM.md](SYSTEM.md).
 
 When a learner or candidate's assessment result becomes visible, an email job sends a sign-in link and directs them to “My assessments.” It does not reveal the score in email. Manual-release assessments send this only after staff release the result; automatic-release assessments send it after submission. The outbox uses one durable job per attempt and rechecks result visibility and the current recipient address before delivery. SMTP delivery has not been verified live.
 
@@ -92,13 +145,13 @@ Personal Practice is available without an organization. After sign-in, choose **
 
 For a new Gemini API account, the default `GEMINI_MODEL` is `gemini-3.8-flash`. Google may deny legacy `gemini-2.5-flash` to new accounts with HTTP 404 even when the API key is valid. If IntelliJ explicitly sets `GEMINI_MODEL=gemini-2.5-flash`, remove that override or set it to `gemini-3.8-flash`, then restart; the application default cannot override an IntelliJ environment variable. Model availability and free-tier limits can vary by account and time, so verify one real generation before relying on it.
 
-Set `GOOGLE_CLIENT_ID` to a Google Identity Services Web client ID to show Google sign-in. Add the app's exact origin (for example `http://localhost:8080`) to Google's Authorized JavaScript origins. The ID token is verified server-side; no Google client secret or paid Identity Platform is used. Existing password users sign in first, then link a same-email Google account from Overview. Google-only accounts can set a local password later through the existing password-reset email flow. This flow has unit tests but no live Google/browser verification yet.
+Set `GOOGLE_CLIENT_ID` to a Google Identity Services Web client ID to show Google sign-in. Add the app's exact origin (for example `http://localhost:8080`) to Google's Authorized JavaScript origins. The ID token is verified server-side; no Google client secret or paid Identity Platform is used. A Google-authoritative verified email can safely link an existing verified, enabled same-email account during sign-in; accounts with other email domains need JachAI verification and authenticated linking. Google-only accounts can set a local password later through the password-reset email flow. This flow has unit tests but no hosted Google/browser verification yet.
 
-For local setup, create a **Web application** OAuth client in Google Cloud and add `http://localhost:8080` under **Authorized JavaScript origins**, then put only its client ID in IntelliJ's `GOOGLE_CLIENT_ID` environment variable and restart. A Google account with a verified Gmail address can create a JachAI account without SMTP; a previously registered email/password account must sign in and link Google from Overview to avoid silently taking over an existing account. The Google client ID is unrelated to the Gmail SMTP password. A blank ID keeps the button unavailable; a blocked Google script now shows a visible error instead of failing silently.
+For local setup, create a **Web application** OAuth client in Google Cloud and add `http://localhost:8080` under **Authorized JavaScript origins**, then put only its client ID in IntelliJ's `GOOGLE_CLIENT_ID` environment variable and restart. A Google account with a verified Gmail address can create a JachAI account without SMTP, or link a matching verified, enabled account as described above. The Google client ID is unrelated to the Gmail SMTP password. A blank ID keeps the button unavailable; a blocked Google script shows a visible error.
 
 The email outbox accepts any real SMTP provider through `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, and `MAIL_FROM`; email-validation APIs and disposable-inbox services do **not** send account-verification links. For a personal Gmail sender without a domain, use `smtp.gmail.com`, port `587`, the same Gmail address for username/from, and a Google **App Password** (not the normal account password) after enabling 2-Step Verification. Keep all values in IntelliJ environment variables; never commit them. `MailAuthenticationException` means the SMTP provider rejected login, not that MongoDB failed or that the verification token was not generated. Restart after changing these values, request a fresh link, and check the corresponding `email_jobs` status before assuming delivery.
 
-Request limits are off by default in local development (`RATE_LIMIT_ENABLED=false`) and on in production. They require Redis. If Redis is unavailable while enabled, protected requests return 503 rather than bypassing protection. Login is limited by both client IP and normalized email; reset and registration are similarly scoped. Invitation and AI burst limits use organization plus actor ID; AI still has its daily quota. By default, IP limits use the socket address and ignore forwarding headers. Behind a trusted reverse proxy, explicitly set `TRUSTED_PROXY_CIDRS` and follow the [proxy deployment rules](DEPLOYMENT.md#client-ip-behind-a-trusted-reverse-proxy); `X-Forwarded-For` is only read from configured peers. The fixed-window counters and Redis failure mode have unit tests but have not yet been tested against a live Redis instance or proxy.
+Request limits are off by default in local development (`RATE_LIMIT_ENABLED=false`) and on in production. They require Redis. If Redis is unavailable while enabled, protected requests return 503 rather than bypassing protection. Login is limited by both client IP and normalized email; reset and registration are similarly scoped. Invitation and AI burst limits use organization plus actor ID; AI still has its daily quota. By default, IP limits use the socket address and ignore forwarding headers. Behind a trusted reverse proxy, explicitly set `TRUSTED_PROXY_CIDRS` and follow the [proxy deployment rules](SYSTEM.md#client-ip-behind-a-trusted-reverse-proxy); `X-Forwarded-For` is only read from configured peers. The fixed-window counters and Redis failure mode have unit tests but have not yet been tested against a live Redis instance or proxy.
 
 Plans are per organization, so an Academy and a Talent workspace can be billed separately. `FREE` allows 3 distinct published assessments, 30 invitations/month, 5 AI requests/user/day (30/organization/day), and 30 certificates/month; `TEAM` raises those limits. Publishing a changed assessment through `POST /api/v1/organizations/{organizationId}/assessments/{assessmentId}/versions` creates a new immutable version without consuming another assessment slot; existing assignments remain pinned to their original version. Both plans currently retain chat and telemetry for 90 days. Usage slots are reserved with an atomic MongoDB counter before a guarded write and refunded on handled write failures. Tenant admins can preview and repair provable counter gaps through the usage-reconciliation API; platform admins have an audited tenant-scoped support route. Ambiguous invitation history, TTL-erased evidence, and undated records still require manual review. Live MongoDB concurrency and TTL behavior must be verified before production. There is no public API to grant a paid plan; direct bKash and SSLCOMMERZ integrations use sandbox only, and a browser redirect never upgrades an organization before server-side payment verification.
 

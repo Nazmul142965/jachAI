@@ -25,9 +25,12 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @Validated
@@ -76,6 +79,18 @@ public class AuthController {
     public AuthService.AccountView updateProfile(@AuthenticationPrincipal Jwt jwt,
                                                   @Valid @RequestBody UpdateProfileRequest request) {
         return auth.updateDisplayName(jwt.getSubject(), request.displayName());
+    }
+
+    @PostMapping(value = "/me/avatar", consumes = "multipart/form-data")
+    public AuthService.AccountView updateAvatar(@AuthenticationPrincipal Jwt jwt,
+                                                @RequestPart("image") MultipartFile image) {
+        return auth.updateAvatar(jwt.getSubject(), image);
+    }
+
+    @DeleteMapping("/me/avatar")
+    public Map<String, String> removeAvatar(@AuthenticationPrincipal Jwt jwt) {
+        auth.removeAvatar(jwt.getSubject());
+        return Map.of("message", "Profile image removed");
     }
 
     @PostMapping("/change-password")

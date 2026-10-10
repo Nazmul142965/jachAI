@@ -72,4 +72,11 @@ public class PaymentBillingController {
         limits.consume(RateLimitPolicy.PAYMENT_RECONCILE_ACTOR, jwt.getSubject());
         return billing.reconcile(jwt.getSubject(), organizationId, orderId);
     }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    public PaymentOrderView cancel(@AuthenticationPrincipal Jwt jwt,
+                                   @PathVariable String organizationId,
+                                   @PathVariable String orderId) {
+        return billing.cancel(jwt.getSubject(), organizationId, orderId);
+    }
 }

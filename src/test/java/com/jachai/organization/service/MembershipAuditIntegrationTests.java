@@ -1,4 +1,5 @@
 package com.jachai.organization.service;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "MONGODB_TEST_URI", matches = ".+")
 class MembershipAuditIntegrationTests extends BaseMongoIntegrationTest {
     @Autowired MembershipService service;
     @Autowired MembershipRepository memberships;

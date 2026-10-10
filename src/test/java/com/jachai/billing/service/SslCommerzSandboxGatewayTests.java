@@ -35,7 +35,7 @@ class SslCommerzSandboxGatewayTests {
         String base = """
                 {"status":"VALID", "tran_id":"J123456789012345678901234", "val_id":"validation1",
                  "currency":"BDT", "currency_type":"BDT", "currency_amount":"100.00",
-                 "risk_level":0, "bank_tran_id":"bank123"}
+                 "risk_level":0, "bank_tran_id":"bank123", "store_id":"sandbox-store"}
                 """;
         assertEquals("PAYMENT_AMOUNT_MISMATCH", assertThrows(ApiException.class,
                 () -> SslCommerzSandboxGateway.verifiedResponse(order(), "validation1",
@@ -48,6 +48,9 @@ class SslCommerzSandboxGatewayTests {
                 () -> SslCommerzSandboxGateway.verifiedResponse(order(), "validation1",
                         json.readTree(base.replace("\"risk_level\":0", "\"risk_level\":1")),
                         "sandbox-store")).code());
+        assertEquals("PAYMENT_NOT_VERIFIED", assertThrows(ApiException.class,
+                () -> SslCommerzSandboxGateway.verifiedResponse(order(), "validation1",
+                        json.readTree(base), "different-store")).code());
     }
 
     @Test

@@ -36,7 +36,7 @@ public class TutorService {
     private final AiService ai;
 
     public TutorReply explain(String userId, String organizationId, String attemptId, TutorRequest request) {
-        access.requireRole(userId, organizationId, OrganizationRole.LEARNER);
+        access.requireRole(userId, organizationId, OrganizationRole.LEARNER, OrganizationRole.CANDIDATE);
         Attempt attempt = attempts.findByIdAndOrganizationIdAndUserId(attemptId, organizationId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attempt not found"));
         if (attempt.status() != AttemptStatus.SUBMITTED) {

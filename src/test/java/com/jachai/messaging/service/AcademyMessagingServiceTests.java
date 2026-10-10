@@ -157,6 +157,45 @@ class AcademyMessagingServiceTests {
     }
 
     @Test
+    void academyOwnerDirectoryListsActiveInstructors() {
+        academy("owner", OrganizationRole.ORG_ADMIN);
+        var pageable = PageRequest.of(0, 20);
+        when(memberships.findByOrganizationIdAndRoleAndActiveTrue("org-a", OrganizationRole.INSTRUCTOR,
+                pageable)).thenReturn(new PageImpl<>(List.of(new Membership("m1", "teacher", "org-a",
+                OrganizationRole.INSTRUCTOR, true, Instant.now())), pageable, 1));
+        when(users.findById("teacher")).thenReturn(Optional.of(user("teacher", true, false)));
+
+        var result = service.partners("owner", "org-a", pageable);
+
+        assertEquals("teacher", result.getContent().getFirst().userId());
+        verify(memberships).findByOrganizationIdAndRoleAndActiveTrue("org-a", OrganizationRole.INSTRUCTOR,
+                pageable);
+    }
+
+    @Test
+    void academyOwnerCanCreateAndListConversationWithInstructor() {
+        academy("owner", OrganizationRole.ORG_ADMIN);
+        when(users.findById("teacher")).thenReturn(Optional.of(user("teacher", true, false)));
+        when(conversations.findByOrganizationIdAndInstructorUserIdAndLearnerUserId(
+                "org-a", "teacher", "owner")).thenReturn(Optional.empty());
+        when(conversations.insert(any(Conversation.class))).thenAnswer(call -> call.getArgument(0));
+
+        var created = service.create("owner", "org-a", "teacher");
+
+        assertEquals("teacher", created.instructorUserId());
+        assertEquals("owner", created.learnerUserId());
+        verify(access).requireRole("teacher", "org-a", OrganizationRole.INSTRUCTOR);
+
+        when(conversations.findByOrganizationIdAndLearnerUserId("org-a", "owner", PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(new Conversation(created.id(), "org-a",
+                        "teacher", "owner", created.createdAt())), PageRequest.of(0, 20), 1));
+        var listed = service.list("owner", "org-a", PageRequest.of(0, 20));
+
+        assertEquals(created.id(), listed.getContent().getFirst().id());
+        verify(conversations).findByOrganizationIdAndLearnerUserId("org-a", "owner", PageRequest.of(0, 20));
+    }
+
+    @Test
     void talentMemberCannotUseAcademyMessaging() {
         when(access.requireMember("recruiter", "org-a"))
                 .thenReturn(new Membership("m1", "recruiter", "org-a", OrganizationRole.RECRUITER,

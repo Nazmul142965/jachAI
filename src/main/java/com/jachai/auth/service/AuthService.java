@@ -7,6 +7,7 @@ import com.jachai.auth.model.EmailVerificationToken;
 import com.jachai.auth.model.PasswordResetToken;
 import com.jachai.auth.model.RefreshSession;
 import com.jachai.auth.model.User;
+import com.jachai.auth.model.UserAvatar;
 import com.jachai.auth.repository.EmailVerificationTokenRepository;
 import com.jachai.auth.repository.PasswordResetTokenRepository;
 import com.jachai.auth.repository.UserRepository;
@@ -16,7 +17,19 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+import org.springframework.web.multipart.MultipartFile;
+import com.jachai.auth.repository.UserAvatarRepository;
+import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -32,6 +45,7 @@ public class AuthService {
     private static final Duration RESET_LIFETIME = Duration.ofMinutes(30);
     private static final Duration REFRESH_LIFETIME = Duration.ofDays(30);
     private final UserRepository users;
+    private final UserAvatarRepository avatars;
     private final EmailVerificationTokenRepository tokens;
     private final PasswordResetTokenRepository resetTokens;
     private final MongoTemplate mongo;
@@ -42,14 +56,18 @@ public class AuthService {
     private final String publicBaseUrl;
 
     public record AccountView(String email, String displayName, boolean emailVerified,
-                              boolean passwordSet, boolean googleLinked, Instant createdAt) { }
+                              boolean passwordSet, boolean googleLinked, Instant createdAt,
+                              String avatarDataUrl) { }
 
+    @Autowired
     public AuthService(UserRepository users, EmailVerificationTokenRepository tokens,
                        PasswordResetTokenRepository resetTokens,
                        MongoTemplate mongo, PasswordEncoder passwords, EmailSender emailSender,
                        JwtService jwt, AccessRevocationService revocations,
+                       UserAvatarRepository avatars,
                        @Value("${app.public-base-url}") String publicBaseUrl) {
         this.users = users;
+        this.avatars = avatars;
         this.tokens = tokens;
         this.resetTokens = resetTokens;
         this.mongo = mongo;
@@ -58,6 +76,14 @@ public class AuthService {
         this.jwt = jwt;
         this.revocations = revocations;
         this.publicBaseUrl = publicBaseUrl;
+    }
+
+    // Keeps focused service tests that do not exercise profile images source-compatible.
+    public AuthService(UserRepository users, EmailVerificationTokenRepository tokens,
+                       PasswordResetTokenRepository resetTokens, MongoTemplate mongo,
+                       PasswordEncoder passwords, EmailSender emailSender, JwtService jwt,
+                       AccessRevocationService revocations, String publicBaseUrl) {
+        this(users, tokens, resetTokens, mongo, passwords, emailSender, jwt, revocations, null, publicBaseUrl);
     }
 
     public void register(RegisterRequest request) {
@@ -120,8 +146,77 @@ public class AuthService {
 
     public AccountView me(String userId) {
         User user = activeUser(userId);
+        String avatar = avatars == null ? null : avatars.findById(user.id())
+                .map(value -> "data:" + value.contentType() + ";base64,"
+                        + Base64.getEncoder().encodeToString(value.image()))
+                .orElse(null);
         return new AccountView(user.email(), user.displayName(), user.emailVerified(),
-                user.passwordHash() != null, user.googleSubject() != null, user.createdAt());
+                user.passwordHash() != null, user.googleSubject() != null, user.createdAt(), avatar);
+    }
+
+    public AccountView updateAvatar(String userId, MultipartFile upload) {
+        User user = activeUser(userId);
+        if (isDemoUser(user)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEMO_PROFILE_LOCKED",
+                    "Demo accounts cannot change their shared profile");
+        }
+        if (upload == null || upload.isEmpty() || upload.getSize() > 5_000_000L) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_AVATAR",
+                    "Choose a non-empty image smaller than 5 MB");
+        }
+        try {
+            BufferedImage source = ImageIO.read(upload.getInputStream());
+            if (source == null || source.getWidth() < 1 || source.getHeight() < 1
+                    || source.getWidth() > 6000 || source.getHeight() > 6000) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_AVATAR",
+                        "The image format or dimensions are not supported");
+            }
+            int side = Math.max(source.getWidth(), source.getHeight());
+            int width = Math.max(1, Math.round(source.getWidth() * Math.min(1f, 256f / side)));
+            int height = Math.max(1, Math.round(source.getHeight() * Math.min(1f, 256f / side)));
+            BufferedImage resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = resized.createGraphics();
+            graphics.setComposite(AlphaComposite.Src);
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(0, 0, width, height);
+            graphics.drawImage(source.getScaledInstance(width, height, Image.SCALE_SMOOTH), 0, 0, null);
+            graphics.dispose();
+            byte[] encoded = encodeJpeg(resized, 0.78f);
+            if (encoded.length > 120_000) encoded = encodeJpeg(resized, 0.55f);
+            if (encoded.length > 120_000) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "AVATAR_TOO_LARGE",
+                        "The compressed image is still too large; choose a simpler image");
+            }
+            avatars.save(new UserAvatar(user.id(), encoded, "image/jpeg", Instant.now()));
+            return me(user.id());
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_AVATAR",
+                    "The image could not be read");
+        }
+    }
+
+    public void removeAvatar(String userId) {
+        User user = activeUser(userId);
+        if (isDemoUser(user)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEMO_PROFILE_LOCKED",
+                    "Demo accounts cannot change their shared profile");
+        }
+        avatars.deleteById(user.id());
+    }
+
+    private static byte[] encodeJpeg(BufferedImage image, float quality) throws IOException {
+        var writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+        var output = new ByteArrayOutputStream();
+        try (var stream = ImageIO.createImageOutputStream(output)) {
+            writer.setOutput(stream);
+            var params = writer.getDefaultWriteParam();
+            params.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+            params.setCompressionQuality(quality);
+            writer.write(null, new javax.imageio.IIOImage(image, null, null), params);
+        } finally {
+            writer.dispose();
+        }
+        return output.toByteArray();
     }
 
     public AccountView updateDisplayName(String userId, String rawName) {

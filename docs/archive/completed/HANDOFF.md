@@ -1,5 +1,100 @@
 # JachAI working handoff
 
+## Latest UI defect fix (2026-10-09)
+
+Commit `e13921b` is on `main`. The account dropdown was staying open across
+logout/login transitions because its panel state was not reset when the
+authenticated shell was hidden or shown. `app.js` now closes
+`#account-menu-panel` and resets `aria-expanded` to `false` in both
+`showSignedOut()` and `signedIn()`. This keeps Profile, Support, and Sign out
+hidden until the user explicitly opens the Account menu. JavaScript syntax and
+the frontend journey suite passed 151/151 after the fix.
+
+## Latest delivered change log (2026-10-08)
+
+`main` and `support-center` are aligned at `403da4d` (the documentation correction is
+tracked in the next release-check commit). The following table records the
+recent user-requested work and the reason for each change so a later maintainer can
+understand the decisions without reconstructing the commit history:
+
+| Commit | Change | Why it was done |
+| --- | --- | --- |
+| `6d9be63` | Replaced the unsupported derived MongoDB `BigDecimal` sum query with a custom aggregation repository fragment. | Spring Data tried to reflect into `java.math.BigDecimal`, so the application failed during startup while creating `PaymentOrderRepository`. |
+| `f78e16e`, `9dd9896` | Hardened SSLCOMMERZ and bKash sandbox checkout/callback validation and reconciliation. | A browser redirect alone must not verify a payment; provider identity, callbacks, duplicate notifications, tenant boundaries, and entitlement application need server-side checks. |
+| `00b649d` | Added server-side exam tab-leave counting and a warning after repeated leaves. | The original browser telemetry was not enough to surface repeated tab switching to reviewers. |
+| `22370b1` | Preserved the signed-in JachAI tab during sandbox checkout and added safe cancellation for unfinished payments. | Opening checkout in the same tab could appear to log the customer out; customers also need a way to cancel before verification/application. |
+| `e785e37` | Added authenticated avatar upload/removal with resize, JPEG conversion, output-size bounds, and a separate `user_avatars` collection. | Users need visible profile images without putting large binary data into the main user document or exhausting the primary database unnecessarily. |
+| `43ca4f7` | Added safe direct Google sign-in and automatic account linking for authoritative verified email identities. | A first-time Google user should not have to register again, while conflicting, disabled, or unverified identities must remain protected. |
+| `123b338`, `3261c71`, `401cf13` | Kept demo login visible, enabled the six role shortcuts in supported profiles, and removed the database-name restriction. | Demo access should remain discoverable and work on the configured database without silently disappearing or forcing a special database name. Demo users remain protected from password, profile, avatar, and Google-identity changes. |
+| `092f2e1`, `1e13aee` | Connected user Support tickets and the platform-admin Support inbox to the existing APIs. | Users need a clear place to ask for help, and operators need a controlled place to reply, add internal notes, and change ticket status. |
+| `b199e91` | Consolidated Profile, Support, and Sign out into one account menu; removed duplicate sidebar/footer actions and exposed Messages. | The previous layout repeated the same actions and made Academy messaging difficult to discover. |
+| `bb9bf98` | Clarified the AI Tutor wording as Academy-focused while preserving the existing Academy learner guard. | The initial product decision described Tutor as Academy-only, so the UI needed to communicate that scope accurately. |
+| `403da4d` | Enabled AI Tutor for Talent candidates as well as Academy learners, from a released result and the account workspace. | Candidates should be able to learn from an exam after it ends, and practice independently later; active in-progress exams remain blocked by the server guard. |
+
+The latest Tutor policy is therefore: **Academy learners and Talent candidates may use Tutor
+after a submitted result is graded and released; neither role can use it during an active
+exam.** Staff roles do not receive the learner/candidate Tutor entry point. The frontend
+journey suite remains at 151/151, Java compilation passes, and the latest Tutor change is
+already fast-forwarded into `main`.
+
+## Delivery verification (2026-10-08, current revision)
+
+The prior local verification revision was `b50db14`; the current `main` revision is
+the commit shown by `git log -1`. The application was rebuilt and restarted on the
+required local URL `http://127.0.0.1:8080/` with the `demo` profile and disposable
+Mongo database `jachai_demo_local`; the process was healthy at `/api/v1/health` and
+`/actuator/health/liveness`. No customer database or real-money endpoint was used by
+that run.
+
+Real Chrome clicks passed for all six demo buttons. Each issued the corresponding `POST /api/v1/demo/login/{key}`, created an in-memory browser session, reached the expected dashboard route, and showed the expected isolated workspace/role:
+
+| Key | Browser result |
+| --- | --- |
+| `academy-admin` | `#/overview`, `Academy · Owner / Org Admin`, `Demo Academy` |
+| `instructor` | `#/overview`, `Academy · Instructor`, `Demo Academy` |
+| `learner` | `#/start`, `Academy · Learner`, `Demo Academy` |
+| `talent-admin` | `#/overview`, `Talent · Owner / Org Admin`, `Demo Talent` |
+| `recruiter` | `#/overview`, `Talent · Recruiter`, `Demo Talent` |
+| `candidate` | `#/start`, `Talent · Candidate`, `Demo Talent` |
+
+Live sign-in screenshots are `target/frontend-live-evidence/sign-in-demo-desktop.png`, `target/frontend-live-evidence/sign-in-demo-mobile.png`, `target/frontend-live-evidence/demo-live-academy-owner.png`, and `target/frontend-live-evidence/demo-live-talent-candidate.png`. Desktop/mobile checks measured the password field at 371px/301px, found both recovery links, and found six dynamic demo buttons with no invalid server-rendered preview links. The mocked real-browser suite passed 151/151 checks across six journeys after fixing the 320px/375px sidebar navigation grid. Java 21 compilation passed; `JachAiApplicationTests` passed 31/31; focused billing/entitlement/reconciliation tests passed 99 executed with 14 opt-in Mongo tests skipped because no `MONGODB_TEST_URI` was supplied.
+
+### Branch and worktree disposition
+
+All worktrees were inspected against current `main` at file and behavior level. Dirty/untracked files in the main worktree and active worktrees were preserved.
+
+| Branch | Worktree | Disposition |
+| --- | --- | --- |
+| `main`, `support-center` | `E:\Advance Java\jachAI` | Current delivery branch; fast-forward main after commit |
+| `appmod/java-upgrade-20261003170058` | `C:\Users\nazmul\Documents\Codex\2026-09-29\pu\jachai-platform-admin` | Same tree as main; no unique work |
+| `audit/billing-sandbox-flow` | `E:\Advance Java\jachAI-payment-audit` | Its 12 production payment properties are already on main via `3ed3943`; keep historical audit branch |
+| `ai/practice-reliability` | `E:\Advance Java\jachAI-practice-ai` | Practice limits, retention, replay safety, and opt-in tests already integrated on main; no duplicate merge |
+| `backend/atlas-config`, `backend/audit-recovery`, `backend/connection-doctor`, `backend/dependency-hygiene`, `backend/guard-reports-source`, `backend/local-secrets-file`, `backend/pending-account-retention`, `backend/placeholder-guard`, `backend/startup-diagnostics`, `preflight/fix-mongo-preflight` | Separate `E:\Advance Java\jachAI-*` worktrees | No file delta from main; already integrated |
+| `feat/platform-admin-dashboard`, `integrate/backend`, `frontend/product-home`, `frontend/ui-refresh` | Separate worktrees | No file delta from main; already integrated |
+| `frontend/complete-journeys` | `E:\Advance Java\jachAI-journeys` | Google UI commit integrated as `c59f861`; verification-only commits add no missing product code |
+| `frontend/dashboard` | `E:\Advance Java\jachAI-frontend` | Message loading delta integrated as `d426172`; remaining branch commits are already present or documentation-only |
+| `test/support-center` | `C:\Users\nazmul\Documents\Codex\2026-09-29\pu\jachai-support-tests` | Support tests already integrated through `64c23c5`; no duplicate merge |
+| `frontend/react-dashboard` | `E:\Advance Java\jachAI-react-ui` | Deliberately excluded: second UI conflicts with the static same-origin architecture |
+| `delivery/academy-talent-ui` | `E:\Advance Java\jachAI-claude-delivery` | Deliberately excluded: broad incompatible snapshot with unrelated deletions and stale configuration |
+| `generated-braid`, `halved-shade`, `lavender-tartan` | `.kilo\worktrees\...` | Same commit/tree; no unique work |
+| `merge/integrate` | `E:\Advance Java\jachAI-merge` | No unique file delta from main |
+
+The remaining untracked `.kilo/`, `.playwright-mcp/`, and `agent-prompts/` files were not touched or added.
+
+## Verification checkpoint (2026-10-08)
+
+The baseline `support-center`/`main` revision for this checkpoint was `a257623`; the current verified revision is documented above. Java 21 compilation passed, `JachAiApplicationTests` passed, and the focused billing flow/reconciliation suite passed with 0 failures. The application was subsequently restarted on port 8080 in isolated demo mode and its current evidence is documented above.
+
+The six-role path is designed for the same hosted production deployment and database:
+enable `DEMO_PUBLIC_ACCESS=true` with an HTTPS `APP_PUBLIC_BASE_URL`. The current
+code does not require `DEMO_SHARED_DATABASE` or a `jachai_demo_*` database name;
+that setting is retained only for configuration compatibility. `DEMO_PREVIEW_URL`,
+a separate deployment, and a separate demo database are not required for this flow.
+Hosted browser verification is still pending because no public production URL is
+configured in this environment. Existing candidate worktrees were audited; their
+missing commits either are already represented on `main` or contain broad
+incompatible deletions and were not merged.
+
 Parallel assignment boundaries and paste-ready prompts are in
 `AGENT_WORKSTREAMS.md`. Assign one writer per lane and integrate reviewed
 commits only after branch handoff; this file is not a completion claim.
@@ -29,11 +124,11 @@ and a closed sample campaign is not reused. Focused demo tests passed; this
 behavior still needs a live disposable database walkthrough.
 
 Main includes role-specific account-home work rows (`d8207ce`). The local-demo
-slice adds six passwordless role shortcuts, guarded by the `demo` profile,
-loopback client and `jachai_demo_*` database name; inspect the current Git
-status before editing. Demo/auth unit tests, script/JS syntax and a mocked
-two-check browser shortcut passed, but live Atlas seeding and browser sign-in
-against the real backend have not been run.
+slice adds six passwordless role shortcuts, guarded by the `demo` profile and
+loopback client; it is not guarded by a database name. Demo/auth unit tests,
+script/JS syntax and a mocked two-check browser shortcut passed, but live Atlas
+seeding and browser sign-in against the real backend had not been run at that
+checkpoint.
 Do not merge stale frontend worktrees or put demo credentials in the public
 frontend. `README.md` documents `scripts/start-local.ps1 -Demo`.
 
@@ -100,6 +195,19 @@ Earlier committed slices include Phase 2 identity/security `17c49c8`, result rel
 
 Use `ARCHITECTURE.md` section 14 as the authoritative phase gates. Key gaps include exceptional audited platform support access, live MongoDB index/concurrency/audit verification of manual plan events and other operations, live verification of ownership transfer, membership updates/audit, token revocation, messaging, telemetry, invitation, email jobs, review queries/indexes, settings versioning, rate-limit counters, entitlement reservations, cohort aggregation, and audit retries against MongoDB/Redis/SMTP; real-browser/live-API walkthroughs; live bKash and SSLCOMMERZ sandbox verification (especially lost-callback query and independent validation); Google Sign-In and Gemini/Groq/Ollama live verification; and running container/deployment checks. Billing reconciliation defers invitation downward repair when TTL may have removed evidence; this needs an operator procedure and live MongoDB concurrency/TTL tests. General assignment still requires an existing active member; Talent email invites can onboard an external candidate. Do not call the product complete because the offline suite passes.
 
+## Support and account UX checkpoint
+
+The authenticated account menu now opens a first-class Support screen. Users can select an optional workspace, create a categorized support ticket, and see their ticket references/statuses from `/api/v1/support/tickets`; the existing backend validates ownership, membership, rate limits, and SMTP notification behavior. The Support screen is available from the sidebar and the Profile menu. Support and messaging service tests passed, and the frontend journey suite remains green.
+
 ## Next-agent prompt
 
 > Continue implementing JachAI in `E:\Advance Java\jachAI` to completion against `ARCHITECTURE.md`. First read `HANDOFF.md`, `ARCHITECTURE.md`, `README.md`, any `AGENTS.md`, `git status`, and current source/tests; treat the worktree as authoritative and preserve user edits. Preserve HTML under `templates`, CSS/JS under `static`, and REST API boundaries. Both sandbox payment adapters and admin bKash callback-loss recovery are implemented but have not been exercised with merchant credentials; never enable live-money endpoints. Continue the remaining phase gates, including MongoDB/Redis live integration tests, quota reconciliation of historical tenants and manual review of TTL-ambiguous invitations, remaining first-page-only frontend lists, browser walkthrough, observability, and live container deployment. Add tests for business rules and cross-tenant security at every slice. Keep MongoDB as source of truth, Redis for bounded cache/quotas/revocation, and AI outside official scoring. AI routing code covers Gemini drafts, Groq tutor, and Ollama local, but no live calls have been verified; do not claim AI complete. Do not use or expose real credentials; the user will add keys near the end. Commit locally only when a slice's acceptance gates are genuinely met, with a phase-specific message; never label the baseline or partial work as a completed phase. Update this handoff file as evidence changes, and report precise remaining gaps instead of claiming completion prematurely.
+## Product-quality audit (payment cancellation, invitations and demo persistence)
+
+The latest audit is recorded in `PAYMENT_EMAIL_MESSAGING_AUDIT.md`. Sandbox gateways now open in a new tab, unfinished orders can be cancelled safely, and cancelled orders cannot be reconciled or grant entitlements. Invitation UI now explains SMTP versus local-console delivery, quota reconciliation copy distinguishes read-only checks from audited repairs, and demo role controls reload after logout. The Google `g_state` message remains harmless external GIS cookie-parser noise; global cookie parsing is intentionally not relaxed.
+## Profile image option
+
+Users can add or remove an optional profile image from Profile & settings. Uploads are authenticated, demo profiles are locked, and PNG/JPEG input is resized to 256px and compressed below 120 KB before being stored in the separate `user_avatars` collection. No public or unauthenticated image URL is exposed.
+## Google one-click sign-in
+
+Google sign-in now creates new verified Gmail/Workspace accounts directly and automatically links an existing verified JachAI account when the authoritative Google email matches. Password entry is not required for that first Google sign-in. Disabled, unverified, non-authoritative-domain, and conflicting Google identities remain rejected. Details are in `GOOGLE_SIGN_IN.md`.

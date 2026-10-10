@@ -23,7 +23,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   practiceQuestions: [], practiceAnswers: [], practiceRequestId: null, practiceRemaining: 0,
   homeAction: null, homeLoadToken: 0, profile: null,
   view: 'overview' };
-const views = ['start', 'account', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+const views = ['start', 'account', 'support', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
@@ -33,6 +33,7 @@ const views = ['start', 'account', 'practice', 'overview', 'workspace-access', '
 const SCREENS = {
   start: { title: 'My dashboard', subtitle: 'Your learning and work in one place', views: [['start', 'My dashboard']] },
   account: { title: 'Profile & settings', subtitle: 'Your identity, sign-in and plan', views: [['account', 'Profile & settings']] },
+  support: { title: 'Support', subtitle: 'Get help from the JachAI support team', views: [['support', 'Support']] },
   practice: { title: 'Practice', subtitle: 'Learn at your own pace', views: [['practice', 'Practice']] },
   overview: { title: 'Overview', subtitle: '', views: [['overview', 'Overview']] },
   'workspace-access': { title: 'Your workspaces', subtitle: 'Join or create another workspace',
@@ -71,7 +72,7 @@ const SCREENS = {
   platform: {
     title: 'Platform Operations',
     subtitle: 'Administration and support',
-    views: [['platform', 'Health'], ['platform-tenants', 'Organizations'], ['platform-admins', 'Administrators']]
+    views: [['platform', 'Overview'], ['platform-tenants', 'Organizations'], ['platform-admins', 'Administrators']]
   }
 };
 const screenOfView = (view) => Object.keys(SCREENS)
@@ -118,7 +119,19 @@ function notice(message, error = false) {
   area.classList.toggle('error', error);
   area.classList.remove('hidden');
   window.clearTimeout(notice.timeout);
-  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), error ? 12000 : 7000);
+  // Twelve seconds for an error and seven for a confirmation were long enough that a
+  // banner from one action was still on screen during the next, which reads as the new
+  // action having failed. An error stays longer than a confirmation because it is worth
+  // reading; neither outlives the work that produced it. A click dismisses either.
+  notice.timeout = window.setTimeout(() => area.classList.add('hidden'), error ? 6000 : 3500);
+  if (!notice.dismissable) {
+    notice.dismissable = true;
+    area.addEventListener('click', () => {
+      window.clearTimeout(notice.timeout);
+      area.classList.add('hidden');
+    });
+    area.title = 'Click to dismiss';
+  }
 }
 async function run(action) {
   try { await action(); } catch (error) { notice(error.message || 'Something went wrong.', true); }
@@ -213,14 +226,15 @@ function explainAiFailure(error) {
 async function request(path, { method = 'GET', body, auth = true, retry = true, optional404 = false,
   extraHeaders = {} } = {}) {
   const headers = { Accept: 'application/json', ...extraHeaders };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
   pendingRequests += 1; updateBusyIndicator();
   let response;
   try {
     response = await fetch(`/api/v1${path}`, {
-      method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store'
+      method, headers, body: body === undefined ? undefined : (body instanceof FormData ? body : JSON.stringify(body)), cache: 'no-store'
     });
+
   } catch (_) {
     throw new Error('Could not reach JachAI. Check your connection and try again.');
   } finally {
@@ -256,6 +270,39 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
   }
   return data;
 }
+function updateAccountMenu(profile) {
+  const image = $('#header-avatar');
+  const fallback = $('#header-avatar-fallback');
+  const name = $('#header-account-name');
+  if (image) {
+    image.src = profile.avatarDataUrl || '';
+    image.alt = `${profile.displayName} profile image`;
+    image.classList.toggle('hidden', !profile.avatarDataUrl);
+  }
+  if (fallback) {
+    fallback.classList.toggle('hidden', !!profile.avatarDataUrl);
+    fallback.textContent = (profile.displayName || '?').trim().charAt(0).toUpperCase();
+  }
+  if (name) name.textContent = profile.displayName;
+}
+function initAccountMenu() {
+  $('#account-menu-toggle')?.addEventListener('click', () => {
+    const panel = $('#account-menu-panel');
+    if (!panel) return;
+    const open = panel.classList.toggle('hidden');
+    $('#account-menu-toggle').setAttribute('aria-expanded', String(!open));
+  });
+  $('#account-menu-profile')?.addEventListener('click', () => {
+    $('#account-menu-panel')?.classList.add('hidden');
+    showScreen('account');
+  });
+  $('#account-menu-support')?.addEventListener('click', () => {
+    $('#account-menu-panel')?.classList.add('hidden');
+    showScreen('support');
+  });
+  $('#account-menu-logout')?.addEventListener('click', () => $('#logout')?.click());
+}
+document.addEventListener('DOMContentLoaded', initAccountMenu);
 function showSignedOut() {
   window.clearInterval(state.timer);
   stopMessageRefresh();
@@ -282,7 +329,60 @@ function showSignedOut() {
   state.messageLoadToken++;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
   $('#logout').classList.add('hidden');
+  $('#account-menu').classList.add('hidden');
+  $('#account-menu-panel')?.classList.add('hidden');
+  $('#account-menu-toggle')?.setAttribute('aria-expanded', 'false');
   setInAppLinks(false);
+  loadDemoAccess();
+}
+
+// Inject SVG icons for password toggles and other UI elements
+function injectIcons() {
+  if (document.getElementById('jachai-icons')) return;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'jachai-icons';
+  svg.style.display = 'none';
+  svg.innerHTML = `
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </symbol>
+  `;
+  document.body.appendChild(svg);
+}
+
+// Password visibility toggle utility
+function initPasswordToggles(root = document) {
+  for (const field of root.querySelectorAll('.password-field')) {
+    const input = field.querySelector('input[type="password"], input[type="text"]');
+    const toggle = field.querySelector('.password-toggle');
+    if (!input || !toggle) continue;
+    if (toggle.dataset.bound) continue;
+    toggle.dataset.bound = 'true';
+    toggle.addEventListener('click', () => {
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      toggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      toggle.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
+      toggle.querySelector('use')?.setAttribute('href', isPassword ? '#icon-eye-off' : '#icon-eye');
+    });
+  }
+}
+
+// Initialize icons and password toggles on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  injectIcons();
+  initPasswordToggles();
+});
+
+// Re-initialize password toggles after dynamic content loads
+function reinitPasswordToggles() {
+  injectIcons();
+  initPasswordToggles();
 }
 
 // ---------------------------------------------------------------------------
@@ -342,8 +442,11 @@ function setInAppLinks(signedInNow) {
 async function signedIn(tokens) {
   state.accessToken = tokens.accessToken;
   state.refreshToken = tokens.refreshToken;
+  $('#account-menu-panel')?.classList.add('hidden');
+  $('#account-menu-toggle')?.setAttribute('aria-expanded', 'false');
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
-  $('#logout').classList.remove('hidden');
+  $('#logout').classList.add('hidden');
+  $('#account-menu').classList.remove('hidden');
   setInAppLinks(true);
   let invitationMessage = 'Signed in.';
   const pending = sessionStorage.getItem('jachaiPendingInvitation');
@@ -454,8 +557,8 @@ async function setOrganization() {
     : 'Your personal learning space';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
-    availableScreens = ['start', 'practice', 'account', ...(state.platformAdmin ? ['platform'] : [])];
-    for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'],
+    availableScreens = ['start', 'practice', 'account', 'support', ...(state.platformAdmin ? ['platform'] : [])];
+    for (const [key, title] of [['start', 'My dashboard'], ['practice', 'Practice'],
       ...(state.platformAdmin ? [['platform', 'Platform Operations']] : [])]) {
       const tab = node('button', title); tab.type = 'button'; tab.dataset.screen = key;
       tab.addEventListener('click', () => run(() => showScreen(key)));
@@ -485,7 +588,7 @@ async function setOrganization() {
   // Talent read as related but distinct products.
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
-  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['account', 'Profile & settings'], ['workspace-access', 'Your workspaces']]);
+  group('My account', [['start', 'My dashboard'], ['practice', 'Practice'], ['workspace-access', 'Your workspaces']]);
   group('Workspace', [['overview', 'Overview']]);
   group('Assessment engine', [
     ...(staff ? [['assessment-studio', 'Assessment Studio']] : []),
@@ -495,7 +598,7 @@ async function setOrganization() {
     group('Academy', [
       ...(['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)
         ? [['academy', role === 'LEARNER' ? 'My batches' : 'Academy Workspace']] : []),
-      ...(['INSTRUCTOR', 'LEARNER'].includes(role) ? [['messages', 'Messages']] : []),
+      ...(['INSTRUCTOR', 'LEARNER', 'ORG_ADMIN'].includes(role) ? [['messages', 'Messages']] : []),
       ...(role === 'LEARNER' ? [['certificates', 'Certificates']] : [])
     ]);
   }
@@ -544,7 +647,12 @@ async function loadHome() {
   const participant = role === 'LEARNER' || role === 'CANDIDATE';
   const staff = ['ORG_ADMIN', 'INSTRUCTOR', 'RECRUITER'].includes(role);
   const academy = state.organization?.type === 'ACADEMY';
+  const tutorParticipant = ['LEARNER', 'CANDIDATE'].includes(role);
   const organization = state.organization;
+  $('#ai-tutor-entry').classList.toggle('hidden',
+    !tutorParticipant);
+  $('#home-messages-entry').classList.toggle('hidden',
+    !(academy && ['ORG_ADMIN', 'INSTRUCTOR', 'LEARNER'].includes(role)));
   $('#home-role').textContent = organization
     ? `${academy ? 'Academy' : 'Talent'} workspace · ${organization.name} · ${organization.owner ? 'Owner / Org Admin' : roleTitle(role)}`
     : 'Personal account · No workspace role yet';
@@ -711,6 +819,27 @@ function renderHomeWork({ organization, participant, staff, academy, assignments
 }
 $('#home-next-action').addEventListener('click', () => run(() => state.homeAction?.()));
 $('#home-account-action').addEventListener('click', () => run(() => showScreen('account')));
+$('#ai-tutor-entry-action').addEventListener('click', () => run(() => showScreen('my-assessments')));
+$('#home-messages-entry-action').addEventListener('click', () => run(() => showScreen('messages')));
+$('#support-ticket-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(async () => {
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    await request('/support/tickets', {
+      method: 'POST',
+      body: {
+        category: values.get('category'),
+        subject: values.get('subject'),
+        description: values.get('description'),
+        organizationId: values.get('organizationId') || null
+      }
+    });
+    form.reset();
+    await loadSupport();
+    notice('Support ticket created. Replies will appear here and by email when SMTP is configured.');
+  });
+});
 
 async function loadAccount() {
   const admin = state.organization?.myRole === 'ORG_ADMIN';
@@ -728,6 +857,10 @@ async function loadAccount() {
       node('p', profile.email, 'account-email'),
       node('p', profile.emailVerified ? 'Email verified' : 'Email not verified', 'account-verification'));
     $('#account-profile-form [name="displayName"]').value = profile.displayName;
+    updateAccountMenu(profile);
+    const avatar = $('#account-avatar');
+    avatar.src = profile.avatarDataUrl || '';
+    avatar.classList.toggle('hidden', !profile.avatarDataUrl);
     // The hidden identifier beside the password fields. A password manager needs to
     // know which account a new password belongs to, so it carries the real email
     // rather than sitting empty purely to satisfy the browser's warning.
@@ -740,6 +873,23 @@ async function loadAccount() {
     $('#account-profile-form').classList.add('hidden');
     $('#account-password-form').classList.add('hidden');
     $('#account-login-method').textContent = 'Sign-in methods unavailable right now.';
+  }
+  async function loadSupport() {
+    const organization = state.organization;
+    const select = $('#support-organization');
+    if (select) {
+      select.replaceChildren(new Option('Personal account', ''));
+      for (const item of state.organizations) {
+        select.append(new Option(`${item.name} · ${item.type}`, item.id));
+      }
+      if (organization) select.value = organization.id;
+    }
+    await loadList('#support-tickets', async () => {
+      const page = await request('/support/tickets?page=0');
+      setList('#support-tickets', (page.content || []).map((ticket) => item(
+        `${ticket.referenceNumber} · ${ticket.status}`,
+        `${ticket.subject} · ${ticket.category}`)), 'No support tickets yet.');
+    }, 'Support tickets could not be loaded.');
   }
   const plan = $('#account-plan');
   plan.replaceChildren();
@@ -783,6 +933,34 @@ $('#account-profile-form').addEventListener('submit', (event) => {
       notice('Display name saved.');
     } finally { control.disabled = false; }
   });
+
+  $('#account-avatar-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    run(async () => {
+      const form = event.currentTarget;
+      const control = form.querySelector('button[type="submit"]');
+      control.disabled = true;
+      try {
+        const image = form.querySelector('input[name="image"]').files[0];
+        if (!image) throw new Error('Choose a JPEG or PNG image first.');
+        const profile = await request('/auth/me/avatar', {
+          method: 'POST', body: (() => { const data = new FormData(); data.append('image', image); return data; })()
+        });
+        state.profile = profile;
+        $('#account-avatar').src = profile.avatarDataUrl || '';
+        $('#account-avatar').classList.toggle('hidden', !profile.avatarDataUrl);
+        form.reset();
+        notice('Profile image saved in compressed form.');
+      } finally { control.disabled = false; }
+    });
+  });
+
+  $('#remove-avatar').addEventListener('click', () => run(async () => {
+    await request('/auth/me/avatar', { method: 'DELETE' });
+    $('#account-avatar').src = '';
+    $('#account-avatar').classList.add('hidden');
+    notice('Profile image removed.');
+  }));
 });
 
 $('#account-password-form').addEventListener('submit', (event) => {
@@ -1303,43 +1481,50 @@ async function showView(key) {
   if (key.startsWith('platform')) { await loadPlatformView(); return; }
   if (key === 'start') { await loadHome(); return; }
   if (key === 'account') { await loadAccount(); return; }
+  if (key === 'support') { await loadSupport(); return; }
   if (key === 'practice') { await loadPractice(); return; }
   if (key === 'overview') await loadOverview();
   if (key === 'workspace-access') loadWorkspaceAccess();
-  if (key === 'overview' && state.organization.myRole === 'ORG_ADMIN') {
+  if (key === 'overview' && state.organization?.myRole === 'ORG_ADMIN') {
     await loadOrganizationSettings();
     ensureTenantSupportAuditPanel();
     await loadList('#tenant-support-audit', () => loadTenantSupportAudit(0),
       'Platform support history could not be loaded.');
   }
-  if (key === 'billing' && state.organization.myRole === 'ORG_ADMIN') {
+  if (key === 'billing' && state.organization?.myRole === 'ORG_ADMIN') {
     await loadEntitlements();
     await loadList('#usage-report', () => loadUsageReconciliation(),
       'The quota check could not be run.');
   }
   if (key === 'members') {
+    if (!state.organization) return;
     await loadList('#members-list', () => loadMembers(), 'Members could not be loaded.');
     await loadList('#join-code-list', () => loadJoinCodes(), 'Join codes could not be loaded.');
     attachFilter('#members-list', 'Filter members by name, email, role or ID');
   }
   if (key === 'questions') {
+    if (!state.organization) return;
     await loadList('#questions-list', () => loadQuestions(), 'Questions could not be loaded.');
     attachFilter('#questions-list', 'Filter questions by topic, prompt or status');
   }
   if (key === 'assessments') {
+    if (!state.organization) return;
     await loadList('#assessments-list', async () => {
       await loadApprovedQuestions(); await loadAssessments();
     }, 'Assessments could not be loaded.');
     attachFilter('#assessments-list', 'Filter assessments by title, status or release policy');
   }
   if (key === 'assign') {
+    if (!state.organization) return;
     await loadPublishedAssessments('#assign-assessment', '#assign-assessment-pagination');
   }
   if (key === 'review') {
+    if (!state.organization) return;
     await loadList('#review-queue', () => loadReviewQueue(0), 'The review queue could not be loaded.');
     await loadOrganizationSettings();
   }
   if (key === 'academy') {
+    if (!state.organization) return;
     await loadList('#courses-list', () => loadAcademyCatalog(), 'Academy courses could not be loaded.');
     attachFilter('#courses-list', 'Filter courses by name or description');
     if (state.organization.myRole === 'ORG_ADMIN') {
@@ -1366,6 +1551,8 @@ async function showView(key) {
     await loadList('#certificates-list', () => loadCertificates(), 'Certificates could not be loaded.');
     attachFilter('#certificates-list', 'Filter certificates by code, status or date');
   }
+  // Re-initialize password toggles for any dynamically loaded forms
+  reinitPasswordToggles();
 }
 async function loadEntitlements() {
   const plan = await request(ownOrg('/billing/entitlements'));
@@ -1397,6 +1584,13 @@ async function loadPaymentHistory(pageNumber = 0) {
         await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/reconcile`), { method: 'POST' });
         await loadEntitlements();
       }));
+    }
+    if (order.status === 'CREATED' || order.status === 'CHECKOUT_READY') {
+      actions.push(button('Cancel checkout', async () => {
+        if (!await confirmDialog('Cancel this unfinished sandbox checkout? No entitlement has been granted.')) return;
+        await request(ownOrg(`/billing/orders/${encodeURIComponent(order.id)}/cancel`), { method: 'POST' });
+        await loadPaymentHistory();
+      }, 'button quiet small'));
     }
     actions.push(button('Details', () => showOrderDetail(order.id), 'button quiet small'));
     return item(
@@ -1442,6 +1636,9 @@ async function loadOrderDetail() {
       ['Applied to the plan', order.appliedAt,
         'Entitlements were granted. Until this is stamped, the plan has not changed.']
     ];
+    if (order.status === 'CANCELLED') {
+      stages.push(['Cancelled', order.createdAt, 'The unfinished checkout was cancelled; it cannot be reconciled or grant entitlement.']);
+    }
     setList('#order-detail-body', [
       item(`${order.provider} · ৳${order.amountBdt}`, `${order.id} · status ${order.status}`),
       ...stages.map(([label, stamp, explanation]) => {
@@ -1453,14 +1650,69 @@ async function loadOrderDetail() {
     ], 'This order could not be described.');
   }, 'The order detail could not be loaded.');
 }
+async function loadPlatformDashboard() {
+  const view = $('#platform-view');
+  let panel = $('#platform-dashboard');
+  if (!panel) {
+    panel = node('section', '', 'card panel platform-dashboard');
+    panel.id = 'platform-dashboard';
+    view.prepend(panel);
+  }
+  panel.replaceChildren(node('p', 'Loading platform overview…', 'muted'));
+  try {
+    const data = await request('/platform/dashboard');
+    const heading = node('div', '', 'section-heading');
+    const title = node('div');
+    title.append(node('h2', 'Platform overview'),
+      node('p', 'Sandbox payments are test activity, not real revenue.', 'muted'));
+    heading.append(title);
+    const metrics = node('div', '', 'platform-metrics');
+    const metric = (label, value) => {
+      const card = node('div', '', 'platform-metric');
+      card.append(node('span', label, 'muted'), node('strong', value));
+      return card;
+    };
+    const amount = `৳${Number(data.sandboxAppliedAmountBdt || 0).toLocaleString('en-BD', { maximumFractionDigits: 2 })}`;
+    metrics.append(metric('Applied sandbox orders', String(data.sandboxAppliedOrders)),
+      metric('Sandbox value · not revenue', amount),
+      metric('Active TEAM workspaces', String(data.activeTeamWorkspaces)),
+      metric('Open support tickets', String(data.openSupportTickets)));
+    const activity = node('div', '', 'platform-activity');
+    const months = node('div', '', 'platform-months');
+    months.append(node('h3', 'Last six months'));
+    for (const month of data.monthlySandboxOrders || []) {
+      const row = node('p');
+      row.append(node('span', month.month), node('strong', `${month.orders} orders`));
+      months.append(row);
+    }
+    const alerts = node('div', '', 'platform-alerts');
+    alerts.append(node('h3', 'Needs attention'));
+    for (const [label, count] of [
+      ['Failed email jobs', data.failedEmailJobs],
+      ['Payments awaiting verification', data.paymentsAwaitingVerification],
+      ['Open support tickets', data.openSupportTickets]
+    ]) {
+      const row = node('p');
+      row.append(node('span', label), node('strong', String(count)));
+      alerts.append(row);
+    }
+    activity.append(months, alerts);
+    panel.replaceChildren(heading, metrics, activity);
+  } catch (error) {
+    panel.replaceChildren(node('p', 'Platform overview could not be loaded. Use Refresh to retry.', 'muted'));
+    throw error;
+  }
+}
 async function loadPlatformView() {
   if (!state.platformAdmin) throw new Error('Platform administrator access required.');
   ensurePlatformSupportPanel();
   await Promise.all([
+    loadPlatformDashboard(),
     loadList('#platform-operations', () => loadPlatformOperations(), 'Operational counts could not be loaded.'),
     loadList('#platform-storage', () => loadPlatformStorage(), 'Storage metrics could not be loaded.'),
     loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')
   ]);
+  await loadSupportInbox();
   if (state.platformOrganizationId) {
     await inspectPlatformOrganization(state.platformOrganizationId);
   } else {
@@ -1471,6 +1723,66 @@ async function loadPlatformView() {
     setList('#platform-manual-audit', [], 'No organization selected.');
     $('#platform-manual-audit-pagination').replaceChildren();
     $('#platform-manual-revoke-submit').disabled = true;
+  }
+  async function loadSupportInbox() {
+    const status = $('#support-inbox-status')?.value;
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    await loadList('#support-inbox-list', async () => {
+      const page = await request(`/platform/support/tickets${query}`);
+      setList('#support-inbox-list', (page.content || []).map((ticket) => item(
+        `${ticket.referenceNumber} · ${ticket.status}`,
+        `${ticket.subject} · ${ticket.category}`,
+        [button('Open', () => run(() => openSupportTicket(ticket.id)), 'button secondary small')]
+      )), 'No support tickets match this filter.');
+    }, 'Support inbox could not be loaded.');
+  }
+  async function openSupportTicket(ticketId) {
+    const detail = $('#support-inbox-detail');
+    const [ticket, replyPage] = await Promise.all([
+      request(`/platform/support/tickets/${encodeURIComponent(ticketId)}`),
+      request(`/platform/support/tickets/${encodeURIComponent(ticketId)}/replies?page=0`)
+    ]);
+    detail.classList.remove('hidden');
+    detail.replaceChildren(
+      node('h3', `${ticket.referenceNumber} · ${ticket.status}`),
+      node('p', `${ticket.subject} · ${ticket.category}`, 'muted'),
+      node('p', ticket.description),
+      node('div', '', 'item-list')
+    );
+    const replies = detail.querySelector('.item-list');
+    (replyPage.content || []).forEach((reply) => replies.append(
+      item(reply.publicReply ? 'Public reply' : 'Internal note',
+        `${reply.authorUserId} · ${new Date(reply.createdAt).toLocaleString()}`,
+        [node('p', reply.body)]
+      )));
+    const form = node('form', '', 'stack');
+    form.innerHTML = `<label>Reply or internal note<textarea name="body" rows="4" maxlength="4000" required></textarea></label>
+      <label><input type="checkbox" name="publicReply" checked> Send as public reply</label>
+      <button class="button primary" type="submit">Add response</button>`;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      run(async () => {
+        const values = new FormData(form);
+        await request(`/platform/support/tickets/${encodeURIComponent(ticketId)}/replies`, {
+          method: 'POST', body: { body: values.get('body'), publicReply: values.has('publicReply') }
+        });
+        await openSupportTicket(ticketId);
+        notice('Support response saved.');
+      });
+    });
+    const statusForm = node('form', 'form-row');
+    statusForm.innerHTML = `<label>Change status<select name="status"><option value="WORKING_ON_IT">Working on it</option><option value="WAITING_FOR_YOUR_REPLY">Waiting for reply</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option></select></label><button class="button quiet" type="submit">Update status</button>`;
+    statusForm.elements.status.value = ticket.status;
+    statusForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      run(async () => {
+        await request(`/platform/support/tickets/${encodeURIComponent(ticketId)}/status?status=${statusForm.elements.status.value}`, { method: 'PUT' });
+        await loadSupportInbox();
+        await openSupportTicket(ticketId);
+        notice('Support ticket status updated.');
+      });
+    });
+    detail.append(form, statusForm);
   }
   if (state.platformTargetUserId) await inspectPlatformUser(state.platformTargetUserId);
 }
@@ -2541,9 +2853,11 @@ async function compareCandidates(campaignId, pageNumber = 0) {
       const counts = Object.entries(report.eventCounts || {})
         .map(([type, count]) => `${type.replaceAll('_', ' ').toLowerCase()}: ${count}`).join(' · ');
       integrityPanel.replaceChildren(
-        node('p', `${report.totalEvents} recorded events · ${report.clientReportedRapidAnswerIntervals} rapid answer intervals`, 'item-meta'),
+        node('p', `${report.totalEvents} recorded events · ${report.tabSwitchCount || 0} tab leaves · ${report.clientReportedRapidAnswerIntervals} rapid answer intervals`, 'item-meta'),
         node('p', counts || 'No signals recorded.'),
-        node('p', report.interpretation, 'muted'));
+        node('p', report.tabSwitchLimitReached
+          ? 'Three tab leaves reached; review the attempt before making a decision.'
+          : report.interpretation, 'muted'));
     });
     const eventsPanel = node('div', '', 'item-list');
     const eventsButton = button('Event log', () => loadIntegrityEvents(candidate.attemptId, 0, eventsPanel));
@@ -2697,8 +3011,11 @@ async function sendTelemetry(type, questionId) {
   if (!talentAttemptActive()) return;
   const attemptId = state.activeAttempt.id;
   try {
-    await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/telemetry`),
+    const response = await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/telemetry`),
       { method: 'POST', body: { type, ...(questionId ? { questionId } : {}) } });
+    if (response?.warning) {
+      notice(response.warningMessage || 'Exam tab switching has reached the review threshold.', true);
+    }
   } catch (_) { /* Optional signals must never block the assessment. */ }
 }
 document.addEventListener('visibilitychange', () => {
@@ -2956,6 +3273,8 @@ function renderResult(result, target = '#result-panel') {
         }
         panel.append(box);
       }));
+    }
+    if (['LEARNER', 'CANDIDATE'].includes(state.organization?.myRole)) {
       const form = node('form', '', 'stack'); form.append(node('h3', 'Ask the AI Tutor'));
       form.append(node('p', 'Ask follow-up questions here. The last three exchanges stay in this tab only; reloading or switching workspaces clears them.', 'muted'));
       let history = state.tutorHistory.get(result.attemptId) || [];
@@ -3963,38 +4282,34 @@ $('#verify-code-form').addEventListener('submit', (event) => { event.preventDefa
 }); });
 $('#login-tab').addEventListener('click', () => switchAuth('login'));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
-  // Leaving for the gateway ends this session, because the token is only in
-  // memory. Saying so first is the difference between a redirect and a
-  // surprise sign-out.
   if (!await confirmDialog('Open the SSLCommerz sandbox?\n\n'
-      + 'JachAI hands you to the gateway, which signs you out of this tab. '
-      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
-      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
+      + 'The sandbox opens in a new tab, so this signed-in tab stays available. '
+      + 'After returning, use Check payment in Billing to read the server-verified result. '
+      + 'A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-ssl-demo');
   control.disabled = true; control.textContent = 'Opening SSLCommerz sandbox…';
   try {
     const checkout = await request(ownOrg('/billing/orders'),
       { method: 'POST', body: { provider: 'SSLCOMMERZ' } });
-    window.location.assign(checkout.checkoutUrl);
+    const gatewayWindow = window.open(checkout.checkoutUrl, '_blank', 'noopener,noreferrer');
+    if (!gatewayWindow) throw new Error('The browser blocked the sandbox popup. Allow popups for this site and try again.');
   } catch (error) {
     control.disabled = false; control.textContent = 'Pay with SSLCommerz sandbox';
     throw error;
   }
 }));
 $('#start-bkash-demo').addEventListener('click', () => run(async () => {
-  // Leaving for the gateway ends this session, because the token is only in
-  // memory. Saying so first is the difference between a redirect and a
-  // surprise sign-out.
   if (!await confirmDialog('Open the bKash sandbox?\n\n'
-      + 'JachAI hands you to the gateway, which signs you out of this tab. '
-      + 'Sign in again afterwards and use Check payment on the Billing screen to read the '
-      + 'server-verified result. A browser redirect never confirms a payment by itself.')) return;
+      + 'The sandbox opens in a new tab, so this signed-in tab stays available. '
+      + 'After returning, use Check payment in Billing to read the server-verified result. '
+      + 'A browser redirect never confirms a payment by itself.')) return;
   const control = $('#start-bkash-demo');
   control.disabled = true; control.textContent = 'Opening bKash sandbox…';
   try {
     const checkout = await request(ownOrg('/billing/orders'),
       { method: 'POST', body: { provider: 'BKASH' } });
-    window.location.assign(checkout.checkoutUrl);
+    const gatewayWindow = window.open(checkout.checkoutUrl, '_blank', 'noopener,noreferrer');
+    if (!gatewayWindow) throw new Error('The browser blocked the sandbox popup. Allow popups for this site and try again.');
   } catch (error) {
     control.disabled = false; control.textContent = 'Pay with direct bKash sandbox';
     throw error;
@@ -4004,6 +4319,7 @@ $('#register-tab').addEventListener('click', () => switchAuth('register'));
 function switchAuth(which) {
   $('#login-form').classList.toggle('hidden', which !== 'login');
   $('#register-form').classList.toggle('hidden', which !== 'register');
+  $('#login-form').closest('.auth-card').classList.toggle('registering', which === 'register');
   for (const name of ['login', 'register']) {
     const tab = $(`#${name}-tab`); tab.classList.toggle('active', name === which);
     tab.setAttribute('aria-selected', String(name === which));
@@ -4032,7 +4348,7 @@ async function setupGoogleSignIn() {
     return;
   }
   const script = document.createElement('script');
-  script.src = 'https://accounts.google.com/gsi/client';
+  script.src = 'https://accounts.google.com/gsi/client?hl=en';
   script.async = true;
   await new Promise((resolve, reject) => {
     script.onload = resolve; script.onerror = reject; document.head.append(script);
@@ -4042,15 +4358,26 @@ async function setupGoogleSignIn() {
       await request('/auth/google/link', { method: 'POST', body: { credential } });
       notice('Google account linked. You can use it to sign in next time.');
     } else {
-      const tokens = await request('/auth/google', { method: 'POST', auth: false, body: { credential } });
-      await signedIn(tokens);
+      try {
+        const tokens = await request('/auth/google', { method: 'POST', auth: false, body: { credential } });
+        await signedIn(tokens);
+      } catch (error) {
+        if (error.code !== 'ACCOUNT_LINK_REQUIRED') throw error;
+        const help = $('#google-login-help');
+        help.replaceChildren(node('span', 'Google could not link this account automatically. Sign in with email/password, then connect Google from Profile & settings.'));
+        help.classList.remove('hidden');
+        help.scrollIntoView({ block: 'nearest' });
+      }
     }
   }) });
-  area.querySelector('.muted').textContent = 'Or continue with your Google account';
+  area.querySelector('.muted').textContent = 'or';
   for (const [selector, area] of [['#google-login-button', '#google-login-area'],
     ['#google-link-button', '#google-link-area']]) {
-    window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with' });
-    $(area).classList.remove('hidden');
+    const areaEl = $(area);
+    const mutedEl = areaEl.querySelector('.muted');
+    if (mutedEl && area === '#google-link-area') mutedEl.textContent = 'or';
+    window.google.accounts.id.renderButton($(selector), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'en' });
+    areaEl.classList.remove('hidden');
   }
 }
 setupGoogleSignIn().catch(() => {
@@ -4086,7 +4413,8 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
     throw error;
   } finally { if (control) control.disabled = false; }
 }); });
-request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
+function loadDemoAccess() {
+  return request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
   if (!Array.isArray(accounts) || !accounts.length) return;
   const roles = $('#demo-access-roles');
   roles.replaceChildren(...accounts.map((account) => {
@@ -4102,7 +4430,24 @@ request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
     return control;
   }));
   $('#demo-access').classList.remove('hidden');
-}).catch(() => { /* Non-demo profiles intentionally have no demo endpoint. */ });
+  $('#demo-access-status').classList.add('hidden');
+  const requestedRole = new URLSearchParams(window.location.search).get('demoRole');
+  if (requestedRole && accounts.some((account) => account.key === requestedRole)) {
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('demoRole');
+    window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    roles.children[accounts.findIndex((account) => account.key === requestedRole)].click();
+  }
+  }).catch((error) => {
+    $('#demo-access-status').classList.remove('hidden');
+    $('#demo-access-status').textContent = error.code === 'DEMO_LOCAL_ONLY'
+      ? 'Demo roles are available only from this local app address.'
+      : error.code === 'DEMO_HTTPS_REQUIRED'
+        ? 'Public demo access requires the operator to configure a valid HTTPS application URL.'
+        : 'Demo roles are not enabled on this deployment. The operator must enable public demo access before these buttons can be used.';
+  });
+}
+loadDemoAccess();
 $('#register-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const element = event.currentTarget;
   const form = new FormData(element);
@@ -4430,18 +4775,20 @@ $('#organization-settings-form').addEventListener('submit', (event) => { event.p
   } });
   await loadOrganizationSettings(); notice('Result release default saved.');
 }); });
-$('#add-member-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#add-member-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/members'), { method: 'POST', body: { email: form.get('email'), role: form.get('role') } });
-  event.currentTarget.reset(); await loadMembers(); notice('Member added.');
+  element.reset(); await loadMembers(); notice('Member added.');
 }); });
-$('#invite-member-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#invite-member-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/invitations'), { method: 'POST',
     body: { email: form.get('email').trim(), role: form.get('role') } });
-  event.currentTarget.reset();
+  element.reset();
   await loadMemberInvitations(0);
-  notice('Invitation recorded. The server queues the email; this screen cannot confirm delivery.');
+  notice(mailDeliveryMode === 'SMTP'
+    ? 'Invitation recorded and queued for SMTP delivery. Check the recipient inbox and the email_jobs status if it does not arrive.'
+    : 'Invitation recorded, but this run is not using SMTP. The link is printed in the application console; configure MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM for real delivery.');
 }); });
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const email = new FormData(event.currentTarget).get('email').trim();
@@ -4566,8 +4913,8 @@ $('#assessment-form').addEventListener('submit', (event) => { event.preventDefau
   } catch (error) { fieldErrors(element, error); throw error; }
   finally { submit.disabled = false; }
 }); });
-$('#assignment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#assignment-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   if (!form.get('assessmentId')) throw new Error('Publish an assessment first.');
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
@@ -4575,7 +4922,7 @@ $('#assignment-form').addEventListener('submit', (event) => { event.preventDefau
   const assignment = await request(ownOrg(`/assessments/${encodeURIComponent(form.get('assessmentId'))}/assignments`),
     { method: 'POST', body: { userId: form.get('userId').trim(), attemptsAllowed: Number(form.get('attemptsAllowed')),
       availableFrom, availableUntil } });
-  event.currentTarget.reset();
+  element.reset();
   let recent = $('#recent-assignment');
   if (!recent) {
     recent = node('div', '', 'item-list'); recent.id = 'recent-assignment';
@@ -4725,38 +5072,38 @@ $('#academy-course-select').addEventListener('change', () => run(loadAcademyBatc
 $('#academy-batch-select').addEventListener('change', () => run(async () => {
   await loadAcademyBatchLearners(); await loadBatchAssessments();
 }));
-$('#course-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#course-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/academy/courses'), { method: 'POST',
     body: { name: form.get('name').trim(), description: form.get('description').trim() } });
-  event.currentTarget.reset(); await loadAcademyCatalog(); notice('Course created.');
+  element.reset(); await loadAcademyCatalog(); notice('Course created.');
 }); });
-$('#batch-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#batch-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const courseId = $('#academy-course-select').value;
   if (!courseId) throw new Error('Create a course first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   const startsAt = new Date(form.get('startsAt')).toISOString();
   const endsAt = new Date(form.get('endsAt')).toISOString();
   if (endsAt <= startsAt) throw new Error('Batch end must follow start.');
   await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches`), { method: 'POST',
     body: { name: form.get('name').trim(), startsAt, endsAt } });
-  event.currentTarget.reset(); await loadAcademyBatches(); notice('Batch created.');
+  element.reset(); await loadAcademyBatches(); notice('Batch created.');
 }); });
-$('#enrollment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#enrollment-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   if (!courseId || !batchId) throw new Error('Create and select a batch first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/learners`),
     { method: 'POST', body: { learnerUserId: form.get('learnerUserId').trim() } });
-  event.currentTarget.reset(); await loadAcademyBatchLearners(); notice('Learner enrolled.');
+  element.reset(); await loadAcademyBatchLearners(); notice('Learner enrolled.');
 }); });
-$('#batch-assessment-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#batch-assessment-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const courseId = $('#academy-course-select').value;
   const batchId = $('#academy-batch-select').value;
   const batch = state.academyBatches.find((item) => item.id === batchId);
   if (!courseId || !batch) throw new Error('Select a batch first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
   if (availableUntil <= availableFrom || availableFrom < batch.startsAt || availableUntil > batch.endsAt)
@@ -4764,7 +5111,7 @@ $('#batch-assessment-form').addEventListener('submit', (event) => { event.preven
   await request(ownOrg(`/academy/courses/${encodeURIComponent(courseId)}/batches/${encodeURIComponent(batchId)}/assessments`),
     { method: 'POST', body: { assessmentId: form.get('assessmentId'),
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
-  event.currentTarget.reset(); await loadBatchAssessments(); notice('Assessment assigned to batch learners.');
+  element.reset(); await loadBatchAssessments(); notice('Assessment assigned to batch learners.');
 }); });
 $('#conversation-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const partnerUserId = new FormData(event.currentTarget).get('partnerUserId');
@@ -4773,22 +5120,22 @@ $('#conversation-form').addEventListener('submit', (event) => { event.preventDef
     { method: 'POST', body: { partnerUserId } });
   await loadMessaging(); await openConversation(conversation);
 }); });
-$('#message-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
+$('#message-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
   const conversationId = state.activeConversationId;
   if (!conversationId) throw new Error('Open a conversation first.');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(element);
   await request(ownOrg(`/messaging/conversations/${encodeURIComponent(conversationId)}/messages`),
     { method: 'POST', body: { body: form.get('body').trim() } });
-  event.currentTarget.reset(); await loadConversationMessages(0);
+  element.reset(); await loadConversationMessages(0);
 }); });
-$('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#campaign-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   await request(ownOrg('/talent/campaigns'), { method: 'POST',
     body: { title: form.get('title'), assessmentId: form.get('assessmentId') } });
-  event.currentTarget.reset(); await loadCampaigns(); notice('Hiring campaign created.');
+  element.reset(); await loadCampaigns(); notice('Hiring campaign created.');
 }); });
-$('#campaign-invite-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#campaign-invite-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   if (!form.get('campaignId')) throw new Error('Create an open campaign first.');
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
@@ -4796,10 +5143,10 @@ $('#campaign-invite-form').addEventListener('submit', (event) => { event.prevent
   await request(ownOrg(`/talent/campaigns/${encodeURIComponent(form.get('campaignId'))}/invitations`),
     { method: 'POST', body: { userId: form.get('userId').trim(),
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
-  event.currentTarget.reset(); notice('Candidate invited to campaign.');
+  element.reset(); notice('Candidate invited to campaign.');
 }); });
-$('#campaign-email-invite-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
-  const form = new FormData(event.currentTarget);
+$('#campaign-email-invite-form').addEventListener('submit', (event) => { event.preventDefault(); const element = event.currentTarget; run(async () => {
+  const form = new FormData(element);
   if (!form.get('campaignId')) throw new Error('Create an open campaign first.');
   const availableFrom = new Date(form.get('availableFrom')).toISOString();
   const availableUntil = new Date(form.get('availableUntil')).toISOString();
@@ -4809,7 +5156,7 @@ $('#campaign-email-invite-form').addEventListener('submit', (event) => { event.p
       attemptsAllowed: Number(form.get('attemptsAllowed')), availableFrom, availableUntil } });
   if (state.emailInvitationCampaignId === form.get('campaignId'))
     await loadEmailInvitations(state.emailInvitationCampaignId);
-  event.currentTarget.reset(); notice('Invitation created. The server queues the email; this screen cannot confirm delivery.');
+  element.reset(); notice('Invitation created. The server queues the email; this screen cannot confirm delivery.');
 }); });
 $('#platform-refresh').addEventListener('click', () => run(loadPlatformView));
 $('#platform-inspect').addEventListener('click', () => run(() =>
@@ -4864,4 +5211,3 @@ $('#platform-manual-revoke-form').addEventListener('submit', (event) => {
   event.preventDefault();
   run(submitManualPlanRevoke);
 });
-

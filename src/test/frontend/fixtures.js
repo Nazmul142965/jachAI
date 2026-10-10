@@ -167,6 +167,10 @@ const SOURCE = String.raw`(() => {
     }
 
     // Platform administration
+    if (path === '/api/v1/platform/dashboard') return json({ generatedAt: new Date().toISOString(),
+      sandboxAppliedOrders: 2, sandboxAppliedAmountBdt: 200, activeTeamWorkspaces: 1,
+      openSupportTickets: 1, failedEmailJobs: 2, paymentsAwaitingVerification: 0,
+      monthlySandboxOrders: [{ month: '2026-10', orders: 2 }] });
     if (path === '/api/v1/platform/operations/summary') return json({ generatedAt: new Date().toISOString(),
       failedEmailJobs: 2, overdueEmailJobs: 1, oldOpenSandboxOrders: 0, verifiedButUnappliedOrders: 1,
       usageRepairRunsWithoutCompletion: 0 });

@@ -27,14 +27,43 @@ import org.springframework.core.env.Profiles;
  */
 public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered {
 
-    /** Property, the environment variable that supplies it, and what it is for. */
-    private record Required(String property, String variable, String purpose) { }
+    /**
+     * Property, the environment variable that supplies it, and what it is for.
+     *
+     * <p>{@code instead} names a second property that satisfies the same need on its own, for the
+     * one setting that can arrive two ways. It is blank when there is only one way.
+     */
+    private record Required(String property, String variable, String purpose, String instead) {
+        Required(String property, String variable, String purpose) {
+            this(property, variable, purpose, "");
+        }
+    }
 
     private static final List<Required> REQUIRED = List.of(
             new Required("app.jwt.secret", "JWT_SECRET",
                     "signs access tokens, and encrypts queued email payloads by default"),
             new Required("spring.data.mongodb.uri", "MONGODB_URI",
                     "the database cluster to connect to"));
+
+    /**
+     * Settings that only production has no default for, so only production can be missing them.
+     *
+     * <p>Each of these used to surface one restart at a time, as whichever bean happened to need
+     * it first: a missing APP_PUBLIC_BASE_URL arrived as a failure to create certificateService.
+     * Deploying is slow enough without learning about six variables across six deploys.
+     */
+    private static final List<Required> REQUIRED_IN_PRODUCTION = List.of(
+            new Required("app.public-base-url", "APP_PUBLIC_BASE_URL",
+                    "the public HTTPS origin, e.g. https://example.com — used in email links, "
+                            + "certificate verification links, OAuth origins and payment callbacks"),
+            new Required("spring.data.redis.host", "REDIS_HOST",
+                    "rate limits, token revocation and AI quotas; without it sign-in answers 503. "
+                            + "A single SPRING_DATA_REDIS_URL (redis://user:pass@host:port) does instead",
+                    "spring.data.redis.url"),
+            new Required("spring.mail.host", "MAIL_HOST", "the SMTP server that sends mail"),
+            new Required("spring.mail.username", "MAIL_USERNAME", "the SMTP account"),
+            new Required("spring.mail.password", "MAIL_PASSWORD", "the SMTP account's password"),
+            new Required("app.mail.from", "MAIL_FROM", "the From address on every message sent"));
 
     @Override
     public int getOrder() {
@@ -55,12 +84,21 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
             throw new IllegalStateException("JachAI cannot start with local and prod profiles together.");
         }
 
+        boolean production = environment.acceptsProfiles(Profiles.of("prod"));
+        List<Required> checked = new ArrayList<>(REQUIRED);
+        if (production) checked.addAll(REQUIRED_IN_PRODUCTION);
+
         List<Required> missing = new ArrayList<>();
         List<Required> unedited = new ArrayList<>();
-        for (Required setting : REQUIRED) {
-            String value = resolve(environment, setting);
-            if (value == null || value.isBlank()) missing.add(setting);
-            else if (looksLikeATemplate(value)) unedited.add(setting);
+        for (Required setting : checked) {
+            String value = resolve(environment, setting.property());
+            if (value == null || value.isBlank()) {
+                String alternative = setting.instead().isBlank()
+                        ? null : resolve(environment, setting.instead());
+                if (alternative == null || alternative.isBlank()) missing.add(setting);
+            } else if (looksLikeATemplate(value)) {
+                unedited.add(setting);
+            }
         }
         if (!unedited.isEmpty()) {
             // A template left as it came is not a missing setting, and reporting it as one sends
@@ -95,6 +133,16 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
                     .append("    ").append(setting.purpose())
                     .append(System.lineSeparator());
         }
+        if (production) {
+            // A deployed container has no secrets file, and pointing at one inside the image
+            // sends the reader looking in the wrong place for something only the hosting
+            // platform can supply.
+            message.append(System.lineSeparator())
+                    .append("Set each variable above in the deployment environment, then deploy again.")
+                    .append(System.lineSeparator());
+            throw new IllegalStateException(message.toString());
+        }
+
         // Where it looked, and what it found. Without this the reader cannot tell a file
         // that is absent from one that is present but in the wrong folder, or present and
         // missing the line they thought they wrote.
@@ -146,9 +194,9 @@ public class RequiredSettingsGuard implements EnvironmentPostProcessor, Ordered 
      * nothing supplied the variable. That throw is the unreadable failure this guard exists to
      * replace, so here it simply means the setting is absent.
      */
-    private String resolve(ConfigurableEnvironment environment, Required setting) {
+    private String resolve(ConfigurableEnvironment environment, String property) {
         try {
-            return environment.getProperty(setting.property(), String.class, null);
+            return environment.getProperty(property, String.class, null);
         } catch (RuntimeException unresolvedPlaceholder) {
             return null;
         }

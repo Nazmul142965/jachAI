@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Inside the build · JachAI</title>
+  <meta name="description" content="The tools behind JachAI, the engineering problems we met, the decisions we made, and what still needs live verification.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/engineering.css">
+  <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+  <script type="module" src="/theme.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
+    <nav class="topnav" aria-label="Main navigation">
+      <a href="/academy.html">Academy</a>
+      <a href="/talent.html">Talent</a>
+      <a href="/how.html">How it works</a>
+      <a href="/engineering.html" aria-current="page">Inside the build</a>
+      <a href="/">Sign in</a>
+    </nav>
+  </header>
+
+  <main id="main" class="page build-page">
+    <section class="build-hero" aria-labelledby="build-title">
+      <div>
+        <p class="build-kicker">The engineering behind JachAI</p>
+        <h1 id="build-title">An assessment should still make sense after it ends.</h1>
+        <p class="build-intro">That requirement shaped the product: the server owns time and scoring, published questions keep their version, and a payment or AI response never becomes official just because a browser says so.</p>
+        <a class="build-text-link" href="/how.html">See the assessment journey</a>
+      </div>
+      <div class="build-map" aria-label="JachAI system map">
+        <p class="build-map-title">One product, clear boundaries</p>
+        <div class="build-map-row"><span>People</span><strong>Academy · Talent · personal practice</strong></div>
+        <div class="build-map-row"><span>Interface</span><strong>Same-origin HTML, CSS &amp; JavaScript</strong></div>
+        <div class="build-map-row"><span>Decisions</span><strong>Java 21 · Spring Boot services</strong></div>
+        <div class="build-map-row"><span>State</span><strong>MongoDB · Redis</strong></div>
+        <p class="build-map-note">External AI, email, Google sign-in and payment sandboxes connect at the edges. The core rules stay on the server.</p>
+      </div>
+    </section>
+
+    <section class="build-section" aria-labelledby="tools-title">
+      <div class="build-section-head"><h2 id="tools-title">What we use</h2><p>Small number of moving parts, each with a defined job.</p></div>
+      <dl class="build-stack">
+        <div><dt>Application</dt><dd>Java 21, Spring Boot, Spring Security and Thymeleaf serve the REST API and public pages together.</dd></div>
+        <div><dt>Browser</dt><dd>HTML, CSS and JavaScript power the current workspace. A separate React practice pilot is design research, not a second production dashboard.</dd></div>
+        <div><dt>Data</dt><dd>MongoDB holds accounts, assessments, attempts, audit events, orders and email jobs. Redis coordinates production limits, reservations and cache.</dd></div>
+        <div><dt>Connections</dt><dd>Google Identity Services, SMTP, configured AI providers, and bKash/SSLCOMMERZ sandbox adapters are optional integrations with explicit checks.</dd></div>
+        <div><dt>Delivery</dt><dd>Maven tests, frontend journey checks, opt-in MongoDB integration tests and a Dockerfile support repeatable releases.</dd></div>
+      </dl>
+    </section>
+
+    <section class="build-section" aria-labelledby="decisions-title">
+      <div class="build-section-head"><h2 id="decisions-title">Problems that changed the design</h2><p>Each response came from a failure mode we could point to.</p></div>
+      <div class="build-decisions">
+        <article><h3>Answers can arrive late or twice.</h3><p>Attempts use a server deadline and stable submission state. Published versions freeze the questions used for scoring; short answers wait for staff review and release.</p></article>
+        <article><h3>One person can have several roles.</h3><p>Personal practice stays outside official workspace scores. Academy and Talent data stays tenant-scoped, and services check membership again on every request.</p></article>
+        <article><h3>Networks retry; providers disagree.</h3><p>Email jobs, quota reservations and payment callbacks use durable identifiers and conditional updates. A checkout redirect never grants a plan; the server validates the sandbox payment independently.</p></article>
+        <article><h3>A query can stop the whole app.</h3><p>A derived MongoDB sum over <code>BigDecimal</code> failed at startup. We replaced it with a deliberate aggregation and kept reconciliation auditable rather than guessing at missing usage.</p></article>
+        <article><h3>AI can help without becoming the examiner.</h3><p>Generated questions remain drafts for approval. The Tutor can explain a released result to a learner or candidate, but cannot grade an active exam or publish official content.</p></article>
+      </div>
+    </section>
+
+    <section class="build-proof" aria-labelledby="proof-title">
+      <div><h2 id="proof-title">What is proven so far?</h2><p>Local checks covered Java tests, frontend journeys and all six demo-role sign-ins. They are useful evidence, not a production stamp. Real inbox delivery, final-domain Google login, live AI responses, hosted MongoDB/Redis readiness and completed sandbox payments still need separate verification.</p></div>
+      <a href="/">Explore the demo roles</a>
+    </section>
+  </main>
+
+  <footer class="footer"><div class="inner">
+    <span>JachAI · technical assessment and certification</span>
+    <nav aria-label="Footer"><a href="/how.html">How it works</a><a href="/engineering.html">Inside the build</a><a href="/">Sign in</a></nav>
+  </div></footer>
+</body>
+</html>

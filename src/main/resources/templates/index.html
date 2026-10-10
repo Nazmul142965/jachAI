@@ -20,7 +20,19 @@
   <header class="topbar">
     <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
     <span class="topbar-note">Technical assessment workspace</span>
-    <nav class="topnav" aria-label="Products"><a href="/academy.html">Academy</a><a href="/talent.html">Talent</a><a href="/plans.html">Plans</a><a href="/how.html">How it works</a></nav>
+    <nav class="topnav" aria-label="Products"><a href="/academy.html">Academy</a><a href="/talent.html">Talent</a><a href="/plans.html">Plans</a><a href="/how.html">How it works</a><a href="/engineering.html">Inside the build</a></nav>
+    <div id="account-menu" class="account-menu hidden">
+      <button id="account-menu-toggle" class="account-menu-toggle" type="button" aria-expanded="false" aria-controls="account-menu-panel">
+        <img id="header-avatar" class="header-avatar hidden" alt="">
+        <span id="header-avatar-fallback" class="header-avatar-fallback">?</span>
+        <span id="header-account-name">Account</span>
+      </button>
+      <div id="account-menu-panel" class="account-menu-panel hidden">
+        <button id="account-menu-profile" type="button">Profile & settings</button>
+        <button id="account-menu-support" type="button">Support</button>
+        <button id="account-menu-logout" type="button">Sign out</button>
+      </div>
+    </div>
     <button id="logout" class="button quiet hidden" type="button">Sign out</button>
   </header>
   <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
@@ -31,7 +43,6 @@
       <h1>Skills deserve more than a score.</h1>
       <p>Build reviewed assessments, invite your people, understand their strengths, and verify what they have achieved.</p>
       <p class="hero-trust">Server-timed attempts · Human-reviewed publishing · Verifiable certificates</p>
-      <div class="hero-points"><span>01&nbsp; Create</span><span>02&nbsp; Assess</span><span>03&nbsp; Verify</span></div>
       <p class="muted" style="margin-top:18px;font-size:13.5px">Start on the FREE plan — <a href="/plans.html">compare plans</a> or <a href="/how.html">see how the engine works</a>.</p>
       <form id="verify-code-form" class="verify-row">
         <label for="verify-code">Verify a certificate</label>
@@ -51,24 +62,38 @@
       <form id="login-form" class="stack" role="tabpanel" aria-labelledby="login-tab">
         <h2>Welcome back</h2><p class="muted">Sign in with your verified email.</p>
         <label>Email<input name="email" type="email" autocomplete="username" required></label>
-        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <label class="password-field">Password<input name="password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label>
         <button class="button primary" type="submit">Sign in</button>
-        <a class="inline-link" href="/reset-password.html">Forgot your password?</a>
-        <a class="inline-link" href="/verify-email.html">Need a new verification link?</a>
+        <div class="auth-recovery-links"><a class="inline-link" href="/reset-password.html">Forgot password?</a><a class="inline-link" href="/verify-email.html">Verify email</a></div>
       </form>
       <form id="register-form" class="stack hidden" role="tabpanel" aria-labelledby="register-tab">
         <h2>Create your account</h2><p class="muted">Register first, then verify your email before signing in.</p>
         <p id="registration-mail-mode" class="muted" role="status" aria-live="polite">Checking how verification links are delivered…</p>
         <label>Your name<input name="displayName" maxlength="80" autocomplete="name" required></label>
         <label>Email<input name="email" type="email" autocomplete="username" required></label>
-        <label>Password <small>(at least 6 characters)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
+        <label class="password-field"><span>Password <small>(at least 6 characters)</small></span><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label>
         <button class="button primary" type="submit">Create account</button>
         <p class="muted">Already registered? <a class="inline-link" href="/verify-email.html">Request a new verification link</a> or switch to Sign in above.</p>
       </form>
-      <div id="google-login-area" class="google-signin hidden"><p class="muted">Or continue with Google</p><div id="google-login-button"></div></div>
-      <section id="demo-access" class="demo-access hidden" aria-labelledby="demo-access-title">
-        <h2 id="demo-access-title">Explore the local demo</h2>
-        <p class="muted">Choose a role to sign in to disposable demo workspaces. No password or copy-paste needed. This is unavailable outside local demo mode.</p>
+      <div id="google-login-area" class="google-signin hidden"><p class="muted">or</p><div id="google-login-button"></div><p id="google-login-help" class="google-login-help hidden" role="alert"></p></div>
+      <section id="demo-preview" class="demo-access"
+               th:if="${demoPreviewUrl != null and !#strings.isEmpty(demoPreviewUrl)
+                 and #strings.startsWith(demoPreviewUrl, 'https://')}"
+               aria-labelledby="demo-preview-title">
+        <h2 id="demo-preview-title">Explore JachAI</h2>
+        <p class="muted">Choose a role to enter a separate, disposable preview workspace. No password needed.</p>
+        <div class="demo-access-roles">
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='academy-admin')}">Academy owner</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='instructor')}">Academy instructor</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='learner')}">Academy learner</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='talent-admin')}">Talent owner</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='recruiter')}">Talent recruiter</a>
+          <a class="button secondary demo-role" th:href="@{${demoPreviewUrl}(demoRole='candidate')}">Talent candidate</a>
+        </div>
+      </section>
+      <section id="demo-access" class="demo-access" aria-labelledby="demo-access-title">
+        <h2 id="demo-access-title">Explore JachAI by role</h2>
+        <p id="demo-access-status" class="muted">Loading disposable demo roles…</p>
         <div id="demo-access-roles" class="demo-access-roles"></div>
       </section>
     </section>
@@ -105,6 +130,16 @@
         <h2 id="onboarding-title">Your next step starts here.</h2>
         <p id="home-role" class="home-role" role="status">Checking your workspace role…</p>
         <p id="home-intro" class="muted">Practice for yourself, complete an assessment you've been invited to, or manage an Academy or Talent workspace. One account can do all three.</p>
+        <div id="ai-tutor-entry" class="result-box hidden">
+          <h3>AI Tutor</h3>
+          <p>Academy learners and Talent candidates can use AI Tutor after a result is graded and released. It is unavailable while an exam is in progress.</p>
+          <button id="ai-tutor-entry-action" class="button secondary small" type="button">Open my assessments</button>
+        </div>
+        <div id="home-messages-entry" class="result-box hidden">
+          <h3>Messages</h3>
+          <p>Talk with your permitted Academy partners. Owners can message instructors; instructors and learners can message their permitted partners.</p>
+          <button id="home-messages-entry-action" class="button secondary small" type="button">Open messages</button>
+        </div>
         <button id="home-account-action" class="button quiet small" type="button">View profile, password and plan</button>
         <div class="home-next" aria-labelledby="home-next-title">
           <div><p class="home-kicker">Recommended next</p><h3 id="home-next-title">Checking your recent work…</h3><p id="home-next-detail" class="muted" role="status" aria-live="polite">Your personal practice and workspace access are loading.</p></div>
@@ -159,12 +194,33 @@
 
       <section id="account-view" class="view hidden" aria-label="Profile and account settings">
         <div class="account-grid">
-          <div class="card panel"><h2>Your profile</h2><p class="muted">This identity follows you across personal practice and every workspace. Your role is set separately in each workspace.</p><div id="account-identity" class="account-identity" role="status">Loading profile…</div><form id="account-profile-form" class="stack"><label>Display name<input name="displayName" minlength="2" maxlength="80" autocomplete="name" required></label><button class="button secondary" type="submit">Save display name</button></form></div>
-          <div class="card panel"><h2>Sign-in and security</h2><p id="account-login-method" class="muted">Checking sign-in methods…</p><form id="account-password-form" class="stack"><input type="email" name="username" autocomplete="username" hidden aria-hidden="true" tabindex="-1"><label>Current password<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>New password <small>(at least 6 characters)</small><input name="newPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><button class="button secondary" type="submit">Change password</button></form><p class="muted">Forgot your current password, or signed up with Google? <a href="/reset-password.html">Request a password reset link</a>.</p></div>
+          <div class="card panel"><h2>Your profile</h2><p class="muted">This identity follows you across personal practice and every workspace. Your role is set separately in each workspace.</p><div id="account-identity" class="account-identity" role="status">Loading profile…</div><div class="profile-image-editor"><img id="account-avatar" class="account-avatar hidden" alt="Your profile image"><form id="account-avatar-form" class="stack"><label>Profile image<small class="muted">JPEG/PNG only; resized to 256px and stored below 120 KB.</small><input name="image" type="file" accept="image/png,image/jpeg" required></label><div class="form-row"><button class="button secondary" type="submit">Save image</button><button id="remove-avatar" class="button quiet" type="button">Remove image</button></div></form></div><form id="account-profile-form" class="stack"><label>Display name<input name="displayName" minlength="2" maxlength="80" autocomplete="name" required></label><button class="button secondary" type="submit">Save display name</button></form></div>
+          <div class="card panel"><h2>Sign-in and security</h2><p id="account-login-method" class="muted">Checking sign-in methods…</p><form id="account-password-form" class="stack"><input type="email" name="username" autocomplete="username" hidden aria-hidden="true" tabindex="-1"><label class="password-field">Current password<input name="currentPassword" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label><label class="password-field"><span>New password <small>(at least 6 characters)</small></span><input name="newPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"><svg aria-hidden="true"><use href="#icon-eye"></use></svg></button></label><button class="button secondary" type="submit">Change password</button></form><p class="muted">Forgot your current password, or signed up with Google? <a href="/reset-password.html">Request a password reset link</a>.</p></div>
+          <div id="google-link-area" class="card panel google-signin hidden"><h2>Connect Google sign-in</h2><p class="muted">If you already use a password, connect the Google account with the same verified email here. Next time you can sign in with Google.</p><div id="google-link-button"></div></div>
           <div class="card panel account-plan"><h2>Plan and usage</h2><div id="account-plan" role="status">Loading your current allowance…</div></div>
         </div>
       </section>
-
+      <section id="support-view" class="view hidden" aria-labelledby="support-heading">
+        <div class="card panel">
+          <h2 id="support-heading">Contact support</h2>
+          <p class="muted">Create a ticket for sign-in, workspace, assignment, AI, billing or technical help. You can follow replies here; email delivery depends on SMTP configuration.</p>
+          <form id="support-ticket-form" class="stack">
+            <div class="form-row">
+              <label>Category<select name="category" required>
+                <option value="TECHNICAL">Technical</option><option value="SIGN_IN">Sign in</option>
+                <option value="ORGANIZATION">Organization</option><option value="ASSIGNMENTS">Assignments</option>
+                <option value="AI">AI</option><option value="BILLING">Billing</option>
+                <option value="CERTIFICATES">Certificates</option><option value="OTHER">Other</option>
+              </select></label>
+              <label>Workspace (optional)<select id="support-organization" name="organizationId"></select></label>
+            </div>
+            <label>Subject<input name="subject" maxlength="200" required></label>
+            <label>What do you need help with?<textarea name="description" maxlength="4000" rows="5" required></textarea></label>
+            <button class="button primary" type="submit">Create support ticket</button>
+          </form>
+        </div>
+        <div class="card panel"><h2>Your tickets</h2><div id="support-tickets" class="item-list"></div></div>
+      </section>
       <section id="practice-view" class="view hidden" aria-labelledby="practice-heading">
         <div class="practice-layout">
           <div class="practice-main card panel">
@@ -195,9 +251,9 @@
         </div>
       </section>
 
-      <section id="billing-view" class="view hidden"><div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div><div id="usage-panel" class="card panel hidden"><h2>Quota reconciliation</h2><p class="muted">Compares what this workspace has recorded against what the stored records prove, for the windows the plan limits. This reads the same counters the server enforces; it is not a bill and it does not change your plan.</p><div class="form-row"><button id="usage-refresh" class="button secondary" type="button">Check quotas</button><button id="usage-repair" class="button quiet" type="button" disabled>Repair counters</button></div><p id="usage-generated" class="muted"></p><div id="usage-report" class="item-list"></div><p id="usage-manual" class="result-box hidden"></p></div><div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted" role="status"></p><div class="form-row"><button id="start-ssl-demo" class="button secondary" type="button" disabled>Pay with SSLCommerz sandbox</button><button id="start-bkash-demo" class="button secondary" type="button" disabled>Pay with direct bKash sandbox</button></div><p class="muted">Only a gateway-verified, applied sandbox order changes the plan. The buyer then gets a queued demo notice by email; delivery still requires working SMTP.</p><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div><div id="payment-history-pagination"></div><section id="order-detail" class="subpanel hidden" aria-labelledby="order-detail-title"><div class="section-heading"><h4 id="order-detail-title">Order detail</h4><button id="order-detail-close" class="button quiet small" type="button">Close</button></div><div id="order-detail-body" class="item-list"></div></section></div></section>
+      <section id="billing-view" class="view hidden"><div id="plan-panel" class="card panel hidden"><h2>Workspace plan</h2><p class="muted">Server-enforced limits for this organization.</p><div id="plan-details" class="item-list"></div></div><div id="usage-panel" class="card panel hidden"><h2>Quota check</h2><p class="muted">This is a read-only comparison of the server counter and the records that justify it. It is not a bill, does not charge you, and does not change your plan. Use Repair counters only when the report identifies a provable gap.</p><div class="form-row"><button id="usage-refresh" class="button secondary" type="button">Check quotas</button><button id="usage-repair" class="button quiet" type="button" disabled>Repair counters</button></div><p id="usage-generated" class="muted"></p><div id="usage-report" class="item-list"></div><p id="usage-manual" class="result-box hidden"></p></div><div id="billing-panel" class="card panel hidden"><h2>Sandbox billing</h2><p id="billing-hint" class="muted" role="status"></p><div class="form-row"><button id="start-ssl-demo" class="button secondary" type="button" disabled>Open SSLCommerz sandbox</button><button id="start-bkash-demo" class="button secondary" type="button" disabled>Open bKash sandbox</button></div><p class="muted">Sandbox only. A cancelled or failed checkout grants nothing. Only provider verification followed by reconciliation can apply the plan; SMTP is required for billing email delivery.</p><h3>Demo transactions</h3><div id="payment-history" class="item-list"></div><div id="payment-history-pagination"></div><section id="order-detail" class="subpanel hidden" aria-labelledby="order-detail-title"><div class="section-heading"><h4 id="order-detail-title">Order detail</h4><button id="order-detail-close" class="button quiet small" type="button">Close</button></div><div id="order-detail-body" class="item-list"></div></section></div></section>
 
-      <section id="platform-view" class="view hidden"><div class="card panel"><div class="section-heading"><div><h2>Platform operations</h2><p class="muted">Only platform administrators can see these counts. They help spot backlogs; they do not confirm a payment.</p></div><button id="platform-refresh" class="button secondary" type="button">Refresh</button></div><div id="platform-operations" class="item-list"></div></div><div class="card panel"><h2>Storage estimate</h2><p class="muted">An estimate from MongoDB's own database statistics (data plus indexes for one database). It is <strong>not</strong> Atlas's official quota, billing figure or a per-collection breakdown, and it needs a reachable database to measure anything.</p><div id="platform-storage" class="item-list"></div></div></section>
+      <section id="platform-view" class="view hidden"><div class="card panel"><div class="section-heading"><div><h2>Platform operations</h2><p class="muted">Only platform administrators can see these counts. They help spot backlogs; they do not confirm a payment.</p></div><button id="platform-refresh" class="button secondary" type="button">Refresh</button></div><div id="platform-operations" class="item-list"></div></div><div class="card panel"><h2>Storage estimate</h2><p class="muted">An estimate from MongoDB's own database statistics (data plus indexes for one database). It is <strong>not</strong> Atlas's official quota, billing figure or a per-collection breakdown, and it needs a reachable database to measure anything.</p><div id="platform-storage" class="item-list"></div></div><div class="card panel"><h2>Support inbox</h2><p class="muted">Review customer tickets, send public replies, add internal notes, and update status.</p><div class="form-row"><label>Status<select id="support-inbox-status"><option value="">All tickets</option><option value="RECEIVED">Received</option><option value="WORKING_ON_IT">Working on it</option><option value="WAITING_FOR_YOUR_REPLY">Waiting for reply</option><option value="RESOLVED">Resolved</option></select></label><button id="support-inbox-refresh" class="button secondary" type="button">Reload inbox</button></div><div id="support-inbox-list" class="item-list"></div><div id="support-inbox-detail" class="subpanel hidden"></div></div></section>
 
       <section id="platform-tenants-view" class="view hidden"><div class="card panel"><h2>Organizations</h2><p class="muted">Choose an organization to inspect its billing and quota history.</p><div id="platform-organizations" class="item-list"></div><div id="platform-organizations-pagination"></div></div><div class="card panel"><h2>Billing support</h2><div class="form-row"><label>Organization ID<input id="platform-organization-id" autocomplete="off" placeholder="Select above or enter an exact ID"></label><button id="platform-inspect" class="button secondary" type="button">Inspect</button></div><div id="platform-billing" class="item-list"></div><h3>Recent demo orders</h3><div id="platform-orders" class="item-list"></div><div id="platform-orders-pagination"></div></div><div class="card panel"><div class="section-heading"><div><h2>Manual TEAM plan</h2><p class="muted"><strong>Manual grant — not a payment.</strong> This grants a bounded TEAM period without any money changing hands. It never marks an order paid, never replaces an active paid subscription, and every change is written to an append-only audit.</p></div><button id="platform-manual-refresh" class="button secondary small" type="button">Reload manual plan</button></div>
           <div id="platform-manual-plan" class="item-list"></div>
@@ -205,7 +261,7 @@
           <p class="muted">Maximum 30 days. An identical repeat grant is idempotent; concurrent changes are rejected and must be retried after reloading.</p>
           <form id="platform-manual-revoke-form" class="form-row"><label>Revoke reason <small>(10–500 characters)</small><input name="reason" minlength="10" maxlength="500" required placeholder="Why this grant is being revoked"></label><button id="platform-manual-revoke-submit" class="button quiet" type="submit">Revoke manual TEAM</button></form>
           <h3>Manual plan audit</h3><div id="platform-manual-audit" class="item-list"></div><div id="platform-manual-audit-pagination"></div>
-        </div><div class="card panel"><h2>Quota reconciliation</h2><p class="muted">Preview first. Repair only updates counts justified by durable records; ambiguous invitation history still needs manual review.</p><button id="platform-repair-usage" class="button secondary" type="button" disabled>Repair provable gaps</button><div id="platform-usage-report" class="item-list"></div><div id="platform-usage-manual" class="result-box hidden"></div><h3>Repair audit</h3><div id="platform-usage-audit" class="item-list"></div><div id="platform-usage-audit-pagination"></div></div></section>
+        </div><div class="card panel"><h2>Quota check</h2><p class="muted">Preview is read-only. Repair changes only counters proven by durable records and writes an audit entry; ambiguous history is left for manual review.</p><button id="platform-repair-usage" class="button secondary" type="button" disabled>Repair provable gaps</button><div id="platform-usage-report" class="item-list"></div><div id="platform-usage-manual" class="result-box hidden"></div><h3>Repair audit</h3><div id="platform-usage-audit" class="item-list"></div><div id="platform-usage-audit-pagination"></div></div></section>
 
       <section id="platform-admins-view" class="view hidden"><div class="card panel"><h2>Platform administrators</h2><p class="muted">Enter an existing user's exact ID. Only verified, active accounts can receive access. You cannot change your own role or an environment-bootstrap administrator.</p><div class="form-row"><label>User ID<input id="platform-user-id" autocomplete="off" placeholder="Exact user ID"></label><button id="platform-inspect-user" class="button secondary" type="button">Inspect user</button></div><div id="platform-user-summary" class="item-list"></div><div class="form-row"><button id="platform-grant-role" class="button secondary" type="button" disabled>Grant platform admin</button><button id="platform-revoke-role" class="button quiet" type="button" disabled>Revoke platform admin</button></div><h3>Role history</h3><div id="platform-role-audit" class="item-list"></div><div id="platform-role-audit-pagination"></div></div></section>
 
@@ -252,14 +308,14 @@
         </section>
 
         <div id="organization-settings-panel" class="card panel hidden"><h2>Result release default</h2><p class="muted">This applies to newly created assessments unless their author selects an override. Published assessment versions keep their existing policy.</p><form id="organization-settings-form" class="form-row"><label>Default policy<select name="defaultResultReleasePolicy"><option value="IMMEDIATE">On submission</option><option value="MANUAL">After staff release</option></select></label><button class="button secondary" type="submit">Save default</button></form></div>
-        <div id="google-link-area" class="card panel hidden"><h2>Account sign-in</h2><p class="muted">Already use email and password? Link the Google account with the same verified email.</p><div id="google-link-button"></div></div>
+        <div id="google-link-area" class="card panel hidden google-signin"><h2>Account sign-in</h2><p class="muted">Already use email and password? Link the Google account with the same verified email.</p><p class="muted">or</p><div id="google-link-button"></div></div>
       </section>
 
       <section id="members-view" class="view hidden">
         <div id="ownership-panel" class="card panel hidden"><h2>Transfer workspace ownership</h2><p class="muted">Only the current owner can transfer ownership to another active organization admin. Enter that admin's exact email. The former owner stays an admin unless the new owner changes that role.</p><form id="transfer-owner-form" class="form-row"><label>New owner's email<input name="email" type="email" maxlength="254" required></label><button class="button secondary" type="submit">Transfer ownership</button></form></div>
         <div class="card panel"><h2>Add a registered member</h2><p class="muted">The person must register and verify their email first. Adding an inactive former member reactivates their workspace access.</p>
           <form id="add-member-form" class="form-row"><label>Email<input name="email" type="email" required></label><label>Role<select id="member-role" name="role"></select></label><button class="button primary" type="submit">Add member</button></form>
-        </div><div class="card panel"><h2>Invite by email</h2><p class="muted">The recipient can register first. Workspace access starts only after they sign in with this verified email and accept the link.</p>
+        </div><div class="card panel"><h2>Invite by email</h2><p class="muted">Use this for someone who is not already registered. The invitation email is queued; in local console mode the link is printed in the server console. Workspace access starts only after they sign in with this verified email and accept the link.</p>
           <form id="invite-member-form" class="form-row"><label>Email<input name="email" type="email" maxlength="254" required></label><label>Role<select id="invited-member-role" name="role"></select></label><button class="button secondary" type="submit">Send invitation</button></form>
           <h3>Recent invitations</h3><p class="muted">Expired links disappear after database cleanup; this is not a permanent delivery log.</p><div id="member-invitations-list" class="item-list"></div><div id="member-invitations-pagination"></div>
         </div><div class="card panel"><h2>Participant join codes</h2><p class="muted">Create a seven-day code for verified learners or candidates. It never grants staff or admin access. Share the code privately; it is shown only once.</p><button id="create-join-code" class="button secondary" type="button">Create join code</button><p id="join-code-once" class="hidden" role="status" aria-live="polite"></p><div id="join-code-list" class="item-list"></div><div id="join-code-pagination"></div></div><div class="card panel"><h2>Members</h2><div id="members-list" class="item-list"></div><div id="members-pagination"></div></div><div class="card panel"><h2>Ownership history</h2><div id="ownership-audit" class="item-list"></div><div id="ownership-audit-pagination"></div></div>
@@ -331,7 +387,7 @@
       </section>
 
       <section id="messages-view" class="view hidden">
-        <div class="card panel"><h2>Direct messages</h2><p class="muted">Private conversations between Academy instructors and learners. New messages refresh while this page is open.</p>
+        <div class="card panel"><h2>Direct messages</h2><p class="muted">Academy owners can message instructors; instructors and learners can message their permitted Academy partners. New messages refresh while this page is open.</p>
           <form id="conversation-form" class="form-row"><label>Start with<select id="messaging-partner-select" name="partnerUserId" required></select></label><button class="button primary" type="submit">Open conversation</button></form><div id="messaging-partner-pagination"></div>
           <div id="conversations-list" class="item-list"></div><div id="conversations-pagination"></div>
         </div>

@@ -131,7 +131,7 @@ Telemetry records tab visibility changes, fullscreen exits, copy/paste attempts,
 
 - Registration requires email verification before normal access. Use a random, single-use, expiring verification token; store only its hash in MongoDB or Redis.
 - Unverified accounts expire after seven days. A bounded scheduled cleanup removes only records still unverified and without any organization membership; verification uses a conditional MongoDB update so a cleanup race cannot recreate a deleted user. Resend and verification are unavailable after the seven-day window. The cleanup interval is operational, not a guarantee that deletion occurs at the exact deadline.
-- Optional Google Identity Services sign-in verifies ID-token signature, audience, issuer, expiry, subject, and verified email server-side. Use the stable Google subject as the external identity; never silently merge an existing password account by email. Require authenticated same-email linking. A third-party email that Google does not authoritatively host must complete JachAI's own email verification before linking. Google login returns ordinary JachAI access/refresh tokens; organization authorization rules do not change.
+- Optional Google Identity Services sign-in verifies ID-token signature, audience, issuer, expiry, subject, and verified email server-side. Use the stable Google subject as the external identity. A Google-authoritative verified email can create an account or atomically link an existing verified, enabled same-email account; disabled or unverified accounts are never silently linked. A third-party email that Google does not authoritatively host must complete JachAI's own email verification before authenticated linking. Google login returns ordinary JachAI access/refresh tokens; organization authorization rules do not change.
 - Passwords use an adaptive hash such as BCrypt. Add password-reset tokens with the same single-use and expiry rules.
 - REST API authentication uses short-lived JWT access tokens and rotated refresh tokens. Bind refresh sessions to a user/device record; revoke on logout or security events.
 - Redis stores revoked access-token `jti` values until their original expiry when immediate logout is required. A missing Redis connection must not silently bypass an enforced revocation check.
@@ -240,14 +240,16 @@ At each phase, implement one vertical workflow end to end, add tests for busines
 
 ## Frontend implementation decision
 
-### Local role-demo decision (2026-10-06)
+### Role-demo decision (updated 2026-10-09)
 
-The optional `demo` Spring profile is loopback-only and refuses to issue demo
-sessions unless the selected MongoDB database name starts with `jachai_demo_`.
-The sign-in page discovers six role shortcuts only while this profile is
-active: Academy owner/instructor/learner and Talent owner/recruiter/candidate.
-Clicking a shortcut lazily seeds verified, passwordless accounts and two
-disposable workspaces in that database, then issues normal JWT/refresh tokens.
+The six role shortcuts work on the configured database under the `demo`, `local`,
+or `prod` profile: Academy owner/instructor/learner and Talent
+owner/recruiter/candidate. Local access is loopback-only by default; a public
+host requires `DEMO_PUBLIC_ACCESS=true` and a valid HTTPS
+`APP_PUBLIC_BASE_URL`. The historical `DEMO_SHARED_DATABASE` setting is not an
+authorization gate, and no database-name prefix is required. Clicking a
+shortcut lazily seeds verified, passwordless accounts and two shared demo
+workspaces in that database, then issues normal JWT/refresh tokens.
 The first successful sign-in also creates an approved question, published
 assessment, and participant invitation in each workspace through the normal
 question, assessment, assignment, and campaign services. Subsequent sign-ins
@@ -255,12 +257,13 @@ reuse those examples instead of consuming more entitlement units.
 If example creation fails (for example, a free-plan quota is exhausted), the
 demo sign-in still succeeds; a disposable fixture must not become an account
 lockout. A closed sample campaign is not reused for a new candidate invite.
-Their role permissions are real inside the demo database, but the shortcut is
-not a production authentication method. No demo credentials are embedded in
+Their role permissions are real inside the selected database, but these shared
+examples are not private customer or faculty accounts. No demo credentials are embedded in
 HTML, JavaScript, source or logs. Demo accounts cannot change/reset passwords
-or link Google; regular accounts retain those workflows. The profile disables
-cloud AI and SMTP, binds to 127.0.0.1 and is never combined with `prod`.
-Live Atlas seeding and browser clicks still require a dedicated test run.
+or link Google, and cannot change profile/avatar; regular accounts retain
+those workflows. The dedicated `demo` profile disables cloud AI and SMTP and
+binds to 127.0.0.1; it is not combined with `prod`. A public hosted demo must
+be verified again on its deployed URL and database.
 
 - Browser HTML belongs in `src/main/resources/templates` and is served by a small Spring MVC page controller using Thymeleaf, per user preference. CSS and JavaScript belong in `src/main/resources/static`. Page controllers render only the shell and email-action pages; business data is fetched through the same `/api/v1` REST API used by external clients.
 - Paged GET routes keep the fixed 20-row page size and reject page indexes outside `0–500` before repository access. Controller parameter annotations document the bound; a shared MVC interceptor enforces it even when method validation is not configured in a particular test or deployment. This protects the small MongoDB tier from unbounded skip queries. Larger histories will need cursor pagination rather than silently lifting this limit.
@@ -356,5 +359,5 @@ Live Atlas seeding and browser clicks still require a dedicated test run.
 
 - The platform-admin operations summary uses indexed MongoDB counts for durable failure/backlog states: failed or overdue email jobs, old open sandbox checkouts, verified-but-unapplied orders, and quota-repair requests without completion. It returns no tenant content or gateway credentials. This does not replace infrastructure readiness, Atlas storage alerts, provider-side incident monitoring, or live verification.
 
-- The multi-stage Dockerfile packages the Java 21 modular monolith into an unprivileged JRE runtime image. In the production profile, Actuator readiness includes application readiness state, MongoDB, and Redis; liveness remains independent of those external systems. Only status is exposed, not details. Local full tests and executable JAR packaging pass; Docker image/run and live dependency probes remain unverified because Docker and service credentials are not available in this environment. `DEPLOYMENT.md` lists the sandbox-only rollout gates.
+- The multi-stage Dockerfile packages the Java 21 modular monolith into an unprivileged JRE runtime image. In the production profile, Actuator readiness includes application readiness state, MongoDB, and Redis; liveness remains independent of those external systems. Only status is exposed, not details. Local full tests and executable JAR packaging pass; Docker image/run and live dependency probes remain unverified because Docker and service credentials are not available in this environment. `SYSTEM.md` lists the sandbox-only rollout gates.
 - When an attempt's result is released (immediately on submission or later by staff), queue one result-available email keyed by attempt ID. The message only links to sign-in/My assessments, never includes a score or answer key. Outbox delivery rechecks the released attempt and its user's current address. A retry of submission or staff release can repair an enqueue failure without changing official result state or duplicating a sent message. Local tests cover these paths; live MongoDB/SMTP delivery remains unverified.

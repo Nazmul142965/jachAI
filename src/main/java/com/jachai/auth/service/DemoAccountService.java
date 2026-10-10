@@ -11,17 +11,19 @@ import com.jachai.organization.repository.MembershipRepository;
 import com.jachai.organization.repository.OrganizationRepository;
 import com.jachai.shared.error.ApiException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-/** Disposable local demo identities; no passwords or public credentials are stored. */
+/** Disposable demo identities; no passwords or public credentials are stored. */
 @Service
-@Profile("demo & !prod")
+@Profile("demo | prod | local")
 @Slf4j
 public class DemoAccountService {
     public record DemoAccount(String key, String label, String role, String workspace) { }
@@ -35,6 +37,8 @@ public class DemoAccountService {
             new DemoAccount("talent-admin", "Talent owner", "ORG_ADMIN", "Talent"),
             new DemoAccount("recruiter", "Recruiter", "RECRUITER", "Talent"),
             new DemoAccount("candidate", "Candidate", "CANDIDATE", "Talent"));
+    private static final DemoAccount PLATFORM_ADMIN =
+            new DemoAccount("platform-admin", "Platform administrator", "PLATFORM_ADMIN", "Platform");
 
     private final MongoTemplate mongo;
     private final UserRepository users;
@@ -42,29 +46,35 @@ public class DemoAccountService {
     private final MembershipRepository memberships;
     private final AuthService auth;
     private final DemoFixtureService fixtures;
-
+    private final Environment environment;
     public DemoAccountService(MongoTemplate mongo, UserRepository users,
                               OrganizationRepository organizations, MembershipRepository memberships,
-                              AuthService auth, DemoFixtureService fixtures) {
+                              AuthService auth, DemoFixtureService fixtures, Environment environment) {
         this.mongo = mongo;
         this.users = users;
         this.organizations = organizations;
         this.memberships = memberships;
         this.auth = auth;
         this.fixtures = fixtures;
+        this.environment = environment;
     }
 
     public List<DemoAccount> accounts() {
-        requireDemoDatabase();
+        if (environment.matchesProfiles("demo") && !environment.matchesProfiles("prod")
+                && mongo.getDb().getName().startsWith("jachai_demo_")) {
+            var roles = new ArrayList<>(ACCOUNTS);
+            roles.add(PLATFORM_ADMIN);
+            return roles;
+        }
         return ACCOUNTS;
     }
 
     public synchronized AuthResponse login(String key) {
-        requireDemoDatabase();
-        DemoAccount account = ACCOUNTS.stream().filter(value -> value.key().equals(key)).findFirst()
+        List<DemoAccount> available = accounts();
+        DemoAccount account = available.stream().filter(value -> value.key().equals(key)).findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "DEMO_ROLE_NOT_FOUND", "Demo role not found"));
         Instant now = Instant.now();
-        for (DemoAccount entry : ACCOUNTS) {
+        for (DemoAccount entry : available) {
             String id = userId(entry);
             insertIfMissing(users.findById(id).isPresent(),
                     new User(id, entry.key() + "@demo.jachai.invalid", entry.label(), null,
@@ -76,7 +86,8 @@ public class DemoAccountService {
         insertIfMissing(organizations.findById(TALENT_ID).isPresent(),
                 new Organization(TALENT_ID, "Demo Talent", OrganizationType.TALENT,
                         userId(ACCOUNTS.get(3)), now));
-        for (DemoAccount entry : ACCOUNTS) {
+        for (DemoAccount entry : available) {
+            if (entry == PLATFORM_ADMIN) continue;
             String id = "demo-member-" + entry.key();
             insertIfMissing(memberships.findById(id).isPresent(),
                     new Membership(id, userId(entry), organizationId(entry),
@@ -94,13 +105,6 @@ public class DemoAccountService {
             log.warn("Demo example setup incomplete: {}", exception.getClass().getSimpleName());
         }
         return auth.issueSession(user);
-    }
-
-    private void requireDemoDatabase() {
-        if (!mongo.getDb().getName().startsWith("jachai_demo_")) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "DEMO_DATABASE_REQUIRED",
-                    "Demo login requires a dedicated jachai_demo_* database");
-        }
     }
 
     private void insertIfMissing(boolean present, Object document) {
