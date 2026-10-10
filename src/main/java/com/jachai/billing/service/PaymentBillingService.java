@@ -37,6 +37,8 @@ import org.springframework.stereotype.Service;
 public class PaymentBillingService {
     private static final Duration DEMO_TERM = Duration.ofDays(30);
     private static final int WRITE_RETRIES = 5;
+    private static final List<PaymentOrderStatus> VISIBLE_ORDER_STATUSES = List.of(
+            PaymentOrderStatus.CHECKOUT_READY, PaymentOrderStatus.VERIFIED, PaymentOrderStatus.APPLIED);
     private final TenantAccessService access;
     private final UserRepository users;
     private final PaymentOrderRepository orders;
@@ -103,7 +105,7 @@ public class PaymentBillingService {
 
     public Page<PaymentOrderView> history(String actorId, String organizationId, int page) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
-        return orders.findByOrganizationId(organizationId,
+        return orders.findByOrganizationIdAndStatusIn(organizationId, VISIBLE_ORDER_STATUSES,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "createdAt")))
                 .map(PaymentOrderView::from);
     }

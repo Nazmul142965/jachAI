@@ -12,6 +12,8 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface PaymentOrderRepository extends MongoRepository<PaymentOrder, String>, PaymentOrderRepositoryCustom {
     Page<PaymentOrder> findByOrganizationId(String organizationId, Pageable pageable);
+    Page<PaymentOrder> findByOrganizationIdAndStatusIn(String organizationId,
+                                                      List<PaymentOrderStatus> statuses, Pageable pageable);
     Page<PaymentOrder> findByStatus(PaymentOrderStatus status, Pageable pageable);
     Optional<PaymentOrder> findByIdAndOrganizationId(String id, String organizationId);
     long countByStatusAndCreatedAtBefore(PaymentOrderStatus status, Instant before);
