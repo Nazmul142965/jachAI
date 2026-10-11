@@ -133,7 +133,7 @@ public class OrganizationService {
                 .set("ownershipTransferredBy", actorId)
                 .set("ownershipTransferredAt", now);
         if (mongo.updateFirst(query, update, Organization.class).getModifiedCount() != 1) {
-            throw new ApiException(HttpStatus.CONFLICT, "OWNER_CHANGED", "Ownership changed concurrently; reload");
+            throw new ApiException(HttpStatus.CONFLICT, "OWNER_CHANGED", "Someone else changed this ownership at the same time. Reload the page and try again.");
         }
         ensureOwnershipAudit(new Organization(organization.id(), organization.name(), organization.type(),
                 targetUserId, organization.createdAt(), transferId, actorId, actorId, now));

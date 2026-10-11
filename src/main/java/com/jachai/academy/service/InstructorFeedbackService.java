@@ -86,7 +86,7 @@ public class InstructorFeedbackService {
         try {
             return view(existing == null ? feedback.insert(next) : feedback.save(next));
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Feedback changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Someone else changed this feedback at the same time. Reload the page and try again.");
         }
     }
 
@@ -113,7 +113,7 @@ public class InstructorFeedbackService {
             queuePublishedEmail(published);
             return view(published);
         } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Feedback changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "FEEDBACK_CONFLICT", "Someone else changed this feedback at the same time. Reload the page and try again.");
         }
     }
 

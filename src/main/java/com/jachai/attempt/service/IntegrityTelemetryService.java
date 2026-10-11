@@ -52,7 +52,7 @@ public class IntegrityTelemetryService {
         requireCampaignAssignment(attempt, organizationId);
         Instant now = Instant.now();
         if (attempt.status() != AttemptStatus.IN_PROGRESS || !now.isBefore(attempt.deadline())) {
-            throw new ApiException(HttpStatus.CONFLICT, "ATTEMPT_CLOSED", "Telemetry is only accepted during an active attempt");
+            throw new ApiException(HttpStatus.CONFLICT, "ATTEMPT_CLOSED", "Activity can only be recorded while a test is in progress.");
         }
         if (request.type() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EVENT", "Event type is required");
@@ -67,7 +67,7 @@ public class IntegrityTelemetryService {
         if (events.countByOrganizationIdAndAttemptIdAndExpiresAtAfter(organizationId, attemptId, now)
                 >= MAX_STORED_EVENTS_PER_ATTEMPT) {
             throw new ApiException(HttpStatus.CONFLICT, "TELEMETRY_LIMIT",
-                    "This attempt has reached its stored telemetry limit");
+                    "This attempt has recorded as much activity as allowed.");
         }
         TelemetryEvent event = new TelemetryEvent(UUID.randomUUID().toString(), organizationId,
                 attemptId, candidateId, request.type(), questionId, now, now.plus(RETENTION));

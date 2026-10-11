@@ -74,7 +74,7 @@ public class AssessmentService {
         try {
             return assessments.save(updated);
         } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "DRAFT_CONFLICT", "Assessment was changed concurrently");
+            throw new ApiException(HttpStatus.CONFLICT, "DRAFT_CONFLICT", "Someone else changed this test at the same time. Reload the page and try again.");
         }
     }
 
@@ -175,14 +175,14 @@ public class AssessmentService {
         try {
             versions.insert(version);
         } catch (DuplicateKeyException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_CONFLICT", "Assessment was published concurrently");
+            throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_CONFLICT", "Someone else changed this test at the same time. Reload the page and try again.");
         }
         try {
             assessments.save(updated);
         } catch (RuntimeException exception) {
             versions.deleteById(version.id());
             if (exception instanceof OptimisticLockingFailureException) {
-                throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_CONFLICT", "Assessment was changed concurrently");
+                throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_CONFLICT", "Someone else changed this test at the same time. Reload the page and try again.");
             }
             throw exception;
         }

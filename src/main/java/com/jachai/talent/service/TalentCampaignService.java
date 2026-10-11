@@ -90,7 +90,7 @@ public class TalentCampaignService {
         try {
             return CampaignView.from(campaigns.save(campaign.close()));
         } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "CAMPAIGN_CONFLICT", "Campaign changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "CAMPAIGN_CONFLICT", "Someone else changed this campaign at the same time. Reload the page and try again.");
         }
     }
 
@@ -191,7 +191,7 @@ public class TalentCampaignService {
             if (existing == null) decisions.insert(next);
             else decisions.save(next);
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "REVIEW_CONFLICT", "Review changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "REVIEW_CONFLICT", "Someone else changed this review at the same time. Reload the page and try again.");
         }
         ensureReviewAudit(next);
         return new CandidateComparison(candidateId, candidateDisplayName,

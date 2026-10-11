@@ -94,7 +94,7 @@ public class MembershipService {
         if (organization.ownerUserId().equals(user.id())
                 || !allowedForType(organization.type(), invitation.role())) {
             throw new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT",
-                    "Invitation does not match an eligible membership");
+                    "This invitation cannot be used with your account.");
         }
         Membership existing = memberships.findByUserIdAndOrganizationId(user.id(), invitation.organizationId())
                 .orElse(null);
@@ -187,7 +187,7 @@ public class MembershipService {
 
     private ApiException adminNotFound() {
         return new ApiException(HttpStatus.NOT_FOUND, "ADMIN_NOT_FOUND",
-                "No eligible active admin with that email in this organization");
+                "No admin with that email was found in this organization.");
     }
 
     public MemberResponse changeRole(String actorId, String organizationId, String userId,
@@ -274,7 +274,7 @@ public class MembershipService {
                 .set("lastChangeActorId", actorId).set("lastChangedAt", now)
                 .set("previousRole", member.role()).set("previousActive", member.active()),
                 Membership.class).getModifiedCount() != 1) {
-            throw new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CHANGED", "Membership changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CHANGED", "Someone else changed this membership at the same time. Reload the page and try again.");
         }
         ensureAudit(new Membership(member.id(), member.userId(), member.organizationId(),
                 nextRole, nextActive, member.createdAt(), changeId, actorId, now,

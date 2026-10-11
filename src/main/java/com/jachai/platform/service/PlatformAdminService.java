@@ -83,7 +83,7 @@ public class PlatformAdminService {
         }
         if (adminUserIds.contains(targetUserId)) {
             throw new ApiException(HttpStatus.CONFLICT, "BOOTSTRAP_ADMIN",
-                    "An environment-configured administrator cannot be changed through the API");
+                    "The first admin cannot be changed here.");
         }
         User target = requireUser(targetUserId);
         if (grant && (!target.emailVerified() || target.disabled())) {
@@ -100,7 +100,7 @@ public class PlatformAdminService {
                         revision, Instant.now()));
             } catch (DuplicateKeyException exception) {
                 throw new ApiException(HttpStatus.CONFLICT, "ROLE_CHANGED",
-                        "Platform role changed concurrently; reload and retry");
+                        "Someone else changed this platform role at the same time. Reload the page and try again.");
             }
         }
         return roleView(target);

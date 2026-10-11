@@ -113,7 +113,7 @@ public class AttemptService {
         Assignment assignment = ownAssignment(userId, organizationId, assignmentId);
         Instant now = Instant.now();
         if (now.isBefore(assignment.availableFrom()) || !now.isBefore(assignment.availableUntil())) {
-            throw new ApiException(HttpStatus.CONFLICT, "OUTSIDE_WINDOW", "Assessment is outside its availability window");
+            throw new ApiException(HttpStatus.CONFLICT, "OUTSIDE_WINDOW", "This test is not open right now.");
         }
         AssessmentVersion version = version(organizationId, assignment.assessmentVersionId());
         List<Attempt> previous = attempts.findByAssignmentIdAndOrganizationIdAndUserId(
@@ -140,7 +140,7 @@ public class AttemptService {
         try {
             attempts.insert(attempt);
         } catch (DuplicateKeyException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "START_CONFLICT", "Attempt was started concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "START_CONFLICT", "Someone else changed this attempt at the same time. Reload the page and try again.");
         }
         return view(attempt, version);
     }
@@ -197,7 +197,7 @@ public class AttemptService {
             throw new ApiException(HttpStatus.CONFLICT, "ATTEMPT_CLOSED", "Attempt is closed");
         }
         throw new ApiException(HttpStatus.CONFLICT, "ANSWER_CONFLICT",
-                "Answer changed concurrently; reload and retry");
+                "Someone else changed this answer at the same time. Reload the page and try again.");
     }
 
     public ResultView submit(String userId, String organizationId, String attemptId) {
@@ -242,7 +242,7 @@ public class AttemptService {
             queueReleasedEmail(released);
             return result(released, version);
         } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "RELEASE_CONFLICT", "Result changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "RELEASE_CONFLICT", "Someone else changed this result at the same time. Reload the page and try again.");
         }
     }
 
@@ -361,7 +361,7 @@ public class AttemptService {
             queueReleasedEmail(saved);
             return staffReview(actorId, organizationId, attemptId);
         } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "GRADE_CONFLICT", "Grade changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "GRADE_CONFLICT", "Someone else changed this grade at the same time. Reload the page and try again.");
         }
     }
 
@@ -409,7 +409,7 @@ public class AttemptService {
             queueReleasedEmail(saved);
             return saved;
         } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "SUBMIT_CONFLICT", "Attempt changed concurrently; reload result");
+            throw new ApiException(HttpStatus.CONFLICT, "SUBMIT_CONFLICT", "Someone else changed this attempt at the same time. Reload the page and try again.");
         }
     }
 

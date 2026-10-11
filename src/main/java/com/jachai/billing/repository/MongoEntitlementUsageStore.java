@@ -129,7 +129,7 @@ public class MongoEntitlementUsageStore implements EntitlementUsageStore {
         MongoTemplate mongo = mongoProvider.getIfAvailable();
         if (mongo == null) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "USAGE_STORE_UNAVAILABLE",
-                    "Entitlement usage storage is unavailable");
+                    "Usage numbers cannot be read right now. Try again soon.");
         }
         return mongo;
     }

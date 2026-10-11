@@ -168,7 +168,7 @@ public class SslCommerzSandboxGateway {
                 || response.path("risk_level").asInt(-1) != 0
                 || response.path("bank_tran_id").asText("").isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_VERIFIED",
-                    "Payment was not verified by SSLCOMMERZ sandbox");
+                    "SSLCommerz could not confirm this payment.");
         }
         try {
             BigDecimal paid = new BigDecimal(response.path("currency_amount").asText());
@@ -178,7 +178,7 @@ public class SslCommerzSandboxGateway {
             }
         } catch (NumberFormatException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_VERIFIED",
-                    "Payment was not verified by SSLCOMMERZ sandbox");
+                    "SSLCommerz could not confirm this payment.");
         }
         return new VerifiedPayment(validationId, response.path("bank_tran_id").asText());
     }
@@ -186,7 +186,7 @@ public class SslCommerzSandboxGateway {
     private void requireConfigured() {
         if (storeId.isBlank() || storePassword.isBlank()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "BILLING_UNAVAILABLE",
-                    "SSLCOMMERZ sandbox credentials are not configured");
+                    "SSLCommerz practice payments are not set up yet.");
         }
         SandboxCallbackOrigin.require(publicBaseUrl);
     }
@@ -201,7 +201,7 @@ public class SslCommerzSandboxGateway {
 
     private static ApiException providerFailure() {
         return new ApiException(HttpStatus.BAD_GATEWAY, "BILLING_PROVIDER_ERROR",
-                "SSLCOMMERZ sandbox did not complete the request");
+                "SSLCommerz did not respond. Try again.");
     }
 
     public record CheckoutSession(String sessionId, String checkoutUrl) { }

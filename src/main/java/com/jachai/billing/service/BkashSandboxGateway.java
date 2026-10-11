@@ -117,7 +117,7 @@ public class BkashSandboxGateway {
                 || response.path("trxID").asText("").isBlank()
                 || !matchesAmount(response.path("amount"), order.amountBdt())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_NOT_VERIFIED",
-                    "Payment was not verified by bKash sandbox");
+                    "bKash could not confirm this payment.");
         }
         return new VerifiedPayment(paymentId, response.path("trxID").asText());
     }
@@ -155,7 +155,7 @@ public class BkashSandboxGateway {
     private void requireConfigured() {
         if (appKey.isBlank() || appSecret.isBlank() || username.isBlank() || password.isBlank()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "BILLING_UNAVAILABLE", "bKash sandbox credentials are not configured");
+                    "BILLING_UNAVAILABLE", "bKash practice payments are not set up yet.");
         }
         SandboxCallbackOrigin.require(publicBaseUrl);
     }
@@ -174,7 +174,7 @@ public class BkashSandboxGateway {
 
     private static ApiException providerFailure() {
         return new ApiException(HttpStatus.BAD_GATEWAY, "BILLING_PROVIDER_ERROR",
-                "bKash sandbox did not complete the request");
+                "bKash did not respond. Try again.");
     }
 
     private record GrantToken(String value, Instant expiresAt) { }

@@ -121,7 +121,7 @@ public class AcademyCatalogService {
                             organizationId, batchId, learnerUserId)
                     .filter(BatchEnrollment::active)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "ENROLLMENT_CONFLICT",
-                            "Enrollment changed concurrently; reload it"));
+                            "Someone else changed this enrollment at the same time. Reload the page and try again."));
         }
         batchAssessmentService.syncLearner(saved);
         return EnrollmentView.from(saved, learner.displayName());

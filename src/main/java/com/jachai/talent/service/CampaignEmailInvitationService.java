@@ -99,7 +99,7 @@ public class CampaignEmailInvitationService {
                 || !existing.availableFrom().equals(availableFrom)
                 || !existing.availableUntil().equals(availableUntil))) {
             throw new ApiException(HttpStatus.CONFLICT, "INVITATION_WINDOW_CHANGED",
-                    "An invitation already exists with different availability; use its original window");
+                    "An invitation to this person already exists with different dates. Use the same dates.");
         }
         byte[] secret = new byte[32];
         RANDOM.nextBytes(secret);
@@ -117,7 +117,7 @@ public class CampaignEmailInvitationService {
             invitation = existing == null ? invitations.insert(invitation) : invitations.save(invitation);
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
             entitlements.refund(reservation);
-            throw new ApiException(HttpStatus.CONFLICT, "INVITATION_CONFLICT", "Invitation changed concurrently; retry");
+            throw new ApiException(HttpStatus.CONFLICT, "INVITATION_CONFLICT", "Someone else changed this invitation at the same time. Reload the page and try again.");
         } catch (RuntimeException exception) {
             entitlements.refund(reservation);
             throw exception;
@@ -190,7 +190,7 @@ public class CampaignEmailInvitationService {
         } catch (DuplicateKeyException exception) {
             Membership raced = memberships.findByUserIdAndOrganizationId(userId, organizationId)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT",
-                            "Membership changed concurrently; retry"));
+                            "Someone else changed this membership at the same time. Reload the page and try again."));
             if (!raced.active() || raced.role() != OrganizationRole.CANDIDATE) {
                 throw new ApiException(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT",
                         "Your existing membership cannot accept a candidate invitation");

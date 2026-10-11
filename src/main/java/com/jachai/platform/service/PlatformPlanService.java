@@ -118,7 +118,7 @@ public class PlatformPlanService {
             return ManualPlanView.from(organizationId, events.insert(event), now);
         } catch (DuplicateKeyException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "PLAN_CHANGED",
-                    "Manual plan changed concurrently; reload and retry");
+                    "Someone else changed this free plan at the same time. Reload the page and try again.");
         }
     }
 

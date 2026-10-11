@@ -81,7 +81,7 @@ public class AcademyMessagingService {
                             organizationId, instructorId, learnerId)
                     .map(conversation -> view(conversation, actorId))
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "CONVERSATION_CONFLICT",
-                            "Conversation changed concurrently; reload it"));
+                            "Someone else changed this conversation at the same time. Reload the page and try again."));
         }
     }
 

@@ -122,7 +122,7 @@ public class CertificateService {
             saved = certificates.findByAttemptIdAndOrganizationId(attemptId, organizationId)
                     .filter(found -> found.status() == CertificateStatus.ISSUED)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "CERTIFICATE_CONFLICT",
-                            "Certificate was created concurrently; retry"));
+                            "Someone else changed this certificate at the same time. Reload the page and try again."));
         } catch (RuntimeException exception) {
             entitlements.refund(reservation);
             throw exception;
@@ -157,7 +157,7 @@ public class CertificateService {
             ensureAudit(saved);
             return CertificateView.from(saved);
         } catch (OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "REVOKE_CONFLICT", "Certificate changed concurrently; reload it");
+            throw new ApiException(HttpStatus.CONFLICT, "REVOKE_CONFLICT", "Someone else changed this certificate at the same time. Reload the page and try again.");
         }
     }
 

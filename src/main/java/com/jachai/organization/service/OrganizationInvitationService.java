@@ -87,7 +87,7 @@ public class OrganizationInvitationService {
             next = existing == null ? invitations.insert(next) : invitations.save(next);
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "INVITATION_CONFLICT",
-                    "Invitation changed concurrently; reload and retry");
+                    "Someone else changed this invitation at the same time. Reload the page and try again.");
         }
         String url = publicBaseUrl.replaceAll("/+$", "") + "/?memberInvitation="
                 + URLEncoder.encode(token, StandardCharsets.UTF_8);
@@ -119,7 +119,7 @@ public class OrganizationInvitationService {
             return OrganizationInvitationView.from(invitations.save(invitation.revoked(Instant.now())));
         } catch (OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "INVITATION_CONFLICT",
-                    "Invitation changed concurrently; reload and retry");
+                    "Someone else changed this invitation at the same time. Reload the page and try again.");
         }
     }
 
@@ -147,7 +147,7 @@ public class OrganizationInvitationService {
                 invitation = invitations.save(invitation.accepted(Instant.now()));
             } catch (OptimisticLockingFailureException exception) {
                 throw new ApiException(HttpStatus.CONFLICT, "INVITATION_CONFLICT",
-                        "Invitation changed concurrently; reload and retry");
+                        "Someone else changed this invitation at the same time. Reload the page and try again.");
             }
         }
         memberService.acceptInvitation(invitation, user);

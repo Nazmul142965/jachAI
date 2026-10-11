@@ -36,7 +36,7 @@ public class GoogleIdTokenVerifier {
     public GoogleProfile verify(String credential) {
         if (decoder == null) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "GOOGLE_LOGIN_UNAVAILABLE",
-                    "Google sign-in is not configured");
+                    "Google sign-in is not turned on for this site.");
         }
         Jwt token;
         try {

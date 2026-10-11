@@ -63,7 +63,7 @@ public class CertificateDesignService {
                     previous == null ? null : previous.revision()));
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "CERTIFICATE_DESIGN_CONFLICT",
-                    "Certificate design changed concurrently; reload and retry");
+                    "Someone else changed this certificate design at the same time. Reload the page and try again.");
         }
         return CertificateDesignView.from(design);
     }
@@ -77,7 +77,7 @@ public class CertificateDesignService {
         return designs.findByIdAndOrganizationId(designId, organizationId)
                 .map(CertificateDesignView::from)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "CERTIFICATE_DESIGN_MISSING",
-                        "Certificate design snapshot is unavailable"));
+                        "The certificate design could not be loaded."));
     }
 
     private CertificateDesign currentDesign(String organizationId) {

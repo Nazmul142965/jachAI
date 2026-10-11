@@ -68,7 +68,7 @@ public class SpringAiService implements AiService {
                 : environment.getProperty("app.ai.tutor-provider", "none");
         if (modelFor(primary, useCase) == null) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_NOT_CONFIGURED",
-                    "AI is not configured for this environment");
+                    "AI is not turned on for this site yet.");
         }
         String fallback = fallbackFor(primary, environment.getProperty(
                 draft ? "app.ai.question-fallback" : "app.ai.tutor-fallback", "auto"));
@@ -107,7 +107,7 @@ public class SpringAiService implements AiService {
             ChatModel model = modelFor(provider, useCase);
             if (model == null) {
                 throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_NOT_CONFIGURED",
-                        "AI is not configured for this environment");
+                        "AI is not turned on for this site yet.");
             }
             String response = timed ? callWithDeadline(model, useCase, system, user) : call(model, useCase, system, user);
             int maxLength = useCase == AiUseCase.TUTOR || useCase == AiUseCase.ASSISTANT ? 3000 : 12000;

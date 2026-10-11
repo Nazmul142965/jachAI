@@ -72,7 +72,7 @@ public class BatchAssessmentService {
                 || request.availableFrom().isBefore(batch.startsAt())
                 || request.availableUntil().isAfter(batch.endsAt())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WINDOW",
-                    "Assessment availability must be within the batch window");
+                    "The test dates must fall inside the batch dates.");
         }
         Assessment assessment = assessments.findByIdAndOrganizationId(request.assessmentId(), organizationId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Assessment not found"));

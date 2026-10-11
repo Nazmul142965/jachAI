@@ -72,12 +72,12 @@ public class PaymentBillingService {
                 || demoPrice.compareTo(new BigDecimal("500000.00")) > 0
                 || demoPrice.scale() > 2) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "BILLING_UNAVAILABLE",
-                    "Sandbox demo price is invalid");
+                    "The practice price is not set correctly.");
         }
         if (provider == null || provider == PaymentProvider.SSLCOMMERZ && !ssl.configured()
                 || provider == PaymentProvider.BKASH && !bkash.configured()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "BILLING_UNAVAILABLE",
-                    "Requested sandbox payment provider is not configured");
+                    "That payment option is not set up yet.");
         }
         User buyer = users.findById(actorId)
                 .filter(user -> user.emailVerified() && !user.disabled())
@@ -167,7 +167,7 @@ public class PaymentBillingService {
         }
         String validationId = ssl.findValidationId(order).orElseThrow(() ->
                 new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_VERIFIED",
-                        "No completed SSLCOMMERZ sandbox transaction was found"));
+                        "No finished SSLCommerz practice payment was found."));
         // The query locates a reference only. verifySslCallback independently validates
         // status, order ID, currency, amount and risk before changing the plan.
         return verifySslCallback(order.id(), validationId);

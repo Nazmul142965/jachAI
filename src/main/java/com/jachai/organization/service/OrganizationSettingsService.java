@@ -38,7 +38,7 @@ public class OrganizationSettingsService {
         try {
             return view(settings.save(changed));
         } catch (DuplicateKeyException | OptimisticLockingFailureException exception) {
-            throw new ApiException(HttpStatus.CONFLICT, "SETTINGS_CONFLICT", "Settings changed concurrently; reload and retry");
+            throw new ApiException(HttpStatus.CONFLICT, "SETTINGS_CONFLICT", "Someone else changed this settings at the same time. Reload the page and try again.");
         }
     }
 
