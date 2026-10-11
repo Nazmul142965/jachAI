@@ -13,9 +13,12 @@ ENV MVN_FLAGS="-B -q -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpc
 # only to throw the classes away — and those were among the artifacts that got
 # refused. The container build already does not run tests; test the same
 # revision before publishing an image, as SYSTEM.md says.
-RUN mvn $MVN_FLAGS -Dmaven.test.skip=true dependency:go-offline
+COPY docker/maven-settings.xml /build/settings.xml
+# Resolve through the mirror, retry the whole step a few times, and make the
+# last attempt go straight to Central in case the mirror is the one that is down.
+RUN n=0; until mvn $MVN_FLAGS -s /build/settings.xml -Dmaven.test.skip=true dependency:go-offline; do       n=$((n+1)); [ $n -ge 3 ] && exec mvn $MVN_FLAGS -Dmaven.test.skip=true dependency:go-offline; sleep 20; done
 COPY src ./src
-RUN mvn $MVN_FLAGS -Dmaven.test.skip=true package
+RUN n=0; until mvn $MVN_FLAGS -s /build/settings.xml -Dmaven.test.skip=true package; do       n=$((n+1)); [ $n -ge 3 ] && exec mvn $MVN_FLAGS -Dmaven.test.skip=true package; sleep 20; done
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

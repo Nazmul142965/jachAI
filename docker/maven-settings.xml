@@ -1,0 +1,11 @@
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">
+  <!-- Google's read-only copy of Maven Central. repo.maven.apache.org answers
+       429 to Render's shared build network; this mirror does not. -->
+  <mirrors>
+    <mirror>
+      <id>central-mirror</id>
+      <mirrorOf>central</mirrorOf>
+      <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+    </mirror>
+  </mirrors>
+</settings>
