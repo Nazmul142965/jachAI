@@ -2141,3 +2141,50 @@ body[data-restoring]::before {
 .lang-switch button:hover { color: var(--ink); }
 .lang-switch button.active { background: var(--brand-600); color: var(--on-brand); }
 .lang-switch button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* -- Card polish ----------------------------------------------------------
+   Every working card gets the same rhythm: a marked title, the list of what
+   exists, then the "create" form in its own soft block so it reads as one
+   action instead of more of the same form fields. */
+.card.panel:not(#start-view) > h2:first-child,
+.card.panel > .section-heading h2,
+.card.panel > h3:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.card.panel:not(#start-view) > h2:first-child::before,
+.card.panel > .section-heading h2::before,
+.card.panel > h3:first-child::before {
+  content: "";
+  flex: none;
+  width: 4px;
+  height: 1.05em;
+  border-radius: var(--r-pill);
+  background: linear-gradient(var(--brand-400), var(--brand-600));
+}
+.card.panel { transition: box-shadow var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease); }
+.card.panel:hover { border-color: var(--line-strong); box-shadow: var(--e-2); }
+.card.panel > h2 + .muted,
+.card.panel > .section-heading .muted { margin-bottom: var(--sp-4); }
+
+.card.panel > form.stack,
+.card.panel > form.form-row {
+  margin-top: var(--sp-5);
+  padding: var(--sp-5);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+}
+.card.panel > .item-list { margin-top: var(--sp-3); }
+.card.panel > .item-list:empty { display: none; }
+.card.panel .item { border-left: 3px solid var(--brand-200); }
+.card.panel .item:hover { border-left-color: var(--brand); }
+.card.panel > label + .item-list { margin-top: var(--sp-4); }
+
+/* Academy staff screen: courses and batches side by side on wide screens. */
+#academy-staff-panel { display: grid; gap: var(--sp-6); }
+@media (min-width: 1100px) {
+  #academy-staff-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  #academy-staff-panel > :nth-child(n+3) { grid-column: 1 / -1; }
+}
