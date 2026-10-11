@@ -293,6 +293,13 @@ async function main() {
       && document.querySelectorAll('#account-plan progress')[1].max === 20`));
   check(journey, 'profile asks for the reset email in place and does not leave the app',
     await ev(`!document.querySelector('#account-view a[href*="reset-password"]')`));
+  await ev(`(() => { const form = document.querySelector('#account-password-form');
+    form.elements.currentPassword.value = 'old-secret'; form.elements.newPassword.value = 'new-secret-1';
+    form.elements.confirmPassword.value = 'new-secret-2';
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); return true; })()`); await wait(500);
+  check(journey, 'change password refuses two different new passwords and stays signed in',
+    await ev(`document.body.textContent.includes('The two new passwords are not the same')
+      && !document.querySelector('#app').classList.contains('hidden')`));
   await ev(`document.querySelector('#account-reset-button').click()`); await wait(600);
   check(journey, 'the in-place reset button reports where the link was sent',
     await ev(`document.querySelector('#account-reset-status').textContent.includes('learner@example.com')

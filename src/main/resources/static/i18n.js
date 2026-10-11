@@ -441,6 +441,8 @@ const BN = {
   "Email me a link to set a password": "পাসওয়ার্ড দেওয়ার লিংক আমাকে ইমেইল করুন",
   "If your account is eligible, a link was sent to {email}. It can take a minute; check spam too.": "আপনার অ্যাকাউন্ট যোগ্য হলে {email}-এ একটি লিংক পাঠানো হয়েছে। এক মিনিট লাগতে পারে; স্প্যামও দেখুন।",
   "Your profile is still loading. Try again in a moment.": "আপনার প্রোফাইল এখনো লোড হচ্ছে। একটু পরে আবার চেষ্টা করুন।",
+  "Confirm new password": "নতুন পাসওয়ার্ড আবার লিখুন",
+  "The two new passwords are not the same. Type them again.": "দুটি নতুন পাসওয়ার্ড একই নয়। আবার লিখুন।",
   "Generating a draft… this can take up to a minute.": "খসড়া বানানো হচ্ছে… এক মিনিট পর্যন্ত লাগতে পারে।",
   "That person is not an active learner in this organization. Copy their User ID from Members.": "ইনি এই প্রতিষ্ঠানের সক্রিয় শিক্ষার্থী নন। সদস্য তালিকা থেকে তাঁর User ID কপি করুন।",
   "Optional. Drafting can take up to a minute. Generated questions are always drafts that a human must review, and AI never sets an official score.": "ঐচ্ছিক। খসড়া বানাতে এক মিনিট পর্যন্ত লাগতে পারে। এআই-র বানানো প্রশ্ন সবসময় খসড়া, যা মানুষকে পর্যালোচনা করতে হবে, আর এআই কখনো সরকারি নম্বর ঠিক করে না।",

@@ -1106,9 +1106,14 @@ $('#account-password-form').addEventListener('submit', (event) => {
   run(async () => {
     const form = event.currentTarget;
     const control = form.querySelector('button[type="submit"]');
+    const values = Object.fromEntries(new FormData(form));
+    if (values.newPassword !== values.confirmPassword) {
+      throw new Error('The two new passwords are not the same. Type them again.');
+    }
+    delete values.confirmPassword;
     control.disabled = true;
     try {
-      await request('/auth/change-password', { method: 'POST', body: Object.fromEntries(new FormData(form)) });
+      await request('/auth/change-password', { method: 'POST', body: values });
       form.reset();
       showSignedOut();
       notice('Password changed. Sign in again; other sessions have been revoked.');
