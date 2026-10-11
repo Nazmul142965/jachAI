@@ -984,6 +984,11 @@ async function loadAccount() {
     if (passwordFormUser) passwordFormUser.value = profile.email;
     $('#account-login-method').textContent = `${profile.passwordSet ? 'Password sign-in enabled' : 'No password set'}${profile.googleLinked ? ' · Google linked' : ''}.`;
     $('#account-password-form').classList.toggle('hidden', !profile.passwordSet);
+    $('#account-reset-text').textContent = profile.passwordSet
+      ? 'Forgot your current password? We will email you a link to choose a new one.'
+      : 'You have no password yet, for example because you signed up with Google. We will email you a link to set one.';
+    $('#account-reset-button').textContent = profile.passwordSet
+      ? 'Email me a reset link' : 'Email me a link to set a password';
   } else {
     identity.append(node('p', 'Profile could not be loaded. Reopen this page to retry.', 'muted'));
     $('#account-profile-form').classList.add('hidden');
@@ -1079,6 +1084,23 @@ $('#account-profile-form').addEventListener('submit', (event) => {
   }));
 });
 
+// The reset email is requested from here, so nobody has to leave the app and find a separate page.
+$('#account-reset-button').addEventListener('click', (event) => {
+  const control = event.currentTarget;
+  const status = $('#account-reset-status');
+  run(async () => {
+    const email = state.profile?.email;
+    if (!email) throw new Error('Your profile is still loading. Try again in a moment.');
+    control.disabled = true;
+    try {
+      await request('/auth/request-password-reset', { method: 'POST', body: { email } });
+      status.textContent = t('If your account is eligible, a link was sent to {email}. It can take a minute; check spam too.',
+        { email });
+      // One request a minute is plenty and keeps the server's reset limit from being used up by accident.
+      window.setTimeout(() => { control.disabled = false; }, 60000);
+    } catch (error) { control.disabled = false; throw error; }
+  });
+});
 $('#account-password-form').addEventListener('submit', (event) => {
   event.preventDefault();
   run(async () => {

@@ -291,6 +291,12 @@ async function main() {
   check(journey, 'account usage uses the API limit field',
     await ev(`document.querySelector('#account-plan').textContent.includes('1 of 20 answers used')
       && document.querySelectorAll('#account-plan progress')[1].max === 20`));
+  check(journey, 'profile asks for the reset email in place and does not leave the app',
+    await ev(`!document.querySelector('#account-view a[href*="reset-password"]')`));
+  await ev(`document.querySelector('#account-reset-button').click()`); await wait(600);
+  check(journey, 'the in-place reset button reports where the link was sent',
+    await ev(`document.querySelector('#account-reset-status').textContent.includes('learner@example.com')
+      && document.querySelector('#account-reset-button').disabled`));
   await view('Overview'); await wait(350);
 
   // The signed-in overview is a command centre, not marketing copy.

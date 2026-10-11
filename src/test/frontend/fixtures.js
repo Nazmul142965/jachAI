@@ -123,6 +123,8 @@ const SOURCE = String.raw`(() => {
     if (path === '/api/v1/auth/email-delivery-mode') return json({ mode: 'LOCAL_CONSOLE' });
     if (path === '/api/v1/auth/me') return json({ email: 'learner@example.com', displayName: 'Learner One',
       emailVerified: true, passwordSet: true, googleLinked: false, createdAt: new Date().toISOString() });
+    if (path === '/api/v1/auth/request-password-reset' && method === 'POST')
+      return json({ message: 'If the account is eligible, a reset email has been queued' });
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });
     if (path === '/api/v1/platform/me') return json({ userId: ROLE.userId, platformAdmin: ROLE.platformAdmin });
     if (path === '/api/v1/organizations' && method === 'POST') {
