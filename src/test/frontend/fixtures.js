@@ -223,7 +223,7 @@ const SOURCE = String.raw`(() => {
     if (path === org + '/billing/entitlements') return json({ tier: 'FREE', retentionDays: 90,
       maxPublishedAssessments: 3, monthlyInvitations: 30, dailyUserAiRequests: 5, monthlyCertificates: 30 });
     if (path === org + '/billing/options') return json({ sandboxOnly: true, sslCommerzAvailable: false,
-      directBkashAvailable: false, demoTeamPriceBdt: 100 });
+      directBkashAvailable: false, demoTeamPriceBdt: 100, demoCheckoutAvailable: true });
     if (path === org + '/billing/orders') return json(page([demoOrder]));
     // Verified with the provider but not yet applied to the plan: the gap the
     // order detail exists to show.

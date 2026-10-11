@@ -1777,12 +1777,16 @@ async function loadEntitlements() {
     item('AI & certificates', `${plan.dailyUserAiRequests} AI requests per user/day · ${plan.monthlyCertificates} certificates per month`)
   ], 'Plan details are unavailable.');
   const options = await request(ownOrg('/billing/options'));
+  $('#start-demo-pay').disabled = !options.demoCheckoutAvailable;
   const checkout = $('#start-ssl-demo');
   checkout.disabled = !options.sslCommerzAvailable;
   $('#start-bkash-demo').disabled = !options.directBkashAvailable;
   const sandboxNote = options.sandboxOnly === false
     ? ' This site is not marked as practice-only. Do not enter real payment details.' : '';
-  $('#billing-hint').textContent = (options.sslCommerzAvailable || options.directBkashAvailable
+  $('#billing-hint').textContent = options.demoCheckoutAvailable
+    ? t('Upgrade to the TEAM plan for ৳{price} for 30 days. This is a demo: no real money is charged.',
+      { price: options.demoTeamPriceBdt }) + sandboxNote
+    : (options.sslCommerzAvailable || options.directBkashAvailable
     ? `Sandbox only · TEAM demo price: ৳${options.demoTeamPriceBdt} for 30 days. No real money is charged.`
     : 'Sandbox merchant credentials are not configured yet, so both demo checkout buttons stay disabled. No real money is charged.')
     + (options.sslCommerzAvailable ? '' : ' SSLCOMMERZ sandbox credentials are not configured.')
@@ -1809,7 +1813,7 @@ async function loadPaymentHistory(pageNumber = 0) {
     }
     actions.push(button('Details', () => showOrderDetail(order.id), 'button quiet small'));
     return item(
-      `${order.provider} · ৳${order.amountBdt} · ${order.status}`,
+      `${order.provider === 'DEMO' ? 'Checkout' : order.provider} · ৳${order.amountBdt} · ${order.status}`,
       `${order.id} · ${new Date(order.createdAt).toLocaleString()}`,
       actions);
   }), 'No demo transactions yet.');
@@ -4670,7 +4674,7 @@ $('#login-tab').addEventListener('click', () => switchAuth('login'));
 // plain link beside the button for the rare browser that really did refuse.
 function openCheckout(control, url) {
   let target;
-  try { target = new URL(url); } catch { target = null; }
+  try { target = new URL(url, window.location.origin); } catch { target = null; }
   if (!target || !['https:', 'http:'].includes(target.protocol)) {
     throw new Error('The payment page address was not valid. Try again.');
   }
@@ -4684,6 +4688,16 @@ function openCheckout(control, url) {
   link.href = target.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
   fallback.replaceChildren(t('Did the payment page not open? '), link, '.');
 }
+$('#start-demo-pay').addEventListener('click', () => run(async () => {
+  const control = $('#start-demo-pay');
+  control.disabled = true; control.textContent = 'Opening checkout…';
+  try {
+    const checkout = await request(ownOrg('/billing/orders'), { method: 'POST', body: { provider: 'DEMO' } });
+    openCheckout(control, checkout.checkoutUrl);
+  } finally {
+    control.disabled = false; control.textContent = 'Upgrade to TEAM';
+  }
+}));
 $('#start-ssl-demo').addEventListener('click', () => run(async () => {
   if (!await confirmDialog('Open the SSLCommerz sandbox?\n\n'
       + 'The sandbox opens in a new tab, so this signed-in tab stays available. '

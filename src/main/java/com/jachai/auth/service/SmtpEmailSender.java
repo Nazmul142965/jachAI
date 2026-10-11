@@ -76,12 +76,12 @@ final class SmtpEmailSender implements EmailTransport {
                         + payload.url() + "\n\nIf you already completed it, no action is needed.");
             }
             case BILLING_NOTICE -> {
-                mail.setSubject("JachAI sandbox plan notice");
+                mail.setSubject("Your JachAI payment receipt");
                 mail.setText("Hello " + payload.displayName()
-                        + ",\n\nA JachAI TEAM sandbox demo order was verified and applied:\n"
-                        + payload.campaignTitle() + "\n\nReview your workspace billing status after signing in:\n"
+                        + ",\n\nThank you. Your payment was received and your TEAM plan is now active.\n\n"
+                        + payload.campaignTitle() + "\n\nSign in to see your plan and payment history:\n"
                         + payload.url()
-                        + "\n\nThis is a sandbox demonstration, not a real-money receipt or charge.");
+                        + "\n\nThis is a demo payment: no real money was charged.");
             }
         }
         mailSender.send(mail);

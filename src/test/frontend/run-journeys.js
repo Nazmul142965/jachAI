@@ -477,6 +477,8 @@ async function main() {
     await ev(`window.__calls.some((call) => call.startsWith('PUT') && call.includes('/certificate-design'))`));
 
   await view('Billing'); await wait(1500); await shotBoth('screen-billing');
+  check(staff, 'billing offers one clear Upgrade button that works without a gateway account',
+    await ev(`!document.querySelector('#start-demo-pay').disabled && /no real money is charged/.test(document.querySelector('#billing-hint').textContent)`));
   check(staff, 'billing is its own screen with its own route',
     (await route()) === '#/billing', await route());
   // A payment gateway returned in ANOTHER tab. Only the outcome crosses between tabs; this

@@ -48,13 +48,15 @@ public class PaymentBillingService {
     private final EmailSender emailSender;
     private final String publicBaseUrl;
     private final BigDecimal demoPrice;
+    private final boolean demoCheckoutEnabled;
 
     public PaymentBillingService(TenantAccessService access, UserRepository users,
                                  PaymentOrderRepository orders,
                                  SubscriptionRepository subscriptions, SslCommerzSandboxGateway ssl,
                                  BkashSandboxGateway bkash, EmailSender emailSender,
                                  @Value("${app.billing.demo-team-price-bdt}") BigDecimal demoPrice,
-                                 @Value("${app.public-base-url}") String publicBaseUrl) {
+                                 @Value("${app.public-base-url}") String publicBaseUrl,
+                                 @Value("${app.billing.demo-checkout-enabled:true}") boolean demoCheckoutEnabled) {
         this.access = access;
         this.users = users;
         this.orders = orders;
@@ -64,6 +66,7 @@ public class PaymentBillingService {
         this.emailSender = emailSender;
         this.demoPrice = demoPrice;
         this.publicBaseUrl = publicBaseUrl;
+        this.demoCheckoutEnabled = demoCheckoutEnabled;
     }
 
     public CheckoutView start(String actorId, String organizationId, PaymentProvider provider) {
@@ -75,7 +78,8 @@ public class PaymentBillingService {
                     "The practice price is not set correctly.");
         }
         if (provider == null || provider == PaymentProvider.SSLCOMMERZ && !ssl.configured()
-                || provider == PaymentProvider.BKASH && !bkash.configured()) {
+                || provider == PaymentProvider.BKASH && !bkash.configured()
+                || provider == PaymentProvider.DEMO && !demoCheckoutEnabled) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "BILLING_UNAVAILABLE",
                     "That payment option is not set up yet.");
         }
@@ -88,6 +92,14 @@ public class PaymentBillingService {
         PaymentOrder order = orders.insert(new PaymentOrder(id, organizationId, actorId, provider,
                 PaymentOrderStatus.CREATED, demoPrice.setScale(2), null, null, null,
                 now, null, null, null));
+        if (provider == PaymentProvider.DEMO) {
+            // The key in the link is what lets this one order be completed; it is never shown again.
+            String key = java.util.UUID.randomUUID().toString().replace("-", "")
+                    + java.util.UUID.randomUUID().toString().replace("-", "");
+            orders.save(order.checkoutReady(key));
+            return new CheckoutView(order.id(), provider, order.amountBdt(),
+                    "/pay/demo/" + order.id() + "?k=" + key);
+        }
         if (provider == PaymentProvider.BKASH) {
             var session = bkash.start(order);
             orders.save(order.checkoutReady(session.paymentId()));
@@ -100,7 +112,7 @@ public class PaymentBillingService {
 
     public PaymentOptionsView options(String actorId, String organizationId) {
         access.requireRole(actorId, organizationId, OrganizationRole.ORG_ADMIN);
-        return new PaymentOptionsView(true, ssl.configured(), bkash.configured(), demoPrice);
+        return new PaymentOptionsView(true, ssl.configured(), bkash.configured(), demoPrice, demoCheckoutEnabled);
     }
 
     public Page<PaymentOrderView> history(String actorId, String organizationId, int page) {
@@ -159,6 +171,13 @@ public class PaymentBillingService {
         if (order.status() == PaymentOrderStatus.CREATED) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_READY", "Checkout has not started");
         }
+        if (order.provider() == PaymentProvider.DEMO) {
+            if (order.status() == PaymentOrderStatus.VERIFIED) {
+                return verifyCallback(order.id(), order.gatewayValidationId(), PaymentProvider.DEMO);
+            }
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_NOT_VERIFIED",
+                    "This payment has not been completed yet.");
+        }
         if (order.provider() == PaymentProvider.BKASH) {
             return verifyBkashCallback(order.id(), order.gatewaySessionId());
         }
@@ -200,7 +219,12 @@ public class PaymentBillingService {
             }
             if (order.status() == PaymentOrderStatus.CHECKOUT_READY) {
                 String gatewayTransactionId;
-                if (provider == PaymentProvider.BKASH) {
+                if (provider == PaymentProvider.DEMO) {
+                    if (!demoCheckoutEnabled || !sameKey(validationId, order.gatewaySessionId())) {
+                        throw invalidCallback();
+                    }
+                    gatewayTransactionId = "DEMO-" + java.util.UUID.randomUUID().toString().replace("-", "");
+                } else if (provider == PaymentProvider.BKASH) {
                     var verified = bkash.verify(order, validationId);
                     gatewayTransactionId = verified.gatewayTransactionId();
                 } else {
@@ -228,13 +252,51 @@ public class PaymentBillingService {
         throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_RETRY", "Payment is being processed; retry shortly");
     }
 
+    /** What the demo checkout page shows. The key must be the one that was put in the link. */
+    public DemoCheckoutView demoCheckout(String orderId, String key) {
+        PaymentOrder order = demoOrder(orderId, key);
+        return new DemoCheckoutView(order.id(), order.amountBdt(), order.status());
+    }
+
+    public record DemoCheckoutView(String orderId, BigDecimal amountBdt, PaymentOrderStatus status) { }
+
+    /** The customer pressed Pay on the demo checkout page. Same verify, apply and receipt path as a real gateway. */
+    public PaymentOrderView completeDemoPayment(String orderId, String key) {
+        demoOrder(orderId, key);
+        return verifyCallback(orderId, key, PaymentProvider.DEMO);
+    }
+
+    public PaymentOrderView cancelDemoPayment(String orderId, String key) {
+        demoOrder(orderId, key);
+        return cancel(orderId, PaymentProvider.DEMO);
+    }
+
+    private PaymentOrder demoOrder(String orderId, String key) {
+        if (!demoCheckoutEnabled || orderId == null || !orderId.matches("J[0-9a-f]{24}")
+                || key == null || key.isBlank()) {
+            throw invalidCallback();
+        }
+        PaymentOrder order = orders.findById(orderId).orElseThrow(this::invalidCallback);
+        if (order.provider() != PaymentProvider.DEMO || !sameKey(key, order.gatewaySessionId())) {
+            throw invalidCallback();
+        }
+        return order;
+    }
+
+    private static boolean sameKey(String given, String expected) {
+        return given != null && expected != null && java.security.MessageDigest.isEqual(
+                given.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                expected.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private void queueBillingNotice(PaymentOrder order) {
         try {
             users.findById(order.actorUserId())
                     .filter(user -> user.emailVerified() && !user.disabled())
                     .ifPresent(user -> emailSender.sendBillingNotice(order.id(), user.email(),
                             user.displayName(), "Order " + order.id() + " · BDT " + order.amountBdt()
-                                    + " · " + order.provider() + " sandbox",
+                                    + (order.provider() == PaymentProvider.DEMO ? " · Demo checkout"
+                                            : " · " + order.provider() + " sandbox"),
                             publicBaseUrl.replaceAll("/+$", "") + "/"));
         } catch (RuntimeException exception) {
             // Payment state remains authoritative. An APPLIED-order reconciliation repairs the notice.

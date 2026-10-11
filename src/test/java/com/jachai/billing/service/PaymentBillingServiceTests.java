@@ -48,7 +48,7 @@ class PaymentBillingServiceTests {
     private PaymentBillingService service() {
         return new PaymentBillingService(access, users, orders,
                 subscriptions, ssl, bkash, emailSender, new BigDecimal("100.00"),
-                "https://example.test/");
+                "https://example.test/", true);
     }
 
     @Test
@@ -285,6 +285,83 @@ class PaymentBillingServiceTests {
 
         assertEquals("INVALID_PAYMENT_CALLBACK", assertThrows(ApiException.class,
                 () -> service().verifySslCallback(ORDER_ID, "attacker-val")).code());
+    }
+
+    private PaymentBillingService service(boolean demoCheckoutEnabled) {
+        return new PaymentBillingService(access, users, orders,
+                subscriptions, ssl, bkash, emailSender, new BigDecimal("100.00"),
+                "https://example.test/", demoCheckoutEnabled);
+    }
+
+    private PaymentOrder demoOrder() {
+        return new PaymentOrder(ORDER_ID, "org", "admin", PaymentProvider.DEMO,
+                PaymentOrderStatus.CHECKOUT_READY, new BigDecimal("100.00"), "demo-key-0123456789",
+                null, null, Instant.now(), null, null, 1L);
+    }
+
+    @Test
+    void demoCheckoutStartsWithAKeyedLinkOnThisSite() {
+        when(users.findById("admin")).thenReturn(Optional.of(admin()));
+        when(orders.insert(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var checkout = service().start("admin", "org", PaymentProvider.DEMO);
+
+        assertEquals(PaymentProvider.DEMO, checkout.provider());
+        assertTrue(checkout.checkoutUrl().startsWith("/pay/demo/J"));
+        assertTrue(checkout.checkoutUrl().contains("?k="));
+        ArgumentCaptor<PaymentOrder> saved = ArgumentCaptor.forClass(PaymentOrder.class);
+        verify(orders).save(saved.capture());
+        assertEquals(PaymentOrderStatus.CHECKOUT_READY, saved.getValue().status());
+        assertTrue(checkout.checkoutUrl().endsWith(saved.getValue().gatewaySessionId()));
+        verify(ssl, never()).start(any(PaymentOrder.class), any(User.class));
+    }
+
+    @Test
+    void demoCheckoutIsRefusedWhenSwitchedOff() {
+        assertEquals("BILLING_UNAVAILABLE", assertThrows(ApiException.class,
+                () -> service(false).start("admin", "org", PaymentProvider.DEMO)).code());
+        verify(orders, never()).insert(any(PaymentOrder.class));
+    }
+
+    @Test
+    void demoPaymentWithTheWrongKeyChangesNothing() {
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(demoOrder()));
+
+        assertEquals("INVALID_PAYMENT_CALLBACK", assertThrows(ApiException.class,
+                () -> service().completeDemoPayment(ORDER_ID, "someone-elses-key")).code());
+        verify(subscriptions, never()).save(any(Subscription.class));
+        verify(orders, never()).save(any(PaymentOrder.class));
+    }
+
+    @Test
+    void demoPaymentWithTheRightKeyAppliesTeamAndSendsAReceipt() {
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(demoOrder()));
+        when(orders.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(users.findById("admin")).thenReturn(Optional.of(admin()));
+
+        var result = service().completeDemoPayment(ORDER_ID, "demo-key-0123456789");
+
+        assertEquals(PaymentOrderStatus.APPLIED, result.status());
+        verify(subscriptions).save(any(Subscription.class));
+        verify(emailSender).sendBillingNotice(eq(ORDER_ID), eq(admin().email()), any(), any(), any());
+    }
+
+    @Test
+    void anotherProvidersOrderCannotBeCompletedThroughTheDemoPage() {
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(readyOrder()));
+
+        assertEquals("INVALID_PAYMENT_CALLBACK", assertThrows(ApiException.class,
+                () -> service().completeDemoPayment(ORDER_ID, "session")).code());
+        verify(subscriptions, never()).save(any(Subscription.class));
+    }
+
+    @Test
+    void anUnfinishedDemoCheckoutCannotBeMarkedPaidByReconciliation() {
+        when(orders.findByIdAndOrganizationId(ORDER_ID, "org")).thenReturn(Optional.of(demoOrder()));
+
+        assertEquals("PAYMENT_NOT_VERIFIED", assertThrows(ApiException.class,
+                () -> service().reconcile("admin", "org", ORDER_ID)).code());
+        verify(subscriptions, never()).save(any(Subscription.class));
     }
 
     private User admin() {

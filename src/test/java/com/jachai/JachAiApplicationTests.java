@@ -399,6 +399,50 @@ class JachAiApplicationTests {
     }
 
     @Test
+    void demoCheckoutPageRendersForAValidKeyAndPostsOnlyTheKey() throws Exception {
+        org.mockito.Mockito.when(paymentBillingService.demoCheckout("J123456789012345678901234", "key123"))
+                .thenReturn(new com.jachai.billing.service.PaymentBillingService.DemoCheckoutView(
+                        "J123456789012345678901234", new java.math.BigDecimal("100.00"),
+                        com.jachai.billing.model.PaymentOrderStatus.CHECKOUT_READY));
+        mvc.perform(get("/pay/demo/J123456789012345678901234").param("k", "key123"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", containsString("no-store")))
+                .andExpect(content().string(containsString("JachAI Pay")))
+                .andExpect(content().string(containsString("100.00")))
+                .andExpect(content().string(containsString("action=\"/pay/demo/J123456789012345678901234/pay\"")))
+                .andExpect(content().string(containsString("value=\"key123\"")));
+    }
+
+    @Test
+    void demoCheckoutPageWithABadKeySendsTheBrowserBackAsFailed() throws Exception {
+        org.mockito.Mockito.when(paymentBillingService.demoCheckout("J123456789012345678901234", "wrong"))
+                .thenThrow(new com.jachai.shared.error.ApiException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                        "INVALID_PAYMENT_CALLBACK", "Payment callback is invalid"));
+        mvc.perform(get("/pay/demo/J123456789012345678901234").param("k", "wrong"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/?billing=failed"));
+    }
+
+    @Test
+    void payingOnTheDemoCheckoutCompletesTheOrderAndReturnsVerified() throws Exception {
+        mvc.perform(post("/pay/demo/J123456789012345678901234/pay").param("k", "key123"))
+                .andExpect(status().isSeeOther())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Location", "/?billing=verified"));
+        verify(paymentBillingService).completeDemoPayment("J123456789012345678901234", "key123");
+    }
+
+    @Test
+    void cancellingOnTheDemoCheckoutReturnsCanceled() throws Exception {
+        mvc.perform(post("/pay/demo/J123456789012345678901234/cancel").param("k", "key123"))
+                .andExpect(status().isSeeOther())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Location", "/?billing=canceled"));
+        verify(paymentBillingService).cancelDemoPayment("J123456789012345678901234", "key123");
+    }
+
+    @Test
     void resetPageIsPublic() throws Exception {
         mvc.perform(get("/reset-password.html"))
                 .andExpect(status().isOk())
