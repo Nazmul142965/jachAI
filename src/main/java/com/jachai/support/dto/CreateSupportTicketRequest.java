@@ -2,11 +2,12 @@ package com.jachai.support.dto;
 
 import com.jachai.support.type.TicketCategory;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 
 public record CreateSupportTicketRequest(
-        @NotBlank(message = "category is required")
+        @NotNull(message = "category is required")
         TicketCategory category,
 
         @NotBlank(message = "subject is required")

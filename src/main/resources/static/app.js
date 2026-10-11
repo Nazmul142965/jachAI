@@ -586,6 +586,7 @@ async function signedIn(tokens) {
     ? `${invitationMessage} An assessment attempt is still in progress — open My assessments and choose Resume.`
     : invitationMessage);
 }
+let demoWorkspace = '';
 async function loadOrganizations(preferredId = state.organization?.id) {
   const previous = preferredId;
   const platformAccess = await request('/platform/me');
@@ -599,7 +600,11 @@ async function loadOrganizations(preferredId = state.organization?.id) {
     option.value = organization.id;
     select.append(option);
   }
-  state.organization = state.organizations.find((item) => item.id === previous) || state.organizations[0] || null;
+  // A demo role opens in the workspace its button names, not just the first one listed.
+  const demoHome = demoWorkspace && state.organizations.find((item) => item.type === demoWorkspace);
+  demoWorkspace = '';
+  state.organization = state.organizations.find((item) => item.id === previous) || demoHome
+    || state.organizations[0] || null;
   if (state.organization) select.value = state.organization.id;
   await setOrganization();
 }
@@ -4767,6 +4772,7 @@ function loadDemoAccess() {
     const control = button(account.label, async () => {
       control.disabled = true;
       try {
+        demoWorkspace = String(account.workspace || '').toUpperCase();
         const tokens = await request(`/demo/login/${encodeURIComponent(account.key)}`,
           { method: 'POST', auth: false, retry: false });
         await signedIn(tokens);
@@ -5142,7 +5148,7 @@ $('#invite-member-form').addEventListener('submit', (event) => { event.preventDe
   element.reset();
   await loadMemberInvitations(0);
   notice(mailDeliveryMode === 'SMTP'
-    ? 'Invitation recorded and queued for SMTP delivery. Check the recipient inbox and the email_jobs status if it does not arrive.'
+    ? 'Invitation sent. If it does not arrive, ask them to check spam, or send it again.'
     : 'Invitation recorded, but this run is not using SMTP. The link is printed in the application console; configure MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM for real delivery.');
 }); });
 $('#transfer-owner-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
@@ -5232,6 +5238,7 @@ $('#ai-draft-form').addEventListener('submit', (event) => { event.preventDefault
   const control = element.querySelector('button[type="submit"]');
   if (control) control.disabled = true;
   try {
+    notice(t('Generating a draft… this can take up to a minute.'));
     await request(ownOrg('/ai/question-drafts'), { method: 'POST',
       body: { topic: form.get('topic'), brief: form.get('brief'), type: form.get('type'),
         difficulty: form.get('difficulty') } });

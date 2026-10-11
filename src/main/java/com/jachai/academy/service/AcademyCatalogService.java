@@ -87,7 +87,17 @@ public class AcademyCatalogService {
         requireStaff(actorId, organizationId);
         Course course = course(organizationId, courseId);
         Batch batch = batch(organizationId, courseId, batchId);
-        access.requireRole(learnerUserId, organizationId, OrganizationRole.LEARNER);
+        try {
+            access.requireRole(learnerUserId, organizationId, OrganizationRole.LEARNER);
+        } catch (ApiException notALearner) {
+            // The access check hides membership as "Organization not found" so strangers cannot probe
+            // workspaces. Here the caller is staff of this organization, so say what is actually wrong.
+            if (notALearner.status() != HttpStatus.NOT_FOUND && notALearner.status() != HttpStatus.FORBIDDEN) {
+                throw notALearner;
+            }
+            throw new ApiException(HttpStatus.CONFLICT, "LEARNER_NOT_MEMBER",
+                    "That person is not an active learner in this organization. Copy their User ID from Members.");
+        }
         var learner = users.findById(learnerUserId)
                 .filter(user -> user.emailVerified() && !user.disabled())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "LEARNER_UNAVAILABLE",
