@@ -4,14 +4,15 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class GroqAiConfig {
     @Bean
-    @ConditionalOnProperty(name = "app.ai.tutor-provider", havingValue = "groq")
+    // Built when Groq is the tutor, or whenever a Groq key exists so it can stand in when another provider fails.
+    @ConditionalOnExpression("'${app.ai.tutor-provider:none}' == 'groq' or !'${app.ai.groq.api-key:}'.isBlank()")
     OpenAiChatModel groqTutorModel(@Value("${app.ai.groq.api-key:}") String apiKey,
                                   @Value("${app.ai.groq.base-url}") String baseUrl,
                                   @Value("${app.ai.groq.model}") String model) {
