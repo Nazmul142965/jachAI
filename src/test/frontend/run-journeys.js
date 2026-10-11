@@ -291,6 +291,18 @@ async function main() {
   check(journey, 'account usage uses the API limit field',
     await ev(`document.querySelector('#account-plan').textContent.includes('1 of 20 answers used')
       && document.querySelectorAll('#account-plan progress')[1].max === 20`));
+  await ev(`(() => { const form = document.querySelector('#account-avatar-form');
+    const transfer = new DataTransfer(); transfer.items.add(new File(['x'], 'me.png', { type: 'image/png' }));
+    form.querySelector('input[name=image]').files = transfer.files;
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); return true; })()`); await wait(600);
+  check(journey, 'a new profile image shows in the top account button and in Profile at once',
+    await ev(`!document.querySelector('#header-avatar').classList.contains('hidden')
+      && !document.querySelector('#account-avatar').classList.contains('hidden')
+      && document.querySelector('#header-avatar-fallback').classList.contains('hidden')`));
+  await ev(`document.querySelector('#remove-avatar').click()`); await wait(600);
+  check(journey, 'removing the profile image brings the letter back in the top button',
+    await ev(`document.querySelector('#header-avatar').classList.contains('hidden')
+      && !document.querySelector('#header-avatar-fallback').classList.contains('hidden')`));
   check(journey, 'profile asks for the reset email in place and does not leave the app',
     await ev(`!document.querySelector('#account-view a[href*="reset-password"]')`));
   await ev(`(() => { const form = document.querySelector('#account-password-form');
@@ -506,16 +518,16 @@ async function main() {
   check(staff, 'quota reconciliation is visible to an org admin',
     await ev(`!document.querySelector('#usage-panel').classList.contains('hidden')`));
   check(staff, 'quota reconciliation reports each scanned window',
-    /INVITATION/.test(usage) && /CERTIFICATE/.test(usage), usage.slice(0, 140));
+    /Invitations sent/.test(usage) && /Certificates issued/.test(usage), usage.slice(0, 140));
   check(staff, 'quota status is spelled out, not colour only',
-    /RECORDED ABOVE PROVEN/.test(usage) && /MATCHES/.test(usage));
-  check(staff, 'quota reconciliation states it is not a bill',
-    /not a bill/.test(usage) && /does not change your plan/.test(usage));
+    /Fix needed/.test(usage) && /OK/.test(usage) && /too high/.test(usage));
+  check(staff, 'usage screen says nothing is charged',
+    /Nothing is charged/.test(await ev(`document.querySelector('#usage-panel').textContent`)));
   check(staff, 'quota reconciliation surfaces the manual steps it could not settle',
-    /could not settle everything/.test(usage) && /duplicated invitations/.test(usage));
+    /not sure about this/.test(usage) && /duplicated invitations/.test(usage));
   check(staff, 'repair is offered because a window is out of step',
     await ev(`!document.querySelector('#usage-repair').disabled`));
-  await clickText('#usage-panel', 'Repair counters'); await wait(500);
+  await clickText('#usage-panel', 'Correct the numbers'); await wait(500);
   const repairText = await dialogText();
   check(staff, 'repair dialog denies a payment or plan change',
     /does not change your plan/.test(repairText) && /create a payment/.test(repairText), repairText.slice(0, 140));

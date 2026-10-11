@@ -701,7 +701,7 @@ async function setOrganization() {
   group('Personal', [['start', 'Home'], ['practice', 'Practice'], ['workspace-access', 'My organizations']]);
   group('This organization', [
     ['overview', 'Overview'],
-    ...(role === 'ORG_ADMIN' ? [['members', 'Members']] : [])
+    ...(role === 'ORG_ADMIN' ? [['members', 'Members'], ['billing', 'Billing']] : [])
   ]);
   group('Tests', staff ? [['assessment-studio', 'Create tests']] : []);
   if (academy) {
@@ -715,10 +715,7 @@ async function setOrganization() {
   if (talent) group('Hiring', staff ? [['talent', 'Campaigns']] : []);
   group('My work', ['LEARNER', 'CANDIDATE'].includes(role)
     ? [['my-assessments', 'My tests']] : []);
-  group('Admin', [
-    ...(role === 'ORG_ADMIN' ? [['billing', 'Billing']] : []),
-    ...(state.platformAdmin ? [['platform', 'Platform']] : [])
-  ]);
+  group('Platform admin', state.platformAdmin ? [['platform', 'Platform']] : []);
 
   // A learner sees only their own batch list, never the staff batch workspace,
   // so that screen drops its second tab rather than showing a forbidden one.
@@ -1054,35 +1051,37 @@ $('#account-profile-form').addEventListener('submit', (event) => {
       notice('Display name saved.');
     } finally { control.disabled = false; }
   });
-
-  $('#account-avatar-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    run(async () => {
-      const form = event.currentTarget;
-      const control = form.querySelector('button[type="submit"]');
-      control.disabled = true;
-      try {
-        const image = form.querySelector('input[name="image"]').files[0];
-        if (!image) throw new Error('Choose a JPEG or PNG image first.');
-        const profile = await request('/auth/me/avatar', {
-          method: 'POST', body: (() => { const data = new FormData(); data.append('image', image); return data; })()
-        });
-        state.profile = profile;
-        $('#account-avatar').src = profile.avatarDataUrl || '';
-        $('#account-avatar').classList.toggle('hidden', !profile.avatarDataUrl);
-        form.reset();
-        notice('Profile image saved in compressed form.');
-      } finally { control.disabled = false; }
-    });
-  });
-
-  $('#remove-avatar').addEventListener('click', () => run(async () => {
-    await request('/auth/me/avatar', { method: 'DELETE' });
-    $('#account-avatar').src = '';
-    $('#account-avatar').classList.add('hidden');
-    notice('Profile image removed.');
-  }));
 });
+
+$('#account-avatar-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  run(async () => {
+    const form = event.currentTarget;
+    const control = form.querySelector('button[type="submit"]');
+    control.disabled = true;
+    try {
+      const image = form.querySelector('input[name="image"]').files[0];
+      if (!image) throw new Error('Choose a JPEG or PNG image first.');
+      const profile = await request('/auth/me/avatar', {
+        method: 'POST', body: (() => { const data = new FormData(); data.append('image', image); return data; })()
+      });
+      state.profile = profile;
+      $('#account-avatar').src = profile.avatarDataUrl || '';
+      $('#account-avatar').classList.toggle('hidden', !profile.avatarDataUrl);
+      updateAccountMenu(profile);
+      form.reset();
+      notice('Profile image saved in compressed form.');
+    } finally { control.disabled = false; }
+  });
+});
+
+$('#remove-avatar').addEventListener('click', () => run(async () => {
+  await request('/auth/me/avatar', { method: 'DELETE' });
+  $('#account-avatar').src = '';
+  $('#account-avatar').classList.add('hidden');
+  if (state.profile) { state.profile = { ...state.profile, avatarDataUrl: null }; updateAccountMenu(state.profile); }
+  notice('Profile image removed.');
+}));
 
 // The reset email is requested from here, so nobody has to leave the app and find a separate page.
 $('#account-reset-button').addEventListener('click', (event) => {
@@ -2183,39 +2182,61 @@ async function loadPlatformOrders(id, pageNumber, token) {
 // Tenant-scoped quota reconciliation. The platform admin has a wider version
 // of this on PlatformAdminController with an audit trail; this one is scoped to
 // the caller's own organization and reports only its own counters.
+// What each server status means for a person, in everyday words: [colour, label, sentence].
+const USAGE_STATUS = {
+  IN_SYNC: ['ok', 'OK', 'Looks right.'],
+  MATCHES: ['ok', 'OK', 'Looks right.'],
+  BACKFILLED: ['ok', 'Corrected', 'The number was corrected.'],
+  BACKFILL_REQUIRED: ['warn', 'Fix needed', 'This number looks too low. Press Correct the numbers.'],
+  STRANDED: ['warn', 'Fix needed', 'This number looks too high. Press Correct the numbers.'],
+  STRANDED_RELEASED: ['warn', 'Fix needed', 'This number looks too high. Press Correct the numbers.'],
+  AMBIGUOUS: ['warn', 'Ask support', 'We cannot tell what is right. Please contact support.'],
+  DEFERRED_RECENT_ACTIVITY: ['warn', 'Check later', 'Something just changed. Check again in a few minutes.'],
+  DEFERRED_NO_ACTIVITY_MARKER: ['warn', 'Not sure', 'Some old records are missing, so we are not sure of this number.'],
+  DEFERRED_UNDATED_RECORDS: ['warn', 'Not sure', 'Some old records are missing, so we are not sure of this number.'],
+  DEFERRED_EXPIRED_INVITATIONS: ['warn', 'Not sure',
+    'Old invitations were deleted, so we are not sure of this number. The real number may be a little higher.'],
+  CONCURRENT_UPDATE: ['warn', 'Check again', 'Someone else changed this at the same time. Check again.'],
+  DEFERRED_ERROR: ['danger', 'Check failed', 'Something went wrong while checking. Try again.'],
+  OUTCOME_UNCONFIRMED: ['danger', 'Check again', 'We could not confirm the last correction. Press Check again.']
+};
+const USAGE_METRICS = {
+  PUBLISHED_ASSESSMENT: 'Published tests', INVITATION: 'Invitations sent', CERTIFICATE: 'Certificates issued'
+};
+function usageWhen(window) {
+  const month = /^(\d{4})-(\d{2})$/.exec(window || '');
+  if (!month) return t('in total');
+  return new Date(Date.UTC(Number(month[1]), Number(month[2]) - 1, 1))
+    .toLocaleString(getLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
 function renderUsageReport(report) {
   const entries = report.entries || [];
-  $('#usage-generated').textContent = `Checked ${when(report.generatedAt)}`
-    + ` · ${report.tier || 'unknown'} plan`
-    + ` · looking back ${report.lookbackMonths} month${report.lookbackMonths === 1 ? '' : 's'}`;
+  $('#usage-generated').textContent = t('Checked {when} · {plan} plan',
+    { when: when(report.generatedAt), plan: report.tier || '?' });
   setList('#usage-report', entries.map((entry) => {
+    const [tone, label, sentence] = USAGE_STATUS[entry.status]
+      || ['warn', 'Needs a look', 'This number may be wrong. Press Correct the numbers, or contact support.'];
+    const metric = USAGE_METRICS[entry.metric] || String(entry.metric || '').replaceAll('_', ' ').toLowerCase();
     const row = item(
-      `${entry.metric.replaceAll('_', ' ')} · ${entry.window}`,
-      `Recorded ${entry.recordedUsage}; proven ${entry.provenMinimumUsage}-${entry.provenMaximumUsage};`
-        + ` plan limit ${entry.planLimit}. ${entry.detail || ''}`.trim());
-    // The status is spelled out, not only coloured, so it survives being read
-    // aloud or printed.
-    const status = (entry.status || '').replaceAll('_', ' ');
-    const tone = entry.status === 'MATCHES' ? 'pill ok'
-      : entry.status === 'OUTCOME_UNCONFIRMED' ? 'pill danger' : 'pill warn';
-    row.querySelector('.item-actions').append(node('span', status, tone));
+      `${t(metric)} · ${usageWhen(entry.window)}`,
+      `${t('Used {used} of {limit}.', { used: entry.recordedUsage, limit: entry.planLimit })} ${t(sentence)}`);
+    row.querySelector('.item-actions').append(node('span', t(label), `pill ${tone}`));
     return row;
   }), 'No quota discrepancies in the scanned windows.');
 
   const manual = $('#usage-manual');
-  const steps = report.manualSteps || [];
-  manual.textContent = steps.length
-    ? ['This check could not settle everything by itself:', ...steps].join('\n')
-    : '';
+  const steps = (report.manualSteps || []).map((step) => /invitation/i.test(step) && /TTL|expired/i.test(step)
+    ? t('Invitations: old invitations were deleted, so we are not sure how many were sent this month. Do nothing unless the number looks wrong.')
+    : step);
+  manual.textContent = steps.length ? [t('We are not sure about this:'), ...steps].join('\n') : '';
   manual.classList.toggle('hidden', !steps.length);
 
-  // Repair is only offered when something is actually out of step. Offering it
-  // against a clean report would invite a write that changes nothing.
-  const repairable = entries.some((entry) => entry.status && entry.status !== 'MATCHES');
+  // Correcting is only offered when a number really is off.
+  const FIXABLE = ['BACKFILL_REQUIRED', 'STRANDED', 'STRANDED_RELEASED'];
+  const repairable = entries.some((entry) => FIXABLE.includes(entry.status) || (entry.status && !USAGE_STATUS[entry.status]));
   const repair = $('#usage-repair');
   repair.disabled = !repairable;
-  repair.title = repairable ? 'Rewrite the counters to match what the records prove'
-    : 'Nothing to repair: every scanned window matches';
+  repair.title = repairable ? 'Make the numbers match your records' : 'Nothing to correct';
 }
 async function loadUsageReconciliation() {
   renderUsageReport(await request(ownOrg('/billing/entitlements/usage-reconciliation')));

@@ -125,6 +125,10 @@ const SOURCE = String.raw`(() => {
       emailVerified: true, passwordSet: true, googleLinked: false, createdAt: new Date().toISOString() });
     if (path === '/api/v1/auth/request-password-reset' && method === 'POST')
       return json({ message: 'If the account is eligible, a reset email has been queued' });
+    if (path === '/api/v1/auth/me/avatar' && method === 'POST') return json({ email: 'learner@example.com',
+      displayName: 'Learner One', emailVerified: true, passwordSet: true, googleLinked: false,
+      avatarDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', createdAt: new Date().toISOString() });
+    if (path === '/api/v1/auth/me/avatar' && method === 'DELETE') return json({});
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });
     if (path === '/api/v1/platform/me') return json({ userId: ROLE.userId, platformAdmin: ROLE.platformAdmin });
     if (path === '/api/v1/organizations' && method === 'POST') {
@@ -208,10 +212,10 @@ const SOURCE = String.raw`(() => {
       downwardGraceSeconds: 60, lookbackMonths: 3, repaired: method === 'POST',
       entries: [
         { metric: 'INVITATION', window: new Date().toISOString().slice(0, 7), windowClosed: false,
-          status: method === 'POST' ? 'MATCHES' : 'RECORDED_ABOVE_PROVEN',
+          status: method === 'POST' ? 'IN_SYNC' : 'STRANDED',
           recordedUsage: 12, provenMinimumUsage: 9, provenMaximumUsage: 9, planLimit: 30,
           detail: 'Three invitations were counted twice.' },
-        { metric: 'CERTIFICATE', window: new Date().toISOString().slice(0, 7), windowClosed: false, status: 'MATCHES',
+        { metric: 'CERTIFICATE', window: new Date().toISOString().slice(0, 7), windowClosed: false, status: 'IN_SYNC',
           recordedUsage: 2, provenMinimumUsage: 2, provenMaximumUsage: 2, planLimit: 30, detail: '' }
       ],
       manualSteps: method === 'POST' ? [] : ['Confirm the duplicated invitations with the instructor.']
