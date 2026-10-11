@@ -645,6 +645,15 @@ async function main() {
   check(staff, 'opening a view moves focus to the page heading',
     (await ev(`document.activeElement.id`)) === 'page-title', await ev(`document.activeElement.id`));
 
+  // Signing out from any screen leaves the sign-in address behind, not the screen's own.
+  await view('Billing'); await wait(500);
+  await ev(`document.querySelector('#account-menu-toggle').click()`);
+  await ev(`document.querySelector('#account-menu-logout').click()`); await wait(900);
+  check(staff, 'after signing out the address is the sign-in address, not the last screen',
+    await ev(`location.hash === '#auth'`), await ev(`location.hash`));
+  check(staff, 'after signing out the tab title and logo go back to the public page',
+    await ev(`!/Billing/.test(document.title) && document.querySelector('.topbar .brand').getAttribute('href') === '/'`));
+
   // ---------------------------------------------------------------- talent journey
   await load('talent-recruiter');
   const talent = 'talent-recruiter';

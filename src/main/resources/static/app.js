@@ -401,6 +401,7 @@ function setActiveAttempt(attempt) {
   assistant?.setExam(Boolean(attempt));
   void refreshUnread();
 }
+const SIGNED_OUT_TITLE = document.title;
 function showSignedOut() {
   assistant?.reset();
   sessionHint.clear();
@@ -433,6 +434,12 @@ function showSignedOut() {
   $('#account-menu-panel')?.classList.add('hidden');
   $('#account-menu-toggle')?.setAttribute('aria-expanded', 'false');
   setInAppLinks(false);
+  // The sign-in page should look like the sign-in page. Leaving the last screen's address behind
+  // (for example #/billing) was wrong to read, and a different role signing in next could land on a
+  // screen it may not open.
+  history.replaceState(null, '', `${location.pathname}${location.search}#auth`);
+  document.querySelector('.topbar .brand')?.setAttribute('href', '/');
+  document.title = SIGNED_OUT_TITLE;
   loadDemoAccess();
 }
 
