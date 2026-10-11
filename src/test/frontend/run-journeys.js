@@ -700,7 +700,7 @@ async function main() {
   check(platform, 'storage estimate is labelled as an estimate', /Storage estimate/.test(platformText));
   check(platform, 'storage shows the estimated size and breakdown', /Estimated logical size/.test(platformText) && /Data .* · Indexes/.test(platformText));
   check(platform, 'storage states the threshold source', /ATLAS_STORAGE_WARNING_BYTES/.test(platformText));
-  check(platform, 'storage explains it is not the official quota', /not Atlas's official quota/.test(await ev(`document.querySelector('#platform-view').textContent`)));
+  check(platform, 'storage explains it is not the official quota', /not your official limit or your bill/.test(await ev(`document.querySelector('#platform-view').textContent`)));
   await shotBoth('platform-health');
   check(platform, 'health tab holds only operations and storage',
     !/Owner u-admin/.test(platformText) && !/Manual grant/.test(platformText));
@@ -732,8 +732,8 @@ async function main() {
   await load('platform-admin', 'warn');
   await view('Platform'); await wait(1600);
   const warnText = await ev(`document.querySelector('#platform-storage').textContent`);
-  check(platform, 'storage warning state is explicit, not colour-only', /Warning:/.test(warnText) && /Above the configured threshold/.test(warnText));
-  check(platform, 'warning advises review, not a quota claim', /not as proof that a quota has been exceeded/.test(warnText));
+  check(platform, 'storage warning state is explicit, not colour-only', /Warning:/.test(warnText) && /Over the warning size/.test(warnText));
+  check(platform, 'warning advises a clean-up, not a limit claim', /does not mean a limit has been passed/.test(warnText));
 
   await load('platform-admin', 'unavailable');
   await view('Platform'); await wait(1600);

@@ -118,9 +118,9 @@ if (memberInvitationFromLink) {
 // A redirect never confirms a payment. The outcome here only decides the wording; what Billing
 // shows afterwards is whatever the server says.
 const BILLING_OUTCOMES = {
-  verified: 'Returned from the sandbox. Use Check payment below to read the server-verified result.',
-  canceled: 'The payment was cancelled at the sandbox. The order below shows the status the server recorded.',
-  failed: 'The payment did not complete at the sandbox. The order below shows the status the server recorded.'
+  verified: 'You are back from the practice payment page. Press Check payment below to see the confirmed result.',
+  canceled: 'You cancelled the payment. Nothing was charged. The order below shows its status.',
+  failed: 'The payment did not go through. Nothing was charged. The order below shows its status.'
 };
 const normalizeBillingOutcome = (value) => (value === 'cancelled' ? 'canceled' : value);
 const billingChannel = 'BroadcastChannel' in window ? new BroadcastChannel('jachai-billing') : null;
@@ -148,7 +148,7 @@ if (billingReturn) {
   }).then((handedOver) => {
     if (handedOver) showBillingHandoffDone(outcome);
     else queueMicrotask(() => notice(`${BILLING_OUTCOMES[outcome] || `Sandbox checkout returned "${billingReturn}".`}`
-      + ' A browser redirect cannot confirm a payment; sign in and open Billing to read the server-verified status.'));
+      + ' Coming back to this page does not prove you paid. Sign in and open Billing to see the confirmed status.'));
     return handedOver;
   });
 }
@@ -1772,7 +1772,7 @@ async function showView(key) {
 async function loadEntitlements() {
   const plan = await request(ownOrg('/billing/entitlements'));
   setList('#plan-details', [
-    item(`${plan.tier} plan`, `${state.organization.type} workspace · ${plan.retentionDays}-day message and telemetry retention`),
+    item(`${plan.tier} plan`, `${state.organization.type} workspace · old messages and activity records are deleted after ${plan.retentionDays} days`),
     item('Assessments & invitations', `${plan.maxPublishedAssessments} published assessments · ${plan.monthlyInvitations} invitations per month`),
     item('AI & certificates', `${plan.dailyUserAiRequests} AI requests per user/day · ${plan.monthlyCertificates} certificates per month`)
   ], 'Plan details are unavailable.');
@@ -1781,7 +1781,7 @@ async function loadEntitlements() {
   checkout.disabled = !options.sslCommerzAvailable;
   $('#start-bkash-demo').disabled = !options.directBkashAvailable;
   const sandboxNote = options.sandboxOnly === false
-    ? ' This deployment does not report sandbox-only mode — do not enter real payment details.' : '';
+    ? ' This site is not marked as practice-only. Do not enter real payment details.' : '';
   $('#billing-hint').textContent = (options.sslCommerzAvailable || options.directBkashAvailable
     ? `Sandbox only · TEAM demo price: ৳${options.demoTeamPriceBdt} for 30 days. No real money is charged.`
     : 'Sandbox merchant credentials are not configured yet, so both demo checkout buttons stay disabled. No real money is charged.')
@@ -1879,7 +1879,7 @@ async function loadPlatformDashboard() {
     const heading = node('div', '', 'section-heading');
     const title = node('div');
     title.append(node('h2', 'Platform overview'),
-      node('p', 'Sandbox payments are test activity, not real revenue.', 'muted'));
+      node('p', 'Practice payments are only tests, not real income.', 'muted'));
     heading.append(title);
     const metrics = node('div', '', 'platform-metrics');
     const metric = (label, value) => {
@@ -1903,7 +1903,7 @@ async function loadPlatformDashboard() {
     const alerts = node('div', '', 'platform-alerts');
     alerts.append(node('h3', 'Needs attention'));
     for (const [label, count] of [
-      ['Failed email jobs', data.failedEmailJobs],
+      ['Failed emails', data.failedEmailJobs],
       ['Payments awaiting verification', data.paymentsAwaitingVerification],
       ['Open support tickets', data.openSupportTickets]
     ]) {
@@ -2005,8 +2005,8 @@ function ensurePlatformSupportPanel() {
   if ($('#platform-support-panel')) return;
   const panel = node('div', '', 'card panel');
   panel.id = 'platform-support-panel';
-  panel.innerHTML = `<h2>Ticketed assessment support</h2>
-    <p class="muted">Exceptional access to one assessment's metadata only. Every preview is audited and visible to that organization's admins. No questions, answers, attempts or learner details are shown.</p>
+  panel.innerHTML = `<h2>Test details for a support ticket</h2>
+    <p class="muted">Special access to the details of one test, never its questions. Every look is logged, and that organization's admins can see it. No questions, answers, attempts or learner details are shown.</p>
     <form id="platform-support-form" class="form-row">
       <label>Assessment ID<input name="assessmentId" maxlength="100" required autocomplete="off" placeholder="Exact assessment ID"></label>
       <label>Support ticket<input name="ticketReference" minlength="6" maxlength="80" required autocomplete="off" placeholder="Ticket reference"></label>
@@ -2022,7 +2022,7 @@ function ensurePlatformSupportPanel() {
   form.addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
     const id = state.platformOrganizationId;
     if (!id || $('#platform-organization-id').value.trim() !== id)
-      throw new Error('Inspect the selected organization before opening a support ticket.');
+      throw new Error('Pick an organization first, then open a support ticket.');
     const values = new FormData(form);
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true;
@@ -2041,7 +2041,7 @@ function ensurePlatformSupportPanel() {
         `Assessment ${preview.assessmentId} · version ${preview.latestVersion || 0} · ${preview.questionCount} question(s) · ${preview.durationMinutes} minutes · audit ${preview.accessEventId}`)],
       'No preview returned.');
       await loadPlatformSupportAudit(id, 0, state.platformLoadToken);
-      notice('Metadata preview recorded in the tenant-visible support audit.');
+      notice('Done. The admins of that organization can see that you looked.');
     } catch (error) {
       if (id === state.platformOrganizationId)
         setList('#platform-support-preview', [], 'Preview unavailable. Check the ticket and try again.');
@@ -2069,8 +2069,8 @@ function ensureTenantSupportAuditPanel() {
   if ($('#tenant-support-audit-panel')) return;
   const panel = node('div', '', 'card panel');
   panel.id = 'tenant-support-audit-panel';
-  panel.innerHTML = `<div class="section-heading"><div><h2>Platform support access</h2>
-    <p class="muted">Every platform-admin metadata preview of this workspace is recorded here. No staff member can hide a recorded access from this history.</p></div>
+  panel.innerHTML = `<div class="section-heading"><div><h2>Support access history</h2>
+    <p class="muted">Each time a platform admin looked at this workspace's test details, it is listed here. Nobody can remove an entry.</p></div>
     <button id="tenant-support-audit-refresh" class="button quiet small" type="button">Reload</button></div>
     <div id="tenant-support-audit" class="item-list"></div><div id="tenant-support-audit-pagination"></div>`;
   $('#overview-view').append(panel);
@@ -2103,22 +2103,22 @@ async function loadPlatformStorage() {
     item(`${storage.warning ? 'Warning: ' : ''}Estimated logical size ${formatBytes(storage.estimatedLogicalBytes)}`,
       `Data ${formatBytes(storage.dataBytes)} · Indexes ${formatBytes(storage.indexBytes)}`
         + ` · measured ${storage.generatedAt ? new Date(storage.generatedAt).toLocaleString() : 'unknown'}`),
-    item('Configured warning threshold', `${formatBytes(storage.warningThresholdBytes)} · set by ATLAS_STORAGE_WARNING_BYTES`)
+    item('Warning size you set', `${formatBytes(storage.warningThresholdBytes)} · set by ATLAS_STORAGE_WARNING_BYTES`)
   ];
   if (storage.warning) {
-    rows.push(item('Above the configured threshold',
-      'Treat this as a prompt to review retention, telemetry, audit and email growth — not as proof that a quota has been exceeded.'));
+    rows.push(item('Over the warning size',
+      'Use this as a reminder to clear out old data. It does not mean a limit has been passed.'));
   }
   setList('#platform-storage', rows, 'Storage metrics are unavailable.');
 }
 async function loadPlatformOperations() {
   const summary = await request('/platform/operations/summary');
   setList('#platform-operations', [
-    item('Failed email jobs', String(summary.failedEmailJobs)),
-    item('Email jobs overdue over 15 minutes', String(summary.overdueEmailJobs)),
-    item('Open sandbox checkouts older than 24 hours', String(summary.oldOpenSandboxOrders)),
-    item('Verified orders not applied after 5 minutes', String(summary.verifiedButUnappliedOrders)),
-    item('Quota repairs without completion', String(summary.usageRepairRunsWithoutCompletion)),
+    item('Failed emails', String(summary.failedEmailJobs)),
+    item('Emails stuck for over 15 minutes', String(summary.overdueEmailJobs)),
+    item('Practice payments left open for over 24 hours', String(summary.oldOpenSandboxOrders)),
+    item('Confirmed payments not yet applied after 5 minutes', String(summary.verifiedButUnappliedOrders)),
+    item('Number corrections that did not finish', String(summary.usageRepairRunsWithoutCompletion)),
     item('Counts generated', summary.generatedAt ? new Date(summary.generatedAt).toLocaleString() : 'Not reported')
   ], 'Operational counts are unavailable.');
 }
@@ -2143,7 +2143,7 @@ async function inspectPlatformOrganization(organizationId) {
   $('#platform-organization-id').value = id;
   $('#platform-repair-usage').disabled = true;
   $('#platform-manual-revoke-submit').disabled = true;
-  setList('#platform-support-preview', [], 'A preview requires a new ticket and explicit acknowledgement.');
+  setList('#platform-support-preview', [], 'To look, you need a new ticket and must confirm that you understand.');
   for (const selector of ['#platform-billing', '#platform-orders', '#platform-usage-report', '#platform-usage-audit',
     '#platform-manual-plan', '#platform-manual-audit', '#platform-support-audit']) {
     beginList(selector);
@@ -2167,7 +2167,7 @@ async function loadPlatformBilling(id, token) {
       `Period ends ${billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd).toLocaleString() : 'not set'}`
         + ` · Subscription updated ${billing.updatedAt ? new Date(billing.updatedAt).toLocaleString() : 'unknown'}`),
     item('Last paid order', billing.lastPaidOrderId || 'None')
-  ] : [item('No subscription record', 'Effective plan is FREE until a verified sandbox payment is applied.')],
+  ] : [item('No subscription record', 'The plan stays FREE until a practice payment is confirmed and applied.')],
   'No billing data.');
 }
 async function loadPlatformOrders(id, pageNumber, token) {
@@ -2332,7 +2332,7 @@ async function changePlatformRole(grant) {
   const id = state.platformTargetUserId;
   const target = state.platformTargetUser;
   if (!id || $('#platform-user-id').value.trim() !== id)
-    throw new Error('Inspect the exact user ID before changing their role.');
+    throw new Error('Look up the exact user ID first, then change the role.');
   const identity = target
     ? `${target.displayName} <${target.email}>\nUser ID ${target.id}`
     : `User ID ${id}`;
@@ -2402,7 +2402,7 @@ async function submitManualPlanGrant() {
   if (expiresAt.getTime() <= Date.now()) throw new Error('The expiry must be in the future.');
   if (expiresAt.getTime() > Date.now() + 30 * 86400000) throw new Error('A manual TEAM grant must end within 30 days.');
   const reason = manualPlanReason(form);
-  if (!await confirmDialog(`Grant a manual TEAM plan to ${manualPlanLabel(id)}?\n\nManual grant — not a payment. No money is charged, no order is marked paid, and an active paid subscription still takes precedence.\nExpires ${expiresAt.toLocaleString()}\nReason: ${reason}`)) return;
+  if (!await confirmDialog(`Grant a manual TEAM plan to ${manualPlanLabel(id)}?\n\nFree plan, not a payment. No money is charged, no order is marked paid, and an active paid subscription still takes precedence.\nExpires ${expiresAt.toLocaleString()}\nReason: ${reason}`)) return;
   const control = $('#platform-manual-grant-submit');
   control.disabled = true;
   try {
