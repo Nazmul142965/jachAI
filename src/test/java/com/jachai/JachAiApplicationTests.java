@@ -179,10 +179,10 @@ class JachAiApplicationTests {
         mvc.perform(get("/engineering.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Problems that changed the design")))
-                .andExpect(content().string(containsString("what still needs live verification")));
-        mvc.perform(get("/engineering.css"))
+                .andExpect(content().string(containsString("Still to confirm")));
+        mvc.perform(get("/story.css"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString(".build-hero")));
+                .andExpect(content().string(containsString(".st-hero")));
     }
 
     @Test

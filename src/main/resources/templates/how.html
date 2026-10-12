@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>How it works · JachAI</title>
-  <meta name="description" content="How the JachAI assessment engine works: create, publish, invite, attempt, score, review, report and verify — with honest integrity signals and human-reviewed AI.">
+  <meta name="description" content="How JachAI works, in pictures: write, publish, invite, take, score, review and verify a test, with the server as the referee.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/chrome.css">
+  <link rel="stylesheet" href="/story.css">
   <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <script type="module" src="/theme.js"></script>
   <script type="module" src="/site.js"></script>
@@ -23,79 +24,142 @@
     <nav class="topnav" aria-label="Site"><a href="/academy.html"><span class="ic" data-ic="cap" aria-hidden="true"></span><span data-t>Academy</span></a><a href="/talent.html"><span class="ic" data-ic="briefcase" aria-hidden="true"></span><span data-t>Talent</span></a><a href="/plans.html"><span class="ic" data-ic="tag" aria-hidden="true"></span><span data-t>Pricing</span></a><a href="/how.html" aria-current="page"><span class="ic" data-ic="compass" aria-hidden="true"></span><span data-t>How it works</span></a><a class="nav-cta" href="/"><span class="ic" data-ic="login" aria-hidden="true"></span><span data-t>Sign in</span></a></nav>
     <div id="lang-switch" class="lang-switch" role="group" aria-label="Language / ভাষা"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="bn" aria-pressed="false" lang="bn">বাংলা</button></div>
   </header>
-  <main class="page">
-    <p class="eyebrow">How it works</p>
-    <h1>One engine, two products, an honest lifecycle.</h1>
-    <p class="lede">JachAI's central promise is a trustworthy assessment lifecycle: create, publish, invite,
-      attempt, score, review, report and verify. AI assists people within that lifecycle; it does not
-      control official scores or publish unreviewed questions.</p>
-    <div class="cta-row">
-      <a class="button primary" href="/">Sign in or create a workspace</a>
-      <a class="button quiet" href="/plans.html">Compare plans</a>
+  <main id="main" class="st-page">
+  <header class="st-hero">
+    <p class="st-kicker">How it works</p>
+    <h1 class="st-title">From a question to a <span class="st-grad">certificate you can verify.</span></h1>
+    <p class="st-lede">JachAI runs the whole life of a test in one place. People write and review the questions. The server keeps the time, the scores and the records, so a result still makes sense later.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Open the live demo</a>
+      <a class="st-btn" href="/plans.html">Compare plans</a>
     </div>
+  </header>
 
-    <section class="section" aria-labelledby="lifecycle">
-      <div class="section-head">
-        <h2 id="lifecycle">The assessment lifecycle</h2>
-        <p>Every attempt follows the same path, whether it is an Academy batch or a Talent campaign.</p>
+  <section class="st-section" aria-labelledby="journey">
+    <div class="st-head">
+      <h2 id="journey">The journey of one test</h2>
+      <p>Seven steps. The same path for a class and for a hiring round.</p>
+    </div>
+    <ol class="st-steps">
+      <li><h3>Write questions</h3><p>Staff write the questions. AI can draft some, but a person must approve each one.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Publish a version</h3><p>The test is saved as a fixed version. A later edit makes a new version, so old results never change.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Invite people</h3><p>Learners or candidates get the test with a start date, an end date and a number of tries.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Take the test</h3><p>The server starts the timer and keeps the deadline. The clock on screen is only a guide.</p><span class="st-who st-who--server">Server</span></li>
+      <li><h3>Submit answers</h3><p>Each answer is saved as you go. Pressing submit twice by accident changes nothing.</p><span class="st-who st-who--learner">Learner</span></li>
+      <li><h3>Score and review</h3><p>Multiple-choice answers are scored by fixed rules. Written answers wait for a person to grade them.</p><span class="st-who st-who--server">Server</span></li>
+      <li><h3>Release and verify</h3><p>Staff release the result. A learner who passes gets a certificate that anyone can check online.</p><span class="st-who st-who--staff">Staff</span></li>
+    </ol>
+  </section>
+
+  <section class="st-section" aria-labelledby="engine">
+    <div class="st-head">
+      <h2 id="engine">One engine, two products</h2>
+      <p>Academy and Talent look different, but they share the same trusted core.</p>
+    </div>
+    <div class="st-duo">
+      <div class="st-duo-top">
+        <div class="st-product st-product--a"><h3>Academy</h3><p>Courses, batches, learners and certificates.</p></div>
+        <div class="st-product st-product--b"><h3>Talent</h3><p>Hiring campaigns, candidates and decisions.</p></div>
       </div>
-      <ol class="workflow">
-        <li><span class="step-number">1</span><div><h3>Draft questions</h3>
-          <p>Instructors and recruiters write single-choice, multiple-choice or manually-graded short-answer questions. AI-generated questions remain drafts until a human reviews them.</p></div></li>
-        <li><span class="step-number">2</span><div><h3>Publish an immutable version</h3>
-          <p>An assessment is configured and published as an immutable version. Editing later creates a new version; published versions are never changed in place.</p></div></li>
-        <li><span class="step-number">3</span><div><h3>Invite or assign</h3>
-          <p>A learner or candidate receives an assignment or invitation. The server validates availability, membership or invite, attempt limit and module entitlement.</p></div></li>
-        <li><span class="step-number">4</span><div><h3>Start a server-timed attempt</h3>
-          <p>The server starts the attempt and records the deadline. The client timer is visual only; the server decides whether an answer is on time.</p></div></li>
-        <li><span class="step-number">5</span><div><h3>Save answers and submit</h3>
-          <p>Answers are saved with validation and an attempt state check. Submitting is idempotent and cannot change a finalized result.</p></div></li>
-        <li><span class="step-number">6</span><div><h3>Deterministic scoring</h3>
-          <p>Objective questions are scored by deterministic rules against the published version. Manual-review questions enter a review queue. AI may suggest feedback but cannot silently set official scores.</p></div></li>
-        <li><span class="step-number">7</span><div><h3>Release and verify</h3>
-          <p>Result release follows organization policy. Topic-level breakdown and weak areas use the versioned question/topic data. Academy certificates are issued only after the required pass/review conditions, and verify publicly.</p></div></li>
-      </ol>
-    </section>
-
-    <section class="section grid cols-3" aria-label="Roles">
-      <article class="card"><h3>Instructors &amp; recruiters</h3><p>Build the question bank, publish assessments, manage campaigns, review results and issue decisions.</p></article>
-      <article class="card"><h3>Learners &amp; candidates</h3><p>Take assigned assessments and see released results. Academy learners can use the AI Tutor after release and receive verifiable certificates when eligible; Talent review decisions remain staff-only.</p></article>
-      <article class="card"><h3>Organization admins</h3><p>Manage workspace, memberships, roles, billing and result-release defaults. The server re-checks authorization on every request.</p></article>
-    </section>
-
-    <section class="section grid cols-2" aria-label="Integrity and honesty">
-      <div class="card"><h2>Integrity signals, honestly framed</h2>
-        <ul class="facts">
-          <li>Tab visibility, optional fullscreen exit, copy/paste and client-reported answer-save timing can be recorded for an active campaign attempt.</li>
-          <li>They are <strong>client-reported, unverifiable and not proof of misconduct</strong>. JachAI makes no automatic cheating verdict.</li>
-          <li>No IP address, user agent, clipboard contents or keystrokes are stored, and the data expires on a TTL.</li>
-          <li>Signals are evidence for human review, not a block on the attempt.</li>
+      <div class="st-down" aria-hidden="true"></div>
+      <div class="st-engine">
+        <h3>The assessment engine</h3>
+        <ul>
+          <li>Questions</li><li>Versions</li><li>Timed attempts</li><li>Scoring</li><li>Results</li><li>Activity log</li>
         </ul>
       </div>
-      <div class="card"><h2>AI, where it helps</h2>
-        <ul class="facts">
-          <li>Instructors can ask for AI-drafted questions; they always arrive as drafts for human review.</li>
-          <li>After a released result, learners can use the AI Tutor to ask questions about their performance.</li>
-          <li>AI never sets or changes an official score, and never publishes unreviewed questions.</li>
-          <li>If no provider is configured, the UI says so honestly instead of faking a response.</li>
+      <div class="st-down" aria-hidden="true"></div>
+      <div class="st-outcome">Scores, certificates and hiring decisions you can trust.</div>
+    </div>
+  </section>
+
+  <section class="st-section" aria-labelledby="roles">
+    <div class="st-head">
+      <h2 id="roles">Who does what</h2>
+      <p>Three kinds of people, each with a clear job.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-card st-card--mix"><h3>Organization admins</h3><p>Set up the workspace, add people, choose the plan and decide how results are released.</p></article>
+      <article class="st-card"><h3>Instructors and recruiters</h3><p>Build questions, publish tests, review answers and release results.</p></article>
+      <article class="st-card st-card--coral"><h3>Learners and candidates</h3><p>Take the test, see the released result, and get a certificate if they pass.</p></article>
+    </div>
+    <p class="st-lede" style="margin:28px 0 0;font-size:17px">A result travels like this:</p>
+    <ul class="st-chain">
+      <li>Admin sets up</li><li>Staff build and assign</li><li>Learner takes the test</li><li>Server scores it</li><li>Staff release it</li><li class="is-good">Learner sees the result</li>
+    </ul>
+  </section>
+
+  <section class="st-section" aria-labelledby="referee">
+    <div class="st-head">
+      <h2 id="referee">The server is the referee</h2>
+      <p>Three rules that nobody can bend from a browser.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <h3>It keeps the time</h3>
+        <p>The deadline lives on the server, so a changed clock or a slow connection cannot cheat anyone or hurt anyone.</p>
+      </article>
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+        <h3>It freezes the test</h3>
+        <p>A published version never changes, so every learner is judged by exactly the same questions.</p>
+      </article>
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        <h3>It owns the score</h3>
+        <p>Scores come from fixed rules. AI can explain a result, but it can never change one.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="st-section" aria-labelledby="ai">
+    <div class="st-head">
+      <h2 id="ai">AI helps, people decide</h2>
+      <p>AI is a helper inside the process. It is never the examiner.</p>
+    </div>
+    <div class="st-grid st-grid--2">
+      <div class="st-ai-col st-ai-col--yes">
+        <h3>AI helps with</h3>
+        <ul>
+          <li>Drafting questions for a person to review.</li>
+          <li>Explaining a result to the learner after it is released.</li>
+          <li>Answering study questions in the AI Tutor, outside exams.</li>
         </ul>
       </div>
-    </section>
-
-    <section class="section" aria-labelledby="security">
-      <div class="section-head">
-        <h2 id="security">Security and trust</h2>
-        <p>The same rules apply to every tenant.</p>
+      <div class="st-ai-col st-ai-col--no">
+        <h3>AI never</h3>
+        <ul>
+          <li>Changes an official score.</li>
+          <li>Publishes a question that nobody reviewed.</li>
+          <li>Answers while an exam is running.</li>
+        </ul>
       </div>
-      <div class="grid cols-3">
-        <article class="card"><h3>Tenant isolation</h3><p>Every organization-owned document carries an <code>organizationId</code>. Services include it in every read, update and delete.</p></article>
-        <article class="card"><h3>Server-side authorization</h3><p>Roles are scoped to an organization. A client-supplied organization ID never grants access by itself.</p></article>
-        <article class="card"><h3>Append-only audit</h3><p>Role changes, assessment publishing, score overrides, certificate actions and billing transitions are recorded with actor, target and timestamp.</p></article>
-      </div>
-    </section>
+    </div>
+    <p class="st-note">JachAI can note things like leaving the tab or pasting text during a hiring test. These are hints for a person to read. They are not proof, and nothing blocks the test automatically.</p>
+  </section>
 
-    <div class="note note--accent"><p>Curious what a plan can do? <a href="/plans.html">Compare FREE and TEAM</a>, or <a href="/">create a workspace</a> to try the engine.</p></div>
-  </main>
+  <section class="st-section" aria-labelledby="safe">
+    <div class="st-head">
+      <h2 id="safe">Safe by design</h2>
+      <p>The same rules protect every organization.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-card"><h3>Every organization is separate</h3><p>Each record belongs to one organization, and every request is checked against it.</p></article>
+      <article class="st-card st-card--mix"><h3>Roles are checked on the server</h3><p>Hiding a button is never the protection. The server checks your role every single time.</p></article>
+      <article class="st-card st-card--coral"><h3>Important changes are logged</h3><p>Who changed a role, published a test or issued a certificate is recorded with the time.</p></article>
+    </div>
+  </section>
+
+  <section class="st-band" aria-labelledby="try">
+    <h2 id="try">Want to see it run?</h2>
+    <p>Open a demo role and try the whole journey. No sign-up needed.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Open the live demo</a>
+      <a class="st-btn" href="/engineering.html">See how it is built</a>
+    </div>
+  </section>
+</main>
   <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
 </body>
 </html>

@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>Inside the build · JachAI</title>
-  <meta name="description" content="The tools behind JachAI, the engineering problems we met, the decisions we made, and what still needs live verification.">
+  <title>How it's built · JachAI</title>
+  <meta name="description" content="How JachAI is built: the architecture, the tools, the problems that shaped the design, how to run it yourself, and what still needs live verification.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/public.css">
-  <link rel="stylesheet" href="/engineering.css">
   <link rel="stylesheet" href="/chrome.css">
+  <link rel="stylesheet" href="/story.css">
   <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <script type="module" src="/theme.js"></script>
   <script type="module" src="/site.js"></script>
@@ -26,51 +26,219 @@
     <div id="lang-switch" class="lang-switch" role="group" aria-label="Language / ভাষা"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="bn" aria-pressed="false" lang="bn">বাংলা</button></div>
   </header>
 
-  <main id="main" class="page build-page">
-    <section class="build-hero" aria-labelledby="build-title">
-      <div>
-        <p class="build-kicker">The engineering behind JachAI</p>
-        <h1 id="build-title">An assessment should still make sense after it ends.</h1>
-        <p class="build-intro">That requirement shaped the product: the server owns time and scoring, published questions keep their version, and a payment or AI response never becomes official just because a browser says so.</p>
-        <a class="build-text-link" href="/how.html">See the assessment journey</a>
-      </div>
-      <div class="build-map" aria-label="JachAI system map">
-        <p class="build-map-title">One product, clear boundaries</p>
-        <div class="build-map-row"><span>People</span><strong>Academy · Talent · personal practice</strong></div>
-        <div class="build-map-row"><span>Interface</span><strong>Same-origin HTML, CSS &amp; JavaScript</strong></div>
-        <div class="build-map-row"><span>Decisions</span><strong>Java 21 · Spring Boot services</strong></div>
-        <div class="build-map-row"><span>State</span><strong>MongoDB · Redis</strong></div>
-        <p class="build-map-note">External AI, email, Google sign-in and payment sandboxes connect at the edges. The core rules stay on the server.</p>
-      </div>
-    </section>
+  <main id="main" class="st-page">
+  <header class="st-hero">
+    <p class="st-kicker">How it's built</p>
+    <h1 class="st-title">A test result should <span class="st-grad">still make sense after it ends.</span></h1>
+    <p class="st-lede">That one idea shaped the design. The server owns time and scores, published questions keep their version, and a payment or an AI answer is never trusted just because a browser says so.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">See it run</a>
+      <a class="st-btn" href="https://github.com/Nazmul142965/jachAI" rel="noopener">Read the code on GitHub</a>
+    </div>
+    <div class="st-stats" role="list">
+      <div class="st-stat" role="listitem"><b>349</b><span>Java source files</span></div>
+      <div class="st-stat" role="listitem"><b>182</b><span>API endpoints</span></div>
+      <div class="st-stat" role="listitem"><b>46</b><span>MongoDB collections</span></div>
+      <div class="st-stat" role="listitem"><b>717</b><span>Java tests</span></div>
+      <div class="st-stat" role="listitem"><b>167</b><span>Browser checks</span></div>
+    </div>
+  </header>
 
-    <section class="build-section" aria-labelledby="tools-title">
-      <div class="build-section-head"><h2 id="tools-title">What we use</h2><p>Small number of moving parts, each with a defined job.</p></div>
-      <dl class="build-stack">
-        <div><dt>Application</dt><dd>Java 21, Spring Boot, Spring Security and Thymeleaf serve the REST API and public pages together.</dd></div>
-        <div><dt>Browser</dt><dd>HTML, CSS and JavaScript power the current workspace. A separate React practice pilot is design research, not a second production dashboard.</dd></div>
-        <div><dt>Data</dt><dd>MongoDB holds accounts, assessments, attempts, audit events, orders and email jobs. Redis coordinates production limits, reservations and cache.</dd></div>
-        <div><dt>Connections</dt><dd>Google Identity Services, SMTP, configured AI providers, and bKash/SSLCOMMERZ sandbox adapters are optional integrations with explicit checks.</dd></div>
-        <div><dt>Delivery</dt><dd>Maven tests, frontend journey checks, opt-in MongoDB integration tests and a Dockerfile support repeatable releases.</dd></div>
-      </dl>
-    </section>
+  <section class="st-section" aria-labelledby="picture">
+    <div class="st-head">
+      <h2 id="picture">The big picture</h2>
+      <p>One server, one database and a few clearly marked connections to the outside world.</p>
+    </div>
 
-    <section class="build-section" aria-labelledby="decisions-title">
-      <div class="build-section-head"><h2 id="decisions-title">Problems that changed the design</h2><p>Each response came from a failure mode we could point to.</p></div>
-      <div class="build-decisions">
-        <article><h3>Answers can arrive late or twice.</h3><p>Attempts use a server deadline and stable submission state. Published versions freeze the questions used for scoring; short answers wait for staff review and release.</p></article>
-        <article><h3>One person can have several roles.</h3><p>Personal practice stays outside official workspace scores. Academy and Talent data stays tenant-scoped, and services check membership again on every request.</p></article>
-        <article><h3>Networks retry; providers disagree.</h3><p>Email jobs, quota reservations and payment callbacks use durable identifiers and conditional updates. A checkout redirect never grants a plan; the server validates the sandbox payment independently.</p></article>
-        <article><h3>A query can stop the whole app.</h3><p>A derived MongoDB sum over <code>BigDecimal</code> failed at startup. We replaced it with a deliberate aggregation and kept reconciliation auditable rather than guessing at missing usage.</p></article>
-        <article><h3>AI can help without becoming the examiner.</h3><p>Generated questions remain drafts for approval. The Tutor can explain a released result to a learner or candidate, but cannot grade an active exam or publish official content.</p></article>
+    <div class="st-arch">
+      <div class="st-box st-box--browser">
+        <h3>Browser</h3>
+        <p class="st-sub">What the person sees</p>
+        <ul>
+          <li>Plain HTML, CSS and JavaScript</li>
+          <li>No build step to run it</li>
+          <li>English and বাংলা</li>
+          <li>Sign-in token kept in memory only</li>
+        </ul>
       </div>
-    </section>
+      <div class="st-link"><span>HTTPS and a signed token</span><i></i></div>
+      <div class="st-box st-box--server">
+        <h3>JachAI server</h3>
+        <p class="st-sub">Java 21 and Spring Boot 3</p>
+        <div class="st-layers">
+          <span class="st-layer st-layer--1"><b>Controllers</b><span>42 classes. Check every input.</span></span>
+          <span class="st-mini" aria-hidden="true"></span>
+          <span class="st-layer st-layer--2"><b>Services</b><span>48 classes. Rules, roles and organization checks.</span></span>
+          <span class="st-mini" aria-hidden="true"></span>
+          <span class="st-layer st-layer--3"><b>Repositories</b><span>Every query carries the organization.</span></span>
+        </div>
+      </div>
+      <div class="st-link"><span>Queries and limits</span><i></i></div>
+      <div class="st-box st-box--data">
+        <h3>Data</h3>
+        <p class="st-sub">Where everything is kept</p>
+        <ul>
+          <li>MongoDB: accounts, tests, attempts, orders and logs</li>
+          <li>Redis: rate limits and daily AI quotas</li>
+        </ul>
+      </div>
+    </div>
 
-    <section class="build-proof" aria-labelledby="proof-title">
-      <div><h2 id="proof-title">What is proven so far?</h2><p>Local checks covered Java tests, frontend journeys and all six demo-role sign-ins. They are useful evidence, not a production stamp. Real inbox delivery, final-domain Google login, live AI responses, hosted MongoDB/Redis readiness and completed sandbox payments still need separate verification.</p></div>
-      <a href="/">Explore the demo roles</a>
-    </section>
-  </main>
+    <div class="st-edges">
+      <div class="st-edges-line" aria-hidden="true"></div>
+      <p class="st-edges-title">Connected at the edges</p>
+      <div class="st-edges-grid">
+        <div class="st-edge"><b>AI</b><span>Groq and Gemini, with automatic fallback.</span></div>
+        <div class="st-edge"><b>Email</b><span>Resend, over SMTP.</span></div>
+        <div class="st-edge"><b>Sign-in</b><span>Email and password, or Google.</span></div>
+        <div class="st-edge"><b>Payments</b><span>SSLCommerz, bKash and a demo checkout.</span></div>
+      </div>
+    </div>
+
+    <p class="st-lede" style="margin:34px 0 0;font-size:17px">From code to the web:</p>
+    <ul class="st-chain">
+      <li>GitHub main branch</li><li>Docker build</li><li>Render</li><li class="is-good">jachai.nazmulhsn.me</li>
+    </ul>
+  </section>
+
+  <section class="st-section" aria-labelledby="request">
+    <div class="st-head">
+      <h2 id="request">One request, step by step</h2>
+      <p>What happens between a click and the answer on screen.</p>
+    </div>
+    <ol class="st-steps" style="--n:6">
+      <li><h3>Browser sends</h3><p>A call to the API with the access token.</p></li>
+      <li><h3>Security filter</h3><p>Checks the token signature and expiry.</p></li>
+      <li><h3>Controller</h3><p>Validates the input and rejects bad requests early.</p></li>
+      <li><h3>Service</h3><p>Checks membership, role and plan limits.</p></li>
+      <li><h3>MongoDB</h3><p>Reads or writes. Every query includes the organization.</p></li>
+      <li><h3>Response</h3><p>A result, or an error that says what to do next, in your language.</p></li>
+    </ol>
+  </section>
+
+  <section class="st-section" aria-labelledby="lifecycles">
+    <div class="st-head">
+      <h2 id="lifecycles">Two flows worth knowing</h2>
+      <p>The places where trusting the browser would be a mistake.</p>
+    </div>
+    <div class="st-grid st-grid--2">
+      <article class="st-card st-card--coral">
+        <h3>A payment</h3>
+        <ul class="st-chain">
+          <li>Created</li><li>Checkout ready</li><li>Verified</li><li class="is-good">Applied</li>
+        </ul>
+        <p style="margin-top:14px">Only the server can move a payment forward. Coming back from the payment page grants nothing by itself. When a payment is applied, the plan is extended and a receipt is emailed. A cancelled payment stops the flow.</p>
+      </article>
+      <article class="st-card">
+        <h3>An AI request</h3>
+        <ul class="st-chain">
+          <li>Ask the first provider</li><li class="is-warn">Fails or too slow</li><li>Ask the second provider</li><li class="is-good">Answer</li>
+        </ul>
+        <p style="margin-top:14px">If the first provider fails or takes more than 25 seconds, the second one answers instead. The daily limit is charged once, and a provider that keeps failing is skipped for two minutes.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="st-section" aria-labelledby="stack">
+    <div class="st-head">
+      <h2 id="stack">What it is made of</h2>
+      <p>A small number of parts, each with a defined job.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-card"><h3>Backend</h3><ul class="st-chips"><li>Java 21</li><li>Spring Boot 3.5</li><li>Spring Security</li><li>Spring Data MongoDB</li><li>Thymeleaf</li><li>Maven</li></ul></article>
+      <article class="st-card st-card--mix"><h3>Frontend</h3><ul class="st-chips"><li>HTML</li><li>CSS</li><li>JavaScript modules</li><li>No framework</li><li>English and বাংলা</li></ul></article>
+      <article class="st-card st-card--coral"><h3>Data</h3><ul class="st-chips"><li>MongoDB Atlas</li><li>Redis</li></ul></article>
+      <article class="st-card st-card--coral"><h3>AI</h3><ul class="st-chips"><li>Groq</li><li>Google Gemini</li><li>Spring AI</li></ul></article>
+      <article class="st-card"><h3>Integrations</h3><ul class="st-chips"><li>Resend email</li><li>Google sign-in</li><li>SSLCommerz</li><li>bKash</li></ul></article>
+      <article class="st-card st-card--mix"><h3>Quality and delivery</h3><ul class="st-chips"><li>JUnit and Mockito</li><li>Browser journey checks</li><li>Docker</li><li>Render</li><li>GitHub</li></ul></article>
+    </div>
+  </section>
+
+  <section class="st-section" aria-labelledby="decisions">
+    <div class="st-head">
+      <h2 id="decisions">Problems that changed the design</h2>
+      <p>Each decision answers a failure we could point to.</p>
+    </div>
+    <div class="st-grid st-grid--2">
+      <article class="st-decision"><h3>Answers can arrive late or twice.</h3><p><span class="st-tag st-tag--fix">Fix</span>The server sets the deadline, and submitting is safe to repeat.</p></article>
+      <article class="st-decision"><h3>One person has several roles.</h3><p><span class="st-tag st-tag--fix">Fix</span>Roles belong to an organization, and personal practice stays outside official scores.</p></article>
+      <article class="st-decision"><h3>Networks retry and providers disagree.</h3><p><span class="st-tag st-tag--fix">Fix</span>Emails, quotas and payments use unique ids, so a repeat never counts twice.</p></article>
+      <article class="st-decision"><h3>A browser redirect can lie.</h3><p><span class="st-tag st-tag--fix">Fix</span>A payment is applied only after the server confirms it with the provider.</p></article>
+      <article class="st-decision"><h3>AI can fail or be slow.</h3><p><span class="st-tag st-tag--fix">Fix</span>A second provider takes over automatically.</p></article>
+      <article class="st-decision"><h3>A stolen token is dangerous.</h3><p><span class="st-tag st-tag--fix">Fix</span>The access token lives in memory. The renewal token is an HttpOnly cookie that works once.</p></article>
+      <article class="st-decision"><h3>One database query once stopped the whole app.</h3><p><span class="st-tag st-tag--fix">Fix</span>A derived sum over money failed at startup, so it became a hand-written aggregation.</p></article>
+      <article class="st-decision"><h3>Hard words lock people out.</h3><p><span class="st-tag st-tag--fix">Fix</span>Every screen has plain English and Bangla, and errors say what to do next.</p></article>
+    </div>
+  </section>
+
+  <section class="st-section" aria-labelledby="take">
+    <div class="st-head">
+      <h2 id="take">Run it yourself</h2>
+      <p>Five steps from nothing to a working copy on your machine.</p>
+    </div>
+    <ol class="st-steps" style="--n:5">
+      <li><h3>Get the code</h3><p>Clone the repository.</p><code class="st-code">git clone https://github.com/Nazmul142965/jachAI.git</code></li>
+      <li><h3>Point it at MongoDB</h3><p>A local one works.</p><code class="st-code">$env:MONGODB_URI = "mongodb://localhost:27017"</code></li>
+      <li><h3>Start the demo</h3><p>One script starts it with demo roles.</p><code class="st-code">scripts/start-local.ps1 -Demo -Port 8102 -DatabaseName jachai_demo_ui</code></li>
+      <li><h3>Open it</h3><p>Visit port 8102 and choose a demo role.</p><code class="st-code">http://localhost:8102</code></li>
+      <li><h3>Run the tests</h3><p>Java first, then the browser journeys.</p><code class="st-code">./mvnw test
+node src/test/frontend/run-journeys.js</code></li>
+    </ol>
+
+    <div class="st-head" style="margin-top:44px">
+      <h2 style="font-size:24px">Where to look first</h2>
+      <p>The code is split by what it is for, not by technical layer.</p>
+    </div>
+    <div class="st-map">
+      <div><b>auth</b><span>Sign-in, sessions and passwords.</span></div>
+      <div><b>organization</b><span>Workspaces, members and roles.</span></div>
+      <div><b>question, assessment</b><span>Questions and versioned tests.</span></div>
+      <div><b>attempt</b><span>Timed attempts and answers.</span></div>
+      <div><b>academy</b><span>Courses, batches and certificates.</span></div>
+      <div><b>talent</b><span>Campaigns and hiring decisions.</span></div>
+      <div><b>billing</b><span>Plans, usage and payments.</span></div>
+      <div><b>ai, practice</b><span>The tutor, question drafts and practice.</span></div>
+      <div><b>messaging, support, mail</b><span>Chat, tickets and email.</span></div>
+      <div><b>platform</b><span>Admin tools for the operator.</span></div>
+    </div>
+    <p class="st-lede" style="margin:22px 0 0;font-size:16px">The repository also has SYSTEM.md, ARCHITECTURE.md, BACKEND.md and FRONTEND.md for the longer story.</p>
+  </section>
+
+  <section class="st-section" aria-labelledby="status">
+    <div class="st-head">
+      <h2 id="status">What is checked, honestly</h2>
+      <p>Evidence is useful. It is not a production stamp.</p>
+    </div>
+    <div class="st-grid st-grid--2">
+      <div class="st-ai-col st-ai-col--yes">
+        <h3>Checked on the live site</h3>
+        <ul>
+          <li>All six demo roles, from sign-in to results.</li>
+          <li>The AI Tutor and question drafts with real providers.</li>
+          <li>Checkout links for SSLCommerz and bKash.</li>
+          <li>A custom domain on Render with HTTPS.</li>
+        </ul>
+      </div>
+      <div class="st-ai-col st-ai-col--no">
+        <h3>Still to confirm</h3>
+        <ul>
+          <li>Receipt and invitation emails arriving in a real inbox.</li>
+          <li>A payment finished at the SSLCommerz or bKash sandbox.</li>
+          <li>Behavior under real load on the free hosting plan.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="st-band" aria-labelledby="go">
+    <h2 id="go">Take a look inside</h2>
+    <p>Try the product first, then read how it works underneath.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Open the live demo</a>
+      <a class="st-btn" href="/how.html">See how it works</a>
+    </div>
+  </section>
+</main>
 
   <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
 </body>
