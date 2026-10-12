@@ -35,6 +35,9 @@ ENV SPRING_PROFILES_ACTIVE=prod
 # as a hand-written aggregation, so Spring never introspects BigDecimal and the
 # module does not need opening. Verified by starting the application with no
 # add-opens at all: every repository bean was created.
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
+# C1-only compilation and the serial collector suit a host with a fraction of one CPU: less time compiling and
+# fewer background threads, so the first requests after a start or a quiet spell are not starved of CPU.
+# Every option is a single token, as the note above requires.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC"
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
