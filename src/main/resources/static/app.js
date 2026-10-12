@@ -553,9 +553,11 @@ function setInAppLinks(signedInNow) {
         // Let a modifier-click open a tab as the browser normally would.
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.button > 0) return;
         event.preventDefault();
-        // Stay on this screen. Back to the top of it, with focus on its title.
+        // Stay on this screen and refresh it: the data is fetched again, like a reload would,
+        // but without a document load, so the in-memory session survives.
         window.scrollTo({ top: 0 });
-        $('#page-title')?.focus({ preventScroll: true });
+        if (state.view) run(() => showView(state.view));
+        else $('#page-title')?.focus({ preventScroll: true });
       });
     }
   }

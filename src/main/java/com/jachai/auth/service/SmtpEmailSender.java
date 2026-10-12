@@ -2,8 +2,11 @@ package com.jachai.auth.service;
 
 import com.jachai.mail.model.EmailPayload;
 import com.jachai.mail.service.EmailTransport;
-import org.springframework.mail.SimpleMailMessage;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 
 final class SmtpEmailSender implements EmailTransport {
     private final JavaMailSender mailSender;
@@ -19,71 +22,17 @@ final class SmtpEmailSender implements EmailTransport {
 
     @Override
     public void deliver(EmailPayload payload) {
-        SimpleMailMessage mail = new SimpleMailMessage();
-        mail.setFrom(from);
-        mail.setTo(payload.recipient());
-        switch (payload.type()) {
-            case VERIFICATION -> {
-                mail.setSubject("Verify your JachAI email");
-                mail.setText("Hello " + payload.displayName() + ",\n\nVerify your email using this link:\n"
-                        + payload.url() + "\n\nThis link expires in 24 hours.");
-            }
-            case PASSWORD_RESET -> {
-                mail.setSubject("Reset your JachAI password");
-                mail.setText("Hello " + payload.displayName() + ",\n\nReset your password using this link:\n"
-                        + payload.url() + "\n\nThis link expires in 30 minutes. If you did not request it, ignore this email.");
-            }
-            case ASSESSMENT_INVITATION -> {
-                mail.setSubject("Your JachAI assessment invitation");
-                mail.setText("You have been invited by " + payload.displayName()
-                        + " to the assessment campaign \"" + payload.campaignTitle()
-                        + "\".\n\nOpen this link, register or sign in using this email address, "
-                        + "and accept the invitation:\n" + payload.url()
-                        + "\n\nIf you did not expect this invitation, ignore this email.");
-            }
-            case ORGANIZATION_INVITATION -> {
-                mail.setSubject("Join " + payload.displayName() + " on JachAI");
-                mail.setText("You have been invited to join " + payload.displayName()
-                        + " as " + payload.campaignTitle().replace('_', ' ')
-                        + ".\n\nOpen this link, register or sign in using this email address, "
-                        + "and accept the invitation:\n" + payload.url()
-                        + "\n\nIf you did not expect this invitation, ignore this email.");
-            }
-            case CERTIFICATE_ISSUED -> {
-                mail.setSubject("Your JachAI certificate is ready");
-                mail.setText("Hello " + payload.displayName()
-                        + ",\n\nYour certificate has been issued. View and verify it here:\n"
-                        + payload.url() + "\n\nIf you did not expect this message, contact your institute.");
-            }
-            case RESULT_RELEASED -> {
-                mail.setSubject("Your JachAI assessment result is available");
-                mail.setText("Hello " + payload.displayName()
-                        + ",\n\nYour assessment result is available. Sign in and open My assessments to view it:\n"
-                        + payload.url() + "\n\nIf you did not expect this message, contact your organization.");
-            }
-            case FEEDBACK_PUBLISHED -> {
-                mail.setSubject("Your JachAI instructor feedback is available");
-                mail.setText("Hello " + payload.displayName()
-                        + ",\n\nYour instructor has published feedback on your assessment."
-                        + " Sign in and open My assessments to read it:\n"
-                        + payload.url() + "\n\nIf you did not expect this message, contact your institute.");
-            }
-            case ASSIGNMENT_REMINDER -> {
-                mail.setSubject("Reminder: your JachAI assessment");
-                mail.setText("Hello " + payload.displayName()
-                        + ",\n\nYour assessment \"" + payload.campaignTitle()
-                        + "\" is waiting for you. Sign in and open My assessments before the availability window ends:\n"
-                        + payload.url() + "\n\nIf you already completed it, no action is needed.");
-            }
-            case BILLING_NOTICE -> {
-                mail.setSubject("Your JachAI payment receipt");
-                mail.setText("Hello " + payload.displayName()
-                        + ",\n\nThank you. Your payment was received and your TEAM plan is now active.\n\n"
-                        + payload.campaignTitle() + "\n\nSign in to see your plan and payment history:\n"
-                        + payload.url()
-                        + "\n\nThis is a demo payment: no real money was charged.");
-            }
+        EmailTemplates.Rendered email = EmailTemplates.render(payload);
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(payload.recipient());
+            helper.setSubject(email.subject());
+            helper.setText(email.text(), email.html());
+            mailSender.send(message);
+        } catch (MessagingException exception) {
+            throw new MailPreparationException(exception);
         }
-        mailSender.send(mail);
     }
 }
