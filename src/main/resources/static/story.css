@@ -266,3 +266,12 @@ body { overflow-x: clip; }
 @media (min-width: 1000px) { .st-steps { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); } }
 .st-steps > li { min-width: 0; }
 .st-code { max-width: 100%; box-sizing: border-box; }
+
+/* The rail that joins the numbers must run in front of the cards and behind the numbers, in one piece.
+   It used to sit behind the cards, so only short pieces showed in the gaps between them. */
+.st-steps::before { z-index: 1; }
+.st-steps > li::before { z-index: 3; }
+@media (min-width: 1000px) {
+  .st-steps::before { top: 25.5px; height: 5px; }
+  .st-steps > li::before { position: relative; }
+}
