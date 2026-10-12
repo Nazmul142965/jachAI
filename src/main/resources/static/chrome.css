@@ -88,3 +88,12 @@
   border-radius: 0 0 var(--r-sm, 8px) 0;
 }
 .skip-link:focus { left: 0; }
+
+/* Shown only when the server is slow to answer, usually because the free host was asleep. */
+.wake-hint {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50;
+  max-width: min(560px, calc(100vw - 32px)); padding: 12px 18px; border-radius: 14px;
+  background: var(--warn-surface); color: var(--warn-ink); border: 1px solid var(--warn-border);
+  box-shadow: var(--e-2, 0 8px 24px rgba(0,0,0,.2)); font-size: 14.5px; line-height: 1.45; text-align: center;
+}
+.wake-hint.hidden { display: none; }

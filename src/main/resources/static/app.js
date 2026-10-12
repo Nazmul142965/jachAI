@@ -242,7 +242,29 @@ const myRoleName = (organization) => t(organization.owner ? 'Owner'
   : ROLE_NAMES[organization.myRole] || roleTitle(organization.myRole));
 const when = (value) => (value ? new Date(value).toLocaleString() : 'not recorded');
 let pendingRequests = 0;
+// Free hosting puts the server to sleep when nobody uses it, and the first request after that can take up to a
+// minute. After four seconds of waiting, say so, instead of leaving a blank page that looks broken.
+let wakeTimer = null;
+function updateWakeHint() {
+  const waiting = pendingRequests > 0;
+  if (waiting && !wakeTimer) {
+    wakeTimer = window.setTimeout(() => {
+      let hint = document.getElementById('wake-hint');
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.id = 'wake-hint'; hint.className = 'wake-hint'; hint.setAttribute('role', 'status');
+        document.body.append(hint);
+      }
+      hint.textContent = t('Waking up the server. The free hosting plan sleeps when nobody is using it, so the first visit can take up to a minute.');
+      hint.classList.remove('hidden');
+    }, 4000);
+  } else if (!waiting && wakeTimer) {
+    window.clearTimeout(wakeTimer); wakeTimer = null;
+    document.getElementById('wake-hint')?.classList.add('hidden');
+  }
+}
 function updateBusyIndicator() {
+  updateWakeHint();
   document.body.setAttribute('aria-busy', pendingRequests > 0 ? 'true' : 'false');
   const indicator = $('#busy');
   if (!indicator) return;

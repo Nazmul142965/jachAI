@@ -745,6 +745,7 @@ const BN = {
   "Take a look inside": "ভেতরটা একবার দেখুন",
   "Try the product first, then read how it works underneath.": "আগে পণ্যটা চালিয়ে দেখুন, তারপর ভেতরে কীভাবে চলে পড়ুন।",
   "See how it works": "কীভাবে কাজ করে দেখুন",
+  "Waking up the server. The free hosting plan sleeps when nobody is using it, so the first visit can take up to a minute.": "সার্ভার জেগে উঠছে। কেউ ব্যবহার না করলে ফ্রি হোস্টিং ঘুমিয়ে যায়, তাই প্রথমবার এক মিনিট পর্যন্ত লাগতে পারে।",
   "Generating a draft… this can take up to a minute.": "খসড়া বানানো হচ্ছে… এক মিনিট পর্যন্ত লাগতে পারে।",
   "That person is not an active learner in this organization. Copy their User ID from Members.": "ইনি এই প্রতিষ্ঠানের সক্রিয় শিক্ষার্থী নন। সদস্য তালিকা থেকে তাঁর User ID কপি করুন।",
   "Optional. Making a draft can take up to a minute. AI questions are always drafts for a person to check, and AI never decides an official score.": "ঐচ্ছিক। খসড়া বানাতে এক মিনিট পর্যন্ত লাগতে পারে। এআই-র প্রশ্ন সবসময় খসড়া, যা মানুষকে দেখে নিতে হয়, আর এআই কখনো সরকারি নম্বর ঠিক করে না।",
