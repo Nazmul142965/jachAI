@@ -97,3 +97,13 @@
   box-shadow: var(--e-2, 0 8px 24px rgba(0,0,0,.2)); font-size: 14.5px; line-height: 1.45; text-align: center;
 }
 .wake-hint.hidden { display: none; }
+
+/* A thin moving line at the very top while the page is waiting for the server, so a slow answer never
+   looks like a frozen page. The app sets aria-busy on <body> whenever a request is in flight. */
+body[aria-busy="true"]::before {
+  content: ""; position: fixed; top: 0; left: 0; z-index: 60; height: 3px; width: 35%;
+  background: linear-gradient(90deg, transparent, var(--brand-400), var(--accent-400), transparent);
+  animation: jachai-wait 1.1s ease-in-out infinite;
+}
+@keyframes jachai-wait { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+@media (prefers-reduced-motion: reduce) { body[aria-busy="true"]::before { animation: none; width: 100%; opacity: .6; } }

@@ -618,10 +618,12 @@ async function signedIn(tokens) {
 let demoWorkspace = '';
 async function loadOrganizations(preferredId = state.organization?.id) {
   const previous = preferredId;
-  const platformAccess = await request('/platform/me');
+  // Two independent questions: ask them together instead of one after the other, so a slow connection
+  // waits for one round trip here, not two.
+  const [platformAccess, organizations] = await Promise.all([request('/platform/me'), request('/organizations')]);
   state.platformAdmin = platformAccess.platformAdmin;
   state.platformUserId = platformAccess.userId;
-  state.organizations = await request('/organizations');
+  state.organizations = organizations;
   const select = $('#organization-select');
   select.replaceChildren();
   for (const organization of state.organizations) {
