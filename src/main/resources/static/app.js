@@ -983,6 +983,17 @@ $('#support-ticket-form').addEventListener('submit', (event) => {
   });
 });
 
+// The picture sits beside the name inside the profile card; with no picture it shows the first letter.
+function paintIdentityAvatar(profile) {
+  const image = $('#account-avatar');
+  const letter = $('#account-avatar-letter');
+  if (!image || !letter) return;
+  const source = profile?.avatarDataUrl || '';
+  image.src = source;
+  image.classList.toggle('hidden', !source);
+  letter.classList.toggle('hidden', !!source);
+  letter.textContent = ((profile?.displayName || '?').trim().charAt(0) || '?').toUpperCase();
+}
 async function loadAccount() {
   const admin = state.organization?.myRole === 'ORG_ADMIN';
   const [profileResult, usageResult, planResult] = await Promise.allSettled([
@@ -1000,9 +1011,7 @@ async function loadAccount() {
       node('p', profile.emailVerified ? 'Email verified' : 'Email not verified', 'account-verification'));
     $('#account-profile-form [name="displayName"]').value = profile.displayName;
     updateAccountMenu(profile);
-    const avatar = $('#account-avatar');
-    avatar.src = profile.avatarDataUrl || '';
-    avatar.classList.toggle('hidden', !profile.avatarDataUrl);
+    paintIdentityAvatar(profile);
     // The hidden identifier beside the password fields. A password manager needs to
     // know which account a new password belongs to, so it carries the real email
     // rather than sitting empty purely to satisfy the browser's warning.
@@ -1095,8 +1104,7 @@ $('#account-avatar-form').addEventListener('submit', (event) => {
         method: 'POST', body: (() => { const data = new FormData(); data.append('image', image); return data; })()
       });
       state.profile = profile;
-      $('#account-avatar').src = profile.avatarDataUrl || '';
-      $('#account-avatar').classList.toggle('hidden', !profile.avatarDataUrl);
+      paintIdentityAvatar(profile);
       updateAccountMenu(profile);
       form.reset();
       notice('Profile image saved in compressed form.');
@@ -1104,10 +1112,19 @@ $('#account-avatar-form').addEventListener('submit', (event) => {
   });
 });
 
+$('#account-avatar-form input[name="image"]').addEventListener('change', (event) => {
+  const file = event.currentTarget.files[0];
+  if (!file || !/^image\/(png|jpeg)$/.test(file.type)) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    paintIdentityAvatar({ ...(state.profile || {}), avatarDataUrl: String(reader.result) });
+    notice('Preview only. Press Save image to keep it.');
+  };
+  reader.readAsDataURL(file);
+});
 $('#remove-avatar').addEventListener('click', () => run(async () => {
   await request('/auth/me/avatar', { method: 'DELETE' });
-  $('#account-avatar').src = '';
-  $('#account-avatar').classList.add('hidden');
+  if (state.profile) { paintIdentityAvatar({ ...state.profile, avatarDataUrl: null }); }
   if (state.profile) { state.profile = { ...state.profile, avatarDataUrl: null }; updateAccountMenu(state.profile); }
   notice('Profile image removed.');
 }));
