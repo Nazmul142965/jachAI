@@ -146,7 +146,7 @@
 /* a chain of pills with arrows between them */
 .st-chain { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; }
 .st-chain li { padding: 9px 15px; border-radius: 999px; font-weight: 700; font-size: 14px; background: var(--surface-brand); color: var(--brand-ink); border: 1px solid var(--brand-200); }
-.st-chain li + li::before { content: "\2192"; margin-right: 8px; font-weight: 800; color: var(--brand-ink); opacity: .7; }
+.st-chain li + li::before { content: ""; flex: none; width: 7px; height: 7px; margin-right: 10px; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: rotate(45deg); opacity: .7; }
 .st-chain li { display: inline-flex; align-items: center; }
 .st-chain li.is-good { background: var(--success-surface); color: var(--success-ink); border-color: var(--success-border); }
 .st-chain li.is-warn { background: var(--warn-surface); color: var(--warn-ink); border-color: var(--warn-border); }
