@@ -129,6 +129,8 @@ const SOURCE = String.raw`(() => {
       displayName: 'Learner One', emailVerified: true, passwordSet: true, googleLinked: false,
       avatarDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', createdAt: new Date().toISOString() });
     if (path === '/api/v1/auth/me/avatar' && method === 'DELETE') return json({});
+    if (path === '/api/v1/support/tickets' && method === 'GET') return json({ content: [{ referenceNumber: 'SUP-1001',
+      status: 'OPEN', subject: 'Fixture ticket', category: 'TECHNICAL' }] });
     if (path === '/api/v1/auth/google/config') return json({ clientId: '' });
     if (path === '/api/v1/platform/me') return json({ userId: ROLE.userId, platformAdmin: ROLE.platformAdmin });
     if (path === '/api/v1/organizations' && method === 'POST') {

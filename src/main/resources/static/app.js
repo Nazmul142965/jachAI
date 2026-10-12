@@ -1032,23 +1032,6 @@ async function loadAccount() {
     $('#account-password-form').classList.add('hidden');
     $('#account-login-method').textContent = 'Sign-in methods unavailable right now.';
   }
-  async function loadSupport() {
-    const organization = state.organization;
-    const select = $('#support-organization');
-    if (select) {
-      select.replaceChildren(new Option('Personal account', ''));
-      for (const item of state.organizations) {
-        select.append(new Option(`${item.name} · ${item.type}`, item.id));
-      }
-      if (organization) select.value = organization.id;
-    }
-    await loadList('#support-tickets', async () => {
-      const page = await request('/support/tickets?page=0');
-      setList('#support-tickets', (page.content || []).map((ticket) => item(
-        `${ticket.referenceNumber} · ${ticket.status}`,
-        `${ticket.subject} · ${ticket.category}`)), 'No support tickets yet.');
-    }, 'Support tickets could not be loaded.');
-  }
   const plan = $('#account-plan');
   plan.replaceChildren();
   if (usageResult.status === 'fulfilled') {
@@ -1076,6 +1059,24 @@ async function loadAccount() {
     plan.append(node('h3', 'Current workspace plan'),
       node('p', 'Your organization administrator manages this plan and its billing.', 'muted'));
   }
+}
+
+async function loadSupport() {
+  const organization = state.organization;
+  const select = $('#support-organization');
+  if (select) {
+    select.replaceChildren(new Option(t('Personal account'), ''));
+    for (const entry of state.organizations || []) {
+      select.append(new Option(`${entry.name} · ${entry.type}`, entry.id));
+    }
+    if (organization) select.value = organization.id;
+  }
+  await loadList('#support-tickets', async () => {
+    const page = await request('/support/tickets?page=0');
+    setList('#support-tickets', (page.content || []).map((ticket) => item(
+      `${ticket.referenceNumber} · ${ticket.status}`,
+      `${ticket.subject} · ${ticket.category}`)), 'No support tickets yet.');
+  }, 'Support tickets could not be loaded.');
 }
 
 $('#account-profile-form').addEventListener('submit', (event) => {

@@ -287,6 +287,14 @@ async function main() {
   check(journey, 'Practice shows the consumed free allowance',
     await ev(`document.querySelector('#practice-usage').textContent.includes('1/20 answers checked (19 left)')`));
   await ev(`document.querySelector('#account-menu-toggle').click()`);
+  await ev(`document.querySelector('#account-menu-support').click()`); await wait(450);
+  check(journey, 'Support page loads its workspace choices and tickets',
+    await ev(`document.querySelectorAll('#support-organization option').length > 0
+      && document.querySelector('#support-tickets').textContent.includes('SUP-1001')`));
+  check(journey, 'on Support, clicking the brand keeps the session and the page',
+    await ev(`(() => { document.querySelector('.topbar .brand').click(); return location.hash === '#/support'
+      && !document.querySelector('#support-view').classList.contains('hidden'); })()`));
+  await ev(`document.querySelector('#account-menu-toggle').click()`);
   await ev(`document.querySelector('#account-menu-profile').click()`); await wait(450);
   check(journey, 'account usage uses the API limit field',
     await ev(`document.querySelector('#account-plan').textContent.includes('1 of 20 answers used')
