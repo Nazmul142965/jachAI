@@ -2118,7 +2118,6 @@ body[data-restoring]::before {
 
 /* The language switch: two options, one filled. */
 .lang-switch {
-  margin-left: auto;
   display: inline-flex;
   padding: 3px;
   border: 1px solid var(--line-strong);

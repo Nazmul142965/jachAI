@@ -509,7 +509,7 @@ function setInAppLinks(signedInNow) {
   document.querySelector('.topbar .topnav')?.classList.toggle('hidden', signedInNow);
   const headerContext = document.querySelector('.topbar-note');
   if (headerContext) headerContext.textContent = signedInNow
-    ? 'Signed in · choose a workspace below' : 'Technical assessment workspace';
+    ? 'Signed in · choose a workspace below' : '';
   const brand = document.querySelector('.topbar .brand');
   if (brand) {
     // The href itself changes, not just the click handler. A handler alone

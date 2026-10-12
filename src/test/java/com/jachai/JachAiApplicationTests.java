@@ -453,7 +453,7 @@ class JachAiApplicationTests {
     void dashboardTemplateAndStaticAssetsArePublic() throws Exception {
         mvc.perform(get("/"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Technical assessment workspace")))
+                .andExpect(content().string(containsString("id=\"lang-switch\"")))
                 .andExpect(content().string(containsString("Hiring campaigns")))
                 .andExpect(content().string(containsString("campaign-candidates-pagination")))
                 .andExpect(content().string(containsString("invite-candidate-pagination")))

@@ -12,13 +12,16 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/chrome.css">
   <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <script type="module" src="/theme.js"></script>
+  <script type="module" src="/site.js"></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="JachAI home"><span class="brand-mark">J</span><span>Jach<span class="brand-accent">AI</span></span></a>
-    <nav class="topnav" aria-label="Site"><a href="/academy.html" aria-current="page"><span class="ic" data-ic="cap" aria-hidden="true"></span><span data-t>Academy</span></a><a href="/talent.html"><span class="ic" data-ic="briefcase" aria-hidden="true"></span><span data-t>Talent</span></a><a href="/plans.html"><span class="ic" data-ic="tag" aria-hidden="true"></span><span data-t>Pricing</span></a><a href="/how.html"><span class="ic" data-ic="compass" aria-hidden="true"></span><span data-t>How it works</span></a><a href="/engineering.html"><span class="ic" data-ic="code" aria-hidden="true"></span><span data-t>How it&#39;s built</span></a><a class="nav-cta" href="/"><span class="ic" data-ic="login" aria-hidden="true"></span><span data-t>Sign in</span></a></nav>
+    <nav class="topnav" aria-label="Site"><a href="/academy.html" aria-current="page"><span class="ic" data-ic="cap" aria-hidden="true"></span><span data-t>Academy</span></a><a href="/talent.html"><span class="ic" data-ic="briefcase" aria-hidden="true"></span><span data-t>Talent</span></a><a href="/plans.html"><span class="ic" data-ic="tag" aria-hidden="true"></span><span data-t>Pricing</span></a><a href="/how.html"><span class="ic" data-ic="compass" aria-hidden="true"></span><span data-t>How it works</span></a><a class="nav-cta" href="/"><span class="ic" data-ic="login" aria-hidden="true"></span><span data-t>Sign in</span></a></nav>
+    <div id="lang-switch" class="lang-switch" role="group" aria-label="Language / ভাষা"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="bn" aria-pressed="false" lang="bn">বাংলা</button></div>
   </header>
   <main class="page">
     <p class="eyebrow">Academy</p>
@@ -85,6 +88,6 @@
 
     <div class="note"><p>Already have a certificate? Paste its verification code on the <a href="/">JachAI home page</a> to check it without signing in.</p></div>
   </main>
-  <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>How it&#39;s built</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
+  <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
 </body>
 </html>
