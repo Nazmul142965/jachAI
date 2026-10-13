@@ -1,217 +1,409 @@
-# JachAI
+<div align="center">
 
-JachAI is a Spring Boot 3 / Java 21 modular-monolith REST API for technical assessments. The implementation is in progress; a passing local demo is not a verified production release.
+# 🎓 JachAI
 
-## Documentation map
+### Skills deserve more than a score.
 
-- [ARCHITECTURE.md](ARCHITECTURE.md): product rules, roles, data boundaries, and acceptance criteria.
-- [FRONTEND.md](FRONTEND.md): the current HTML/CSS/JavaScript UI and its conventions.
-- [BACKEND.md](BACKEND.md): current backend boundaries, demo-account rules, and test entry points.
-- [SYSTEM.md](SYSTEM.md): configuration, deployment, health checks, and release gates.
-- [docs/ENGINEERING.md](docs/ENGINEERING.md): the stack, engineering challenges, and how we addressed them. The same story is available in the app at `/engineering.html`.
+**A tests-and-certificates platform for schools, training centres and hiring teams.**
+People write and review the questions. The server keeps the time, the scores and the records. A certificate can be checked by anyone.
 
-Completed delivery reports and old branch/commit notes are indexed in [docs/archive/completed/](docs/archive/completed/README.md). The [React design experiment](docs/design/react/README.md) is deliberately kept separately for future work; it is not the current UI.
+[![Live demo](https://img.shields.io/badge/Live_demo-jachai.nazmulhsn.me-0f766e?style=for-the-badge)](https://jachai.nazmulhsn.me)
+[![Java 21](https://img.shields.io/badge/Java-21-ed8b00?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.5-6db33f?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47a248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
+[![Redis](https://img.shields.io/badge/Redis-limits_&_cache-dc382d?logo=redis&logoColor=white)](https://redis.io)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
+[![Tests](https://img.shields.io/badge/tests-720_Java_%2B_169_browser_checks-brightgreen)](#-testing)
+[![Language](https://img.shields.io/badge/UI-English_%7C_বাংলা-6366f1)](#-for-bangla-readers--বাংলায়-সারসংক্ষেপ)
 
-## Current workflows
+[**Open the live demo**](https://jachai.nazmulhsn.me) · [How it works](https://jachai.nazmulhsn.me/how.html) · [How it's built](https://jachai.nazmulhsn.me/engineering.html) · [Pricing](https://jachai.nazmulhsn.me/plans.html)
 
-- Verified platform administrators see a separate Platform section in the dashboard, even without owning a workspace. It shows operations counts, paged organizations, billing/order summaries, a quota preview, a deliberate repair control, and the repair audit. The frontend only helps navigate; all permissions are enforced again by the API.
-- Platform admins can inspect `GET /api/v1/platform/operations/summary` for counts of failed/overdue email jobs, old open sandbox checkouts, verified but unapplied orders, and quota-repair runs without completion. Counts do not expose tenant content or payment credentials. This is an operator signal, not a substitute for MongoDB/Redis readiness or external provider monitoring.
-- Platform quota repair has a tenant-scoped, append-only audit at `GET /api/v1/platform/organizations/{organizationId}/billing/usage-reconciliation/audit?page=0`. It records `REQUESTED` before any bucket mutation and `COMPLETED` afterward; missing completion or `OUTCOME_UNCONFIRMED` requires a fresh report and operator review because the two collections are not updated in one transaction.
-- Email registration, verification, login, refresh rotation, access-token/refresh-session logout, and single-use password reset by email. Password reset invalidates earlier access and refresh tokens through a per-user security version.
-- Optional Sign in with Google using a configured Google Identity Services web client ID. The server verifies Google's ID token and stable subject. A Google-authoritative verified email can create an account or link an existing verified, enabled same-email account; other addresses must complete JachAI email verification before authenticated linking. No Google Cloud Identity Platform is required.
-- MongoDB-backed email outbox for verification, reset, and Talent invitation links. Queue payloads are encrypted at rest, processed with bounded retries, and discarded after delivery, expiry, or five failed attempts. The worker checks that each link token is still current before sending. Local MongoDB tests cover atomic claims, lease fencing, and retry backoff; SMTP delivery remains unverified. Like any SMTP outbox, it is at-least-once: a crash after SMTP accepts a message but before the job is marked sent can produce a duplicate email.
-- Redis-backed fixed-window request limits for registration/login/reset/refresh, certificate verification, invitations, and AI bursts. Redis keys contain HMAC digests instead of raw IP addresses or email addresses; production fails closed if Redis cannot enforce a limit.
-- Organization-level `FREE`/`TEAM` plan entitlements with server-side gates for published assessments, invitations (including batch distribution), AI daily use, and certificate issuance. An organization admin can see its limits in the dashboard. Missing or inactive subscription state falls back to `FREE`; only a verified billing update should grant `TEAM`.
-- Separate direct bKash and SSLCOMMERZ sandbox checkouts for a demo 30-day `TEAM` term, with persisted orders, server-side validation, tenant-scoped order history, and duplicate-callback protection. No live-money endpoint is enabled.
-- Organization creation and memberships; roles and tenant checks are enforced in services. Workspace owners can delegate `ORG_ADMIN`; other admins can manage only regular Academy/Talent roles. Staff can change roles, deactivate/reactivate members, and read paged member history. The owner cannot be demoted or deactivated through membership endpoints, but can transfer ownership to another active verified admin; the former owner remains an admin. The organization document is authoritative for owner permission if a concurrent membership change leaves that record stale. Platform-wide role grants exist separately, but broader support administration remains incomplete.
-- Organization admins can email a seven-day workspace invitation to a not-yet-registered colleague. The recipient signs in with the matching verified address to accept it; pending links can be reissued or revoked. Only the current owner can invite or revoke an `ORG_ADMIN` invitation. The dashboard lists retained invitations without revealing link tokens.
-- Manual question drafts and approval, assessment publishing to immutable version snapshots, assignment with an optional staff-triggered email reminder, timed attempts, objective and short-text answer saving, deterministic objective scoring, staff-only binary grading of short answers, manual/immediate result release, and topic-level result breakdown.
-- Redis cache for immutable published assessment versions, with MongoDB fallback. Local caching is disabled until `CACHE_ENABLED=true`; production enables it by default.
-- MongoDB durably records revoked access-token IDs until expiry. Redis can speed positive revocation checks with `REDIS_REVOCATION_ENABLED=true`; authentication still checks MongoDB when Redis is empty or unavailable and fails closed if MongoDB cannot confirm token state. This adds MongoDB reads per authenticated request until a safer bounded cache is designed.
-- AI question drafting via Gemini (`AI_PROVIDER=google-genai`), post-attempt Academy tutoring via Groq (`AI_TUTOR_PROVIDER=groq`), or local Ollama for both (`AI_PROVIDER=ollama`). AI drafts still require human approval. AI request quota counters are in Redis; AI fails closed if Redis is unavailable.
-- Academy certificate issuance after a passing, released result; learner certificate listing, staff revocation, minimal public code verification, and tenant-scoped issue/revocation audit history.
-- Academy instructor feedback for submitted attempts: staff save a private draft, publish after result release, and only the owning learner can read published feedback. Published feedback is immutable. Publish queues one deduplicated learner notice in the encrypted email outbox; a retry can repair a failed enqueue. Delivery rechecks published status, active learner membership, and recipient email. Staff can inspect a tenant-scoped, paged publish audit at `/api/v1/organizations/{organizationId}/academy/attempts/{attemptId}/feedback/audit`.
-- Academy courses and dated batches with verified learner enrollment. Staff distribute immutable published assessment versions to a batch, reconcile missing assignments after partial failures, and page through latest submitted results; learners see the generated assignments in the existing attempt flow.
-- Academy instructor–learner direct messaging through separate tenant-scoped conversation and message collections. Only active participants can read or send; messages expire after 90 days, and new sends stop when a conversation has 500 stored messages. The dashboard refreshes an open conversation every 15 seconds. AI Tutor responses are not stored as human chat history.
-- An in-progress responsive browser dashboard for registration/login, workspaces, authoring, assignments, attempts, results, and certificates. HTML pages are rendered from `src/main/resources/templates` by a small MVC page controller; CSS/JavaScript live in `src/main/resources/static` and call the REST API.
-- The signed-in “Your workspaces” screen lets an existing learner or candidate join another workspace by participant code or create an Academy/Talent organization they own. The current workspace selector and each tenant role remain independent. This is available after the first workspace too, not only during first-time onboarding.
-- Talent hiring campaigns tied to a frozen assessment version, existing-member or email candidate invitations, staff-only candidate comparison, reviewer notes, hold/shortlist/reject decisions, and paginated review history. An email recipient registers or signs in with the same verified address before accepting; acceptance creates candidate membership and a frozen assignment.
-- Academy organization admins can save a certificate design with wording, signer name, and optional PNG/JPEG logo and signature (64 KiB and 1200 pixels per image maximum; at most ten saves per workspace in a rolling 30 days to bound free-tier storage). New designs are immutable versions; issuance freezes the active design ID. A learner can open and print their own certificate from My certificates. Public code verification remains deliberately minimal and never returns holder identity, logo, or signature. The private design/display API requires active tenant membership and restricts full display to the holder or Academy staff. Browser fixture and focused service tests cover this workflow; live Atlas image persistence and print output remain unverified.
-- Talent attempt integrity signals (tab visibility, optional fullscreen exit, copy/paste, and client-reported answer-save timing) stored separately from attempts. Recruiters can inspect an evidence-only summary and paged events after submission; no automatic cheating decision is made.
+<img src="docs/images/home.png" alt="JachAI sign-in page with one-click demo roles" width="820">
 
-The [system release gates](SYSTEM.md#release-gates-still-open) still require hosted verification of dependencies and enabled external services. The last local pre-deployment evidence is preserved in [the release check](docs/archive/completed/RELEASE_CHECK_2026-10-09.md); do not interpret that historical revision as a production pass.
+</div>
 
-## Run locally
+> **Try it in 10 seconds.** Open the [live demo](https://jachai.nazmulhsn.me) and press one of the six role buttons (Academy owner, Instructor, Learner, Talent owner, Recruiter, Candidate). No sign-up and no password. The demo runs on a free server, so the very first visit after a quiet period can take up to a minute while it wakes up.
 
-For a disposable role walkthrough, run
-`powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -Demo`.
-The launcher uses port 8093 and `jachai_demo_local` by default for an isolated test. The current demo login service itself has no database-name restriction: the six roles can use the configured database. Local access is loopback-only unless public demo access is deliberately enabled with HTTPS as described in [SYSTEM.md](SYSTEM.md). On the sign-in page, choose Academy owner, instructor, learner,
-Talent owner, recruiter, or candidate. Clicking signs in without copying a
-password. These are passwordless demo-only accounts (`@demo.jachai.invalid`),
-not real identities; password change/reset and Google linking are blocked for
-them. Ordinary registered accounts keep their normal password-change flow.
-The role accounts have real permissions within the two disposable demo
-workspaces. Their first sign-in seeds one approved question, published assessment,
-and learner/candidate invitation per workspace through the normal application
-services; repeat sign-ins reuse the same examples. Demo mode disables cloud AI and SMTP delivery.
-Use the role accounts to create additional content and exercise the workflows
-in the selected database. Demo identities are shared examples, not private customer or faculty accounts.
+---
 
-On this Windows development machine, set `MONGODB_URI` in the shell, then run `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1` from the repository root. It selects JDK 21 and launches JachAI at `http://127.0.0.1:8080/`, connecting to MongoDB Atlas with the environment URI. It does not start a local MongoDB server. Logs are under ignored `target/local-dev/`. Without SMTP settings, local verification/reset links appear in the app log and must not be shared. After registering, wait a few seconds, then run `powershell -ExecutionPolicy Bypass -File .\scripts\open-local-verification.ps1 -Email you@example.com` to open your verification link without copying its token; add `-Port 8092` if that is your app port. A generated local JWT secret expires sign-ins on restart; set your own stable `JWT_SECRET` privately if sessions must survive restarts. To use a separate development database and port, pass `-Port 8092 -DatabaseName jachai_demo_20261004`; the helper never points at the production database.
+## 📑 Contents
 
-## MongoDB Preflight (run before starting)
+[What is it?](#-what-is-it) · [Who gets what](#-who-gets-what-and-why-it-helps) · [Screens](#-screens) · [Features](#-features-in-detail) · [Architecture](#-architecture) · [Tech stack](#-tech-stack) · [Run it](#-run-it-yourself) · [Settings](#-settings-you-will-need) · [Testing](#-testing) · [Project map](#-project-map) · [Honest status](#-honest-status) · [Bangla](#-for-bangla-readers--বাংলায়-সারসংক্ষেপ) · [Docs](#-more-documentation)
 
-JachAI requires a reachable MongoDB (Atlas or local) for all runtime data. The startup script now checks connectivity and will fail fast with a clear message if MongoDB is not reachable.
+---
 
-**Quick check (manual):**
-```powershell
-# Run from repo root in the SAME shell where you set MONGODB_URI
-powershell -ExecutionPolicy Bypass -File .\scripts\check-mongo.ps1
-```
-- Exit 0 = OK, MongoDB is reachable
-- Exit 1 = Configuration issue (URI not set, malformed, no database named)
-- Exit 2 = Authentication failed (bad credentials or missing permissions)
-- Exit 3 = Network/unreachable (server down, IP not whitelisted, cluster paused)
-- Exit 4 = Other error
+## 💡 What is it?
 
-The check prints nothing sensitive (no URI, no credentials). It uses the same `MONGODB_URI` and `MONGODB_DATABASE` you set in the shell.
+Most online tests have the same weak spots: the timer lives in the browser, the questions can change after people have started, a score is just a number, and a certificate is a picture anyone can edit.
 
-**Automatic preflight on startup:**
-`start-local.ps1` runs `check-mongo.ps1` before launching. If MongoDB is not reachable, you will see:
-```
-Preflight FAILED: MongoDB is not reachable.
-  No server answered within the time limit.
-  This is usually the network, not the credentials.
-  ...
+JachAI keeps the **whole life of a test in one place** and makes the server, not the browser, the source of truth:
 
-Fix one of these, then retry:
-  1. Start a local MongoDB on localhost:27017, OR
-  2. Set MONGODB_URI in this shell to a running Atlas cluster (mongodb+srv://...), OR
-  3. Run with -SkipMongoCheck to bypass (only for non-Demo, non-SMTP modes where MongoDB is optional).
-```
-To bypass the preflight (not recommended for demo/SMTP modes):
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -SkipMongoCheck
+```mermaid
+flowchart LR
+    A["✍️ Write questions<br/>by hand or with AI"] --> B["✅ A person reviews<br/>and approves"]
+    B --> C["📦 Publish a frozen<br/>version"]
+    C --> D["📨 Assign to a class<br/>or invite candidates"]
+    D --> E["⏱️ Timed attempt<br/>(server keeps the clock)"]
+    E --> F["📊 Score, grade,<br/>release the result"]
+    F --> G["🎓 Verifiable<br/>certificate"]
+    F --> H["🤖 AI Tutor explains<br/>mistakes"]
 ```
 
-**Port and database discovery:**
-Do not hard-code ports or database names. When the app starts, it prints:
-```
-JachAI is ready at http://127.0.0.1:8080/
-Local demo mode is active. Choose a role on the sign-in page; no password is needed.
-```
-Or in `target/local-dev/app.<port>.out.log`:
-```
-Tomcat started on port(s): 8080 (http) with context path ''
-...
-spring.data.mongodb.database: jachai_dev
-```
-Use the printed `http://127.0.0.1:<port>/` and the logged database name. The ports 8093/8095 in older docs are examples only — the script picks a free port and prints the actual one.
+It serves two worlds with one account:
 
-To test real email locally, configure `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` (and optionally `MAIL_PORT`, default 587) plus a stable 32+ byte `JWT_SECRET` privately in your shell or IntelliJ run environment; a separate stable `MAIL_JOB_ENCRYPTION_KEY` is recommended. Complete `MAIL_*` settings automatically select SMTP even when IntelliJ uses the default `local` profile. The existing `smtp` profile and `scripts/start-local.ps1 -Smtp` remain valid. Missing or partial SMTP settings fail startup rather than silently logging links. SMTP uses STARTTLS and short network timeouts. Register only an inbox you control; successful delivery must be checked in that inbox and the `email_jobs` state, not inferred from a 202 registration response. The developer's IntelliJ configuration has Gmail SMTP credentials on port 587, but inbox delivery has not been independently verified; these settings are not present in every shell or deployment. See `SYSTEM.md` before choosing a free host.
-
-Use JDK 21, Maven, and a MongoDB instance. Set environment variables in your terminal or IntelliJ run configuration; Spring Boot does not load `.env` automatically. `.env.example` contains only placeholders. Never commit actual credentials.
-
-Required: `JWT_SECRET` (at least 32 UTF-8 bytes) and an Atlas `MONGODB_URI` (cluster and credentials only; no database name in the URI). The default `local` profile runs on your workstation but stores data in Atlas database `jachai_dev`, named in `application-local.properties`; override only with `LOCAL_MONGODB_DATABASE`. The `prod` profile uses a separate Atlas database `jachai_prod`, named in `application-prod.properties`; override only with `MONGODB_DATABASE`. The same Atlas cluster can host both databases, but use a dedicated database user with the appropriate permissions and never point local and production at the same database. An Atlas `bad auth` error is a database-user password/URI issue, not a JWT issue. IntelliJ's normal Run button uses `local` when no profile is selected.
-
-Platform administration is separately bootstrapped with optional `PLATFORM_ADMIN_USER_IDS`, a comma-separated list of existing verified JachAI user IDs. Find your own ID with authenticated `GET /api/v1/platform/me`, then set the variable in the IntelliJ run configuration and restart. An empty value grants nobody platform access initially. A current platform administrator may grant or revoke another user's platform role using `PUT /api/v1/platform/users/{userId}/role` with `{"platformAdmin":true}` or `false`; `GET` on that route and `/audit?page=0` show the current effective role and immutable history. Only verified, enabled users can receive a grant; no one can change their own role or alter an environment-bootstrap admin through the API. Grant/revoke operations have an indexed per-user revision; concurrent changes return 409 and must be retried after reloading. For billing support, `GET /api/v1/platform/organizations/{organizationId}/billing` shows the stored paid-subscription state and `/billing/orders?page=0` shows a tenant-scoped, paged order summary without gateway credentials or validation identifiers. Platform admins can also `GET` a per-tenant `/billing/usage-reconciliation` report and `POST` the same route to repair only provable quota gaps; compare-and-set prevents overwriting concurrent reservations, and each changed bucket records the acting admin. These routes do not reconcile payments. The separate `/billing/manual-plan` endpoint shows the current manual TEAM grant; `POST` there accepts `{"expiresAt":"<UTC instant within 30 days>","reason":"<10–500 characters>"}`, while `POST /billing/manual-plan/revoke` accepts a reason. `/billing/manual-plan/audit?page=0` shows immutable changes. Manual grants cannot replace an active paid TEAM subscription and never mark an order paid. The platform API cannot read assessment answers or attempts, disable accounts, or modify paid periods. Protect administrator accounts with strong credentials. Live MongoDB concurrency/index verification remains open.
-
-For a support ticket, a platform admin may `POST /api/v1/platform/organizations/{organizationId}/support/assessment-access` with `assessmentId`, `ticketReference`, a 20–500 character `reason`, and `acknowledgeTenantContent:true`. The response contains only assessment metadata, never questions, answers, attempts, or learner records. The append-only access event is inserted before returning the preview; if that insert fails, access fails closed. Platform admins can page through `/api/v1/platform/organizations/{organizationId}/support/assessment-access/audit`; tenant `ORG_ADMIN` users can inspect the same tenant's history at `/api/v1/organizations/{organizationId}/support/assessment-access/audit`. A focused integration test passed against dedicated local MongoDB for audit persistence, tenant scoping, and the compound index; Atlas and browser verification remain open.
-
-Email jobs use `MAIL_JOB_ENCRYPTION_KEY` when set, otherwise a key derived from `JWT_SECRET`. Keep the chosen key stable until queued jobs are drained; changing it makes pending payloads unreadable. Use a separate 32+ byte random mail key in production. The worker polls every 15 seconds by default (`MAIL_OUTBOX_POLL_MS`). Local development prints links to the console only after the worker processes the queued job. Email delivery is at-least-once: a crash after SMTP accepted a message but before MongoDB marks it sent can cause a duplicate. Failed jobs retain only metadata for 30 days, not the encrypted link payload.
-
-Unverified accounts are eligible for deletion seven days after registration. A scheduled, bounded cleanup checks for any membership before an atomic delete, and verification cannot resurrect a concurrently deleted account. Account deletion can lag the deadline by the cleanup interval; no verified account is targeted. If an old unverified address still blocks re-registration briefly, wait for cleanup or use a different address; resend links are not issued after the seven-day window.
-
-```powershell
-$env:JWT_SECRET = '<generate-a-random-secret-of-at-least-32-bytes>'
-$env:MONGODB_URI = '<private-Atlas-connection-string-without-database-name>'
-.\mvnw.cmd test
-.\mvnw.cmd spring-boot:run
-```
-
-`GET /api/v1/health` checks app liveness only. `GET /actuator/health/liveness` is the Actuator liveness probe; `GET /actuator/health/readiness` checks MongoDB and Redis in the production profile. To perform an opt-in MongoDB save/read/delete check, use the `local,mongo-smoke` profiles. Deployment prerequisites and remaining release gates are in [SYSTEM.md](SYSTEM.md).
-
-When a learner or candidate's assessment result becomes visible, an email job sends a sign-in link and directs them to “My assessments.” It does not reveal the score in email. Manual-release assessments send this only after staff release the result; automatic-release assessments send it after submission. The outbox uses one durable job per attempt and rechecks result visibility and the current recipient address before delivery. SMTP delivery has not been verified live.
-
-Assessment staff can inspect a submitted attempt's frozen questions, selected options, and answer key through `GET /api/v1/organizations/{orgId}/attempts/{attemptId}/review` or the dashboard's “Inspect answers” action. The endpoint enforces organization-scoped staff access and does not release candidate-visible results. It is a review aid, not score editing or an automated cheating verdict.
-
-Open `/` for the dashboard. Spring MVC renders the HTML templates; API controllers remain REST-only. The browser keeps access/refresh tokens in memory, so a page reload signs you out. The dashboard is an early workflow UI, not a production-complete frontend.
-
-To try workspace invitations, sign in as an organization admin, open Members, choose a role available to that workspace type, and send an invitation by email. The recipient can register and verify that exact email before opening the link and signing in. Reissuing a pending invitation rotates the link, so an older queued email will not be delivered; accepted invitations cannot be reissued. If membership creation fails after acceptance, the same verified recipient can retry the accepted link for seven days without depending on the inviter's current role. An invitation cannot reactivate a deactivated member; an admin must use the normal member-management control. The invitation API is `POST/GET /api/v1/organizations/{orgId}/invitations`, `DELETE /api/v1/organizations/{orgId}/invitations/{id}`, and authenticated `POST /api/v1/organization-invitations/accept` with `{"token":"..."}`. Links and email jobs require a working outbox transport; SMTP and real MongoDB concurrency have not been verified live.
-
-For Redis caching, set `REDIS_HOST`, `REDIS_PORT`, and `CACHE_ENABLED=true`. A cloud Redis host may also require `REDIS_USERNAME`, `REDIS_PASSWORD`, and `REDIS_SSL_ENABLED=true`; alternatively supply Spring Boot's `SPRING_DATA_REDIS_URL` in the environment. For Gemini drafts, set `AI_PROVIDER=google-genai` and `GEMINI_API_KEY`. For Groq tutoring as well, set `AI_TUTOR_PROVIDER=groq` and `GROQ_API_KEY`. For local Ollama instead, set `AI_PROVIDER=ollama`, `AI_TUTOR_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`. Organization AI operations also need Redis for quotas; personal practice uses separate MongoDB-backed counters. Provider models and Groq base URL are configurable; see `.env.example`. Do not enable cloud billing just to run this project.
-
-Personal Practice is available without an organization. After sign-in, choose **Get started → Practice a skill** or open **Practice**, enter a topic and difficulty, then create a private AI question. The five built-in questions are fallback examples, not the whole product. The server enforces 20 generated questions and 20 answers per user per UTC day; `PRACTICE_AI_GLOBAL_DAILY_LIMIT` defaults to 100 generations across the deployment to cap free-provider usage. Generation needs the configured draft AI provider (`AI_PROVIDER` plus its key); if unavailable, no generated question is saved and reserved allowance is refunded. Generated questions expire after 30 days; answer history after 90 days. Personal paid checkout is not built, so no paid access or unlimited generation is advertised. Live provider behavior is not verified by the local fixture tests.
-
-For a new Gemini API account, the default `GEMINI_MODEL` is `gemini-3.8-flash`. Google may deny legacy `gemini-2.5-flash` to new accounts with HTTP 404 even when the API key is valid. If IntelliJ explicitly sets `GEMINI_MODEL=gemini-2.5-flash`, remove that override or set it to `gemini-3.8-flash`, then restart; the application default cannot override an IntelliJ environment variable. Model availability and free-tier limits can vary by account and time, so verify one real generation before relying on it.
-
-Set `GOOGLE_CLIENT_ID` to a Google Identity Services Web client ID to show Google sign-in. Add the app's exact origin (for example `http://localhost:8080`) to Google's Authorized JavaScript origins. The ID token is verified server-side; no Google client secret or paid Identity Platform is used. A Google-authoritative verified email can safely link an existing verified, enabled same-email account during sign-in; accounts with other email domains need JachAI verification and authenticated linking. Google-only accounts can set a local password later through the password-reset email flow. This flow has unit tests but no hosted Google/browser verification yet.
-
-For local setup, create a **Web application** OAuth client in Google Cloud and add `http://localhost:8080` under **Authorized JavaScript origins**, then put only its client ID in IntelliJ's `GOOGLE_CLIENT_ID` environment variable and restart. A Google account with a verified Gmail address can create a JachAI account without SMTP, or link a matching verified, enabled account as described above. The Google client ID is unrelated to the Gmail SMTP password. A blank ID keeps the button unavailable; a blocked Google script shows a visible error.
-
-The email outbox accepts any real SMTP provider through `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, and `MAIL_FROM`; email-validation APIs and disposable-inbox services do **not** send account-verification links. For a personal Gmail sender without a domain, use `smtp.gmail.com`, port `587`, the same Gmail address for username/from, and a Google **App Password** (not the normal account password) after enabling 2-Step Verification. Keep all values in IntelliJ environment variables; never commit them. `MailAuthenticationException` means the SMTP provider rejected login, not that MongoDB failed or that the verification token was not generated. Restart after changing these values, request a fresh link, and check the corresponding `email_jobs` status before assuming delivery.
-
-Request limits are off by default in local development (`RATE_LIMIT_ENABLED=false`) and on in production. They require Redis. If Redis is unavailable while enabled, protected requests return 503 rather than bypassing protection. Login is limited by both client IP and normalized email; reset and registration are similarly scoped. Invitation and AI burst limits use organization plus actor ID; AI still has its daily quota. By default, IP limits use the socket address and ignore forwarding headers. Behind a trusted reverse proxy, explicitly set `TRUSTED_PROXY_CIDRS` and follow the [proxy deployment rules](SYSTEM.md#client-ip-behind-a-trusted-reverse-proxy); `X-Forwarded-For` is only read from configured peers. The fixed-window counters and Redis failure mode have unit tests but have not yet been tested against a live Redis instance or proxy.
-
-Plans are per organization, so an Academy and a Talent workspace can be billed separately. `FREE` allows 3 distinct published assessments, 30 invitations/month, 5 AI requests/user/day (30/organization/day), and 30 certificates/month; `TEAM` raises those limits. Publishing a changed assessment through `POST /api/v1/organizations/{organizationId}/assessments/{assessmentId}/versions` creates a new immutable version without consuming another assessment slot; existing assignments remain pinned to their original version. Both plans currently retain chat and telemetry for 90 days. Usage slots are reserved with an atomic MongoDB counter before a guarded write and refunded on handled write failures. Tenant admins can preview and repair provable counter gaps through the usage-reconciliation API; platform admins have an audited tenant-scoped support route. Ambiguous invitation history, TTL-erased evidence, and undated records still require manual review. Live MongoDB concurrency and TTL behavior must be verified before production. There is no public API to grant a paid plan; direct bKash and SSLCOMMERZ integrations use sandbox only, and a browser redirect never upgrades an organization before server-side payment verification.
-
-For an all-tenant historical quota review, set `JACHAI_PLATFORM_ACCESS_TOKEN` privately in your shell and run `./scripts/reconcile-usage.ps1` against the local app. It pages through organizations and prints each tenant's provable gaps and unresolved manual steps without writing. Add `-RepairProvable` to request only the existing safe per-tenant repair API; PowerShell confirms each tenant before POST, and `-WhatIf` previews the operation. The report omits empty invitation windows with neither a counter nor surviving records, since nothing can be repaired there; this does not prove historical invitations never existed. Existing counters with TTL-erased evidence remain visible for manual review. The script does not alter ambiguous counters. It has only a PowerShell syntax check so far, not a credentialed API run.
-
-For SSLCOMMERZ demo checkout, obtain sandbox store credentials and set `SSLCOMMERZ_SANDBOX_STORE_ID`, `SSLCOMMERZ_SANDBOX_STORE_PASSWORD`, and `APP_PUBLIC_BASE_URL` (your externally reachable HTTPS origin, or `http://127.0.0.1:8080`/`http://localhost:8080` for browser-only local testing). The local launcher uses `127.0.0.1`; both gateway adapters now accept that exact loopback HTTP origin but reject non-loopback HTTP and callback URLs with embedded paths, query strings, or credentials. For direct bKash tokenized sandbox checkout, set `BKASH_SANDBOX_APP_KEY`, `BKASH_SANDBOX_APP_SECRET`, `BKASH_SANDBOX_USERNAME`, and `BKASH_SANDBOX_PASSWORD` from merchant sandbox onboarding. The bKash adapter is pinned to `tokenized.sandbox.bka.sh` and follows the [bKash developer plugin's grant/create/execute/query API pattern](https://github.com/bKash-developer/bKash-for-woocommerce/blob/main/includes/classes/ApiComm.php). `DEMO_TEAM_PRICE_BDT` defaults to `100.00`. Only an organization admin can start checkout or read its order history. A payment activates 30 days of `TEAM` only after the backend verifies the payment ID, merchant invoice/order ID, transaction ID, amount, currency, and completed status with the chosen gateway. Browser status alone never grants TEAM. The order ID is recorded in the subscription so duplicate callbacks cannot credit the term twice. SSLCOMMERZ IPN cannot reach localhost without a tunnel or deployment; local browser return and admin “Check payment” are the test paths. Access tokens live only in browser memory, so after returning from checkout, sign in again to view the result. Sandbox credentials and live transactions for either provider have not been supplied or verified.
-
-An admin can select “Check payment” for a pending direct bKash or SSLCOMMERZ order if the browser callback was lost. bKash is executed/queried server-side. For SSLCOMMERZ, the backend queries the sandbox transaction ID for a validation reference, then independently calls the order-validation API; a query result or browser status alone never grants TEAM. Multiple successful references for one order stop with `PAYMENT_AMBIGUOUS` for manual review. The same action can finish an already-verified order after a partial database update. Early manual renewal is allowed and adds 30 days after the current period end. The SSLCOMMERZ query and lost-callback flow have unit tests but still need a live sandbox merchant test.
-
-After a sandbox order is independently verified and applied, an encrypted, deduplicated buyer notice is queued. It identifies the order as a sandbox demonstration, not a real-money charge. The outbox checks the applied order and buyer's current verified email before delivery; “Check payment” can repair a failed notice enqueue without granting TEAM twice. SMTP delivery is not verified until a provider is configured.
-
-## Main API routes
-
-All routes below start with `/api/v1`. Except registration, verification, login, refresh, and health, they require a Bearer access token. Organization routes additionally check membership and role.
-
-Paged GET routes use 20-row pages. The API rejects `page` outside `0–500` before a database query to avoid unbounded MongoDB skip work on the free-tier deployment; controllers also declare the same bounds for parameter validation.
-
-| Area | Routes |
+| 🏫 **Academy** (learning) | 💼 **Talent** (hiring) |
 | --- | --- |
-| Auth | `POST /auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/request-password-reset`, `/auth/reset-password` |
-| Organizations | `GET/POST /organizations`, `GET/POST /organizations/{orgId}/members`, `GET /organizations/{orgId}/members/candidates` (Talent staff) |
-| Questions | `GET/POST /organizations/{orgId}/questions`, `PUT .../questions/{id}/draft`, `POST .../questions/{id}/approve` |
-| Assessments | `GET/POST /organizations/{orgId}/assessments`, `PUT .../assessments/{id}/draft`, `POST .../assessments/{id}/publish`, `GET/POST .../assessments/{id}/versions`; draft/version edits require `If-Match` with the last-read revision |
-| Assignment reminders | `POST /organizations/{orgId}/assignments/{assignmentId}/reminders` (staff; queues at most one email per UTC day, returns `queued: false` on duplicate) |
-| Organization settings | `GET/PUT /organizations/{orgId}/settings` (staff read, organization admin update) |
-| Attempts | `GET .../assignments/mine`, `GET .../assignments/{id}` (own learner/candidate detail with title, duration and question count but no answer key), `GET .../assignments/{id}/attempts/mine`, `POST .../assignments/{id}/attempts`, `PUT .../attempts/{id}/answers/{questionId}`, `POST .../attempts/{id}/submit`, `GET .../attempts/{id}/result`, `GET .../attempts/review/pending?page=0` and `POST .../attempts/{id}/release` (staff only) |
-| AI | `POST /organizations/{orgId}/ai/question-drafts`, `POST /organizations/{orgId}/attempts/{id}/tutor` |
-| Academy certificates | `POST /organizations/{orgId}/attempts/{id}/certificate` (staff), `GET /organizations/{orgId}/certificates/mine` (learner), `POST /organizations/{orgId}/certificates/{id}/revoke`, `GET /organizations/{orgId}/certificates/{id}/audit?page=0` (staff), `GET /public/certificates/{verificationCode}` (public) |
-| Academy feedback | `PUT /organizations/{orgId}/academy/attempts/{id}/feedback` (staff draft), `POST .../feedback/publish` (staff), `GET .../feedback` (staff), `GET .../feedback/mine` (owning learner) |
-| Academy catalog | `GET/POST /organizations/{orgId}/academy/courses`, `GET/POST .../courses/{courseId}/batches`, `GET/POST .../courses/{courseId}/batches/{batchId}/learners`, `GET .../academy/batches/mine` (learner) |
-| Academy batch assessments | `GET/POST /organizations/{orgId}/academy/courses/{courseId}/batches/{batchId}/assessments`, `POST .../assessments/{batchAssessmentId}/reconcile`, `GET .../assessments/{batchAssessmentId}/progress`, `GET .../assessments/{batchAssessmentId}/analytics` (staff) |
-| Academy messaging | `GET /organizations/{orgId}/messaging/partners`, `GET/POST .../messaging/conversations`, `GET/POST .../messaging/conversations/{conversationId}/messages` (instructors and learners) |
-| Talent | `GET/POST /organizations/{orgId}/talent/campaigns`, `POST .../campaigns/{id}/close`, `POST .../campaigns/{id}/invitations`, `GET .../campaigns/{id}/candidates`, `PUT .../campaigns/{id}/candidates/{candidateId}/review`, `GET .../candidates/{candidateId}/review/audit?page=0` |
-| Talent email invitations | `POST /organizations/{orgId}/talent/campaigns/{id}/email-invitations` (staff), `POST /talent/email-invitations/accept` (signed-in recipient) |
-| Talent integrity | `POST /organizations/{orgId}/attempts/{id}/telemetry` (own active Talent attempt), `GET /organizations/{orgId}/talent/attempts/{id}/integrity`, `GET .../integrity/events?page=0` (Talent staff, submitted attempt) |
-| Plan entitlements | `GET /organizations/{orgId}/billing/entitlements` (organization admin) |
-| Sandbox billing | `GET /organizations/{orgId}/billing/options`, `POST/GET /organizations/{orgId}/billing/orders`, `GET /organizations/{orgId}/billing/orders/{orderId}`, `POST .../orders/{orderId}/reconcile` (organization admin); `GET/POST /billing/bkash/callback`, `GET/POST /billing/sslcommerz/callback`, `POST /billing/sslcommerz/ipn` (public gateway callbacks, server-verified before plan change) |
+| Courses and dated batches, learners, tests, instructor feedback, messages, certificates. | Hiring campaigns, invite candidates by email, compare results side by side, reviewer notes and decisions. |
 
-The test profile disables MongoDB autoconfiguration and uses mocks for API smoke tests. Unit tests cover assessment/attempt rules, tenant checks, cache behavior, and AI draft/tutor boundaries. A live MongoDB/Redis/provider integration test has not yet been completed.
+And anyone can use **Practice** alone, with no organization: pick a topic, get an AI-made question, answer it.
 
-An organization admin can set the default result-release policy in the Overview or via `PUT .../settings`. Without settings the default is `IMMEDIATE`. New assessments inherit that policy if `resultReleasePolicy` is omitted/null; authors may explicitly choose `MANUAL` or `IMMEDIATE` for an individual assessment. The policy is frozen into the published version, so changing the organization default does not alter existing assessments or attempts. `MANUAL` keeps score, pass state, and topic breakdown hidden until an organization admin, instructor, or recruiter calls the release route. Manual-policy Academy tutoring also waits for release. The result API returns `released: false` with null score/pass and empty topics while pending.
+---
 
-To try short-answer grading, create and approve a `SHORT_ANSWER` question in the Question bank (no options or answer key), include it in a published assessment, and assign it. The participant writes up to 4,000 characters and saves through `PUT /api/v1/organizations/{orgId}/attempts/{attemptId}/answers/{questionId}/text` with `{"text":"..."}` before submitting. Answered short questions leave the official score pending until staff use the Assessment review panel or `PUT .../attempts/{attemptId}/review/questions/{questionId}/grade` with `{"correct":true}` or `false`. Grades are binary, final, and audited; `GET .../attempts/{attemptId}/review/grades/audit?page=0` is staff-only. An unanswered short question counts as incorrect without manual work. The last grade calculates the score; `IMMEDIATE` then releases it, while `MANUAL` still requires staff release. A pending score cannot be released or used for certificate issuance. A same-value retry repairs an audit or result-email enqueue failure without changing the grade. Live MongoDB optimistic-lock, audit-retry, and browser verification remain open.
+## 🎯 Who gets what, and why it helps
 
-Staff can open “Assessments” to review the 20 newest submitted attempts whose results are still pending release. The queue is tenant-scoped and paginated, shows a pending label until short answers are graded, then the official score to staff without exposing answers or answer keys, and offers release only after grading. The API rejects page numbers outside 0–500. Learners and candidates cannot access this route. Live MongoDB index/query behavior is not yet verified.
+Every row below is something the product really does today.
 
-Only Academy staff can issue a certificate, and only for a passing submitted attempt whose result is released. Issuing the same attempt again returns the existing certificate. A revoked certificate remains publicly findable but verifies as invalid, and cannot be reissued for the same attempt. Public verification at `/certificates/{verificationCode}` includes the organization and assessment names and dates, not the learner's private identity. Staff can paste the certificate ID shown after issuance to revoke it or view its tenant-scoped audit history in “Review outcomes.” New certificates persist the issuing/revoking actor and timestamp in the certificate document, and deterministic audit-event IDs make retries idempotent. If an audit insert fails after the certificate write, retrying the operation repairs the event; old pre-audit certificates do not have historical actor IDs to backfill accurately. Issuance queues a learner email in the encrypted outbox under a deterministic job ID; a retry can repair enqueue failure without creating another job, and pending jobs are checked against the current certificate/recipient before delivery. Certificate-email job metadata is retained without TTL to avoid a second queued notice, while encrypted content is erased after delivery/failure. Local MongoDB outbox claim/retry behavior passed focused tests; live SMTP delivery remains unverified and may duplicate a message after an ambiguous send failure.
+### 🏫 Teachers, training centres and schools (Academy)
 
-For feedback, select a learner's submitted attempt from the pending review queue or copy its ID into the Academy instructor feedback form. Save a draft, release a manual-policy result if needed, and publish. The learner opens that attempt's released result and selects “View instructor feedback.” Drafts and other learners' feedback are not readable from the learner route.
+| What you get | Why it helps you |
+| --- | --- |
+| **Question bank with review.** AI drafts are never used until a person approves them. | You get the speed of AI without trusting it blindly. Nothing wrong reaches a student by accident. |
+| **Frozen versions.** Publishing a test makes an unchangeable copy. | If you fix a typo later, students who already started are not affected, and old scores stay fair. |
+| **Courses and batches.** Enrol a learner once; tests assigned to the batch reach them (and new joiners get them automatically). | No more adding every student to every test by hand. A "reconcile" button repairs any assignment that was missed. |
+| **Batch progress and analytics.** Submitted, graded, waiting for grading, passed, average score. | You see who is stuck at a glance. Short answers still waiting for you are not counted as failures. |
+| **Result release control.** Show results at once, or hold them until you press release. | You can finish grading first, then everybody sees their result at the same time. |
+| **Instructor feedback.** Save a private draft, publish later. The learner gets an email. | Personal comments reach the right student, and drafts stay private. |
+| **Certificates with your wording, logo and signature.** Learners print their own. | Your institute's name is on it, and nobody needs to phone you to check it. |
+| **Direct messages between instructor and learner.** | Questions stay inside the platform. Only those two people can read the chat. |
 
-To try Academy grouping, create an Academy workspace and add a verified `LEARNER` member. As `ORG_ADMIN` or `INSTRUCTOR`, open “Courses & batches,” create a course, select it, create a dated batch, and enroll the learner by user ID. Then select a published assessment and availability window within the batch dates to distribute it. The learner sees the assignment under “My assessments”; staff can open “Progress” for the batch assessment or use “Reconcile assignments” after a partial delivery failure. New enrollees receive existing batch assessments automatically. Names are unique per organization for courses and per course for batches, ignoring case and repeated spaces. Staff-only cohort analytics show active enrollment versus actual assignments, submitted, graded, awaiting-grading and passed counts, and average latest graded score. Completion uses active learners as its denominator; pass rate uses only fully graded latest attempts, so a pending short answer is not counted as a failure. The summary uses a tenant-scoped MongoDB aggregation, not the dashboard's current progress page. Progress rows have Previous/Next controls, and changing page does not rerun the cohort aggregation. Live MongoDB aggregation verification and a browser walkthrough remain open.
+### 🎓 Learners
 
-To try direct messaging, add an `INSTRUCTOR` and `LEARNER` to the same Academy workspace. Either can open “Messages,” choose the other from the partner directory, and send text. Only those two participants can open that conversation. Message history is paginated (the dashboard currently shows the latest 20), stored separately from conversations, and removed by MongoDB's TTL index after approximately 90 days. The 500-message guard is not an atomic hard cap under concurrent sends; server-side rate limits and production retention monitoring remain open work.
+| What you get | Why it helps you |
+| --- | --- |
+| **Fair, timed tests.** The server keeps the deadline. | Nobody can gain time by editing the page, so the result means something. |
+| **AI Tutor after the result.** It explains your mistakes, in English or বাংলা. | You learn from each test. It is switched off while an attempt is open, so it cannot give away answers. |
+| **Free personal Practice.** Choose a topic and level; the AI writes a question for you. 20 questions and 20 answers per day. | A safe place to train without joining anything. |
+| **Certificates anyone can verify.** A short code opens a public page with the organization and test names (never your private details). | You can show an employer a link that proves it is real. |
+| **Bangla and English everywhere**, plus a dark theme. | You can use the platform in the language you think in. |
 
-Talent campaigns use the published assessment version at creation time. Closing a campaign blocks new invitations; it does not cancel existing assignments. Comparison shows each invited candidate's latest submitted attempt. A review decision is attached to one attempt and is hidden from comparison after a newer attempt until a recruiter reviews that attempt. The staff-only Review history control/API preserves past decision, note, attempt, reviewer, and timestamp; identical retries repair a missing audit event without adding another decision. Historical pre-audit decisions are backfilled on the next review update when actor data exists. Campaign, candidate-comparison, and registered-candidate selection lists have Previous/Next controls; the invite dropdown follows the currently visible campaign page. Registered candidates can be found by exact email within the tenant; name/partial-email search is not implemented. Re-sending an email invitation now preserves its first creation date for monthly quota accounting; pre-fix records may have lost that historical date. Audit persistence/retry behavior and the candidate selector still need live/browser verification.
+### 💼 Hiring teams (Talent)
 
-Talent staff can open **Email invitations** on any campaign, including a closed one, to page through retained invitations and see whether each was accepted or is still pending. The backing `GET /api/v1/organizations/{orgId}/talent/campaigns/{campaignId}/email-invitations?page=0` checks staff membership and campaign ownership; it returns no token or token hash. Expired invitation records are removed by MongoDB TTL, so this list is not a permanent delivery or quota ledger. Live MongoDB index/query behavior and the browser flow still need verification.
+| What you get | Why it helps you |
+| --- | --- |
+| **One frozen test for every candidate.** | Everyone answers the same questions under the same rules, so the comparison is fair. |
+| **Invite by email.** Candidates open the link, sign in with that address, and the test is assigned. | No spreadsheets, no copying links. Only the invited address can accept. |
+| **Side-by-side candidate comparison, notes, shortlist / hold / reject decisions** with a history. | A hiring decision you can explain later, with who decided what and when. |
+| **Integrity signals** (tab switches, copy and paste, leaving full screen). | Useful context for a reviewer. They are only hints: a candidate can hide them, so JachAI **never** decides "cheating" automatically. |
 
-For an external candidate, use the campaign's “Invite by email” form. The email link expires at the earlier of 14 days or the assessment availability end. Only its SHA-256 token hash is stored in the invitation document; the mail job contains an encrypted link until delivery. The recipient may register first, verify that same address, and sign in. The browser retains a pending link only in tab-scoped session storage and removes it from the visible URL. Acceptance binds the verified email to a candidate membership and an immutable campaign assignment. Re-sending an unaccepted invitation with the same availability rotates the link; the worker skips any queued old link. Invite rate limits and SMTP/Atlas verification remain open.
+### 🛠️ Workspace owners and platform admins
 
-For Talent integrity review, the browser records optional client-side signals during an active campaign attempt. MongoDB stores one small document per event with tenant/attempt lookup indexes and a 90-day TTL. The service accepts at most 200 unexpired events per attempt as a non-atomic growth guard. It stores no IP address, user agent, clipboard contents, or keystrokes. These signals can be suppressed or forged by a candidate and are **not proof of cheating**; reviewers must consider context. The reviewer dashboard shows the summary, while the API provides paged raw events. TTL/index behavior and multi-client concurrency have not yet been verified against live Atlas.
+| What you get | Why it helps you |
+| --- | --- |
+| **FREE and TEAM plans per organization**, with limits enforced on the server. | You start free and upgrade when you grow. A plan can only change after the server has verified a payment. |
+| **Payments:** direct bKash and SSLCOMMERZ sandbox checkouts, plus a built-in demo checkout, a receipt email and an admin log. | You can try the full upgrade journey safely. No real money is taken. |
+| **Roles and invitations.** Owner, admin, instructor, recruiter, learner, candidate. | Each person sees only what their role needs. Every request is checked again on the server. |
+| **Platform admin area.** Organizations, billing summaries, quota checks and repairs, support access with an audit trail. | Operators can help customers without reading private answers. Every support access is recorded. |
+| **Support tickets** inside the app. | People ask for help without leaving the platform. |
 
-AI provider routing is coded for Gemini question drafts, Groq tutoring, and local Ollama. AI use-case tests use mocks. No live provider call has been verified yet; real keys should only be placed in local environment settings when integration testing is ready.
+---
+
+## 🖼️ Screens
+
+<table>
+<tr>
+<td width="50%"><b>Workspace dashboard</b> (Academy owner)<br><img src="docs/images/dashboard.png" alt="Dashboard with next steps, counts and a sidebar"></td>
+<td width="50%"><b>"How it works"</b> page, in the app<br><img src="docs/images/how-it-works.png" alt="How it works page with gradient headline"></td>
+</tr>
+<tr>
+<td colspan="2"><b>"How it's built"</b> page: the stack and the problems it solved<br><img src="docs/images/how-its-built.png" alt="How it's built page"></td>
+</tr>
+</table>
+
+---
+
+## ✨ Features in detail
+
+<details>
+<summary><b>📝 Assessments and attempts</b></summary>
+
+- Questions: multiple choice and short text. Draft → approved → used in a test.
+- Publishing creates an **immutable version**. Later edits make a new version; old assignments keep their original one.
+- **Server-timed attempts.** The deadline is stored on the server; answers are saved one by one.
+- Multiple-choice answers are scored by the server. Short answers wait for a person to mark them right or wrong (audited, final).
+- Result release: `IMMEDIATE` or `MANUAL`, set per organization or per test, frozen into the version.
+- Staff can inspect a submitted attempt (questions, choices, answer key) without releasing the result.
+- Email reminders to people who have not started yet (at most one per day per assignment).
+</details>
+
+<details>
+<summary><b>🤖 AI, with limits</b></summary>
+
+- **Question drafting** uses Google Gemini. If Gemini is slow or down, it **fails over to Groq automatically** (circuit breaker included).
+- **AI Tutor** (after results are visible) uses Groq, and can fall back too. It never scores an active exam.
+- Local **Ollama** is supported for offline development.
+- Daily limits per user and per organization are enforced with atomic counters. A failed generation refunds the allowance.
+- AI output is always a draft until a person approves it.
+</details>
+
+<details>
+<summary><b>🎓 Certificates</b></summary>
+
+- Issued only for a passing, released result. The same attempt cannot be issued twice.
+- A design (wording, signer, optional PNG/JPEG logo and signature) is saved as an immutable version.
+- Public verification shows only organization and test names and dates, never the holder's identity.
+- Staff can revoke a certificate. A revoked one stays findable but shows as invalid. Issue and revoke actions are audited.
+</details>
+
+<details>
+<summary><b>💳 Plans and payments</b></summary>
+
+- `FREE` and `TEAM` limits: published tests, monthly invitations, AI requests, certificates.
+- Quota slots are reserved atomically before a write and refunded on a handled failure.
+- Gateways: **bKash** (tokenized sandbox) and **SSLCOMMERZ** (sandbox), plus an optional built-in **demo checkout** (`BILLING_DEMO_CHECKOUT`).
+- The server verifies payment ID, order ID, transaction ID, amount, currency and status before granting TEAM. A browser redirect alone never upgrades a plan, and a repeated callback cannot add the term twice.
+- A receipt email is sent after a verified payment. Admins see order history and can press "Check payment" if a callback was lost.
+</details>
+
+<details>
+<summary><b>🔐 Security and reliability</b></summary>
+
+- Email sign-up with verification, login with JWT access tokens and **rotating refresh tokens**, optional Google sign-in.
+- Password reset is single-use and ends all older sessions (per-user security version).
+- **Tenant checks in the service layer** on every request; the interface only reflects them.
+- Redis rate limits for login, registration, reset, certificate checks, invitations and AI bursts. Keys hold **HMAC digests**, not raw emails or IPs. In production it fails closed.
+- **Email outbox** in MongoDB: payloads encrypted at rest, retried with back-off, and the link is re-checked before it is sent.
+- Profile pictures are re-encoded and limited in size on the server.
+- Health check at `/api/v1/health` that also keeps the database connection warm.
+</details>
+
+<details>
+<summary><b>✉️ Emails</b></summary>
+
+Verification, password reset, test and workspace invitations, certificate ready, result available, instructor feedback, reminders, payment receipt and support updates are sent as **designed HTML emails** (with a plain-text version for old mail apps).
+</details>
+
+<details>
+<summary><b>🌍 Interface</b></summary>
+
+Responsive layout for phone and desktop, English and বাংলা on every page, light / dark / system theme, keyboard-friendly navigation, a "server is waking up" hint on free hosting, and one consistent header on every page. No front-end build step: plain HTML, CSS and JavaScript served by Spring.
+</details>
+
+---
+
+## 🏗️ Architecture
+
+One deployable Spring Boot application (a **modular monolith**). It serves both the web pages and the REST API.
+
+```mermaid
+flowchart TB
+    subgraph Browser["🖥️ Browser (HTML + CSS + vanilla JS)"]
+        UI["Dashboard, public pages,<br/>hash router, EN / বাংলা"]
+    end
+
+    subgraph App["☕ JachAI (Spring Boot 3.5, Java 21)"]
+        direction TB
+        SEC["Spring Security<br/>JWT · rate limits · tenant checks"]
+        subgraph Modules["Modules"]
+            direction LR
+            M1["auth"] --- M2["organization"] --- M3["question"] --- M4["assessment"]
+            M5["attempt"] --- M6["academy"] --- M7["talent"] --- M8["billing"]
+            M9["ai"] --- M10["practice"] --- M11["messaging"] --- M12["platform"]
+            M13["mail"] --- M14["support"]
+        end
+        SEC --> Modules
+    end
+
+    DB[("🍃 MongoDB Atlas<br/>durable data")]
+    RD[("⚡ Redis<br/>limits · quotas · cache")]
+    AI1["✨ Gemini"]
+    AI2["⚡ Groq"]
+    MAIL["📧 SMTP (Resend)"]
+    PAY["💳 bKash · SSLCOMMERZ<br/>(sandbox)"]
+
+    UI -- "REST + JSON" --> SEC
+    Modules --> DB
+    Modules --> RD
+    Modules --> AI1
+    AI1 -. "fallback" .-> AI2
+    Modules --> AI2
+    Modules --> MAIL
+    Modules <--> PAY
+```
+
+**Why one app and not microservices?** The team is small and runs on free tiers. One process is cheaper, easier to debug and easier to deploy, while the package-per-module layout keeps boundaries clear enough to split later.
+
+**Where does the truth live?** MongoDB holds all durable data. Redis only speeds things up and counts limits. If Redis cannot confirm a limit in production, the request is refused rather than allowed.
+
+### A request, step by step
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant S as Security filter
+    participant V as Service layer
+    participant M as MongoDB
+    B->>S: GET /api/v1/organizations/{org}/assignments/mine (Bearer token)
+    S->>S: Check the token signature and expiry
+    S->>M: Is this user still enabled? Same security version?
+    S->>V: Authenticated user
+    V->>M: Is the user an active member with the right role?
+    V->>M: Load the data (tenant-scoped query)
+    V-->>B: JSON (only what this role may see)
+```
+
+---
+
+## 🧰 Tech stack
+
+| Layer | Used | Why |
+| --- | --- | --- |
+| Language / runtime | **Java 21** | Modern language features and a fast JVM. |
+| Framework | **Spring Boot 3.5** (Web, Validation, Security, OAuth2 resource server, Actuator) | One mature framework for the API, security and health checks. |
+| Pages | **Thymeleaf** + hand-written **HTML / CSS / vanilla JavaScript** (no build step) | Pages work without a bundler, and the whole UI can be read in the repo. |
+| Database | **MongoDB Atlas** (Spring Data MongoDB) | Flexible documents for assessments and versions, TTL indexes for expiring data. |
+| Cache / limits | **Redis** (Spring Data Redis) | Fast atomic counters for rate limits and quotas, published-version cache. |
+| AI | **Spring AI**: Google Gemini, Groq (OpenAI-compatible), Ollama | Provider chain with automatic fallback. |
+| Email | Spring Mail over SMTP (Resend or Gmail) with a MongoDB outbox | Retryable delivery that survives restarts. |
+| Payments | bKash and SSLCOMMERZ (sandbox) | Popular gateways in Bangladesh. |
+| Auth | JWT, rotating refresh tokens, Google Identity Services | No third-party identity platform to pay for. |
+| Packaging | **Maven**, multi-stage **Dockerfile** | Same build locally and on the host. |
+| Hosting (demo) | **Render** (Singapore) + **MongoDB Atlas** (Singapore) | Free tier. |
+| Tests | JUnit 5, Spring Test, Mockito; a no-dependency Node journey runner driving real Chrome / Edge | Fast checks for logic, plus checks of the real screens. |
+
+---
+
+## 🚀 Run it yourself
+
+You need **JDK 21**, a **MongoDB** connection string (a free Atlas cluster is fine) and a long random secret. On Windows the helper scripts do the rest.
+
+### Fastest: a throw-away demo with one-click roles (Windows)
+
+```powershell
+$env:MONGODB_URI = '<your Atlas connection string, without a database name>'
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1 -Demo
+```
+
+The script checks that MongoDB is reachable, picks a free port, and prints the address. Open it and press a role button. Demo accounts only work with the demo setup and cannot change a password.
+
+### Any system, with Maven
+
+```bash
+export JWT_SECRET='<at least 32 random characters>'
+export MONGODB_URI='<your Atlas connection string, without a database name>'
+./mvnw spring-boot:run          # Windows: .\mvnw.cmd spring-boot:run
+```
+
+Open <http://localhost:8080>. Without mail settings, verification and reset links are printed in the console instead of being emailed.
+
+### With Docker
+
+```bash
+docker build -t jachai .
+docker run --rm -p 8080:8080 --env-file .env.production jachai
+```
+
+`.env.example` lists every setting with placeholders. **Never commit real keys.**
+
+---
+
+## ⚙️ Settings you will need
+
+| Variable | Needed? | What it is for |
+| --- | --- | --- |
+| `MONGODB_URI` | **Yes** | Atlas cluster and credentials (no database name in it). |
+| `JWT_SECRET` | **Yes** | Signs login tokens. At least 32 bytes. Keep it stable or everyone is signed out. |
+| `APP_PUBLIC_BASE_URL` | **Yes** in production | Your public HTTPS address. Used in email links and payment callbacks. |
+| `REDIS_HOST` (+ `REDIS_PASSWORD`, `REDIS_SSL_ENABLED`) | **Yes** in production | Rate limits, quotas and cache. |
+| `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` (`MAIL_PORT`) | **Yes** in production | Sends emails. Resend and Gmail both work. |
+| `GEMINI_API_KEY`, `GROQ_API_KEY` | Optional | AI question drafts and the AI Tutor. |
+| `GOOGLE_CLIENT_ID` | Optional | Shows "Continue with Google". |
+| `SSLCOMMERZ_SANDBOX_*`, `BKASH_SANDBOX_*` | Optional | Sandbox payment gateways. |
+| `BILLING_DEMO_CHECKOUT` | Optional | Built-in demo checkout, for trying upgrades without a gateway. |
+| `DEMO_PUBLIC_ACCESS` | Optional | Turns on the one-click demo roles on a public site. Do not use with real customer data. |
+| `PLATFORM_ADMIN_USER_IDS` | Optional | Comma-separated user IDs that become platform admins. |
+
+Full details, the Render checklist and the custom-domain steps are in [SYSTEM.md](SYSTEM.md).
+
+---
+
+## 🧪 Testing
+
+```bash
+./mvnw test                                  # 720 Java tests
+node src/test/frontend/run-journeys.js       # 169 browser checks, real Chrome/Edge, no install needed
+```
+
+- **Java tests** cover assessment and attempt rules, tenant isolation, payments, email templates, AI fallback, security and the web layer.
+- **Browser journeys** open the real pages and click through them: all six roles, mobile widths, language switch, theme, avatar upload, support page. The server answers are fixtures, so these prove the screens, not the live backend.
+- Evidence files are written to `target/`. Both suites run with no database.
+
+---
+
+## 🗂️ Project map
+
+```text
+jachAI/
+├─ src/main/java/com/jachai/
+│  ├─ auth/  organization/  question/  assessment/  attempt/    ← the core test flow
+│  ├─ academy/  talent/  practice/  messaging/                  ← products built on it
+│  ├─ ai/  billing/  mail/  support/  platform/                 ← AI, money, email, help, operators
+│  └─ shared/                                                   ← security, config, health, errors
+├─ src/main/resources/
+│  ├─ templates/        public pages (Thymeleaf)
+│  └─ static/           app.js, i18n.js (EN ⇄ বাংলা), CSS, theme
+├─ src/test/            Java tests + frontend journey runner
+├─ docs/                reference notes, engineering story, images
+├─ scripts/             Windows helpers (start-local, check-mongo, ...)
+├─ Dockerfile           multi-stage build for Render or any container host
+└─ SYSTEM.md · ARCHITECTURE.md · BACKEND.md · FRONTEND.md
+```
+
+---
+
+## 🧭 Honest status
+
+JachAI is a working, tested **demo-grade platform**, not a certified production service. Being clear about this matters more than looking finished:
+
+- ✅ Works and is tested: the full test flow, the six roles, AI drafts with fallback, the AI Tutor, certificates, the Bangla and English interface, the payment checkouts in sandbox mode, email sending.
+- 🧪 **Payments are sandbox only.** No real-money endpoint is turned on, and the demo checkout charges nothing.
+- ☁️ The live demo runs on **free hosting**. It sleeps when idle, so the first request after a quiet period is slow.
+- 👥 Demo roles are **shared**: anyone with the link can change that demo data. Never store real customer records there.
+- 📋 Still to verify against live services before any real launch: MongoDB concurrency and TTL behaviour at scale, Google sign-in on the public site, both payment sandboxes with real merchant credentials, and rate limits behind a load balancer. See "Release gates" in [SYSTEM.md](SYSTEM.md).
+- Integrity signals and AI output are **aids for people**, never automatic verdicts.
+
+---
+
+## 🇧🇩 For Bangla readers · বাংলায় সারসংক্ষেপ
+
+**JachAI কী?** স্কুল, কোচিং সেন্টার, প্রশিক্ষণ প্রতিষ্ঠান আর নিয়োগকারী দলের জন্য একটা পরীক্ষা ও সার্টিফিকেটের প্ল্যাটফর্ম। প্রশ্ন লেখে ও যাচাই করে মানুষ। সময়, নম্বর আর রেকর্ড রাখে সার্ভার। সার্টিফিকেট যে কেউ যাচাই করতে পারে।
+
+**কার কী লাভ?**
+
+- 🏫 **শিক্ষক ও প্রতিষ্ঠান:** AI প্রশ্নের খসড়া লেখে, কিন্তু আপনি অনুমোদন না করলে সেটা কারও কাছে যায় না। পরীক্ষা প্রকাশ করলে তার একটা অপরিবর্তনীয় কপি তৈরি হয়, তাই পরে ভুল শুধরালেও আগের পরীক্ষার্থীদের নম্বর ঠিক থাকে। ব্যাচ বানিয়ে একবারে সবাইকে পরীক্ষা দেওয়া যায়, আর কে আটকে আছে এক নজরে দেখা যায়।
+- 🎓 **শিক্ষার্থী:** সময় রাখে সার্ভার, তাই পরীক্ষা সবার জন্য ন্যায্য। ফল দেখার পর AI টিউটর ভুলগুলো বুঝিয়ে দেয় (বাংলা বা ইংরেজিতে)। একা অনুশীলনের জন্য বিনামূল্যে Practice আছে (দিনে ২০টা প্রশ্ন)।
+- 💼 **নিয়োগকারী দল:** সব প্রার্থী একই প্রশ্নে একই নিয়মে পরীক্ষা দেন। ইমেইলে আমন্ত্রণ যায়, ফলাফল পাশাপাশি তুলনা করা যায়, আর কে কী সিদ্ধান্ত নিল তার ইতিহাস থাকে।
+- 🛠️ **মালিক ও অ্যাডমিন:** বিনামূল্যে শুরু করে পরে TEAM প্ল্যানে যাওয়া যায়। পেমেন্ট সার্ভার যাচাই না করলে প্ল্যান বদলায় না।
+
+**নিজে চালাতে:** JDK 21, একটা MongoDB Atlas লিংক আর একটা বড় গোপন `JWT_SECRET` লাগে। উপরের [Run it yourself](#-run-it-yourself) অংশ দেখুন।
+
+**সৎ কথা:** এটা ডেমো-মানের প্ল্যাটফর্ম। পেমেন্ট শুধু স্যান্ডবক্সে (আসল টাকা কাটে না)। ফ্রি সার্ভারে চলে বলে অনেকক্ষণ ব্যবহার না হলে প্রথমবার খুলতে এক মিনিটের মতো লাগতে পারে।
+
+---
+
+## 📚 More documentation
+
+| File | What is inside |
+| --- | --- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Product rules, roles, data boundaries, acceptance criteria. |
+| [BACKEND.md](BACKEND.md) | Backend boundaries, demo-account rules, test entry points. |
+| [FRONTEND.md](FRONTEND.md) | The HTML / CSS / JavaScript UI and its conventions. |
+| [SYSTEM.md](SYSTEM.md) | Settings, deployment, health checks, release gates. |
+| [docs/ENGINEERING.md](docs/ENGINEERING.md) | The stack and the hard problems we solved. Also live at [/engineering.html](https://jachai.nazmulhsn.me/engineering.html). |
+| [docs/REFERENCE.md](docs/REFERENCE.md) | Detailed workflow notes, setup steps and the full API route table. |
+
+<div align="center">
+
+Built by **Nazmul** · If this helped you, a ⭐ on the repo is very welcome.
+
+</div>
