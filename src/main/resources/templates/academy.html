@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/chrome.css">
+  <link rel="stylesheet" href="/story.css">
   <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <script type="module" src="/theme.js"></script>
   <script type="module" src="/site.js"></script>
@@ -23,71 +24,106 @@
     <nav class="topnav" aria-label="Site"><a href="/academy.html" aria-current="page"><span class="ic" data-ic="cap" aria-hidden="true"></span><span data-t>Academy</span></a><a href="/talent.html"><span class="ic" data-ic="briefcase" aria-hidden="true"></span><span data-t>Talent</span></a><a href="/plans.html"><span class="ic" data-ic="tag" aria-hidden="true"></span><span data-t>Pricing</span></a><a href="/how.html"><span class="ic" data-ic="compass" aria-hidden="true"></span><span data-t>How it works</span></a><a href="/engineering.html"><span class="ic" data-ic="code" aria-hidden="true"></span><span data-t>Technology</span></a><a class="nav-cta" href="/"><span class="ic" data-ic="login" aria-hidden="true"></span><span data-t>Sign in</span></a></nav>
     <div id="lang-switch" class="lang-switch" role="group" aria-label="Language / ভাষা"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="bn" aria-pressed="false" lang="bn">বাংলা</button></div>
   </header>
-  <main class="page">
-    <p class="eyebrow">Academy</p>
-    <h1>Train a cohort, then prove what they can do.</h1>
-    <p class="lede">Academy runs reviewed assessments for courses and dated batches: server-timed attempts,
-      deliberate result release, instructor feedback, and certificates that anyone can verify.</p>
-    <div class="cta-row">
-      <a class="button primary" href="/">Sign in or create a workspace</a>
-      <a class="button secondary" href="/talent.html">See Talent hiring</a>
-      <a class="button quiet" href="/plans.html">Compare plans</a>
+<main id="main" class="st-page">
+  <header class="st-hero">
+    <p class="st-kicker">Academy</p>
+    <h1 class="st-title">Train a class, then <span class="st-grad">prove what they learned.</span></h1>
+    <p class="st-lede">Run courses and batches with tests that are fair, timed by the server and checked by people. Learners finish with a certificate that anyone can verify.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Open the live demo</a>
+      <a class="st-btn" href="/talent.html">See Talent hiring</a>
+      <a class="st-btn" href="/plans.html">Compare plans</a>
     </div>
-    <div class="trust-row" aria-label="What you can trust">
-      <span class="trust-chip"><span class="dot" aria-hidden="true"></span>Server-timed attempts</span>
-      <span class="trust-chip"><span class="dot" aria-hidden="true"></span>Human-reviewed publishing</span>
-      <span class="trust-chip"><span class="dot" aria-hidden="true"></span>Public certificate checks</span>
-    </div>
+  </header>
 
-    <section class="section" aria-labelledby="workflow">
-      <div class="section-head">
-        <h2 id="workflow">How an Academy cohort actually runs</h2>
-        <p>Seven steps from workspace to verified certificate.</p>
+  <section class="st-section" aria-labelledby="journey">
+    <div class="st-head">
+      <h2 id="journey">A class, from start to finish</h2>
+      <p>Seven steps, from an empty workspace to a certificate.</p>
+    </div>
+    <ol class="st-steps st-steps--rows">
+      <li><h3>Set up the workspace</h3><p>An admin invites instructors and learners by email. Each person only sees what their role allows.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Build a question bank</h3><p>Write multiple-choice or short-answer questions. A draft, even one made by AI, must be approved by a person before anyone can use it.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Publish a test</h3><p>Publishing saves a fixed copy with its time limit and pass mark. Later edits never change old results.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Add learners to a batch</h3><p>A batch has start and end dates. Every learner in it gets the test, and people who join later get it too.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Learners take the test</h3><p>The server keeps the time. Answers save as you go, and you can come back to a test you have not finished.</p><span class="st-who st-who--learner">Learner</span></li>
+      <li><h3>Grade, release and give feedback</h3><p>Staff mark the written answers, then show results at once or later. Instructors can add private feedback for each learner.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Give certificates</h3><p>A learner who passes gets one certificate. Anyone can check its code online, and the page never shows the learner's private details.</p><span class="st-who st-who--server">Server</span></li>
+    </ol>
+  </section>
+
+  <section class="st-section" aria-labelledby="gets">
+    <div class="st-head">
+      <h2 id="gets">What your class gets</h2>
+      <p>Three promises that do not depend on the browser.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        <h3>Fair scores</h3>
+        <p>The server scores multiple-choice answers with fixed rules. AI can explain a result, but it can never change one.</p>
+      </article>
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <h3>Honest status</h3>
+        <p>Answers waiting to be graded and results not yet released are shown as they are. Nothing looks finished before it is.</p>
+      </article>
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+        <h3>Certificates people can trust</h3>
+        <p>Every certificate has a code. A public page says whether it is valid or cancelled, and since when.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="st-section" aria-labelledby="tools">
+    <div class="st-head">
+      <h2 id="tools">Everyday tools for instructors</h2>
+      <p>Things that save time once the class is running.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-card"><h3>Progress at a glance</h3><p>See who has finished, who is waiting for grading and who passed, with the average score for the batch.</p></article>
+      <article class="st-card st-card--mix"><h3>Messages inside JachAI</h3><p>Instructors and learners can write to each other here. Only those two people can read the chat.</p></article>
+      <article class="st-card st-card--coral"><h3>AI Tutor for learners</h3><p>After a result is shown, the tutor explains the mistakes in English or বাংলা. It stays off while a test is open.</p></article>
+    </div>
+  </section>
+
+  <section class="st-section" aria-labelledby="know">
+    <div class="st-head">
+      <h2 id="know">Good to know</h2>
+      <p>Plain answers about limits and money.</p>
+    </div>
+    <div class="st-grid st-grid--2">
+      <div class="st-ai-col st-ai-col--yes">
+        <h3>The free plan includes</h3>
+        <ul>
+          <li>3 published tests.</li>
+          <li>30 email invitations and 30 certificates each month.</li>
+          <li>Limits are checked by the server, so the browser cannot get around them.</li>
+        </ul>
+        <p><a href="/plans.html">Compare FREE and TEAM</a></p>
       </div>
-      <ol class="workflow">
-        <li><span class="step-number">1</span><div><h3>Create the workspace and invite people</h3>
-          <p>An organisation admin adds instructors and learners by email invitation. Roles decide what each person can see; the server re-checks membership on every request.</p></div></li>
-        <li><span class="step-number">2</span><div><h3>Build a question bank</h3>
-          <p>Authors write single-choice, multiple-choice or manually graded short-answer questions. A draft only becomes usable once a human approves it — generated drafts included.</p></div></li>
-        <li><span class="step-number">3</span><div><h3>Publish a versioned assessment</h3>
-          <p>Publishing freezes the question set, time limit, pass mark and the result-release policy for that version, so later edits cannot change a result that already exists.</p></div></li>
-        <li><span class="step-number">4</span><div><h3>Group learners into courses and batches</h3>
-          <p>A dated batch distributes a published version to every enrolled learner, and new enrolments receive it automatically. Progress and cohort analytics stay tenant-scoped.</p></div></li>
-        <li><span class="step-number">5</span><div><h3>Learners take a server-timed attempt</h3>
-          <p>The deadline comes from the server, not the browser. Answers save individually with visible state, an attempt can be resumed, and submission is confirmed before it is final.</p></div></li>
-        <li><span class="step-number">6</span><div><h3>Grade, release, and give feedback</h3>
-          <p>Short answers are graded by staff, then results are released either on submission or deliberately later. Instructors can publish feedback that only the owning learner can read.</p></div></li>
-        <li><span class="step-number">7</span><div><h3>Issue certificates that verify publicly</h3>
-          <p>A passing, released attempt can receive one certificate. Anyone can check its code on a public page, which shows the organisation and assessment names — never the learner's private identity.</p></div></li>
-      </ol>
-    </section>
-
-    <section class="section grid cols-3" aria-label="What you get">
-      <article class="card"><h3>Deterministic scoring</h3><p>Objective answers are scored by the server at submission; AI never sets or changes an official score.</p></article>
-      <article class="card"><h3>Honest states</h3><p>Pending manual grading, unreleased results and unavailable integrations are shown as they are — no invented progress.</p></article>
-      <article class="card"><h3>Certificates with a public check</h3><p>Every issued certificate has a verification code and a public page that reports valid or revoked, and when.</p></article>
-    </section>
-
-    <section class="section grid cols-2" aria-label="Good to know">
-      <div class="card"><h2>Plans and limits</h2>
-        <ul class="facts">
-          <li>The FREE plan allows 3 published assessments, 30 email invitations and 30 certificates per month.</li>
-          <li>Limits are enforced by the server before the write, not by the browser.</li>
-          <li>Paid plans are activated only after server-side payment verification.</li>
-          <li><a href="/plans.html">Compare FREE and TEAM →</a></li>
+      <div class="st-ai-col st-ai-col--info">
+        <h3>What is demo only</h3>
+        <ul>
+          <li>Payments run in demo mode. Your plan changes and you get a receipt, but no real money is taken.</li>
+          <li>AI drafting is optional and always needs a person to approve the result.</li>
+          <li>JachAI says an email is queued, not delivered, because delivery depends on the mail service.</li>
         </ul>
       </div>
-      <div class="card"><h2>What Academy does not claim</h2>
-        <ul class="facts">
-          <li>Payments work end to end in <strong>demo mode</strong>: you pay, your plan changes and you get a receipt by email, but no real money is taken.</li>
-          <li>AI drafting is optional, needs a configured provider, and always produces drafts for human review.</li>
-          <li>Email delivery depends on a configured mail transport; the interface never claims a message was delivered.</li>
-        </ul>
-      </div>
-    </section>
+    </div>
+  </section>
 
-    <div class="note"><p>Already have a certificate? Paste its verification code on the <a href="/">JachAI home page</a> to check it without signing in.</p></div>
-  </main>
+  <section class="st-band" aria-labelledby="try">
+    <h2 id="try">Start your first class</h2>
+    <p>Open a demo role and try the whole journey. No sign-up needed.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Open the live demo</a>
+      <a class="st-btn" href="/how.html">See how it works</a>
+      <a class="st-btn" href="/#verify-code">Verify a certificate</a>
+    </div>
+  </section>
+</main>
   <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
 </body>
 </html>

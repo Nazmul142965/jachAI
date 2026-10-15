@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/chrome.css">
+  <link rel="stylesheet" href="/story.css">
   <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <script type="module" src="/theme.js"></script>
   <script type="module" src="/site.js"></script>
@@ -23,117 +24,118 @@
     <nav class="topnav" aria-label="Site"><a href="/academy.html"><span class="ic" data-ic="cap" aria-hidden="true"></span><span data-t>Academy</span></a><a href="/talent.html"><span class="ic" data-ic="briefcase" aria-hidden="true"></span><span data-t>Talent</span></a><a href="/plans.html" aria-current="page"><span class="ic" data-ic="tag" aria-hidden="true"></span><span data-t>Pricing</span></a><a href="/how.html"><span class="ic" data-ic="compass" aria-hidden="true"></span><span data-t>How it works</span></a><a href="/engineering.html"><span class="ic" data-ic="code" aria-hidden="true"></span><span data-t>Technology</span></a><a class="nav-cta" href="/"><span class="ic" data-ic="login" aria-hidden="true"></span><span data-t>Sign in</span></a></nav>
     <div id="lang-switch" class="lang-switch" role="group" aria-label="Language / ভাষা"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="bn" aria-pressed="false" lang="bn">বাংলা</button></div>
   </header>
-  <main class="page">
-    <p class="eyebrow">Plans</p>
-    <h1>Start free. Scale when you need to.</h1>
-    <p class="lede">Every plan runs on the same assessment engine: server-timed attempts, deterministic scoring,
-      tenant-scoped data and verifiable certificates. Limits are enforced by the server, not the browser.</p>
-    <div class="cta-row">
-      <a class="button primary" href="/">Sign in or create a workspace</a>
-      <a class="button quiet" href="/how.html">How the engine works</a>
+<main id="main" class="st-page">
+  <header class="st-hero">
+    <p class="st-kicker">Pricing</p>
+    <h1 class="st-title">Start free. <span class="st-grad">Grow when you need to.</span></h1>
+    <p class="st-lede">Both plans use the same engine: timed tests, fair scoring, separate workspaces and certificates anyone can verify. The server enforces the limits, not the browser.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Start free</a>
+      <a class="st-btn" href="/how.html">See how it works</a>
     </div>
+  </header>
 
-    <section class="section grid cols-2" aria-label="Plans">
+  <section class="st-section" aria-label="Plans">
+    <div class="st-grid st-grid--2">
       <article class="plan-card">
         <div class="plan-name">FREE</div>
         <div class="plan-price"><strong>৳0</strong><span>forever</span></div>
-        <p class="muted">For individuals and small teams getting started with reviewed assessments.</p>
+        <p class="muted">For people and small teams who are just starting.</p>
         <ul class="plan-features">
-          <li>3 published assessments</li>
-          <li>30 email invitations per month</li>
-          <li>30 certificates per month</li>
-          <li>5 daily AI requests per user (when a provider is configured)</li>
-          <li>90-day retention for messages and integrity events</li>
-          <li class="muted">No payment method required</li>
+          <li>3 published tests</li>
+          <li>30 email invitations each month</li>
+          <li>30 certificates each month</li>
+          <li>5 AI requests per person each day</li>
+          <li>Messages and integrity notes are kept for 90 days</li>
+          <li class="muted">No payment details needed</li>
         </ul>
         <div class="cta-row"><a class="button primary" href="/">Start free</a></div>
       </article>
 
       <article class="plan-card plan-card--featured">
-        <span class="plan-badge">Sandbox demo</span>
+        <span class="plan-badge">Demo payment</span>
         <div class="plan-name">TEAM</div>
-        <div class="plan-price"><strong>Sandbox</strong><span>30-day TEAM access · amount shown at checkout</span></div>
-        <p class="muted">For institutes and hiring teams that need more headroom. This deployment runs
-          against the bKash and SSLCOMMERZ <strong>sandbox</strong> gateways only — no live money is taken.</p>
+        <div class="plan-price"><strong>30 days</strong><span>of TEAM access · the amount shows at checkout</span></div>
+        <p class="muted">For institutes and hiring teams that need more room. In this demo, payments use test (sandbox) gateways, so no real money is taken.</p>
         <ul class="plan-features">
           <li>Everything in FREE</li>
-          <li>Higher published-assessment and invitation limits</li>
-          <li>Higher certificate and AI quotas</li>
-          <li>90-day message and telemetry retention, as on FREE</li>
-          <li>Audited manual TEAM grants available to platform admins</li>
-          <li class="muted">Payment is verified server-to-server before TEAM is activated</li>
+          <li>Higher limits for tests and invitations</li>
+          <li>Higher limits for certificates and AI</li>
+          <li>The server checks the payment before TEAM starts</li>
+          <li class="muted">You get a receipt by email</li>
         </ul>
         <div class="cta-row"><a class="button primary" href="/">Upgrade in your workspace</a></div>
       </article>
-    </section>
+    </div>
+  </section>
 
-    <section class="section" aria-labelledby="compare">
-      <div class="section-head">
-        <h2 id="compare">What changes between plans</h2>
-        <p>Exact limits are read from your workspace plan on the server.</p>
-      </div>
-      <table class="compare-table">
-        <thead>
-          <tr><th>Capability</th><th>FREE</th><th>TEAM</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Published assessments</td><td class="yes">3</td><td class="yes">Higher</td></tr>
-          <tr><td>Invitations per month</td><td class="yes">30</td><td class="yes">Higher</td></tr>
-          <tr><td>Certificates per month</td><td class="yes">30</td><td class="yes">Higher</td></tr>
-          <tr><td>AI requests per user / day</td><td class="yes">5</td><td class="yes">Higher</td></tr>
-          <tr><td>Message &amp; telemetry retention</td><td class="yes">90 days</td><td class="yes">90 days</td></tr>
-          <tr><td>Academy module</td><td class="yes">Included</td><td class="yes">Included</td></tr>
-          <tr><td>Talent module</td><td class="yes">Included</td><td class="yes">Included</td></tr>
-          <tr><td>Server-side limit enforcement</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-        </tbody>
-      </table>
-    </section>
+  <section class="st-section" aria-labelledby="compare">
+    <div class="st-head">
+      <h2 id="compare">What changes between the plans</h2>
+      <p>Your workspace shows its exact limits on the Billing screen.</p>
+    </div>
+    <table class="compare-table">
+      <thead>
+        <tr><th scope="col">What you get</th><th scope="col">FREE</th><th scope="col">TEAM</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Published tests</th><td class="yes">3</td><td class="yes">Higher</td></tr>
+        <tr><th scope="row">Invitations each month</th><td class="yes">30</td><td class="yes">Higher</td></tr>
+        <tr><th scope="row">Certificates each month</th><td class="yes">30</td><td class="yes">Higher</td></tr>
+        <tr><th scope="row">AI requests per person each day</th><td class="yes">5</td><td class="yes">Higher</td></tr>
+        <tr><th scope="row">Message and integrity note storage</th><td class="yes">90 days</td><td class="yes">90 days</td></tr>
+        <tr><th scope="row">Academy tools</th><td class="yes">Included</td><td class="yes">Included</td></tr>
+        <tr><th scope="row">Talent tools</th><td class="yes">Included</td><td class="yes">Included</td></tr>
+        <tr><th scope="row">Limits checked by the server</th><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+      </tbody>
+    </table>
+  </section>
 
-    <section class="section grid cols-2" aria-label="Payment and honesty">
-      <div class="card"><h2>Payment, honestly</h2>
-        <ul class="facts">
-          <li>This deployment runs <strong>sandbox</strong> bKash and SSLCOMMERZ only. No live money is taken.</li>
-          <li>A browser redirect never activates a plan — the server verifies the payment before TEAM is granted.</li>
-          <li>Expired TEAM falls back to FREE automatically; there is no silent renewal.</li>
-          <li>Platform admins can grant a bounded manual TEAM period (up to 30 days) for support cases.</li>
-        </ul>
-      </div>
-      <div class="card"><h2>What the server enforces</h2>
-        <ul class="facts">
-          <li>Every plan limit is checked server-side before a write, not in the UI.</li>
-          <li>Slot reservations are atomic, so two simultaneous publishes cannot both succeed past the limit.</li>
-          <li>Usage counters are reconciled from durable records; ambiguous gaps are flagged for manual review.</li>
-          <li>A paid TEAM period always takes precedence over a manual grant; revoking a manual grant cannot revoke a paid one.</li>
-        </ul>
-      </div>
-    </section>
+  <section class="st-section" aria-labelledby="money">
+    <div class="st-head">
+      <h2 id="money">About payment</h2>
+      <p>What happens to your money and your plan.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-card"><h3>Demo payments only</h3><p>This site uses bKash and SSLCOMMERZ test gateways. No live money is taken.</p></article>
+      <article class="st-card st-card--mix"><h3>Checked before it counts</h3><p>Coming back from the payment page does not change your plan. The server confirms the payment first.</p></article>
+      <article class="st-card st-card--coral"><h3>No surprise renewals</h3><p>When TEAM ends, you go back to FREE. Nothing is charged again and nothing is deleted.</p></article>
+    </div>
+  </section>
 
-    <section class="section" aria-labelledby="faq">
-      <div class="section-head">
-        <h2 id="faq">Common questions</h2>
-      </div>
-      <div class="faq">
-        <details>
-          <summary>Can I use both Academy and Talent on one plan?</summary>
-          <p>Yes. Each organization has one module type (ACADEMY or TALENT) in the first release; both modules share the same assessment engine and the same plan limits. A later release will allow a tenant to enable both.</p>
-        </details>
-        <details>
-          <summary>What happens when my TEAM period expires?</summary>
-          <p>Your organization falls back to FREE with its limits. Nothing is deleted; existing published assessments and attempts remain readable, but new writes are subject to FREE caps. Manual renewal is explicit — there is no automatic charging.</p>
-        </details>
-        <details>
-          <summary>Why is the payment sandbox-only?</summary>
-          <p>The first release runs against the bKash and SSLCOMMERZ sandbox gateways. Live-money endpoints are intentionally not enabled; enabling them requires contractual and API work that is out of scope for this deployment.</p>
-        </details>
-        <details>
-          <summary>What is a manual TEAM grant?</summary>
-          <p>A platform administrator can grant a bounded TEAM period (at most 30 days) to a tenant without any payment. It is clearly labelled "manual grant — not a payment" in the UI, is append-only audited, and cannot mark an order paid or replace an active paid subscription.</p>
-        </details>
-      </div>
-    </section>
+  <section class="st-section" aria-labelledby="faq">
+    <div class="st-head">
+      <h2 id="faq">Common questions</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Can I use both Academy and Talent?</summary>
+        <p>Yes, with one account. Each workspace is either an Academy or a Talent workspace, and both use the same engine and the same plan limits. You can have more than one workspace.</p>
+      </details>
+      <details>
+        <summary>What happens when my TEAM period ends?</summary>
+        <p>Your workspace goes back to the FREE limits. Nothing is deleted. Your tests and attempts stay readable, but new work follows the FREE limits. To renew, you pay again yourself.</p>
+      </details>
+      <details>
+        <summary>Why are payments only a demo?</summary>
+        <p>Real payments need agreements with the payment companies. For now JachAI uses their test gateways, so you can try the full upgrade without paying.</p>
+      </details>
+      <details>
+        <summary>What is a manual TEAM grant?</summary>
+        <p>For a support case, a platform admin can give a workspace TEAM for up to 30 days without a payment. It is labelled as a grant, not a payment, and it is written to a log.</p>
+      </details>
+    </div>
+  </section>
 
-    <div class="note"><p>Ready to try it? <a href="/">Create a workspace</a> — you start on FREE, no payment required.</p></div>
-  </main>
+  <section class="st-band" aria-labelledby="try">
+    <h2 id="try">Ready to try it?</h2>
+    <p>Create a workspace and start on FREE. No payment needed.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Start free</a>
+      <a class="st-btn" href="/academy.html">See Academy</a>
+    </div>
+  </section>
+</main>
   <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
 </body>
 </html>

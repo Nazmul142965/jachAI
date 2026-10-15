@@ -107,3 +107,6 @@ body[aria-busy="true"]::before {
 }
 @keyframes jachai-wait { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 @media (prefers-reduced-motion: reduce) { body[aria-busy="true"]::before { animation: none; width: 100%; opacity: .6; } }
+
+/* Decorative glows may extend past the screen edge; the page itself must never scroll sideways. */
+html { overflow-x: hidden; }

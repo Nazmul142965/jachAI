@@ -275,3 +275,30 @@ body { overflow-x: clip; }
   .st-steps::before { top: 25.5px; height: 5px; }
   .st-steps > li::before { position: relative; }
 }
+
+/* ---- Academy / Talent / Pricing additions ------------------------------------------------------- */
+/* The journey as a vertical timeline at every width. Seven columns were too narrow for full sentences. */
+@media (min-width: 1000px) {
+  .st-steps.st-steps--rows { grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 860px; padding: 0 0 0 44px; }
+  .st-steps.st-steps--rows::before {
+    left: 14px; right: auto; top: 12px; bottom: 12px; width: 5px; height: auto;
+    background: linear-gradient(180deg, var(--brand-300), var(--brand-600) 60%, var(--accent-400));
+  }
+  .st-steps.st-steps--rows > li { text-align: left; padding: 18px 22px 16px 28px; }
+  .st-steps.st-steps--rows > li::before { position: absolute; left: -62px; top: 14px; margin: 0; width: 40px; height: 40px; font-size: 17px; }
+  .st-steps--rows > li h3 { font-size: 18px; }
+  .st-steps--rows > li p { font-size: 15.5px; }
+}
+/* A neutral list column: the blue dot says "know this", not "yes" or "no". */
+.st-ai-col--info { border-top: 5px solid var(--brand-500); }
+.st-ai-col--info li::before { content: "i"; background: var(--info-surface); color: var(--info-ink); font-style: italic; }
+.st-ai-col p { margin: 14px 0 0; }
+.st-page .compare-table { width: 100%; }
+.st-page .compare-table tbody th { text-align: left; font-weight: 600; }
+.st-page .plan-price { flex-wrap: wrap; row-gap: 2px; }
+.st-page .plan-price strong { white-space: nowrap; }
+.st-page .compare-table tbody th {
+  text-transform: none; letter-spacing: normal; font-size: 15px; color: var(--ink);
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.st-page .compare-table tbody tr:last-child th { border-bottom: 0; }

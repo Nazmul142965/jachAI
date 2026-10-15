@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/chrome.css">
+  <link rel="stylesheet" href="/story.css">
   <script>try{var t=localStorage.getItem('jachaiTheme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <script type="module" src="/theme.js"></script>
   <script type="module" src="/site.js"></script>
@@ -23,70 +24,93 @@
     <nav class="topnav" aria-label="Site"><a href="/academy.html"><span class="ic" data-ic="cap" aria-hidden="true"></span><span data-t>Academy</span></a><a href="/talent.html" aria-current="page"><span class="ic" data-ic="briefcase" aria-hidden="true"></span><span data-t>Talent</span></a><a href="/plans.html"><span class="ic" data-ic="tag" aria-hidden="true"></span><span data-t>Pricing</span></a><a href="/how.html"><span class="ic" data-ic="compass" aria-hidden="true"></span><span data-t>How it works</span></a><a href="/engineering.html"><span class="ic" data-ic="code" aria-hidden="true"></span><span data-t>Technology</span></a><a class="nav-cta" href="/"><span class="ic" data-ic="login" aria-hidden="true"></span><span data-t>Sign in</span></a></nav>
     <div id="lang-switch" class="lang-switch" role="group" aria-label="Language / ভাষা"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="bn" aria-pressed="false" lang="bn">বাংলা</button></div>
   </header>
-  <main class="page">
-    <p class="eyebrow">Talent</p>
-    <h1>Hire on evidence you can actually compare.</h1>
-    <p class="lede">Talent runs hiring campaigns on the same assessment engine: one frozen version, invitations by
-      email, every candidate on the same timed task, and review decisions you can audit later.</p>
-    <div class="cta-row">
-      <a class="button primary" href="/">Sign in or create a workspace</a>
-      <a class="button secondary" href="/academy.html">See Academy training</a>
-      <a class="button quiet" href="/plans.html">Compare plans</a>
+<main id="main" class="st-page">
+  <header class="st-hero">
+    <p class="st-kicker">Talent</p>
+    <h1 class="st-title">Hire on results you can <span class="st-grad">really compare.</span></h1>
+    <p class="st-lede">Give every candidate the same test under the same rules. Invite them by email, compare their results side by side, and keep a record of every decision.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Open the live demo</a>
+      <a class="st-btn" href="/academy.html">See Academy training</a>
+      <a class="st-btn" href="/plans.html">Compare plans</a>
     </div>
-    <div class="trust-row" aria-label="What you can trust">
-      <span class="trust-chip"><span class="dot" aria-hidden="true"></span>Frozen assessment version</span>
-      <span class="trust-chip"><span class="dot" aria-hidden="true"></span>Audited review decisions</span>
-      <span class="trust-chip"><span class="dot" aria-hidden="true"></span>Honest integrity signals</span>
+  </header>
+
+  <section class="st-section" aria-labelledby="journey">
+    <div class="st-head">
+      <h2 id="journey">A hiring round, from start to finish</h2>
+      <p>Seven steps, from an open role to a recorded decision.</p>
     </div>
+    <ol class="st-steps st-steps--rows">
+      <li><h3>Set up the workspace</h3><p>An admin adds the recruiters. Candidates get a narrow role that only reaches their own tests and results.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Publish the test</h3><p>Questions are approved by a person first. Then the test is saved as a fixed version with its time limit and pass mark.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Open a campaign</h3><p>A campaign keeps the exact version it started with, so a later edit cannot change what candidates were measured on.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Invite candidates</h3><p>Pick someone who already has an account, or send an email invitation. The link stops working after 14 days, or when the test closes if that is sooner.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Candidates take the same test</h3><p>The server sets the deadline and saves each answer. The rules are the same for everybody.</p><span class="st-who st-who--learner">Candidate</span></li>
+      <li><h3>Compare and decide</h3><p>See each candidate's latest result side by side. Leave a note, then choose hold, shortlist or reject. Every decision keeps who made it, the note and the time.</p><span class="st-who st-who--staff">Staff</span></li>
+      <li><h3>Release results on purpose</h3><p>If you choose manual release, candidates see nothing until you release it. They never see the answer key.</p><span class="st-who st-who--server">Server</span></li>
+    </ol>
+  </section>
 
-    <section class="section" aria-labelledby="workflow">
-      <div class="section-head">
-        <h2 id="workflow">How a Talent campaign actually runs</h2>
-        <p>Seven steps from open role to recorded decision.</p>
-      </div>
-      <ol class="workflow">
-        <li><span class="step-number">1</span><div><h3>Create the workspace and invite the hiring team</h3>
-          <p>Organisation admins manage recruiters; candidates get a narrow role that only reaches their own assignments and results.</p></div></li>
-        <li><span class="step-number">2</span><div><h3>Publish the assessment you will hire on</h3>
-          <p>Questions are human-approved first, then published as an immutable version with its own time limit, pass mark and release policy.</p></div></li>
-        <li><span class="step-number">3</span><div><h3>Open a campaign pinned to that version</h3>
-          <p>A campaign freezes the assessment version it started with, so a later edit cannot change what candidates were measured on.</p></div></li>
-        <li><span class="step-number">4</span><div><h3>Invite candidates</h3>
-          <p>Invite an existing verified candidate member, or send an email invitation. An emailed link expires at the earlier of 14 days or the availability end, and only its hash is stored.</p></div></li>
-        <li><span class="step-number">5</span><div><h3>Candidates take the same timed attempt</h3>
-          <p>Server-set deadline, per-answer saving, resume support and a confirmed submission — identical rules for every candidate.</p></div></li>
-        <li><span class="step-number">6</span><div><h3>Compare and record a decision</h3>
-          <p>Recruiters see each candidate's latest submitted attempt side by side, can leave a review note, and record hold, shortlisted or rejected. Every decision keeps an actor, a note and a timestamp.</p></div></li>
-        <li><span class="step-number">7</span><div><h3>Release results deliberately</h3>
-          <p>Under a manual release policy, candidates see nothing until staff release that attempt; the interface never leaks a score early, and never shows answer keys to candidates.</p></div></li>
-      </ol>
-    </section>
+  <section class="st-section" aria-labelledby="gets">
+    <div class="st-head">
+      <h2 id="gets">What your team gets</h2>
+      <p>Three things that make the comparison fair.</p>
+    </div>
+    <div class="st-grid st-grid--3">
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+        <h3>Results you can compare</h3>
+        <p>One fixed test, one timer and a score for each topic, so you compare like with like.</p>
+      </article>
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        <h3>Decisions with a history</h3>
+        <p>Notes and decisions are added to a history. Later, anyone on the team can see who decided what, and when.</p>
+      </article>
+      <article class="st-promise">
+        <span class="st-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <h3>Respect for candidates</h3>
+        <p>A candidate sees only their own test and result, never another candidate's data.</p>
+      </article>
+    </div>
+  </section>
 
-    <section class="section grid cols-3" aria-label="What you get">
-      <article class="card"><h3>Comparable evidence</h3><p>One frozen version, one timer, per-topic breakdowns — comparison is like for like.</p></article>
-      <article class="card"><h3>Audited review</h3><p>Decisions and notes are tenant-scoped and appended to history, so a later reviewer can see who decided what and when.</p></article>
-      <article class="card"><h3>Candidate dignity</h3><p>Candidates see their own assignment, attempt and released result only — never another candidate's data.</p></article>
-    </section>
-
-    <section class="section grid cols-2" aria-label="Good to know">
-      <div class="card"><h2>Integrity signals, honestly framed</h2>
-        <ul class="facts">
-          <li>Tab visibility, optional fullscreen exit, copy/paste and client-reported answer-save timing can be recorded for an active campaign attempt.</li>
-          <li>They are <strong>client-reported, unverifiable and not proof of misconduct</strong>. JachAI makes no automatic cheating verdict.</li>
-          <li>No IP address, user agent, clipboard contents or keystrokes are stored, and the data expires on a TTL.</li>
+  <section class="st-section" aria-labelledby="signals">
+    <div class="st-head">
+      <h2 id="signals">Integrity signals, used honestly</h2>
+      <p>Hints for a person to read. Never a verdict.</p>
+    </div>
+    <div class="st-grid st-grid--2">
+      <div class="st-ai-col st-ai-col--yes">
+        <h3>What JachAI can note</h3>
+        <ul>
+          <li>Leaving the tab, leaving full screen, and copying or pasting.</li>
+          <li>How long each answer took to save.</li>
+          <li>It does not store IP addresses, clipboard text or keystrokes, and the notes are deleted after 90 days.</li>
         </ul>
       </div>
-      <div class="card"><h2>What Talent does not claim</h2>
-        <ul class="facts">
-          <li>Payments run against <strong>sandbox</strong> bKash and SSLCOMMERZ only; no live money is taken.</li>
-          <li>Email invitations require a configured mail transport; the interface says queued, never delivered.</li>
-          <li>AI is optional and never influences an official score or a hiring decision.</li>
+      <div class="st-ai-col st-ai-col--no">
+        <h3>What it never does</h3>
+        <ul>
+          <li>Decide that someone cheated.</li>
+          <li>Block or fail a candidate by itself.</li>
+          <li>Treat the signals as proof. A candidate can hide or fake them.</li>
         </ul>
       </div>
-    </section>
+    </div>
+    <p class="st-note">Plan upgrades in this demo use sandbox payments. No real money is taken, and the server checks every payment before a plan changes.</p>
+  </section>
 
-    <div class="note note--warn"><p><strong>Sandbox only:</strong> plan upgrades in this deployment use sandbox payment gateways. A browser redirect never activates a plan — the server verifies the payment first.</p></div>
-  </main>
+  <section class="st-band" aria-labelledby="try">
+    <h2 id="try">Run a fair hiring round</h2>
+    <p>Open the Talent owner or Recruiter role and try it yourself. No sign-up needed.</p>
+    <div class="st-actions">
+      <a class="st-btn st-btn--primary" href="/">Open the live demo</a>
+      <a class="st-btn" href="/how.html">See how it works</a>
+    </div>
+  </section>
+</main>
   <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
 </body>
 </html>
