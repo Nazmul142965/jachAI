@@ -13,7 +13,7 @@ People write and review the questions. The server keeps the time, the scores and
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47a248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
 [![Redis](https://img.shields.io/badge/Redis-limits_&_cache-dc382d?logo=redis&logoColor=white)](https://redis.io)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
-[![Tests](https://img.shields.io/badge/tests-720_Java_%2B_169_browser_checks-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/tests-733_Java_%2B_175_browser_checks-brightgreen)](#-testing)
 [![Language](https://img.shields.io/badge/UI-English_%7C_বাংলা-6366f1)](#-for-bangla-readers--বাংলায়-সারসংক্ষেপ)
 
 [**Open the live demo**](https://jachai.nazmulhsn.me) · [How it works](https://jachai.nazmulhsn.me/how.html) · [How it's built](https://jachai.nazmulhsn.me/engineering.html) · [Pricing](https://jachai.nazmulhsn.me/plans.html)
@@ -55,7 +55,7 @@ It serves two worlds with one account:
 | --- | --- |
 | Courses and dated batches, learners, tests, instructor feedback, messages, certificates. | Hiring campaigns, invite candidates by email, compare results side by side, reviewer notes and decisions. |
 
-And anyone can use **Practice** alone, with no organization: pick a topic, get an AI-made question, answer it.
+And anyone can use **Practice** alone, with no organization: take a quick skill check, practise a topic in a short session with a score at the end, or ask the AI for a question of your own.
 
 ---
 
@@ -71,6 +71,7 @@ Every row below is something the product really does today.
 | **Frozen versions.** Publishing a test makes an unchangeable copy. | If you fix a typo later, students who already started are not affected, and old scores stay fair. |
 | **Courses and batches.** Enrol a learner once; tests assigned to the batch reach them (and new joiners get them automatically). | No more adding every student to every test by hand. A "reconcile" button repairs any assignment that was missed. |
 | **Batch progress and analytics.** Submitted, graded, waiting for grading, passed, average score. | You see who is stuck at a glance. Short answers still waiting for you are not counted as failures. |
+| **Learning progress, test by test.** For each test in a batch: how many finished, how many were marked, how many passed. | You see how far the whole class has come, and where it stalls. |
 | **Result release control.** Show results at once, or hold them until you press release. | You can finish grading first, then everybody sees their result at the same time. |
 | **Instructor feedback.** Save a private draft, publish later. The learner gets an email. | Personal comments reach the right student, and drafts stay private. |
 | **Certificates with your wording, logo and signature.** Learners print their own. | Your institute's name is on it, and nobody needs to phone you to check it. |
@@ -82,7 +83,7 @@ Every row below is something the product really does today.
 | --- | --- |
 | **Fair, timed tests.** The server keeps the deadline. | Nobody can gain time by editing the page, so the result means something. |
 | **AI Tutor after the result.** It explains your mistakes, in English or বাংলা. | You learn from each test. It is switched off while an attempt is open, so it cannot give away answers. |
-| **Free personal Practice.** Choose a topic and level; the AI writes a question for you. 20 questions and 20 answers per day. | A safe place to train without joining anything. |
+| **Guided Practice.** A four-question skill check, short sessions on Java, Spring, Web or MongoDB, a recap with the right answer and why, and a suggestion for what to practise next. Free AI questions on any topic too (20 per day). | You learn where you are weak, not just what you got wrong, and you always know what to do next. |
 | **Certificates anyone can verify.** A short code opens a public page with the organization and test names (never your private details). | You can show an employer a link that proves it is real. |
 | **Bangla and English everywhere**, plus a dark theme. | You can use the platform in the language you think in. |
 
@@ -93,6 +94,7 @@ Every row below is something the product really does today.
 | **One frozen test for every candidate.** | Everyone answers the same questions under the same rules, so the comparison is fair. |
 | **Invite by email.** Candidates open the link, sign in with that address, and the test is assigned. | No spreadsheets, no copying links. Only the invited address can accept. |
 | **Side-by-side candidate comparison, notes, shortlist / hold / reject decisions** with a history. | A hiring decision you can explain later, with who decided what and when. |
+| **Hiring funnel.** From email invitation to test, submission, marking, shortlist and **hired**, with rejected counted separately. | You can see where candidates drop out and how long the round really is. |
 | **Integrity signals** (tab switches, copy and paste, leaving full screen). | Useful context for a reviewer. They are only hints: a candidate can hide them, so JachAI **never** decides "cheating" automatically. |
 
 ### 🛠️ Workspace owners and platform admins
@@ -143,6 +145,15 @@ Every row below is something the product really does today.
 - Local **Ollama** is supported for offline development.
 - Daily limits per user and per organization are enforced with atomic counters. A failed generation refunds the allowance.
 - AI output is always a draft until a person approves it.
+</details>
+
+<details>
+<summary><b>🎯 Guided Practice</b></summary>
+
+- A starting skill check of four questions (one per topic) and four topic paths: Java, Spring, Web and MongoDB.
+- A session has a fixed set of questions. Each answer is saved by the server (answering twice with a different choice is refused). When the last question is answered, the recap shows the score, your answer, the right answer and a short explanation for each question.
+- "Practise next" looks at your recent finished sessions and points to the topic with the lowest accuracy. With no finished session it suggests the skill check.
+- Sessions use the same daily answer limit as normal Practice, and are removed after 90 days.
 </details>
 
 <details>
@@ -330,8 +341,8 @@ Full details, the Render checklist and the custom-domain steps are in [SYSTEM.md
 ## 🧪 Testing
 
 ```bash
-./mvnw test                                  # 720 Java tests
-node src/test/frontend/run-journeys.js       # 169 browser checks, real Chrome/Edge, no install needed
+./mvnw test                                  # 733 Java tests
+node src/test/frontend/run-journeys.js       # 175 browser checks, real Chrome/Edge, no install needed
 ```
 
 - **Java tests** cover assessment and attempt rules, tenant isolation, payments, email templates, AI fallback, security and the web layer.

@@ -49,6 +49,10 @@ styling change.
 | `static/theme.js` | The light/dark/system control. Injects itself into `.topbar`. |
 | `static/app.css` | Component layer for the authenticated workspace (`index.html`). |
 | `static/public.css` | Component layer for the seven public pages. |
+| `static/chrome.css` | The one header, language switch, skip link, busy line and wake-up hint, loaded last on every page so all pages share the same chrome. |
+| `static/story.css` | The story-style public pages (How it works, How it's built, Academy, Talent, Pricing): gradient hero, timeline steps, promise cards, bands. |
+| `static/site.js` | EN / বাংলা switch and translation for the public pages. |
+| `static/i18n.js` | The English-to-Bangla dictionary and regex patterns. English text is the key. |
 | `static/app.js` | The entire workspace: state, routing, API calls, rendering. |
 | `templates/index.html` | The workspace shell. Every view's container markup. |
 | `templates/*.html` | Public pages. Server-rendered by name only; the controller returns a view name and nothing else. |
@@ -59,7 +63,7 @@ that does not exist, add a token to `theme.css` and use it. `grep -nE
 '#[0-9a-fA-F]{3,8}|rgba?\(' src/main/resources/static/app.css` should stay
 empty, and the same for `public.css`.
 
-Load order in every page head is `theme.css`, then the component layer. The
+Load order in every page head is `theme.css`, then the component layer (`app.css` or `public.css`), then `chrome.css` (and `story.css` on story pages). Newer CSS blocks in `app.css` and `story.css` use `color-mix()` with theme tokens, so they follow both themes. The
 inline no-flash script sits between them; see §6.
 
 ---
@@ -249,6 +253,13 @@ areas; the current markup and `SCREENS` are authoritative for exact tabs.
 | `assessment-detail` | learner, candidate | One assignment: window, attempts allowed, attempt history, current attempt, released result with topic bars, feedback and AI tutor |
 | `certificates` | learner | My certificates, each with its public verification code |
 | `platform` | platform admin | Operations counts, storage estimate, organizations, billing support, manual TEAM plan, quota reconciliation, administrators |
+
+### Recent screens
+
+- **Guided practice** (Practice screen): skill check, topic paths, a one-question-at-a-time session, recap and a next-topic suggestion. All scores come from the server.
+- **Learning progress** (Academy batch workspace) and **Hiring funnel** (Talent campaigns) use the shared `stageBars` helper.
+- **Platform admin** screens show a gradient band and status tiles (`.platform-tiles`).
+- **Messages** is a messenger-style panel (gradient bubbles, pill composer).
 
 ### 4.5 The four layout patterns
 

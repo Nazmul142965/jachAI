@@ -12,6 +12,13 @@ MongoDB is the durable store for accounts, assessments, attempts, orders, audit 
 
 The six one-click demo identities work on the configured database in the `demo`, `local`, or `prod` profile. On a public host, `DEMO_PUBLIC_ACCESS=true` and a valid HTTPS `APP_PUBLIC_BASE_URL` are required. `DEMO_SHARED_DATABASE` is retained only as a legacy configuration name and is not an access gate. Demo IDs are reserved and must remain barred from password/reset, profile/avatar changes, and Google linking; real accounts retain those features. Demo workspaces are shared, not private faculty accounts.
 
+## Practice sessions, learning progress and hiring funnel
+
+- `practice`: `PracticeSessionService` runs fixed-length sessions on the built-in catalogue (`PracticeCatalog.paths()`, one `baseline` skill check plus a path per topic). Answers reuse `PracticeService.submit`, so the daily quota and replay rules still apply. A session stores only answers; the right answer and explanation are returned for answered questions only. `GET /practice/next` reads the 100 most recent retained sessions.
+- `academy`: `BatchAssessmentService.learningProgress` pages the assessments of one batch and reuses the cohort analytics totals (active learners, assigned, submitted, graded, passed).
+- `talent`: `TalentFunnelService` counts retained email invitations (expired ones are removed by TTL, so this is not a lifetime figure) and runs one aggregation over assignments, each candidate's latest submitted attempt and the current review decision. `ReviewDecisionType.HIRED` was added.
+- These are unit-tested with mocks; they have not yet been run against a live MongoDB.
+
 ## Verification and changes
 
 - Run `./mvnw test` with Java 21 for the integrated revision. Frontend checks are documented in [FRONTEND.md](FRONTEND.md).
