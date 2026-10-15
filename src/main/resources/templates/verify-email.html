@@ -31,8 +31,8 @@
       <p id="status" class="status" role="status" aria-live="polite"></p>
 
       <section id="resend" hidden>
-        <p class="form-note">Enter the email you used to register. We will queue a new verification link if your account needs one.</p>
-        <p id="mail-mode-note" class="form-note" role="status" aria-live="polite">Checking how this server delivers links…</p>
+        <p class="form-note">Enter the email you signed up with. If your account still needs verifying, we will send you a new link.</p>
+        <p id="mail-mode-note" class="form-note" role="status" aria-live="polite">Checking how links are sent…</p>
         <form id="resend-form">
           <div class="field">
             <label for="email">Email</label>
@@ -59,11 +59,11 @@
       .then(response => response.ok ? response.json() : null)
       .then(config => {
         mailModeNote.textContent = config?.mode === 'SMTP'
-          ? 'This server queues verification links for email. Check your inbox and spam folder; this page cannot confirm delivery.'
+          ? 'We send verification links by email. Check your inbox and your spam folder.'
           : config?.mode === 'LOCAL_CONSOLE'
-            ? 'This local run does not send email. Find the link in the application console or local log. Configure SMTP and restart to receive it by email.'
-            : 'Delivery setup could not be checked. Ask the operator where this run sends verification links.';
-      }).catch(() => { mailModeNote.textContent = 'Delivery setup could not be checked. Ask the operator where this run sends verification links.'; });
+            ? 'This local copy does not send email. The link is printed in the application log.'
+            : 'We could not check how links are sent. If no email arrives, ask the site operator.';
+      }).catch(() => { mailModeNote.textContent = 'We could not check how links are sent. If no email arrives, ask the site operator.'; });
     const showResend = () => { resend.hidden = false; };
     // The status line carries its outcome in its own words; the colour only
     // repeats what the sentence already says.

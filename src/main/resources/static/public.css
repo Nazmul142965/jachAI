@@ -636,3 +636,12 @@ input::placeholder { color: var(--neutral-400); }
   .button:hover:not(:disabled), .card:hover, .plan-card:hover { transform: none; }
   .state.checking .dot { animation: none; }
 }
+
+/* The details list is a grid, which beat the [hidden] attribute and showed empty labels for an unknown code. */
+dl.cert-details[hidden] { display: none; }
+.cert-card.is-valid { border-top: 6px solid var(--success-ink); }
+.cert-card.is-invalid { border-top: 6px solid var(--danger-ink); }
+.cert-card .state { font-size: clamp(20px, 3.4vw, 26px); font-weight: 800; letter-spacing: -.02em; }
+.cert-card.is-valid .state .dot { width: 26px; height: 26px; background: var(--success-ink); position: relative; }
+.cert-card.is-valid .state .dot::after { content: ""; position: absolute; left: 8px; top: 4px; width: 6px; height: 12px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg); }
+.cert-card.is-valid .state { color: var(--success-ink); }

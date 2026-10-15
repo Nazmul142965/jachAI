@@ -26,11 +26,11 @@
   <main class="page page--narrow">
     <p class="eyebrow">Public verification</p>
     <h1>Certificate verification</h1>
-    <div class="card cert-card">
+    <div id="cert-card" class="card cert-card">
       <p id="state" class="state checking" role="status"><span class="dot" aria-hidden="true"></span><span id="state-text">Checking this certificate…</span></p>
       <p class="code">Code: <span id="code"></span></p>
       <dl id="details" class="cert-details" hidden>
-        <dt>Organisation</dt><dd id="institute"></dd>
+        <dt>Organization</dt><dd id="institute"></dd>
         <dt>Assessment</dt><dd id="assessment"></dd>
         <dt>Issued</dt><dd id="issued"></dd>
         <dt id="revoked-row" hidden>Revoked</dt><dd id="revoked" hidden></dd>
@@ -42,8 +42,8 @@
       <a class="button secondary" href="/academy.html">About Academy</a>
       <a class="button quiet" href="/how.html">How certificates work</a>
     </div>
-    <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
   </main>
+  <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
   <script>
     const code = decodeURIComponent(location.pathname.split('/').pop());
     const state = document.getElementById('state');
@@ -53,8 +53,10 @@
 
     const show = (kind, text, message) => {
       state.className = `state ${kind}`;
+      document.getElementById('cert-card').classList.toggle('is-valid', kind === 'valid');
+      document.getElementById('cert-card').classList.toggle('is-invalid', kind === 'invalid');
       stateText.textContent = text;
-      if (message) { note.textContent = message; note.hidden = false; }
+      if (message) { note.textContent = message; note.className = kind === 'invalid' ? 'note note--warn' : 'note'; note.hidden = false; }
     };
 
     fetch('/api/v1/public/certificates/' + encodeURIComponent(code), { headers: { Accept: 'application/json' } })
@@ -81,7 +83,7 @@
       .catch(error => {
         show('invalid', 'Not verified',
           error.message === '404'
-            ? 'No certificate matches this code. Check for a typo, or ask the issuing organisation for a fresh code.'
+            ? 'No certificate matches this code. Check for a typo, or ask the issuing organization for a fresh code.'
             : 'Verification is temporarily unavailable. This is not a statement about the certificate — try again shortly.');
       });
   </script>
