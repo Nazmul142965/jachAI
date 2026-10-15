@@ -5,7 +5,7 @@ Both assistants use `E:\Advance Java\jachAI` on branch `integration/backend-ui-f
 ## File ownership
 
 - Codex: `src/main/java/**`, `src/test/java/**`, backend configuration, and backend-only tests. No edits to `src/main/resources/static/**`, `src/main/resources/templates/**`, or `src/test/frontend/**`.
-- Claude: `src/main/resources/static/**`, `src/main/resources/templates/**`, and `src/test/frontend/**`. No edits to Java, backend configuration, `pom.xml`, or `Dockerfile`.
+- Claude: owns the full UI across `src/main/resources/static/**`, `src/main/resources/templates/**`, and `src/test/frontend/**`. Creative freedom includes a cohesive visual redesign, navigation and interaction improvements, responsive layouts, and finishing every existing role/workflow—not just polishing a few screens. Keep the product's functionality, accessibility, English/Bangla support, and backend API contracts intact. No edits to Java, backend configuration, `pom.xml`, or `Dockerfile`.
 - Shared documents and Git operations: ask the user before editing or committing files owned by the other assistant. Stage explicit paths; never run `git add .` or `git add -A` because this checkout contains user-owned untracked material.
 
 ## Interface and communication
