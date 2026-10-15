@@ -5,6 +5,7 @@ import com.jachai.academy.dto.BatchAssessmentAnalyticsView;
 import com.jachai.academy.dto.BatchDistributionResult;
 import com.jachai.academy.dto.BatchProgressRow;
 import com.jachai.academy.dto.CreateBatchAssessmentRequest;
+import com.jachai.academy.dto.LearningProgressStep;
 import com.jachai.academy.model.Batch;
 import com.jachai.academy.model.BatchAssessment;
 import com.jachai.academy.model.BatchEnrollment;
@@ -148,6 +149,22 @@ public class BatchAssessmentService {
                 totals.assigned(), totals.submitted(), totals.graded(), totals.passed(), totals.average(),
                 percentage(totals.submitted(), activeLearners),
                 percentage(totals.passed(), totals.graded()));
+    }
+
+    public Page<LearningProgressStep> learningProgress(String actorId, String organizationId,
+                                                        String courseId, String batchId, int page) {
+        requireStaff(actorId, organizationId);
+        ownBatch(organizationId, courseId, batchId);
+        long active = enrollments.countByOrganizationIdAndBatchIdAndActiveTrue(organizationId, batchId);
+        return batchAssessments.findByOrganizationIdAndBatchId(organizationId, batchId,
+                PageRequest.of(page, 20, Sort.by("createdAt", "id")))
+                .map(assessment -> {
+                    var totals = analyticsReader.totals(organizationId, assessment.id());
+                    return new LearningProgressStep(assessment.id(), assessment.assessmentTitle(), active,
+                            totals.assigned(), totals.submitted(), totals.graded(), totals.passed(),
+                            percentage(totals.submitted(), active),
+                            percentage(totals.passed(), totals.graded()));
+                });
     }
 
     private static double percentage(long numerator, long denominator) {

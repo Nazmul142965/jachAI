@@ -5138,8 +5138,12 @@ function renderGuidedRecap(box, session, path, answered) {
     const result = answered.get(question.id);
     const row = node('div', '', `guided-recap-row ${result?.correct ? 'is-right' : 'is-wrong'}`);
     row.append(node('strong', question.prompt),
-      node('p', `${t('Your answer')}: ${guidedOptionText(question, result?.selectedOptionId)}`, 'muted'),
-      node('span', result?.correct ? 'Correct' : 'Review this', 'guided-flag'));
+      node('p', `${t('Your answer')}: ${guidedOptionText(question, result?.selectedOptionId)}`, 'muted'));
+    if (!result?.correct && result?.correctOptionId) {
+      row.append(node('p', `${t('Right answer')}: ${guidedOptionText(question, result.correctOptionId)}`, 'guided-right'));
+    }
+    if (result?.explanation) row.append(node('p', result.explanation, 'muted'));
+    row.append(node('span', result?.correct ? 'Correct' : 'Review this', 'guided-flag'));
     return row;
   });
   const actions = node('div', '', 'form-row');

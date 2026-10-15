@@ -82,6 +82,8 @@ import com.jachai.auth.repository.UserRepository;
 import com.jachai.practice.service.PersonalPracticeGenerationService;
 import com.jachai.practice.service.PracticeCatalog;
 import com.jachai.practice.service.PracticeService;
+import com.jachai.practice.service.PracticeSessionService;
+import com.jachai.talent.service.TalentFunnelService;
 import com.jachai.mail.service.QueuedEmailSender;
 import com.jachai.organization.service.WorkspaceJoinCodeService;
 import com.jachai.auth.service.AccessRevocationService;
@@ -127,6 +129,8 @@ class JachAiApplicationTests {
     @MockitoBean WorkspaceJoinCodeService workspaceJoinCodeService;
     @MockitoBean PracticeService practiceService;
     @MockitoBean PracticeCatalog practiceCatalog;
+    @MockitoBean PracticeSessionService practiceSessionService;
+    @MockitoBean TalentFunnelService talentFunnelService;
     @MockitoBean PersonalPracticeGenerationService personalPracticeGenerationService;
     @MockitoBean QueuedEmailSender queuedEmailSender;
     @MockitoBean InstructorFeedbackService instructorFeedbackService;
@@ -289,6 +293,17 @@ class JachAiApplicationTests {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         verify(platformAdminService, never()).changeRole(anyString(), anyString(),
                 org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    void guidedPracticeLearningProgressAndFunnelRequireAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/practice/paths")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/practice/next")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/practice/sessions/session-a")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/organizations/org-a/academy/courses/course-a/batches/batch-a/assessments/learning-progress"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/organizations/org-a/talent/campaigns/campaign-a/funnel"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

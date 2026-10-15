@@ -1,5 +1,5 @@
 package com.jachai.talent.model;
 
 public enum ReviewDecisionType {
-    HOLD, SHORTLISTED, REJECTED
+    HOLD, SHORTLISTED, REJECTED, HIRED
 }

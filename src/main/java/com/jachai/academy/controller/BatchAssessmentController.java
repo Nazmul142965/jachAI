@@ -5,6 +5,7 @@ import com.jachai.academy.dto.BatchAssessmentAnalyticsView;
 import com.jachai.academy.dto.BatchDistributionResult;
 import com.jachai.academy.dto.BatchProgressRow;
 import com.jachai.academy.dto.CreateBatchAssessmentRequest;
+import com.jachai.academy.dto.LearningProgressStep;
 import com.jachai.academy.service.BatchAssessmentService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -71,5 +72,12 @@ public class BatchAssessmentController {
             @PathVariable String batchId, @PathVariable String batchAssessmentId) {
         return batchAssessments.analytics(jwt.getSubject(), organizationId, courseId,
                 batchId, batchAssessmentId);
+    }
+
+    @GetMapping("/learning-progress")
+    public Page<LearningProgressStep> learningProgress(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String organizationId, @PathVariable String courseId, @PathVariable String batchId,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int page) {
+        return batchAssessments.learningProgress(jwt.getSubject(), organizationId, courseId, batchId, page);
     }
 }

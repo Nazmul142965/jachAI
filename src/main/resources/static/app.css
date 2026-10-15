@@ -2232,3 +2232,4 @@ body[data-restoring]::before {
 .is-wrong .guided-flag { background: var(--danger-surface); color: var(--danger-ink); }
 .learning-step { display: grid; gap: 6px; padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
 .learning-title { font-size: 16px; }
+.guided-right { font-weight: 700; color: var(--success-ink); }

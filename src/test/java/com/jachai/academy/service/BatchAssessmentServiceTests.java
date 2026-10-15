@@ -76,6 +76,29 @@ class BatchAssessmentServiceTests {
     }
 
     @Test
+    void learningProgressUsesOnlyThisBatchAndExistingAssessmentAnalytics() {
+        academy();
+        when(batches.findByIdAndOrganizationIdAndCourseId("batch-a", "org-a", "course-a"))
+                .thenReturn(Optional.of(batch()));
+        BatchAssessment step = new BatchAssessment("step-a", "org-a", "course-a", "batch-a",
+                "assessment-a", "assessment-a:2", "First test", 1,
+                Instant.now(), Instant.now().plusSeconds(3600), "teacher", Instant.now());
+        when(batchAssessments.findByOrganizationIdAndBatchId(eq("org-a"), eq("batch-a"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(step)));
+        when(enrollments.countByOrganizationIdAndBatchIdAndActiveTrue("org-a", "batch-a"))
+                .thenReturn(10L);
+        when(analyticsReader.totals("org-a", "step-a"))
+                .thenReturn(new BatchAnalyticsReader.Totals(10, 8, 6, 3, 72.0));
+
+        var progress = service.learningProgress("teacher", "org-a", "course-a", "batch-a", 0);
+
+        assertEquals("First test", progress.getContent().getFirst().assessmentTitle());
+        assertEquals(80.0, progress.getContent().getFirst().completionRatePercent());
+        assertEquals(50.0, progress.getContent().getFirst().passRatePercent());
+        verify(access).requireRole("teacher", "org-a", OrganizationRole.ORG_ADMIN, OrganizationRole.INSTRUCTOR);
+    }
+
+    @Test
     void freezesPublishedVersionAndAssignsEveryEnrolledLearner() {
         academy();
         when(batches.findByIdAndOrganizationIdAndCourseId("batch-a", "org-a", "course-a"))

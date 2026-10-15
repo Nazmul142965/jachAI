@@ -173,7 +173,7 @@ const SOURCE = String.raw`(() => {
     if (path === '/api/v1/practice/sessions/ps-1/answers' && method === 'POST') {
       const body = JSON.parse(init.body);
       guided.results.push({ questionId: body.questionId, selectedOptionId: body.optionId, correct: body.optionId === 'a',
-        answeredAt: new Date().toISOString() });
+        answeredAt: new Date().toISOString(), correctOptionId: 'a', explanation: 'Fixture explanation.' });
       guided.correctCount = guided.results.filter((r) => r.correct).length;
       guided.complete = guided.results.length === guided.questions.length;
       if (guided.complete) guidedDone = true;
