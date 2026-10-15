@@ -1735,6 +1735,7 @@ async function showView(key) {
     if (active) tab.setAttribute('aria-current', 'true'); else tab.removeAttribute('aria-current');
   }
   renderScreenTabs(screenKey, key);
+  $('#platform-band')?.classList.toggle('hidden', !key.startsWith('platform'));
   writeRoute(screenKey, key);
   const screen = SCREENS[screenKey];
   // Choosing a section closes the menu, so the content it opened is what you see.
@@ -1822,8 +1823,12 @@ async function showView(key) {
 }
 async function loadEntitlements() {
   const plan = await request(ownOrg('/billing/entitlements'));
+  const planCard = node('div', '', `plan-hero plan-hero--${String(plan.tier).toLowerCase()}`);
+  planCard.append(node('span', plan.tier, 'plan-hero-badge'),
+    node('strong', `${plan.tier} plan`, 'plan-hero-title'),
+    node('p', `${state.organization.type} workspace · old messages and activity records are deleted after ${plan.retentionDays} days`, 'muted'));
   setList('#plan-details', [
-    item(`${plan.tier} plan`, `${state.organization.type} workspace · old messages and activity records are deleted after ${plan.retentionDays} days`),
+    planCard,
     item('Assessments & invitations', `${plan.maxPublishedAssessments} published assessments · ${plan.monthlyInvitations} invitations per month`),
     item('AI & certificates', `${plan.dailyUserAiRequests} AI requests per user/day · ${plan.monthlyCertificates} certificates per month`)
   ], 'Plan details are unavailable.');
@@ -1963,7 +1968,7 @@ async function loadPlatformDashboard() {
       ['Open support tickets', data.openSupportTickets]
     ]) {
       const row = node('p');
-      row.append(node('span', label), node('strong', String(count)));
+      row.append(node('span', label), node('strong', String(count), Number(count) > 0 ? 'platform-count is-bad' : 'platform-count is-ok'));
       alerts.append(row);
     }
     activity.append(months, alerts);
@@ -2168,14 +2173,22 @@ async function loadPlatformStorage() {
 }
 async function loadPlatformOperations() {
   const summary = await request('/platform/operations/summary');
-  setList('#platform-operations', [
-    item('Failed emails', String(summary.failedEmailJobs)),
-    item('Emails stuck for over 15 minutes', String(summary.overdueEmailJobs)),
-    item('Practice payments left open for over 24 hours', String(summary.oldOpenSandboxOrders)),
-    item('Confirmed payments not yet applied after 5 minutes', String(summary.verifiedButUnappliedOrders)),
-    item('Number corrections that did not finish', String(summary.usageRepairRunsWithoutCompletion)),
-    item('Counts generated', summary.generatedAt ? new Date(summary.generatedAt).toLocaleString() : 'Not reported')
-  ], 'Operational counts are unavailable.');
+  const tile = (label, count) => {
+    const card = node('div', '', `platform-tile ${count > 0 ? 'is-warn' : 'is-ok'}`);
+    card.append(node('strong', String(count ?? 0), 'platform-tile-value'), node('span', label, 'platform-tile-label'),
+      node('span', count > 0 ? 'Needs a look' : 'All clear', 'platform-tile-flag'));
+    return card;
+  };
+  const grid = node('div', '', 'platform-tiles');
+  grid.append(
+    tile('Failed emails', summary.failedEmailJobs),
+    tile('Emails stuck for over 15 minutes', summary.overdueEmailJobs),
+    tile('Practice payments left open for over 24 hours', summary.oldOpenSandboxOrders),
+    tile('Confirmed payments not yet applied after 5 minutes', summary.verifiedButUnappliedOrders),
+    tile('Number corrections that did not finish', summary.usageRepairRunsWithoutCompletion));
+  const stamp = node('p', summary.generatedAt
+    ? `${t('Counts generated')}: ${new Date(summary.generatedAt).toLocaleString()}` : 'Counts generated: not reported', 'muted');
+  setList('#platform-operations', [grid, stamp], 'Operational counts are unavailable.');
 }
 async function loadPlatformOrganizations(pageNumber = 0) {
   const page = await request(`/platform/organizations?page=${pageNumber}`);
@@ -3269,6 +3282,9 @@ async function loadAssignments(pageNumber = 0) {
   const page = await request(ownOrg(`/assignments/mine?page=${pageNumber}`));
   const inProgress = pendingAttempt();
   const now = Date.now();
+  // Two tests can share a title (the same test given in two rounds). Add the opening date so they can be told apart.
+  const titleCount = new Map();
+  for (const entry of page.content || []) titleCount.set(entry.assessmentTitle, (titleCount.get(entry.assessmentTitle) || 0) + 1);
   setList('#assignments-list', (page.content || []).map((assignment) => {
     const resumable = inProgress?.assignmentId === assignment.id;
     const from = Date.parse(assignment.availableFrom);
@@ -3282,8 +3298,10 @@ async function loadAssignments(pageNumber = 0) {
     }
     const origin = assignment.batchAssessmentId ? ' · Assigned through a batch'
       : assignment.campaignId ? ' · Assigned through a hiring campaign' : '';
+    const duplicate = assignment.assessmentTitle && titleCount.get(assignment.assessmentTitle) > 1
+      ? ` (${new Date(from).toLocaleDateString()})` : '';
     return item(assignment.assessmentTitle
-      ? `${assignment.assessmentTitle}${resumable ? ' · attempt in progress' : ''}`
+      ? `${assignment.assessmentTitle}${duplicate}${resumable ? ' · attempt in progress' : ''}`
       : resumable ? 'Assessment assignment · attempt in progress' : 'Assessment assignment',
       `${state} · Available ${new Date(from).toLocaleString()} – ${new Date(until).toLocaleString()}`
         + ` · ${assignment.attemptsAllowed} attempt(s)${origin}`

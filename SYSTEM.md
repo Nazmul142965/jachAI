@@ -97,6 +97,17 @@ For a **temporary** faculty walkthrough without a cloud account, a [Cloudflare Q
 
 Provider settings are optional until those features are tested: Gemini, Groq, Google sign-in, and the two sandbox merchant credential sets. The production profile enables Redis cache, token-revocation acceleration, and request limits by default. MongoDB remains the durable authority for accounts and revoked access tokens. Use only direct bKash and SSLCOMMERZ sandbox credentials; the adapters are not configured for live payments.
 
+## Optional settings added later
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `BILLING_DEMO_CHECKOUT` | `true` | Turns on the built-in demo checkout (pay, plan changes, receipt email, admin log). Set `false` to use only the bKash and SSLCOMMERZ sandboxes. No real money is taken either way. |
+| `AI_QUESTION_FALLBACK` | `auto` | If the main AI provider for question drafts fails or is slow, try the other configured provider (Gemini to Groq). `auto` does this when both keys exist. |
+| `AI_TUTOR_FALLBACK` | `auto` | The same failover for the AI Tutor. |
+| `AI_PRIMARY_TIMEOUT_SECONDS` | `25` | How long to wait for the main AI provider before switching to the fallback. |
+
+`GET /api/v1/health` also sends a small ping to MongoDB (at most every 30 seconds) so the database connection stays warm. It always answers `UP`, so a database problem never makes the platform restart the app. Point an uptime monitor at this URL, not at `/actuator/health`.
+
 ## Health probes
 
 ### Profile image storage

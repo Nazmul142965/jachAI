@@ -2265,3 +2265,48 @@ body[data-restoring]::before {
 .hero-grad { white-space: nowrap; }
 .demo-role-name { font-weight: 800; }
 .demo-role-hint { font-size: 12.5px; font-weight: 500; color: var(--muted); line-height: 1.3; }
+
+/* ---- Platform admin and Billing polish ---------------------------------------------------------------- */
+.platform-band {
+  display: flex; align-items: center; gap: var(--sp-4); margin: 0 0 var(--sp-5); padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-lg); color: #fff;
+  background: linear-gradient(120deg, var(--brand-800), var(--brand-600) 60%, var(--accent-500));
+  box-shadow: var(--e-2, 0 6px 18px rgba(0,0,0,.12));
+}
+.platform-band strong { display: block; font-size: var(--text-md); }
+.platform-band p { margin: 2px 0 0; opacity: .92; font-size: var(--text-sm); }
+.platform-band-icon { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,.18); }
+.platform-band-icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.platform-metric { position: relative; overflow: hidden; background: var(--surface); box-shadow: var(--e-1); }
+.platform-metric::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, var(--brand-500), var(--accent-400)); }
+.platform-metric:nth-child(2)::before { background: linear-gradient(90deg, var(--accent-400), var(--accent-500)); }
+.platform-metric:nth-child(3)::before { background: linear-gradient(90deg, var(--brand-700), var(--brand-400)); }
+.platform-metric:nth-child(4)::before { background: linear-gradient(90deg, var(--warn-ink), var(--accent-400)); }
+.platform-metric strong { color: var(--brand-ink); letter-spacing: -.03em; }
+.platform-count { padding: 2px 12px; border-radius: 999px; font-size: 13px; }
+.platform-count.is-ok { background: var(--success-surface); color: var(--success-ink); }
+.platform-count.is-bad { background: var(--danger-surface); color: var(--danger-ink); }
+
+.platform-tiles { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: var(--sp-3); }
+.platform-tile { display: grid; gap: 4px; padding: var(--sp-4); border-radius: var(--r-md); border: 1px solid var(--line); border-top-width: 5px; background: var(--surface); }
+.platform-tile.is-ok { border-top-color: var(--success-ink); }
+.platform-tile.is-warn { border-top-color: var(--danger-ink); background: color-mix(in srgb, var(--danger-surface) 40%, var(--surface)); }
+.platform-tile-value { font-size: 30px; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.platform-tile.is-warn .platform-tile-value { color: var(--danger-ink); }
+.platform-tile-label { color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.platform-tile-flag { justify-self: start; font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 999px; }
+.platform-tile.is-ok .platform-tile-flag { background: var(--success-surface); color: var(--success-ink); }
+.platform-tile.is-warn .platform-tile-flag { background: var(--danger-surface); color: var(--danger-ink); }
+
+.plan-hero { display: grid; gap: 6px; justify-items: start; padding: var(--sp-5); border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface); }
+.plan-hero--free { background: linear-gradient(135deg, var(--surface-brand), var(--surface)); border-color: var(--brand-300); }
+.plan-hero--team { color: #fff; border-color: transparent; background: linear-gradient(120deg, var(--brand-800), var(--brand-600) 60%, var(--accent-500)); }
+.plan-hero--team .muted { color: rgba(255,255,255,.9); }
+.plan-hero-badge { padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .08em; background: var(--brand-600); color: #fff; }
+.plan-hero--team .plan-hero-badge { background: rgba(255,255,255,.22); }
+.plan-hero-title { font-size: 24px; letter-spacing: -.03em; }
+.plan-hero p { margin: 0; }
+/* A heading that follows a form row had no space above it. */
+.form-row + h3, .form-row + h4 { margin-top: var(--sp-5); }
+#platform-billing + h3, #platform-orders + h3 { margin-top: var(--sp-5); }
