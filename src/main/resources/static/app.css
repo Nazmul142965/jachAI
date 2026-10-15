@@ -2233,3 +2233,35 @@ body[data-restoring]::before {
 .learning-step { display: grid; gap: 6px; padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
 .learning-title { font-size: 16px; }
 .guided-right { font-weight: 700; color: var(--success-ink); }
+
+/* ---- Sign-in page: hero with three promises, and role buttons that say what the role does ---------- */
+.hero { position: relative; isolation: isolate; }
+.hero::before {
+  content: ""; position: absolute; z-index: -1; inset: -40px -60px auto -60px; height: 420px; pointer-events: none;
+  background:
+    radial-gradient(closest-side at 22% 38%, color-mix(in srgb, var(--brand-300) 55%, transparent), transparent),
+    radial-gradient(closest-side at 78% 22%, color-mix(in srgb, var(--accent-300) 45%, transparent), transparent);
+  filter: blur(26px); opacity: .7;
+}
+.hero-grad {
+  background: linear-gradient(95deg, var(--brand-500), var(--brand-400) 45%, var(--accent-400));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero-benefits { list-style: none; margin: var(--sp-6) 0 0; padding: 0; display: grid; gap: var(--sp-3); max-width: 520px; }
+.hero-benefits li {
+  display: flex; gap: var(--sp-4); align-items: flex-start; padding: var(--sp-4);
+  border: 1px solid var(--line); border-radius: var(--r-md); background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+.hero-benefits strong { display: block; font-size: var(--text-md); }
+.hero-benefits p { margin: 2px 0 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.45; }
+.hero-icon {
+  flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; color: #fff;
+  background: linear-gradient(140deg, var(--brand-500), var(--brand-700));
+}
+.hero-benefits li:nth-child(2) .hero-icon { background: linear-gradient(140deg, var(--accent-400), var(--accent-500)); }
+.hero-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hero .hero-links { margin-top: var(--sp-5); font-size: var(--text-sm); }
+.demo-role { display: grid; gap: 2px; align-content: center; justify-items: start; text-align: left; padding: 10px 14px; }
+.hero-grad { white-space: nowrap; }
+.demo-role-name { font-weight: 800; }
+.demo-role-hint { font-size: 12.5px; font-weight: 500; color: var(--muted); line-height: 1.3; }

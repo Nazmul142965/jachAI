@@ -4943,12 +4943,20 @@ $('#login-form').addEventListener('submit', (event) => { event.preventDefault();
     throw error;
   } finally { if (control) control.disabled = false; }
 }); });
+const DEMO_ROLE_HINTS = {
+  'academy-admin': 'Runs courses and plans',
+  instructor: 'Writes tests and grades',
+  learner: 'Takes tests, earns certificates',
+  'talent-admin': 'Runs hiring rounds',
+  recruiter: 'Compares candidates',
+  candidate: 'Takes a hiring test'
+};
 function loadDemoAccess() {
   return request('/demo/accounts', { auth: false, retry: false }).then((accounts) => {
   if (!Array.isArray(accounts) || !accounts.length) return;
   const roles = $('#demo-access-roles');
   roles.replaceChildren(...accounts.map((account) => {
-    const control = button(account.label, async () => {
+    const control = button('', async () => {
       control.disabled = true;
       try {
         demoWorkspace = String(account.workspace || '').toUpperCase();
@@ -4957,6 +4965,9 @@ function loadDemoAccess() {
         await signedIn(tokens);
       } finally { control.disabled = false; }
     }, 'button secondary demo-role');
+    const hint = DEMO_ROLE_HINTS[account.key];
+    control.append(node('span', account.label, 'demo-role-name'));
+    if (hint) control.append(node('span', hint, 'demo-role-hint'));
     control.setAttribute('aria-label', `Sign in as ${account.label} in the ${account.workspace} demo workspace`);
     return control;
   }));

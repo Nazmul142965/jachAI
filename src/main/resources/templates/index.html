@@ -42,10 +42,17 @@
   <main id="auth" class="auth-layout">
     <section class="hero">
       <p class="eyebrow">Built for meaningful evaluation</p>
-      <h1>Skills deserve more than a score.</h1>
+      <h1>Skills deserve more than <span class="hero-grad">a score.</span></h1>
       <p>Build reviewed assessments, invite your people, understand their strengths, and verify what they have achieved.</p>
-      <p class="hero-trust">Server-timed attempts · Human-reviewed publishing · Verifiable certificates</p>
-      <p class="muted" style="margin-top:18px;font-size:13.5px">Start on the FREE plan — <a href="/plans.html">compare plans</a> or <a href="/how.html">see how the engine works</a>.</p>
+      <ul class="hero-benefits" aria-label="Why JachAI">
+        <li><span class="hero-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <div><strong>The server keeps the time</strong><p>Nobody can win minutes by changing their clock.</p></div></li>
+        <li><span class="hero-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <div><strong>A person approves every question</strong><p>AI can draft. Only people publish.</p></div></li>
+        <li><span class="hero-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+          <div><strong>Certificates anyone can check</strong><p>A short code proves a certificate is real.</p></div></li>
+      </ul>
+      <p class="muted hero-links">Start on the FREE plan. <a href="/plans.html">Compare plans</a> or <a href="/how.html">see how it works</a>.</p>
       <form id="verify-code-form" class="verify-row">
         <label for="verify-code">Verify a certificate</label>
         <div class="verify-controls">
