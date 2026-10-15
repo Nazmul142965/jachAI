@@ -271,6 +271,26 @@ async function main() {
     nav.length <= 10 && !nav.includes('Batch workspace'), nav.join(', '));
   check(journey, 'account-level Practice is reachable', nav.includes('Practice'), nav.join(', '));
   await view('Practice'); await wait(450);
+  check(journey, 'Guided practice offers the starting skill check first',
+    await ev(`document.querySelector('#guided-next').textContent.includes('starting skill check')
+      && document.querySelectorAll('#guided-paths .guided-path').length === 3`));
+  await ev(`[...document.querySelectorAll('#guided-paths button')][0].click()`); await wait(700);
+  check(journey, 'a guided session shows one question at a time with progress',
+    await ev(`document.querySelector('#guided-session').textContent.includes('Guided question 1')
+      && document.querySelector('#guided-session progress').max === 4`));
+  for (let n = 0; n < 4; n += 1) {
+    await ev(`document.querySelector('#guided-session input[value="${n === 3 ? 'b' : 'a'}"]').click();
+      document.querySelector('#guided-session button[type="submit"]').click()`);
+    await wait(650);
+  }
+  check(journey, 'the recap shows the score the server counted and each answer',
+    await ev(`(() => { const t = document.querySelector('#guided-session').textContent;
+      return t.includes('3 / 4') && document.querySelectorAll('#guided-session .guided-recap-row').length === 4
+        && document.querySelectorAll('#guided-session .is-wrong').length === 1; })()`));
+  await clickText('#guided-session', 'Back to guided practice'); await wait(700);
+  check(journey, 'after a finished session the next-topic suggestion changes',
+    await ev(`document.querySelector('#guided-next').textContent.includes('Practise next')
+      && document.querySelector('#guided-next').textContent.includes('1 of 4')`));
   check(journey, 'Practice shows a private question without its answer key',
     /Which statement about a Java record/.test(await ev(`document.querySelector('#practice-view').textContent`))
       && !(await ev(`document.querySelector('#practice-view').textContent`)).includes('Records generate component accessors and a canonical constructor.'),
@@ -646,6 +666,9 @@ async function main() {
   await clickDialog('primary'); await wait(1000);
   check(staff, 'reconcile reports created and already-present counts',
     /2 assignment\(s\) added; 3 already present/.test(await ev(`document.querySelector('#notice').textContent`)));
+  check(staff, 'batch workspace shows learning progress per test',
+    /Java Basics/.test(await ev(`document.querySelector('#academy-batch-learning').textContent`))
+      && /75% of the batch finished/.test(await ev(`document.querySelector('#academy-batch-learning').textContent`)));
   await shotBoth('academy-batch-workspace');
   await ev(`document.querySelector('#academy-batch-back').click()`); await wait(1200);
   check(staff, 'back navigation returns to Courses & batches',
@@ -667,6 +690,10 @@ async function main() {
   const talent = 'talent-recruiter';
   await view('Campaigns'); await tab('All campaigns'); await wait(1600);
   check(talent, 'campaign list renders', (await ev(`document.querySelector('#campaigns-list').textContent`)).includes('Backend Engineer'));
+  await clickText('#campaigns-list', 'Hiring funnel'); await wait(1000);
+  check('talent-recruiter', 'the hiring funnel shows each step from invitation to hire',
+    await ev(`(() => { const t = document.querySelector('#talent-funnel').textContent;
+      return /Accepted the invitation/.test(t) && /Shortlisted/.test(t) && /Hired/.test(t) && /1 candidate/.test(t) && /were rejected/.test(t); })()`));
   await clickText('#campaigns-list', 'Compare candidates'); await wait(1300);
   const compare = await ev(`document.querySelector('#campaign-candidates').textContent`);
   check('talent-recruiter', 'comparison names score, outcome and decision as columns',

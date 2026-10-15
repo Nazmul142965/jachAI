@@ -2199,3 +2199,36 @@ body[data-restoring]::before {
 }
 .identity-avatar .account-avatar { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; border-radius: 0; margin: 0; }
 .identity-avatar .identity-letter.hidden { display: none; }
+
+/* ---- Guided practice, learning progress and funnel stages ------------------------------------------ */
+.guided { margin-bottom: var(--sp-5); border-top: 4px solid var(--brand-500); }
+.guided-next { display: grid; gap: 6px; justify-items: start; padding: var(--sp-4) var(--sp-5); margin-bottom: var(--sp-4);
+  border-radius: var(--r-md); background: linear-gradient(120deg, var(--surface-brand), var(--surface)); border: 1px solid var(--brand-300); }
+.guided-next-label { margin: 0; font-size: 13px; font-weight: 800; color: var(--brand-ink); }
+.guided-next-title { font-size: 20px; letter-spacing: -.02em; }
+.guided-next p.muted { margin: 0; max-width: 60ch; }
+.guided-paths { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.guided-path { display: grid; align-content: start; gap: 6px; padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.guided-path h3 { margin: 0; font-size: 17px; }
+.guided-path p { margin: 0; }
+.guided-path .button { justify-self: start; margin-top: 6px; }
+.guided-path.is-baseline { border-color: var(--brand-400); background: linear-gradient(160deg, var(--surface-brand), var(--surface)); }
+.guided-count { font-size: 13px; font-weight: 700; color: var(--brand-ink); }
+.guided-session { display: grid; gap: var(--sp-4); }
+.guided-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.guided-session progress { width: 100%; height: 10px; }
+.guided-option { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 8px 0; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); cursor: pointer; min-height: 44px; }
+.guided-option:hover { border-color: var(--brand-400); }
+.guided-option:has(input:checked) { border-color: var(--brand-500); background: var(--surface-brand); }
+.guided-option:focus-within { outline: 3px solid var(--focus, var(--brand-400)); outline-offset: 2px; }
+.guided-score { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: var(--sp-4) var(--sp-5); border-radius: var(--r-md); background: linear-gradient(120deg, var(--surface-brand), var(--surface)); border: 1px solid var(--brand-300); }
+.guided-score-number { font-size: 34px; letter-spacing: -.03em; color: var(--brand-ink); }
+.guided-recap-row { display: grid; gap: 4px; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--line); border-left-width: 5px; background: var(--surface); }
+.guided-recap-row p { margin: 0; }
+.guided-recap-row.is-right { border-left-color: var(--success-ink); }
+.guided-recap-row.is-wrong { border-left-color: var(--danger-ink); }
+.guided-flag { justify-self: start; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.is-right .guided-flag { background: var(--success-surface); color: var(--success-ink); }
+.is-wrong .guided-flag { background: var(--danger-surface); color: var(--danger-ink); }
+.learning-step { display: grid; gap: 6px; padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.learning-title { font-size: 16px; }

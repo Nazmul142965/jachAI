@@ -226,6 +226,12 @@
         <div class="card panel"><h2>Your tickets</h2><div id="support-tickets" class="item-list"></div></div>
       </section>
       <section id="practice-view" class="view hidden" aria-labelledby="practice-heading">
+        <section id="guided-practice" class="card panel guided" aria-labelledby="guided-heading">
+          <div class="section-heading"><div><h2 id="guided-heading">Guided practice</h2><p class="muted">Short sessions with a score at the end. Start with a quick skill check, then practise the topic that needs it most.</p></div></div>
+          <div id="guided-next" class="guided-next hidden" role="status"></div>
+          <div id="guided-paths" class="guided-paths"></div>
+          <div id="guided-session" class="guided-session hidden" aria-live="polite"></div>
+        </section>
         <div class="practice-layout">
           <div class="practice-main card panel">
             <div class="section-heading"><div><h2 id="practice-heading">Practice what matters to you</h2><p class="muted">Pick a topic and difficulty. A new question is created just for your account, separate from any private assessment.</p></div></div>
@@ -386,6 +392,7 @@
         </div>
         <div class="card panel"><h3>Batch summary</h3><div id="academy-batch-summary" class="item-list"></div></div>
         <div class="card panel"><div class="section-heading"><div><h3>Assessments in this batch</h3><p class="muted">Every learner in this batch gets this test. Learners who join later are added automatically.</p></div></div><div id="academy-batch-assessments" class="item-list"></div><div id="academy-batch-assessments-pagination"></div></div>
+        <div class="card panel"><h3>Learning progress</h3><p class="muted">Test by test, how far this batch has come: how many have finished, and how many passed.</p><div id="academy-batch-learning" class="item-list"></div><div id="academy-batch-learning-pagination"></div></div>
         <div id="academy-batch-selected" class="card panel hidden"><div class="section-heading"><div><h3 id="academy-batch-selected-title">Selected assessment</h3><p class="muted">How the batch is doing on this test, and each learner's progress.</p></div><button id="academy-batch-selected-clear" class="button quiet small" type="button">Clear selection</button></div><div id="academy-batch-analytics" class="item-list"></div><div id="academy-batch-progress" class="item-list"></div><div id="academy-batch-progress-pagination"></div></div>
         <div class="card panel"><h3>Enrolled learners</h3><p class="muted">Everyone enrolled in this batch. Each learner's scores are shown under a test above.</p><div id="academy-batch-learners" class="item-list"></div><div id="academy-batch-learners-pagination"></div></div>
       </section>
@@ -435,6 +442,7 @@
         <div class="card panel"><h2>Invite by email</h2><p class="muted">The recipient can register first, then accept using the same verified email address.</p>
           <form id="campaign-email-invite-form" class="stack"><div class="form-row"><label>Open campaign<select id="email-invite-campaign" name="campaignId" required></select></label><label>Candidate email<input name="email" type="email" maxlength="254" required></label><label>Attempts allowed<input name="attemptsAllowed" type="number" min="1" max="5" value="1" required></label></div><div class="form-row"><label>Available from<input name="availableFrom" type="datetime-local" required></label><label>Available until<input name="availableUntil" type="datetime-local" required></label></div><button class="button secondary" type="submit">Send invitation</button></form>
         </div>
+        <div id="talent-funnel-panel" class="card panel hidden"><h2 id="talent-funnel-title">Hiring funnel</h2><p class="muted">How candidates move through this campaign, from invitation to hire. Each bar shows people who reached that step.</p><div id="talent-funnel" class="item-list"></div></div>
         <div id="email-invitations-panel" class="card panel hidden"><h2 id="email-invitations-title">Email invitations</h2><p class="muted">Recent invitations are listed here. Old, expired ones are removed automatically.</p><div id="email-invitations-list" class="item-list"></div><div id="email-invitations-pagination"></div></div>
         <div id="campaign-candidates-panel" class="card panel hidden"><h2>Candidate comparison</h2><p class="muted">Shows the latest finished attempt. Only Talent staff can see review notes.</p><div id="campaign-candidates" class="item-list"></div><div id="campaign-candidates-pagination"></div></div>
       </section>

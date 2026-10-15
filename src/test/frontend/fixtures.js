@@ -102,6 +102,8 @@ const SOURCE = String.raw`(() => {
 
   window.__calls = [];
   let practiceUsed = 0;
+  let guided = null;
+  let guidedDone = false;
   let practiceGenerated = 0;
   const generatedQuestions = [];
   const practiceAnswers = [];
@@ -155,6 +157,27 @@ const SOURCE = String.raw`(() => {
           { id: 'c', text: 'A third concept' }, { id: 'd', text: 'A fourth concept' }] };
       generatedQuestions.unshift(question);
       return json(question, 201);
+    }
+    if (path === '/api/v1/practice/paths') return json([{ id: 'baseline', title: 'Starting skill check', questionCount: 4 },
+      { id: 'java', title: 'Java', questionCount: 4 }, { id: 'spring', title: 'Spring', questionCount: 3 }]);
+    if (path === '/api/v1/practice/next') return json(guidedDone
+      ? { pathId: 'spring', reason: 'Lowest accuracy in your recent completed sessions', answered: 4, correct: 1 }
+      : { pathId: 'baseline', reason: 'Start with a short skill check', answered: 0, correct: 0 });
+    if (path === '/api/v1/practice/sessions' && method === 'POST') {
+      const body = JSON.parse(init.body);
+      guided = { id: 'ps-1', pathId: body.pathId, results: [], complete: false, correctCount: 0, createdAt: new Date().toISOString(),
+        questions: [1, 2, 3, 4].map((n) => ({ id: 'q' + n, topic: 'Java', prompt: 'Guided question ' + n,
+          options: [{ id: 'a', text: 'Right ' + n }, { id: 'b', text: 'Wrong ' + n }] })) };
+      return json(guided, 201);
+    }
+    if (path === '/api/v1/practice/sessions/ps-1/answers' && method === 'POST') {
+      const body = JSON.parse(init.body);
+      guided.results.push({ questionId: body.questionId, selectedOptionId: body.optionId, correct: body.optionId === 'a',
+        answeredAt: new Date().toISOString() });
+      guided.correctCount = guided.results.filter((r) => r.correct).length;
+      guided.complete = guided.results.length === guided.questions.length;
+      if (guided.complete) guidedDone = true;
+      return json(guided);
     }
     if (path === '/api/v1/practice/usage') return json({ utcDay: '2026-10-05', used: practiceUsed,
       limit: 20, remaining: 20 - practiceUsed, generated: practiceGenerated,
@@ -263,6 +286,9 @@ const SOURCE = String.raw`(() => {
     if (path === org + '/academy/courses/course-1/batches/batch-1/learners') return json(page([enrollment, enrollmentNoName]));
     if (path === org + '/academy/courses/course-1/batches/batch-1/assessments') return json(page([batchAssessment]));
     if (path.endsWith('/assessments/ba-1/reconcile')) return json({ batchAssessmentId: 'ba-1', createdAssignments: 2, alreadyAssigned: 3 });
+    if (path.endsWith('/assessments/learning-progress')) return json(page([{ batchAssessmentId: 'ba-1',
+      assessmentTitle: 'Java Basics', activeLearners: 4, assignedLearners: 4, submittedLearners: 3, gradedLearners: 2,
+      passedLearners: 1, completionRatePercent: 75, passRatePercent: 50 }]));
     if (path.includes('/assessments/ba-1/analytics')) return json(batchAnalytics);
     if (path.includes('/assessments/ba-1/progress')) return json(page([batchProgress]));
 
@@ -292,6 +318,9 @@ const SOURCE = String.raw`(() => {
     if (path.includes('/talent/campaigns/camp-1/candidates')) return json(page([candidate]));
     if (path.endsWith('/talent/campaigns/camp-1/close')) return json({ id: 'camp-1', title: 'Backend Engineer',
       assessmentId: 'assess-1', assessmentVersionId: 'ver-1', open: false, createdAt: new Date().toISOString() });
+    if (path === org + '/talent/campaigns/camp-1/funnel') return json({ campaignId: 'camp-1', retainedEmailInvitations: 5,
+      retainedAcceptedEmailInvitations: 3, assignedCandidates: 4, submittedCandidates: 3, gradedCandidates: 3,
+      shortlistedCandidates: 2, hiredCandidates: 1, rejectedCandidates: 1 });
     if (path === org + '/talent/campaigns') return json(page([{ id: 'camp-1', title: 'Backend Engineer',
       assessmentId: 'assess-1', assessmentVersionId: 'ver-1', open: true, createdAt: new Date().toISOString() }]));
 

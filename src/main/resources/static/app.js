@@ -3020,6 +3020,7 @@ async function loadCampaigns(pageNumber = 0) {
   setList('#campaigns-list', state.campaigns.map((campaign) => {
     const actions = [button('Open workspace', () => openCampaignWorkspace(campaign.id)),
       button('Compare candidates', () => compareCandidates(campaign.id)),
+      button('Hiring funnel', () => showTalentFunnel(campaign.id, campaign.title)),
       button('Email invitations', () => loadEmailInvitations(campaign.id, 0, campaign.title))];
     if (campaign.open) {
       const close = button('Close campaign', async () => {
@@ -3045,6 +3046,49 @@ async function loadCampaigns(pageNumber = 0) {
   $('#email-invite-campaign').replaceChildren(...state.campaigns.filter((campaign) => campaign.open)
     .map((campaign) => { const option = node('option', campaign.title); option.value = campaign.id; return option; }));
 }
+// Bars for a list of [label, count, variant] stages. Each bar is the count as a share of `base`, and the
+// number is printed beside it so the width is never the only way to read it.
+function stageBars(stages, base) {
+  const chart = node('div', '', 'funnel');
+  for (const [label, value, variant] of stages) {
+    const count = value ?? 0;
+    const share = base ? Math.round((count / base) * 100) : 0;
+    const row = node('div', '', 'funnel-row');
+    const track = node('div', '', 'funnel-track');
+    const fill = node('div', '', `funnel-fill ${variant || ''}`.trim());
+    fill.style.width = `${base ? Math.min(100, Math.max(share, count ? 2 : 0)) : 0}%`;
+    track.append(fill);
+    row.append(node('span', label, 'funnel-label'), track,
+      node('span', base ? `${count} · ${share}%` : String(count), 'funnel-value'));
+    chart.append(row);
+  }
+  return chart;
+}
+async function showTalentFunnel(campaignId, campaignTitle) {
+  $('#talent-funnel-panel').classList.remove('hidden');
+  $('#talent-funnel-title').textContent = campaignTitle ? `Hiring funnel · ${campaignTitle}` : 'Hiring funnel';
+  await loadList('#talent-funnel', async () => {
+    const funnel = await request(ownOrg(`/talent/campaigns/${encodeURIComponent(campaignId)}/funnel`));
+    const base = funnel.assignedCandidates || 0;
+    const chart = stageBars([
+      ['Email invitations', funnel.retainedEmailInvitations, ''],
+      ['Accepted the invitation', funnel.retainedAcceptedEmailInvitations, ''],
+      ['Got the test', funnel.assignedCandidates, 'funnel-base'],
+      ['Submitted', funnel.submittedCandidates, ''],
+      ['Graded', funnel.gradedCandidates, ''],
+      ['Shortlisted', funnel.shortlistedCandidates, ''],
+      ['Hired', funnel.hiredCandidates, 'funnel-pass']
+    ], Math.max(base, funnel.retainedEmailInvitations || 0));
+    const notes = node('div', '', 'funnel-notes');
+    notes.append(node('p', `${funnel.rejectedCandidates ?? 0} candidate(s) were rejected.`, 'funnel-note'));
+    notes.append(node('p', 'Email invitation counts only include invitations that have not expired yet, so they can look smaller than the number of people who got the test.', 'funnel-note'));
+    if (!base) notes.append(node('p', 'No candidate has been given this test yet.', 'funnel-note warn-note'));
+    chart.append(notes);
+    setList('#talent-funnel', [chart], 'No funnel numbers yet.');
+  }, 'The hiring funnel could not be loaded.');
+  $('#talent-funnel-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 async function loadEmailInvitations(campaignId, pageNumber = 0, campaignTitle = null) {
   const organizationId = state.organization?.id;
   const loadToken = ++state.emailInvitationLoadToken;
@@ -3123,7 +3167,7 @@ async function compareCandidates(campaignId, pageNumber = 0) {
     if (candidate.percentage != null) {
       reviewForm = node('form', '', 'form-row');
       const decisionLabel = node('label', 'Decision'); const select = node('select');
-      for (const decision of ['HOLD', 'SHORTLISTED', 'REJECTED']) {
+      for (const decision of ['HOLD', 'SHORTLISTED', 'HIRED', 'REJECTED']) {
         const option = node('option', decision.replaceAll('_', ' ')); option.value = decision;
         select.append(option);
       }
@@ -4128,8 +4172,30 @@ async function loadAcademyWorkspaceDetail(token) {
     loadList('#academy-batch-assessments', () => loadAcademyWorkspaceAssessments(token, 0),
       'The batch assessments could not be loaded.'),
     loadList('#academy-batch-learners', () => loadAcademyWorkspaceLearners(token, 0),
-      'The batch roster could not be loaded.')
+      'The batch roster could not be loaded.'),
+    loadList('#academy-batch-learning', () => loadAcademyLearningProgress(token, 0),
+      'The learning progress could not be loaded.')
   ]);
+}
+async function loadAcademyLearningProgress(token, pageNumber = 0) {
+  const page = await request(ownOrg(`${batchWorkspaceRoute()}/assessments/learning-progress?page=${pageNumber}`));
+  if (batchWorkspaceStale(token)) return;
+  const rows = (page.content || []).map((step, index) => {
+    const card = node('div', '', 'learning-step');
+    card.append(node('strong', `${index + 1 + pageNumber * 20}. ${step.assessmentTitle}`, 'learning-title'));
+    card.append(stageBars([
+      ['Finished', step.submittedLearners, ''],
+      ['Marked', step.gradedLearners, ''],
+      ['Passed', step.passedLearners, 'funnel-pass']
+    ], step.activeLearners || 0));
+    card.append(node('p', step.gradedLearners
+      ? `${step.completionRatePercent}% of the batch finished · ${step.passRatePercent}% of marked tests passed`
+      : `${step.completionRatePercent}% of the batch finished · nothing marked yet`, 'funnel-note'));
+    return card;
+  });
+  setList('#academy-batch-learning', rows, 'No tests have been given to this batch yet, so there is no progress to show.');
+  renderPageControls('#academy-batch-learning-pagination', page, (next) => run(() => loadList('#academy-batch-learning',
+    () => loadAcademyLearningProgress(token, next), 'The learning progress could not be loaded.')));
 }
 async function loadAcademyWorkspaceSummary(courseName, batch, token) {
   const roster = await request(ownOrg(`${batchWorkspaceRoute()}/learners?page=0`));
@@ -4427,7 +4493,7 @@ async function loadCampaignCandidateReviewForm(candidate, route, token) {
   const form = node('form', '', 'form-row');
   const decisionLabel = node('label', 'Decision');
   const select = node('select');
-  for (const decision of ['HOLD', 'SHORTLISTED', 'REJECTED']) {
+  for (const decision of ['HOLD', 'SHORTLISTED', 'HIRED', 'REJECTED']) {
     const option = node('option', decision.replaceAll('_', ' ')); option.value = decision; select.append(option);
   }
   select.value = candidate.decision || 'HOLD';
@@ -4952,10 +5018,142 @@ $('#organization-select').addEventListener('change', (event) => run(async () => 
   state.organization = state.organizations.find((item) => item.id === event.target.value);
   await setOrganization();
 }));
+// ---- Guided practice: a short skill check, fixed-length sessions, a recap and a next-step suggestion.
+// Every number comes from the server (/practice/paths, /sessions, /next); nothing is scored in the browser.
+const GUIDED_PATH_TEXT = {
+  baseline: ['Starting skill check', 'Four quick questions, one from each topic. Shows where to begin.'],
+  java: ['Java', 'Collections, streams and Optional.'],
+  spring: ['Spring', 'Transactions, components and injection.'],
+  web: ['Web', 'HTTP methods and status codes.'],
+  mongodb: ['MongoDB', 'Indexes, expiry and document identity.']
+};
+function guidedPathTitle(path) { return t((GUIDED_PATH_TEXT[path.id] || [path.title])[0]); }
+async function loadGuidedPractice() {
+  const next = $('#guided-next');
+  const holder = $('#guided-paths');
+  if (!holder) return;
+  holder.setAttribute('aria-busy', 'true');
+  const [pathsResult, nextResult] = await Promise.allSettled([request('/practice/paths'), request('/practice/next')]);
+  holder.setAttribute('aria-busy', 'false');
+  if (pathsResult.status !== 'fulfilled') {
+    holder.replaceChildren(node('p', 'Guided practice could not be loaded. Reopen Practice to retry.', 'empty'),
+      button('Try again', () => run(loadGuidedPractice), 'button secondary small'));
+    next.classList.add('hidden');
+    return;
+  }
+  const paths = pathsResult.value;
+  if (nextResult.status === 'fulfilled') {
+    const suggestion = nextResult.value;
+    const target = paths.find((path) => path.id === suggestion.pathId);
+    next.replaceChildren();
+    if (target) {
+      next.append(node('p', suggestion.pathId === 'baseline' ? 'Where to start' : 'Practise next', 'guided-next-label'),
+        node('strong', suggestion.pathId === 'baseline' ? t('Take the starting skill check') : guidedPathTitle(target), 'guided-next-title'),
+        node('p', suggestion.pathId === 'baseline'
+          ? 'You have no finished sessions yet. A short check shows which topic needs the most practice.'
+          : `${suggestion.correct} of ${suggestion.answered} answers were right in this topic in your recent sessions. It is your lowest score, so it is a good place to practise.`, 'muted'),
+        button(suggestion.pathId === 'baseline' ? 'Start the skill check' : 'Practise this topic',
+          () => startGuidedSession(target), 'button primary small'));
+      next.classList.remove('hidden');
+    } else next.classList.add('hidden');
+  } else next.classList.add('hidden');
+  holder.replaceChildren(...paths.map((path) => {
+    const text = GUIDED_PATH_TEXT[path.id] || [path.title, ''];
+    const card = node('article', '', `guided-path${path.id === 'baseline' ? ' is-baseline' : ''}`);
+    card.append(node('h3', t(text[0])), node('p', t(text[1]), 'muted'),
+      node('p', `${path.questionCount} ${path.questionCount === 1 ? t('question') : t('questions')}`, 'guided-count'));
+    card.append(button(path.id === 'baseline' ? 'Start the skill check' : 'Start a session',
+      () => startGuidedSession(path), 'button secondary small'));
+    return card;
+  }));
+}
+async function startGuidedSession(path) {
+  const count = path.id === 'baseline' ? path.questionCount : Math.min(4, path.questionCount);
+  const session = await request('/practice/sessions', { method: 'POST', body: { pathId: path.id, questionCount: count } });
+  state.guided = { path, session, picked: null, reviewing: false };
+  renderGuidedSession();
+  $('#guided-session').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function guidedOptionText(question, optionId) {
+  return question.options.find((option) => option.id === optionId)?.text || optionId;
+}
+function renderGuidedSession() {
+  const box = $('#guided-session');
+  const guided = state.guided;
+  if (!guided) { box.classList.add('hidden'); box.replaceChildren(); return; }
+  const { session, path } = guided;
+  box.classList.remove('hidden');
+  $('#guided-paths').classList.add('hidden');
+  $('#guided-next').classList.add('hidden');
+  const answered = new Map(session.results.map((result) => [result.questionId, result]));
+  const total = session.questions.length;
+  if (session.complete) { renderGuidedRecap(box, session, path, answered); return; }
+  const question = session.questions.find((entry) => !answered.has(entry.id));
+  const number = answered.size + 1;
+  const head = node('div', '', 'guided-head');
+  head.append(node('strong', guidedPathTitle(path)),
+    node('span', `${t('Question')} ${number} ${t('of')} ${total}`, 'muted'));
+  const progress = document.createElement('progress');
+  progress.max = total; progress.value = answered.size;
+  progress.setAttribute('aria-label', t('Session progress'));
+  const form = node('form', '', 'stack');
+  const fieldset = node('fieldset'); fieldset.append(node('legend', question.prompt));
+  for (const option of question.options) {
+    const label = node('label', '', 'guided-option');
+    const input = document.createElement('input');
+    input.type = 'radio'; input.name = 'guided-option'; input.value = option.id; input.required = true;
+    label.append(input, node('span', option.text));
+    fieldset.append(label);
+  }
+  const submit = node('button', 'Check answer', 'button primary'); submit.type = 'submit';
+  const leave = button('Leave this session', () => { state.guided = null; renderGuidedSession(); loadGuidedPractice(); }, 'button quiet small');
+  form.append(fieldset, node('div', '', 'form-row'));
+  form.lastChild.append(submit, leave);
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    run(async () => {
+      const chosen = form.querySelector('input[name="guided-option"]:checked');
+      if (!chosen) return;
+      submit.disabled = true;
+      try {
+        guided.session = await request(`/practice/sessions/${encodeURIComponent(session.id)}/answers`,
+          { method: 'POST', body: { questionId: question.id, optionId: chosen.value } });
+        const result = guided.session.results.find((entry) => entry.questionId === question.id);
+        notice(result?.correct ? 'Correct.' : 'Not quite. You will see the answers in the recap.');
+        renderGuidedSession();
+        $('#guided-session').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } finally { submit.disabled = false; }
+    });
+  });
+  box.replaceChildren(head, progress, form);
+  form.querySelector('input')?.focus({ preventScroll: true });
+}
+function renderGuidedRecap(box, session, path, answered) {
+  const total = session.questions.length;
+  const percent = total ? Math.round((session.correctCount / total) * 100) : 0;
+  const summary = node('div', '', 'guided-score');
+  summary.append(node('strong', `${session.correctCount} / ${total}`, 'guided-score-number'),
+    node('span', percent >= 75 ? 'Strong result. Keep it up.' : percent >= 50 ? 'A good start. A little more practice will help.' : 'This topic needs more practice. Try another session.'));
+  const rows = session.questions.map((question) => {
+    const result = answered.get(question.id);
+    const row = node('div', '', `guided-recap-row ${result?.correct ? 'is-right' : 'is-wrong'}`);
+    row.append(node('strong', question.prompt),
+      node('p', `${t('Your answer')}: ${guidedOptionText(question, result?.selectedOptionId)}`, 'muted'),
+      node('span', result?.correct ? 'Correct' : 'Review this', 'guided-flag'));
+    return row;
+  });
+  const actions = node('div', '', 'form-row');
+  actions.append(
+    button('Practise again', () => run(() => startGuidedSession(path)), 'button secondary'),
+    button('Back to guided practice', () => { state.guided = null; renderGuidedSession(); $('#guided-paths').classList.remove('hidden'); run(loadGuidedPractice); }, 'button primary'));
+  box.replaceChildren(node('h3', `${t('Recap')} · ${guidedPathTitle(path)}`), summary, ...rows, actions);
+}
+
 async function loadPractice() {
   // When the pilot is on it owns this screen entirely; the code below is what
   // everyone else still sees, unchanged.
   if (pilotRequested() && await mountPracticePilot()) return;
+  if (!state.guided) { $('#guided-paths')?.classList.remove('hidden'); void loadGuidedPractice(); }
   const [questionsResult, usageResult, historyResult] = await Promise.allSettled([
     request('/practice/questions'), request('/practice/usage'), request('/practice/answers/mine?page=0')
   ]);
