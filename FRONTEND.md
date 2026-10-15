@@ -51,6 +51,7 @@ styling change.
 | `static/public.css` | Component layer for the seven public pages. |
 | `static/chrome.css` | The one header, language switch, skip link, busy line and wake-up hint, loaded last on every page so all pages share the same chrome. |
 | `static/story.css` | The story-style public pages (How it works, How it's built, Academy, Talent, Pricing): gradient hero, timeline steps, promise cards, bands. |
+| `static/select.js` | Turns every `<select>` into a styled drop-down (keyboard friendly). The real select stays in the page, hidden, and remains the source of truth. |
 | `static/site.js` | EN / বাংলা switch and translation for the public pages. |
 | `static/i18n.js` | The English-to-Bangla dictionary and regex patterns. English text is the key. |
 | `static/app.js` | The entire workspace: state, routing, API calls, rendering. |

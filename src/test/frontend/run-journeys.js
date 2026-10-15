@@ -270,6 +270,12 @@ async function main() {
   check(journey, 'nav lists screens, not every view',
     nav.length <= 10 && !nav.includes('Batch workspace'), nav.join(', '));
   check(journey, 'account-level Practice is reachable', nav.includes('Practice'), nav.join(', '));
+  check(journey, 'drop-downs are the styled kind and open with the keyboard',
+    await ev(`(() => { const b = document.querySelector('.sidebar .dd-button'); if (!b) return false;
+      b.focus(); b.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      const open = b.getAttribute('aria-expanded') === 'true' && document.querySelectorAll('.sidebar .dd-option').length > 0;
+      b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      return open && b.getAttribute('aria-expanded') === 'false'; })()`));
   await view('Practice'); await wait(450);
   check(journey, 'Guided practice offers the starting skill check first',
     await ev(`document.querySelector('#guided-next').textContent.includes('starting skill check')

@@ -13,7 +13,7 @@ People write and review the questions. The server keeps the time, the scores and
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47a248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
 [![Redis](https://img.shields.io/badge/Redis-limits_&_cache-dc382d?logo=redis&logoColor=white)](https://redis.io)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
-[![Tests](https://img.shields.io/badge/tests-733_Java_%2B_175_browser_checks-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/tests-733_Java_%2B_176_browser_checks-brightgreen)](#-testing)
 [![Language](https://img.shields.io/badge/UI-English_%7C_বাংলা-6366f1)](#-for-bangla-readers--বাংলায়-সারসংক্ষেপ)
 
 [**Open the live demo**](https://jachai.nazmulhsn.me) · [How it works](https://jachai.nazmulhsn.me/how.html) · [How it's built](https://jachai.nazmulhsn.me/engineering.html) · [Pricing](https://jachai.nazmulhsn.me/plans.html)
@@ -342,7 +342,7 @@ Full details, the Render checklist and the custom-domain steps are in [SYSTEM.md
 
 ```bash
 ./mvnw test                                  # 733 Java tests
-node src/test/frontend/run-journeys.js       # 175 browser checks, real Chrome/Edge, no install needed
+node src/test/frontend/run-journeys.js       # 176 browser checks, real Chrome/Edge, no install needed
 ```
 
 - **Java tests** cover assessment and attempt rules, tenant isolation, payments, email templates, AI fallback, security and the web layer.
