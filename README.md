@@ -412,6 +412,7 @@ JachAI is a working, tested **demo-grade platform**, not a certified production 
 | [SYSTEM.md](SYSTEM.md) | Settings, deployment, health checks, release gates. |
 | [docs/ENGINEERING.md](docs/ENGINEERING.md) | The stack and the hard problems we solved. Also live at [/engineering.html](https://jachai.nazmulhsn.me/engineering.html). |
 | [docs/REFERENCE.md](docs/REFERENCE.md) | Detailed workflow notes, setup steps and the full API route table. |
+| [docs/PROJECT_CODE_GUIDE.md](docs/PROJECT_CODE_GUIDE.md) | Project and code guide with visual data flows, code links, design decisions, and documented problems. |
 
 <div align="center">
 
