@@ -1970,6 +1970,9 @@ const PREFIX_WORDS = { Released: 'প্রকাশিত', Submitted: 'জম�
   Enrolled: 'ভর্তি', Starts: 'শুরু', Ends: 'শেষ', Joined: 'যোগ দিয়েছেন', 'Frozen version': 'জমাট সংস্করণ' };
 const UNIT = { min: 'মিনিট', h: 'ঘণ্টা', d: 'দিন' };
 const PATTERNS = [
+  [/^(\d+) min$/, (m) => `${bd(m[1])} মিনিট`],
+  [/^(\d+) questions?$/, (m) => `${bd(m[1])}টি প্রশ্ন`],
+  [/^(\d+) attempt\(s\)$/, (m) => `${bd(m[1])}বার চেষ্টা`],
   [/^Hiring funnel · (.+)$/, (m) => `নিয়োগের ধাপ-চিত্র · ${tx(m[1])}`],
   [/^(\d+) of (\d+) answers were right in this topic in your recent sessions\. It is your lowest score, so it is a good place to practise\.$/, (m) => `সাম্প্রতিক সেশনে এই বিষয়ে ${bd(m[2])}টার মধ্যে ${bd(m[1])}টা উত্তর ঠিক ছিল। এটাই আপনার সবচেয়ে কম নম্বর, তাই এখানে অনুশীলন করা ভালো।`],
   [/^(\d+) candidate\(s\) were rejected\.$/, (m) => `${bd(m[1])} জন প্রার্থী বাদ পড়েছেন।`],

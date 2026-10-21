@@ -1296,7 +1296,7 @@ async function loadFocus(role, academy, staff, participant) {
           : !open ? `Closed ${new Date(until).toLocaleString()}`
           : `Open until ${new Date(until).toLocaleString()}`;
         const minutes = assignment.durationMinutes ? ` · ${assignment.durationMinutes} min` : '';
-        const questions = assignment.questionCount ? ` · ${assignment.questionCount} questions` : '';
+        const questions = assignment.questionCount ? ` · ${assignment.questionCount} ${assignment.questionCount === 1 ? 'question' : 'questions'}` : '';
         entries.push(focusRow(inProgress ? `${title} — attempt in progress` : title,
           `${windowText}${minutes}${questions}`,
           'Open', () => openAssessmentDetail(assignment),
@@ -1501,7 +1501,7 @@ async function loadActivity(role, academy, staff, participant) {
       for (const assessment of rowsOf(assessments).slice(0, 3)) {
         entries.push(item(assessment.title,
           `${assessment.status} · version ${assessment.latestVersion}`
-            + ` · ${assessment.questionIds?.length ?? 0} questions`,
+            + ` · ${assessment.questionIds?.length ?? 0} ${(assessment.questionIds?.length ?? 0) === 1 ? 'question' : 'questions'}`,
           [button('Open studio', () => showView('assessments'))]));
       }
     }
@@ -2861,7 +2861,7 @@ async function loadAssessments(pageNumber = 0) {
       actions.push(button('Version history', () => showAssessmentVersions(assessment), 'button quiet small'));
     }
     return item(assessment.title,
-      `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} questions · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
+      `${assessment.status} · ${assessment.durationMinutes} min · ${assessment.questionIds.length} ${assessment.questionIds.length === 1 ? 'question' : 'questions'} · Release: ${assessment.resultReleasePolicy || 'IMMEDIATE'}`,
       actions);
   }), 'No assessments yet.');
   renderPageControls('#assessments-pagination', page, loadAssessments);
@@ -3342,7 +3342,7 @@ function renderAttemptInstructions(assignment, target = '#attempt-panel', result
   panel.append(button('Begin attempt', () => beginAttempt(assignment.id, target, resultTarget), 'button primary'),
     button('Cancel', () => panel.classList.add('hidden'), 'button quiet'));
   panel.classList.remove('hidden');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   focusPanel(panel);
 }
 async function startAttempt(assignment, target = '#attempt-panel', resultTarget = '#result-panel') {
