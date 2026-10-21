@@ -128,6 +128,14 @@ async function main() {
   await page.send('Page.navigate', { url: `${server.url}/` });
   await wait(1500);
   await shot('landing-signed-out');
+  // The welcome card: opened on request, readable, closed with Escape, and it does not come back by itself once seen.
+  await ev(`document.querySelector('#welcome-open').click()`); await wait(300);
+  check('landing', 'the welcome card says what was built and what it is built with',
+    await ev(`(() => { const d = document.querySelector('#welcome'); const t = d.innerText;
+      return !d.classList.contains('hidden') && /Academy/.test(t) && /Talent/.test(t) && /Spring Boot 3/.test(t) && /MongoDB/.test(t); })()`));
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`); await wait(250);
+  check('landing', 'Escape closes the welcome card',
+    await ev(`document.querySelector('#welcome').classList.contains('hidden')`));
   const APP = `${server.url}/`;
   const view = (label) => ev(`(() => { const tab = [...document.querySelectorAll('#workspace-nav button')]
     .find((b) => b.textContent === ${JSON.stringify(label)}); if (!tab) return false; tab.click(); return true; })()`);

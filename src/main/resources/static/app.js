@@ -5965,3 +5965,49 @@ async function restoreSession() {
 }
 assistant = createAssistant({ request: (path, init) => request(path, init) });
 restoreSession();
+
+// ---- Welcome card: what JachAI is and what it is built with. Shown once, on the signed-out page, then only on request.
+function initWelcome() {
+  const backdrop = $('#welcome');
+  const openButton = $('#welcome-open');
+  if (!backdrop || !openButton) return;
+  let previous = null;
+  const close = () => {
+    backdrop.classList.add('hidden');
+    $('#welcome-card').removeAttribute('role');
+    $('#welcome-card').removeAttribute('aria-modal');
+    document.removeEventListener('keydown', onKey, true);
+    try { localStorage.setItem('jachaiWelcomeSeen', '1'); } catch { /* the card simply shows again next time */ }
+    if (previous && typeof previous.focus === 'function') previous.focus();
+  };
+  const onKey = (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); close(); return; }
+    if (event.key !== 'Tab') return;
+    const focusable = [...backdrop.querySelectorAll('button')];
+    const first = focusable[0]; const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
+  const open = () => {
+    if (state.accessToken || !backdrop.classList.contains('hidden')) return;
+    previous = document.activeElement;
+    backdrop.classList.remove('hidden');
+    // Only an open card is a dialog; a hidden one must not be found by anything looking for the current dialog.
+    $('#welcome-card').setAttribute('role', 'dialog');
+    $('#welcome-card').setAttribute('aria-modal', 'true');
+    document.addEventListener('keydown', onKey, true);
+    $('#welcome-go').focus();
+  };
+  openButton.addEventListener('click', open);
+  $('#welcome-close').addEventListener('click', close);
+  backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
+  $('#welcome-go').addEventListener('click', () => {
+    close();
+    $('#demo-access, #demo-access-roles')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  let seen = false;
+  try { seen = localStorage.getItem('jachaiWelcomeSeen') === '1'; } catch { /* treat as unseen */ }
+  const skip = new URLSearchParams(location.search).has('demoRole');
+  if (!seen && !skip) window.setTimeout(open, 1200);
+}
+initWelcome();

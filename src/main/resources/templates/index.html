@@ -53,7 +53,7 @@
         <li><span class="hero-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
           <div><strong>Certificates anyone can check</strong><p>A short code proves a certificate is real.</p></div></li>
       </ul>
-      <p class="muted hero-links">Start on the FREE plan. <a href="/plans.html">Compare plans</a> or <a href="/how.html">see how it works</a>.</p>
+      <p class="muted hero-links">Start on the FREE plan. <a href="/plans.html">Compare plans</a> or <a href="/how.html">see how it works</a>. <button id="welcome-open" class="link-button" type="button">What is inside?</button></p>
       <form id="verify-code-form" class="verify-row">
         <label for="verify-code">Verify a certificate</label>
         <div class="verify-controls">
@@ -500,5 +500,28 @@
 
   </main>
   <footer class="site-footer"><div class="site-footer-inner"><p class="site-footer-brand"><span class="brand-mark" aria-hidden="true">J</span><span><strong>Jach<span class="brand-accent">AI</span></strong><span class="site-footer-tag" data-t>Technical assessment and certification.</span></span></p><nav aria-label="Footer"><a href="/academy.html" data-t>Academy</a><a href="/talent.html" data-t>Talent</a><a href="/plans.html" data-t>Pricing</a><a href="/how.html" data-t>How it works</a><a href="/engineering.html" data-t>Technology</a><a href="/#verify-code" data-t>Verify a certificate</a><a href="/" data-t>Sign in</a></nav><p class="site-footer-legal">&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> JachAI. <span data-t>All rights reserved.</span></p></div></footer>
+
+  <div id="welcome" class="modal-backdrop hidden" role="presentation">
+    <div id="welcome-card" class="welcome-card" aria-labelledby="welcome-title">
+      <p class="welcome-kicker">Welcome</p>
+      <h2 id="welcome-title">What is JachAI?</h2>
+      <p class="welcome-lede">A place to write tests, take them on a clock the server keeps, and check the results. Here is what we built and what it runs on.</p>
+      <h3>What we built</h3>
+      <ul class="welcome-list">
+        <li><strong>Academy</strong><span>Courses, batches, timed tests, instructor feedback, messages and certificates anyone can check.</span></li>
+        <li><strong>Talent</strong><span>Hiring rounds: invite candidates, compare their results, record decisions and see the funnel.</span></li>
+        <li><strong>Practice</strong><span>A quick skill check, short sessions with a recap, and AI-made questions for anyone.</span></li>
+        <li><strong>Plans and admin</strong><span>Free and team plans, test payments, support tickets and a platform admin area.</span></li>
+      </ul>
+      <h3>Built with</h3>
+      <ul class="welcome-chips" aria-label="Technology">
+        <li>Java 21</li><li>Spring Boot 3</li><li>MongoDB</li><li>Redis</li><li>Docker</li><li>Gemini and Groq AI</li><li>JWT sign-in</li><li>HTML, CSS and JavaScript</li><li>English and বাংলা</li>
+      </ul>
+      <div class="modal-actions">
+        <button id="welcome-close" class="button quiet" type="button">Close</button>
+        <button id="welcome-go" class="button primary" type="button">Try the demo</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

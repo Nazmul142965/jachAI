@@ -12,6 +12,8 @@ const ROLES = {
 };
 
 const SOURCE = String.raw`(() => {
+  // The welcome card is checked on its own; every other journey starts with it already seen.
+  try { localStorage.setItem('jachaiWelcomeSeen', '1'); } catch (e) { /* storage may be blocked on purpose */ }
   const ROLE = {
     userId: '__USER__',
     org: __ORG__,
@@ -329,6 +331,7 @@ const SOURCE = String.raw`(() => {
 })();`;
 
 function installScript({ role = 'learner', storage = 'ok', demo = false } = {}) {
+
   const chosen = ROLES[role];
   if (!chosen) throw new Error(`unknown role: ${role}`);
   return SOURCE
