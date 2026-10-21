@@ -2353,3 +2353,6 @@ body[data-restoring]::before {
   .chat-side { border-right: 0; border-bottom: 1px solid var(--line); }
   .chat-title { margin: calc(var(--sp-4) * -1) calc(var(--sp-4) * -1) 0; }
 }
+
+/* Panels that open further down the page scroll to the top of the screen, below the fixed header. */
+#attempt-panel, #result-panel, #talent-funnel-panel, #campaign-candidates-panel, #attempt-review-detail { scroll-margin-top: 88px; }
