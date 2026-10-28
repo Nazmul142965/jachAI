@@ -59,6 +59,7 @@ public class ResumeExtractor {
             StringBuilder text = new StringBuilder();
             boolean usedOcr = false;
             var renderer = new PDFRenderer(pdf);
+            long ocrDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(180);
             for (int i = 0; i < pages; i++) {
                 stripper.setStartPage(i + 1); stripper.setEndPage(i + 1);
                 String pageText = stripper.getText(pdf);
@@ -69,7 +70,7 @@ public class ResumeExtractor {
                     if (box.getWidth() <= 0 || box.getHeight() <= 0
                             || box.getWidth() * box.getHeight() * 4 > 8_000_000)
                         throw invalid("A page is too large to scan safely. Export it at a standard page size.");
-                    pageText = ocr(renderer, i); usedOcr = true;
+                    pageText = ocr(renderer, i, ocrDeadline); usedOcr = true;
                 }
                 text.append(pageText).append('\n');
                 if (text.length() > MAX_TEXT) throw invalid("The resume contains too much text. Use a shorter document.");
@@ -79,16 +80,22 @@ public class ResumeExtractor {
         }
     }
 
-    private String ocr(PDFRenderer renderer, int page) throws Exception {
+    private String ocr(PDFRenderer renderer, int page, long deadline) throws Exception {
         Path dir = Files.createTempDirectory("jachai-resume-");
         Path image = dir.resolve("page.png"), output = dir.resolve("result.txt");
         Process process = null;
         try {
             ImageIO.write(renderer.renderImageWithDPI(page, 144), "png", image.toFile());
-            process = new ProcessBuilder(tesseract, image.toString(), dir.resolve("result").toString(),
+            long remainingMillis = Math.min(60_000, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()));
+            if (remainingMillis <= 0) throw invalid("OCR took too long. Upload a text-based PDF or DOCX.");
+            var command = new ProcessBuilder(tesseract, image.toString(), dir.resolve("result").toString(),
                     "-l", "eng", "--psm", "3").redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .redirectError(ProcessBuilder.Redirect.DISCARD).start();
-            if (!process.waitFor(15, TimeUnit.SECONDS)) throw invalid("OCR took too long. Upload a text-based PDF or DOCX.");
+                    .redirectError(ProcessBuilder.Redirect.DISCARD);
+            // More OpenMP threads compete for the same small shared CPU on the free host.
+            command.environment().put("OMP_THREAD_LIMIT", "1");
+            command.environment().put("OMP_NUM_THREADS", "1");
+            process = command.start();
+            if (!process.waitFor(remainingMillis, TimeUnit.MILLISECONDS)) throw invalid("OCR took too long. Upload a text-based PDF or DOCX.");
             if (process.exitValue() != 0 || !Files.exists(output)) throw invalid("OCR could not read this page. Upload a clearer document.");
             if (Files.size(output) > MAX_TEXT) throw invalid("The scanned page contains too much text.");
             return Files.readString(output, StandardCharsets.UTF_8);

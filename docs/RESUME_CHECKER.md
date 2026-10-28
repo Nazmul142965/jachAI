@@ -120,7 +120,8 @@ Do not market it as an employer's ATS score or an automated hiring decision.
   15 MB total expanded content; external XML entities/DTDs and deep XML are rejected.
 - File extension and actual signature/format are checked, not just browser MIME.
   Password-protected/restricted and malformed documents fail without scoring.
-- Scanned PDF pages use local OCR with a 15-second process timeout per page and
+- Scanned PDF pages use local OCR with one OpenMP thread, a 60-second process timeout
+  per page and a shared 180-second document budget (including rendering), plus
   an 8-million-pixel render bound. Unreadable content fails instead of getting a
   misleading low score. OCR results require the user's text-preview review.
 - Original upload bytes are transient and cleared after the worker finishes.
