@@ -320,6 +320,15 @@ the call exists.
 
 ## 5. `app.js` — how the workspace works
 
+The personal `resume` screen uses the same panel, metrics, list, dialog and theme
+components. All signed-in users can navigate to it, but the server requires a
+verified, active account, including demo accounts. A shared-demo notice explains
+that other users of the same identity can access its reports. Uploads use the host `request` helper with
+`FormData`; report polling stops on navigation/sign-out. Sign-out clears report,
+text, baseline and history. Scores are server-owned. English/Bangla shell labels
+are in `i18n.js`; original resume content is never translated. The React Practice
+pilot in `frontend/` remains optional and is not used for this screen.
+
 One module, no router library. Roughly:
 
 ```

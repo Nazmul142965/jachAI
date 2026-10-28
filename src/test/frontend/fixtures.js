@@ -109,6 +109,8 @@ const SOURCE = String.raw`(() => {
   let practiceGenerated = 0;
   const generatedQuestions = [];
   const practiceAnswers = [];
+  const resumeScans = [];
+  let resumeReads = 0;
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
     const method = (init.method || 'GET').toUpperCase();
@@ -116,6 +118,31 @@ const SOURCE = String.raw`(() => {
     const path = full.split('?')[0];
     window.__calls.push(method + ' ' + full);
     const org = '/api/v1/organizations/' + (ROLE.org?.id || 'none');
+
+    if (path === '/api/v1/resume/scans' && method === 'POST') {
+      const file = init.body.get('file');
+      const improved = resumeScans.length > 0;
+      const scan = { id: 'resume-' + (resumeScans.length + 1), fileName: file.name, status: 'PROCESSING',
+        createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 2592000000).toISOString(), error: null,
+        report: { engineVersion: 'resume-rules-1', readinessScore: improved ? 95 : 85, jobMatchScore: 50,
+          extractedText: '<script>window.resumeInjected=true</script>\nAmina Rahman\nSkills\nJava',
+          wordCount: 220, pages: 1, ocr: false,
+          breakdown: [{ label: 'Contact email', earned: improved ? 10 : 0, possible: 10 }],
+          issues: improved ? [] : [{ code: 'EMAIL_MISSING', severity: 'REVIEW', title: 'Email was not found',
+            evidence: 'No email address was found in the extracted text.', action: 'Add a contact email.', deduction: 10 }],
+          matchedSkills: ['Java'], missingSkills: ['Docker'], warnings: ['Fixture report; not a live scan.'] } };
+      resumeReads = 0; resumeScans.unshift(scan); return json(scan, 202);
+    }
+    if (path === '/api/v1/resume/scans') return json(page(resumeScans.map((scan) => ({ id: scan.id,
+      fileName: scan.fileName, status: scan.status, readinessScore: scan.report.readinessScore,
+      jobMatchScore: scan.report.jobMatchScore, createdAt: scan.createdAt }))));
+    if (path.startsWith('/api/v1/resume/scans/')) {
+      const scan = resumeScans.find((scan) => path.endsWith('/' + scan.id));
+      if (!scan) return error(404, 'RESUME_NOT_FOUND', 'Report not found');
+      if (method === 'DELETE') { resumeScans.splice(resumeScans.indexOf(scan), 1); return new Response(null, { status: 204 }); }
+      if (++resumeReads > 1) scan.status = 'COMPLETED';
+      return json(scan);
+    }
 
     if (path === '/api/v1/auth/login') return json({ accessToken: 'fixture-access', refreshToken: 'fixture-refresh' });
     if (path === '/api/v1/demo/accounts') return DEMO

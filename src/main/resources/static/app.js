@@ -35,7 +35,7 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   practiceQuestions: [], practiceAnswers: [], practiceRequestId: null, practiceRemaining: 0,
   homeAction: null, homeLoadToken: 0, profile: null,
   view: 'overview' };
-const views = ['start', 'account', 'support', 'practice', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
+const views = ['start', 'account', 'support', 'practice', 'resume', 'overview', 'workspace-access', 'members', 'questions', 'assessments', 'academy', 'academy-batch', 'messages',
   'assign', 'review', 'campaigns', 'talent-campaign', 'attempts', 'assessment-detail', 'certificates', 'billing', 'platform', 'platform-tenants', 'platform-admins'];
 
 // A screen is one product area. Several of them hold more than one view, shown
@@ -43,6 +43,7 @@ const views = ['start', 'account', 'support', 'practice', 'overview', 'workspace
 // rather than thirteen. The views themselves are unchanged: a screen is a
 // grouping and a route, not a new container.
 const SCREENS = {
+  resume: { title: 'Resume checker', subtitle: 'Check your resume, understand the issues and improve it', views: [['resume', 'Resume checker']] },
   start: { title: 'Home', subtitle: 'Your learning and work in one place', views: [['start', 'Home']] },
   account: { title: 'Profile & settings', subtitle: 'Your identity, sign-in and plan', views: [['account', 'Profile & settings']] },
   support: { title: 'Support', subtitle: 'Get help from the JachAI support team', views: [['support', 'Support']] },
@@ -425,6 +426,7 @@ function setActiveAttempt(attempt) {
 }
 const SIGNED_OUT_TITLE = document.title;
 function showSignedOut() {
+  resetResume();
   assistant?.reset();
   sessionHint.clear();
   window.clearInterval(state.timer);
@@ -702,8 +704,8 @@ async function setOrganization() {
     : 'Your personal learning space';
   const nav = $('#workspace-nav'); nav.replaceChildren();
   if (!state.organization) {
-    availableScreens = ['start', 'practice', 'account', 'support', ...(state.platformAdmin ? ['platform'] : [])];
-    for (const [key, title] of [['start', 'Home'], ['practice', 'Practice'],
+    availableScreens = ['start', 'practice', 'resume', 'account', 'support', ...(state.platformAdmin ? ['platform'] : [])];
+    for (const [key, title] of [['start', 'Home'], ['practice', 'Practice'], ['resume', 'Resume checker'],
       ...(state.platformAdmin ? [['platform', 'Platform']] : [])]) {
       nav.append(navButton(key, title));
     }
@@ -731,7 +733,7 @@ async function setOrganization() {
   // Talent read as related but distinct products.
   const groups = [];
   const group = (heading, items) => { if (items.length) groups.push([heading, items]); };
-  group('Personal', [['start', 'Home'], ['practice', 'Practice'], ['workspace-access', 'My organizations']]);
+  group('Personal', [['start', 'Home'], ['practice', 'Practice'], ['resume', 'Resume checker'], ['workspace-access', 'My organizations']]);
   group('This organization', [
     ['overview', 'Overview'],
     ...(role === 'ORG_ADMIN' ? [['members', 'Members'], ['billing', 'Billing']] : [])
@@ -1581,6 +1583,198 @@ $('#nav-toggle').addEventListener('click', () => {
   setNavCollapsed(nav.dataset.collapsed !== 'true');
 });
 
+// Personal resume reports share the host's authentication and UI helpers.
+const resumeState = { id: null, report: null, baseline: null, timer: null, token: 0, historyToken: 0,
+  session: 0, requestId: null };
+function stopResumePolling() {
+  window.clearTimeout(resumeState.timer);
+  resumeState.timer = null;
+  resumeState.token++;
+}
+function resetResume() {
+  stopResumePolling();
+  resumeState.session++; resumeState.historyToken++;
+  resumeState.id = null; resumeState.report = null; resumeState.baseline = null; resumeState.requestId = null;
+  $('#resume-upload-form').reset();
+  $('#resume-submit').disabled = false;
+  $('#resume-report').classList.add('hidden');
+  for (const id of ['resume-text', 'resume-issues', 'resume-skills', 'resume-breakdown', 'resume-warnings',
+    'resume-scores', 'resume-history', 'resume-history-pagination', 'resume-baseline', 'resume-status', 'resume-comparison', 'resume-report-meta']) {
+    $(`#${id}`).replaceChildren();
+  }
+}
+async function loadResume() {
+  await loadResumeHistory();
+  if (resumeState.id) await openResume(resumeState.id);
+}
+async function loadResumeHistory(pageNumber = 0) {
+  const token = ++resumeState.historyToken;
+  await loadList('#resume-history', async () => {
+    const page = await request(`/resume/scans?page=${pageNumber}`);
+    if (token !== resumeState.historyToken) return;
+    setList('#resume-history', (page.content || []).map((scan) => {
+      const actions = [button(t('Open report'), () => openResume(scan.id))];
+      if (scan.status === 'COMPLETED') actions.push(button(t('Use as baseline'), async () => {
+        const session = resumeState.session;
+        const baseline = await request(`/resume/scans/${encodeURIComponent(scan.id)}`);
+        if (session !== resumeState.session) return;
+        resumeState.baseline = baseline;
+        $('#resume-baseline').textContent = `${t('Comparison baseline')}: ${baseline.fileName} · ${new Date(baseline.createdAt).toLocaleString(getLocale())}`;
+        if (resumeState.report) renderResumeComparison(resumeState.report);
+      }));
+      actions.push(button(t('Delete report'), async () => {
+        if (!await confirmDialog(t('Delete this report and its extracted text? This cannot be undone.'))) return;
+        const session = resumeState.session;
+        await request(`/resume/scans/${encodeURIComponent(scan.id)}`, { method: 'DELETE' });
+        if (session !== resumeState.session) return;
+        if (resumeState.id === scan.id) {
+          stopResumePolling(); resumeState.id = null; resumeState.report = null;
+          $('#resume-report').classList.add('hidden');
+          for (const id of ['resume-text', 'resume-issues', 'resume-breakdown', 'resume-skills', 'resume-warnings', 'resume-scores', 'resume-report-meta', 'resume-comparison']) $(`#${id}`).replaceChildren();
+          $('#resume-status').textContent = t('Report deleted.');
+        }
+        if (resumeState.baseline?.id === scan.id) {
+          resumeState.baseline = null; $('#resume-baseline').textContent = '';
+          $('#resume-comparison').classList.add('hidden');
+        }
+        await loadResumeHistory(pageNumber);
+      }, 'button quiet small danger-action'));
+      const score = scan.readinessScore == null ? t('Not scored') : `${scan.readinessScore}/100`;
+      return item(scan.fileName, `${t(scan.status)} · ${score} · ${new Date(scan.createdAt).toLocaleString(getLocale())}`, actions);
+    }), t('No resume checks yet. Upload your resume to start.'));
+    renderPageControls('#resume-history-pagination', page, loadResumeHistory);
+  }, t('Resume history could not be loaded.'));
+}
+async function openResume(id) {
+  stopResumePolling();
+  resumeState.id = id;
+  resumeState.report = null;
+  const token = resumeState.token;
+  $('#resume-report').classList.remove('hidden');
+  $('#resume-report-meta').textContent = t('Loading…');
+  for (const id of ['resume-text', 'resume-issues', 'resume-breakdown', 'resume-skills', 'resume-warnings', 'resume-comparison']) $(`#${id}`).replaceChildren();
+  await loadList('#resume-scores', async () => {
+    const scan = await request(`/resume/scans/${encodeURIComponent(id)}`);
+    if (token !== resumeState.token || !state.accessToken) return;
+    paintResumeScan(scan);
+    if (scan.status === 'PROCESSING' && state.view === 'resume') {
+      resumeState.timer = window.setTimeout(() => run(() => openResume(id)), 2000);
+    } else if (scan.status !== 'PROCESSING') {
+      await loadResumeHistory();
+    }
+  }, t('Resume report could not be loaded.'));
+}
+function paintResumeScan(scan) {
+  if (scan.status === 'PROCESSING') {
+    $('#resume-report').classList.remove('hidden');
+    $('#resume-report-meta').textContent = scan.fileName;
+    $('#resume-status').textContent = t('Checking your resume. You can return to this report from history.');
+    setList('#resume-scores', [node('p', t('Reading the document and checking its content…'), 'muted')], '');
+    for (const id of ['resume-issues', 'resume-breakdown', 'resume-skills', 'resume-warnings', 'resume-text']) $(`#${id}`).replaceChildren();
+    $('#resume-comparison').classList.add('hidden');
+    return;
+  }
+  if (scan.status === 'FAILED') {
+    $('#resume-status').textContent = scan.error || t('The resume could not be checked. Upload it again.');
+    $('#resume-report').classList.add('hidden');
+    return;
+  }
+  const report = scan.report;
+  if (!report) throw new Error(t('Resume report could not be loaded.'));
+  resumeState.report = scan;
+  $('#resume-status').textContent = t('Resume check complete. Review the findings below.');
+  $('#resume-report').classList.remove('hidden');
+  $('#resume-report-meta').textContent = `${scan.fileName} · ${report.engineVersion} · ${report.wordCount} ${t('words')} · ${t('Kept until')} ${new Date(scan.expiresAt).toLocaleDateString(getLocale())}`;
+  const scoreCard = (label, score) => {
+    const card = node('div', '', 'metric');
+    card.append(node('span', score == null ? t('Not scored') : `${score}/100`, 'metric-value'), node('span', t(label), 'metric-label'));
+    return card;
+  };
+  $('#resume-scores').replaceChildren(scoreCard('Resume readiness', report.readinessScore), scoreCard('Job keyword match', report.jobMatchScore));
+  setList('#resume-issues', (report.issues || []).map((issue) => {
+    const row = item(t(issue.title), t(issue.evidence));
+    row.querySelector('.item-main').append(node('p', t(issue.action)));
+    row.querySelector('.item-actions').append(node('span', `${t(issue.severity)} · −${issue.deduction}`, 'pill warn'));
+    return row;
+  }), report.readinessScore == null ? t('This document was not scored. Read the limitations below.') : t('No issues were found by these checks. Review the extracted text and limitations.'));
+  setList('#resume-breakdown', (report.breakdown || []).map((check) => {
+    const row = node('div', '', 'resume-check-row');
+    const head = node('div', '', 'resume-check-head');
+    head.append(node('span', t(check.label)), node('strong', `${check.earned} / ${check.possible}`));
+    const progress = node('progress'); progress.max = check.possible; progress.value = check.earned;
+    progress.setAttribute('aria-label', t(check.label));
+    row.append(head, progress); return row;
+  }), t('Not scored'));
+  const skillGroup = (label, skills, tone) => {
+    const group = node('div'); group.append(node('h4', `${t(label)} (${skills.length})`));
+    const tags = node('div', '', 'resume-skill-tags');
+    tags.append(...(skills.length ? skills.map(skill => node('span', skill, `pill ${tone}`)) : [node('p', t('None found'), 'muted')]));
+    group.append(tags); return group;
+  };
+  setList('#resume-skills', report.jobMatchScore == null
+    ? [node('p', t('No job comparison is available. Add a job description with supported technical skills when you upload your resume.'), 'muted')]
+    : [skillGroup('Matched skill mentions', report.matchedSkills || [], 'ok'),
+      skillGroup('Job skills not found in the resume', report.missingSkills || [], 'warn'),
+      node('p', t('Only add skills you actually have. A missing mention is not proof of a missing skill.'), 'muted')], '');
+  setList('#resume-warnings', (report.warnings || []).map((warning) => node('p', t(warning), 'muted')), t('None found'));
+  $('#resume-text').textContent = report.extractedText;
+  renderResumeComparison(scan);
+}
+function renderResumeComparison(scan) {
+  const box = $('#resume-comparison');
+  const previous = resumeState.baseline;
+  box.classList.toggle('hidden', !previous || previous.id === scan.id);
+  if (!previous || previous.id === scan.id) return;
+  if (previous.report.engineVersion !== scan.report.engineVersion || previous.report.readinessScore == null || scan.report.readinessScore == null) {
+    box.textContent = t('These reports cannot be compared because their scoring versions or supported languages differ.'); return;
+  }
+  const before = new Set(previous.report.issues.map((issue) => issue.code));
+  const after = new Set(scan.report.issues.map((issue) => issue.code));
+  const delta = scan.report.readinessScore - previous.report.readinessScore;
+  box.replaceChildren(node('h3', t('Compared with your baseline')),
+    node('p', `${previous.fileName}: ${previous.report.readinessScore}/100 → ${scan.fileName}: ${scan.report.readinessScore}/100 (${delta > 0 ? '+' : ''}${delta})`),
+    node('p', `${t('Resolved checks')}: ${[...before].filter((code) => !after.has(code)).length} · ${t('New findings')}: ${[...after].filter((code) => !before.has(code)).length}`));
+}
+$('#resume-upload-form').addEventListener('change', () => { resumeState.requestId = null; });
+$('#resume-upload-form').addEventListener('input', () => { resumeState.requestId = null; });
+$('#resume-upload-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  run(async () => {
+    const body = new FormData(form);
+    const file = body.get('file');
+    if (!file?.size || file.size > 5 * 1024 * 1024 || !/\.(pdf|docx)$/i.test(file.name)) {
+      throw new Error(t('Choose a PDF or DOCX no larger than 5 MB.'));
+    }
+    resumeState.requestId ??= crypto.randomUUID();
+    body.set('requestId', resumeState.requestId);
+    const session = resumeState.session;
+    $('#resume-submit').disabled = true;
+    $('#resume-status').textContent = t('Uploading your resume…');
+    try {
+      const scan = await request('/resume/scans', { method: 'POST', body });
+      if (session !== resumeState.session) return;
+      resumeState.requestId = null;
+      resumeState.id = scan.id;
+      if (state.view === 'resume') await openResume(scan.id);
+      await loadResumeHistory();
+    } catch (error) {
+      if (session === resumeState.session) $('#resume-status').textContent = error.message;
+      throw error;
+    } finally { if (session === resumeState.session) $('#resume-submit').disabled = false; }
+  });
+});
+$('#resume-refresh').addEventListener('click', () => run(loadResume));
+$('#resume-check-again').addEventListener('click', () => {
+  if (resumeState.report) {
+    resumeState.baseline = resumeState.report;
+    $('#resume-baseline').textContent = `${t('Comparison baseline')}: ${resumeState.report.fileName}`;
+  }
+  $('#resume-upload-form input[type="file"]').value = '';
+  resumeState.requestId = null;
+  $('#resume-upload-form input[type="file"]').focus();
+});
+
 // -- React Practice pilot ---------------------------------------------------
 // Off unless the URL carries ?pilot=practice, so the production dashboard is
 // untouched: there is no second navigation, no second route, and the module is
@@ -1672,7 +1866,7 @@ function paintPageHead(key) {
   const screenKey = screenOfView(key) || 'overview';
   const screen = SCREENS[screenKey];
   if (!screen) return;
-  const personal = ['start', 'practice', 'account', 'workspace-access', 'platform'].includes(screenKey);
+  const personal = ['start', 'practice', 'resume', 'account', 'workspace-access', 'platform'].includes(screenKey);
   const tabLabel = (screen.views.find(([id]) => id === key) || [, screen.title])[1];
   $('#page-title').textContent = t(screen.title);
   setNavToggleLabel(t(screen.title));
@@ -1725,6 +1919,7 @@ applyLanguage();
 paintLanguageToggle();
 
 async function showView(key) {
+  if (key !== 'resume') stopResumePolling();
   if (key !== 'messages') stopMessageRefresh();
   state.view = key;
   const screenKey = screenOfView(key) || 'overview';
@@ -1750,6 +1945,7 @@ async function showView(key) {
   if (key === 'account') { await loadAccount(); return; }
   if (key === 'support') { await loadSupport(); return; }
   if (key === 'practice') { await loadPractice(); return; }
+  if (key === 'resume') { await loadResume(); return; }
   if (key === 'overview') await loadOverview();
   if (key === 'workspace-access') loadWorkspaceAccess();
   if (key === 'overview' && state.organization?.myRole === 'ORG_ADMIN') {

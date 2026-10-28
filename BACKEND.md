@@ -21,6 +21,11 @@ The six one-click demo identities work on the configured database in the `demo`,
 
 ## Verification and changes
 
+Resume Checker lives under `com.jachai.resume`: authenticated, account-owned
+background scans and 30-day MongoDB reports. PDFBox handles PDF extraction;
+bounded ZIP/XML reads DOCX body text without fetching external entities. Optional
+Tesseract OCR is local, not an AI API. See [setup and limits](docs/RESUME_CHECKER.md).
+
 - Run `./mvnw test` with Java 21 for the integrated revision. Frontend checks are documented in [FRONTEND.md](FRONTEND.md).
 - Mongo integration tests are opt-in with a dedicated `MONGODB_TEST_URI` pointing to a `jachai_it_*` database. Never run destructive tests against customer, demo, or production data. The historical test procedure and results remain in [MONGODB_INTEGRATION_TESTS.md](docs/archive/completed/MONGODB_INTEGRATION_TESTS.md).
 - A passing unit suite does not prove SMTP delivery, OAuth, AI provider calls, payment callbacks, or hosted MongoDB/Redis readiness. The latest release evidence is archived at [RELEASE_CHECK_2026-10-09.md](docs/archive/completed/RELEASE_CHECK_2026-10-09.md); repeat its gates on the actual deployed revision.

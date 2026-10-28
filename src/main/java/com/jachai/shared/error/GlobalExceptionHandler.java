@@ -18,6 +18,12 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> uploadTooLarge() {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(new ApiError("UPLOAD_TOO_LARGE", "The upload is too large. Files must be at most 5 MB."));
+    }
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiError> apiError(ApiException exception) {
         return ResponseEntity.status(exception.status())

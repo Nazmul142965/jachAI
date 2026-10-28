@@ -21,10 +21,12 @@ COPY src ./src
 RUN n=0; until mvn $MVN_FLAGS -s /build/settings.xml -Dmaven.test.skip=true package; do       n=$((n+1)); [ $n -ge 3 ] && exec mvn $MVN_FLAGS -Dmaven.test.skip=true package; sleep 20; done
 
 FROM eclipse-temurin:21-jre
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /build/target/jachAI-0.0.1-SNAPSHOT.jar /app/app.jar
 USER 10001:10001
 ENV SPRING_PROFILES_ACTIVE=prod
+ENV RESUME_OCR_ENABLED=true
 # JAVA_TOOL_OPTIONS is split on whitespace, so every option has to be a single
 # token. "--add-opens java.base/java.math=ALL-UNNAMED" was two, and the JVM
 # refused to start with "Unrecognized option: --add-opens".

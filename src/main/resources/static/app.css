@@ -2357,6 +2357,19 @@ body[data-restoring]::before {
 /* Panels that open further down the page scroll to the top of the screen, below the fixed header. */
 #attempt-panel, #result-panel, #talent-funnel-panel, #campaign-candidates-panel, #attempt-review-detail { scroll-margin-top: 88px; }
 
+/* Resume text stays readable without exposing a document's active content. */
+.resume-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; padding: var(--sp-4); background: var(--surface-sunk); color: var(--ink); border-radius: var(--r-md); font: inherit; }
+.resume-report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5); margin-block-start: var(--sp-5); }
+.resume-report-section { min-width: 0; margin-block-start: var(--sp-5); }
+.resume-report-grid .resume-report-section { margin-block-start: 0; }
+.resume-check-head { display: flex; justify-content: space-between; gap: var(--sp-3); }
+.resume-check-row progress { display: block; width: 100%; height: var(--sp-2); margin-block-start: var(--sp-2); accent-color: var(--brand); }
+.resume-skill-tags { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-block-start: var(--sp-3); }
+.resume-skill-tags .pill { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 800px) { .resume-report-grid { grid-template-columns: minmax(0, 1fr); } }
+#resume-view .item-main { min-width: 0; overflow-wrap: anywhere; }
+#resume-view textarea { min-width: 0; width: 100%; box-sizing: border-box; }
+#resume-status { overflow-wrap: anywhere; }
 /* ---- Welcome card ------------------------------------------------------------------------------------------ */
 .link-button { padding: 0; border: 0; background: none; font: inherit; color: var(--brand-ink); text-decoration: underline; cursor: pointer; }
 .link-button:hover { color: var(--brand-600); }

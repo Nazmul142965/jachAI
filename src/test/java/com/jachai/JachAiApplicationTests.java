@@ -164,6 +164,19 @@ class JachAiApplicationTests {
     @MockitoBean WorkspaceJoinCodeRepository workspaceJoinCodeRepository;
     @MockitoBean WorkspaceJoinRedemptionRepository workspaceJoinRedemptionRepository;
     @MockitoBean SupportTicketService supportTicketService;
+    @MockitoBean com.jachai.resume.service.ResumeScanService resumeScanService;
+
+    @Test
+    void resumeReportsRequireAuthenticationAndUseTheJwtOwner() throws Exception {
+        mvc.perform(get("/api/v1/resume/scans")).andExpect(status().isUnauthorized());
+        org.mockito.Mockito.when(resumeScanService.history("resume-owner", 0))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+        mvc.perform(get("/api/v1/resume/scans").with(jwt().jwt(token -> token.subject("resume-owner"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+        org.mockito.Mockito.verify(resumeScanService).history("resume-owner", 0);
+        mvc.perform(get("/api/v1/resume/scans?page=-1").with(jwt()))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     void healthIsPublicWithoutMongo() throws Exception {

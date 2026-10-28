@@ -31,6 +31,18 @@ Academy owners can save a certificate design with heading, achievement wording, 
 
 Hiring campaigns, recruiter invitations, candidate comparison, reviewer notes, integrity review, shortlist decisions, and candidate reports. Certificates are optional here and are not the primary outcome.
 
+### Personal Resume Checker
+
+Personal Resume Checker is a separate account-owned module: upload PDF/DOCX,
+extract body text (optional local OCR for scanned PDFs), run versioned readiness
+rules, optionally compare explicit technical skill mentions with a job description,
+and review/delete retained reports. It does not rank applicants or make hiring
+decisions. Demo identities may run checks with sample resumes; their reports are
+shared by everyone using that demo identity. Reports and
+extracted text expire after 30 days; original uploads are transient. The initial
+engine uses no external AI. See [Resume Checker](docs/RESUME_CHECKER.md) for
+scoring, runtime setup and the remaining roadmap.
+
 ### Explicitly outside the first release
 
 Live code execution, video or face proctoring, automated cheating verdicts, advanced live chat infrastructure, and a full applicant tracking system. These require substantial additional security and product work.

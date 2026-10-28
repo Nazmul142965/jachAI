@@ -23,6 +23,7 @@ public enum RateLimitPolicy {
     PAYMENT_RECONCILE_ACTOR(30, Duration.ofMinutes(1)),
     AI_ACTOR(10, Duration.ofMinutes(1)),
     PRACTICE_SESSION_ACTOR(30, Duration.ofHours(1)),
+    RESUME_SCAN_ACTOR(10, Duration.ofHours(1)),
     MESSAGE_ACTOR(30, Duration.ofMinutes(1));
 
     private final long limit;

@@ -234,6 +234,33 @@
         </div>
         <div class="card panel"><h2>Your tickets</h2><div id="support-tickets" class="item-list"></div></div>
       </section>
+      <section id="resume-view" class="view hidden" aria-labelledby="resume-heading">
+        <div class="card panel">
+          <div class="section-heading"><div><h2 id="resume-heading" data-t>Make your next application clearer</h2><p class="muted" data-t>Upload a resume to see what can be read, what needs attention and how to improve it.</p></div><span class="pill" data-t>Account reports</span></div>
+          <p class="muted" data-t>Demo accounts are shared. Use sample resumes only; other people using the same demo account can view and delete its reports.</p>
+          <form id="resume-upload-form" class="stack">
+            <label><span data-t>Your resume</span><input name="file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required aria-describedby="resume-file-help"></label>
+            <p id="resume-file-help" class="muted" data-t>PDF or DOCX, up to 5 MB. PDFs can have up to 10 pages. English resumes are supported; scanned PDFs need server OCR.</p>
+            <label><span data-t>Job description (optional)</span><textarea name="jobDescription" rows="5" maxlength="12000" placeholder="Paste the job description to compare technical skill keywords." data-t-placeholder></textarea></label>
+            <p class="muted" data-t>The original file is discarded after processing. Extracted text and reports are private, kept for 30 days, and can be deleted at any time. No AI provider receives your resume.</p>
+            <div class="form-row"><button id="resume-submit" class="button primary" type="submit" data-t>Check resume</button><span id="resume-status" role="status" aria-live="polite"></span></div>
+          </form>
+        </div>
+        <section id="resume-report" class="card panel hidden" aria-labelledby="resume-report-heading">
+          <div class="section-heading"><div><h2 id="resume-report-heading" data-t>Your resume report</h2><p id="resume-report-meta" class="muted"></p></div><button id="resume-check-again" class="button secondary small" type="button" data-t>Upload an improved version</button></div>
+          <p class="muted" data-t>JachAI scores explain our checks. They do not predict an employer ATS result or a hiring decision.</p>
+          <div id="resume-scores" class="metrics"></div>
+          <div id="resume-comparison" class="subpanel hidden" role="status"></div>
+          <h3 data-t>What needs attention</h3><div id="resume-issues" class="item-list"></div>
+          <div class="resume-report-grid">
+            <section class="subpanel resume-report-section" aria-labelledby="resume-breakdown-heading"><h3 id="resume-breakdown-heading" data-t>Where your points come from</h3><p class="muted" data-t>See which checks passed and where you can recover points.</p><div id="resume-breakdown" class="item-list"></div></section>
+            <section class="subpanel resume-report-section" aria-labelledby="resume-skills-heading"><h3 id="resume-skills-heading" data-t>How you match this job</h3><p class="muted" data-t>Compare skill mentions in your resume with the job description.</p><div id="resume-skills" class="item-list"></div></section>
+          </div>
+          <section class="subpanel resume-report-section" aria-labelledby="resume-limits-heading"><h3 id="resume-limits-heading" data-t>Before you rely on this score</h3><p class="muted" data-t>Keep these limits in mind when deciding what to change.</p><div id="resume-warnings" class="item-list"></div></section>
+          <section class="subpanel resume-report-section" aria-labelledby="resume-preview-heading"><h3 id="resume-preview-heading" data-t>What the checker could read</h3><p class="muted" data-t>Check that names, dates and reading order are correct. Extraction errors can affect the score.</p><pre id="resume-text" class="resume-text" dir="auto" tabindex="0" aria-labelledby="resume-preview-heading"></pre></section>
+        </section>
+        <div class="card panel"><div class="section-heading"><div><h2 data-t>Your recent checks</h2><p class="muted" data-t>Open a report or choose one as the baseline for comparison. Compare job scores only when the job description is unchanged.</p></div><button id="resume-refresh" class="button secondary small" type="button" data-t>Refresh</button></div><p id="resume-baseline" class="muted" role="status"></p><div id="resume-history" class="item-list"></div><div id="resume-history-pagination"></div></div>
+      </section>
       <section id="practice-view" class="view hidden" aria-labelledby="practice-heading">
         <section id="guided-practice" class="card panel guided" aria-labelledby="guided-heading">
           <div class="section-heading"><div><h2 id="guided-heading">Guided practice</h2><p class="muted">Short sessions with a score at the end. Start with a quick skill check, then practise the topic that needs it most.</p></div></div>

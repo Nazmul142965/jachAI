@@ -126,7 +126,8 @@ async function main() {
   };
   await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   await page.send('Page.navigate', { url: `${server.url}/` });
-  await wait(1500);
+  // Let the delayed first-visit welcome settle before testing manual open/close.
+  await wait(2500);
   await shot('landing-signed-out');
   // The welcome card: opened on request, readable, closed with Escape, and it does not come back by itself once seen.
   await ev(`document.querySelector('#welcome-open').click()`); await wait(300);
@@ -159,6 +160,54 @@ async function main() {
       return true; })()`);
     await wait(1500);
     await shot(`overview-${role}${storage === 'ok' ? '' : `-${storage}`}`);
+  }
+
+  if (process.argv.includes('--resume-only')) {
+    await load('no-workspace');
+    check('resume', 'personal checker is available without an organization', await view('Resume checker'));
+    await wait(400);
+    const upload = async (name) => {
+      await ev(`(() => { const form = document.querySelector('#resume-upload-form');
+        const files = new DataTransfer(); files.items.add(new File(['mock pdf'], ${JSON.stringify(name)}, { type: 'application/pdf' }));
+        form.elements.file.files = files.files; form.elements.file.dispatchEvent(new Event('change', { bubbles: true }));
+        form.elements.jobDescription.value = 'Java Docker';
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); return true; })()`);
+    };
+    await upload('resume.pdf'); await wait(600);
+    check('resume', 'shows processing without inventing a score', await ev(`document.querySelector('#resume-status').textContent.includes('Checking your resume')
+      && !document.querySelector('#resume-scores').textContent.includes('85/100')`));
+    await wait(2300);
+    check('resume', 'polling renders score and evidence', await ev(`document.querySelector('#resume-scores').textContent.includes('85/100')
+      && document.querySelector('#resume-issues').textContent.includes('Email was not found')`));
+    check('resume', 'document content is rendered as text', await ev(`!window.resumeInjected
+      && document.querySelector('#resume-text').textContent.includes('<script>')`));
+    await ev(`document.querySelector('#resume-report').scrollIntoView({ block: 'start' })`); await wait(150);
+    await shotBoth('resume-report');
+    await ev(`document.querySelector('#resume-check-again').click()`);
+    await upload('improved.pdf'); await wait(2900);
+    check('resume', 'improved upload compares resolved checks', await ev(`document.querySelector('#resume-comparison').textContent.includes('+10')
+      && document.querySelector('#resume-comparison').textContent.includes('Resolved checks: 1')`));
+    await ev(`document.querySelector('#lang-switch [data-lang="bn"]').click()`); await wait(250);
+    check('resume', 'Bangla screen labels are available', await ev(`document.querySelector('#resume-heading').textContent.includes('রিজিউমে')`));
+    await ev(`document.querySelector('#lang-switch [data-lang="en"]').click()`);
+    for (const width of [320, 375]) {
+      await page.send('Emulation.setDeviceMetricsOverride', { width, height: 760, deviceScaleFactor: 1, mobile: false });
+      await wait(200);
+      check('resume', 'no horizontal overflow at ' + width, await ev(`document.documentElement.scrollWidth <= innerWidth + 1`));
+      await shotBoth('resume-' + width);
+    }
+    await page.send('Emulation.clearDeviceMetricsOverride');
+    await clickText('#resume-history', 'Delete report'); await wait(100); await clickDialog('danger-action'); await wait(300);
+    check('resume', 'delete calls the API and removes current private text', await ev(`window.__calls.some(c => c === 'DELETE /api/v1/resume/scans/resume-2')
+      && document.querySelector('#resume-text').textContent === ''`));
+    await ev(`document.querySelector('#logout').click()`); await wait(400);
+    check('resume', 'sign-out clears resume history and baseline', await ev(`document.querySelector('#resume-history').textContent === ''
+      && document.querySelector('#resume-baseline').textContent === ''`));
+    check('resume', 'no uncaught exceptions', page.errors.length === 0, page.errors.join(' | '));
+    fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+    fs.writeFileSync(path.join(EVIDENCE_DIR, 'resume-journey.json'), JSON.stringify({ note: 'Mocked fixtures, real browser. Not live backend verification.', checks: all }, null, 2));
+    console.log(all.length - failures + '/' + all.length + ' resume checks passed');
+    page.close(); browser.child.kill(); await server.close(); process.exit(failures ? 1 : 0);
   }
 
   if (process.argv.includes('--home-race-only')) {
