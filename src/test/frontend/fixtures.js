@@ -111,6 +111,12 @@ const SOURCE = String.raw`(() => {
   const practiceAnswers = [];
   const resumeScans = [];
   let resumeReads = 0;
+  const resumeReviews = new Map();
+  const customerTicket = { id: 'ticket-1', referenceNumber: 'SUP-1001', category: 'TECHNICAL', subject: 'Fixture ticket',
+    description: 'Please help with my assignment.', status: 'RESOLVED', publicReplyCount: 1, createdAt: new Date().toISOString() };
+  const customerReplies = [{ id: 'reply-1', authorUserId: 'operator', publicReply: true, body: 'We have checked your assignment.', createdAt: new Date().toISOString() }];
+  let staffFeedback = { ...learnerFeedback, status: 'DRAFT', summary: 'Saved draft summary', nextSteps: 'Saved draft next steps' };
+  let auditRecovered = false;
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
     const method = (init.method || 'GET').toUpperCase();
@@ -118,6 +124,37 @@ const SOURCE = String.raw`(() => {
     const path = full.split('?')[0];
     window.__calls.push(method + ' ' + full);
     const org = '/api/v1/organizations/' + (ROLE.org?.id || 'none');
+    if (path === '/api/v1/support/tickets' && method === 'GET') return json(page([customerTicket]));
+    if (path === '/api/v1/support/tickets/ticket-1/replies') {
+      if (method === 'POST') { const body = JSON.parse(init.body); customerReplies.push({ id: 'reply-2', authorUserId: ROLE.userId,
+        publicReply: true, body: body.body, createdAt: new Date().toISOString() }); return json(customerTicket); }
+      return json(page(customerReplies));
+    }
+    if (path === '/api/v1/support/tickets/ticket-1/reopen') { customerTicket.status = 'WAITING_FOR_YOUR_REPLY'; return json(customerTicket); }
+    if (path === '/api/v1/support/tickets/ticket-1') return json(customerTicket);
+    if (path === '/api/v1/practice/sessions/ps-1' && method === 'GET') return guided ? json(guided) : error(404, 'NOT_FOUND', 'Session expired');
+    if (path.endsWith('/academy/attempts/att-9/feedback')) {
+      if (method === 'PUT') staffFeedback = { ...staffFeedback, ...JSON.parse(init.body) };
+      return json(staffFeedback);
+    }
+    if (path.endsWith('/academy/attempts/att-9/feedback/publish')) { staffFeedback.status = 'PUBLISHED'; return json(staffFeedback); }
+    if (path.endsWith('/academy/attempts/att-9/feedback/audit')) return json(page([]));
+    if (path === '/api/v1/platform/operations/sandbox-payments') {
+      const provider = new URL(url, location.origin).searchParams.get('provider');
+      const count = provider ? 2 : 3;
+      return json({ generatedAt: new Date().toISOString(), totalOrders: count, totalAmountBdt: count * 100,
+        label: 'Sandbox activity (not live revenue)', byProvider: [{ provider: provider || 'DEMO', count, sumBdt: count * 100 }],
+        byDateRange: [{ rangeLabel: '2026-10-01 to 2026-10-08', count, sumBdt: count * 100 }] });
+    }
+    if (path.endsWith('/audit-recovery')) {
+      if (method === 'POST') auditRecovered = true;
+      const n = Number(new URL(url, location.origin).searchParams.get('page') || 0);
+      const recoverableCount = n === 0 && !auditRecovered ? 1 : 0;
+      return json({ organizationId: 'org-a', generatedAt: new Date().toISOString(), membershipPage: n,
+        membershipTotalPages: 2, membershipsScanned: 51, ownershipScanned: n === 0, recoverableCount,
+        ambiguousCount: n === 1 ? 1 : 0, repaired: method === 'POST', entries: recoverableCount ? [{ targetType: 'MEMBERSHIP', targetId: 'm1',
+          expectedEventId: 'event-1', action: 'MEMBER_ADDED', actorUserId: 'u-admin', occurredAt: new Date().toISOString(), status: 'RECOVERABLE', detail: 'Saved markers prove this missing event.' }] : [] });
+    }
 
     if (path === '/api/v1/resume/scans' && method === 'POST') {
       const file = init.body.get('file');
@@ -136,6 +173,17 @@ const SOURCE = String.raw`(() => {
     if (path === '/api/v1/resume/scans') return json(page(resumeScans.map((scan) => ({ id: scan.id,
       fileName: scan.fileName, status: scan.status, readinessScore: scan.report.readinessScore,
       jobMatchScore: scan.report.jobMatchScore, createdAt: scan.createdAt }))));
+    if (/\/resume\/scans\/[^/]+\/review$/.test(path)) {
+      const id = path.split('/').at(-2);
+      if (method === 'POST') {
+        if (JSON.parse(init.body).consent !== true) return error(400, 'CONSENT_REQUIRED', 'Permission is required');
+        if (window.__resumeReviewUnavailable) return error(503, 'AI_NOT_CONFIGURED', 'AI is not turned on for this site yet.');
+        resumeReviews.set(id, { status: 'COMPLETED', summary: 'Sample content review for this resume.', reviewedAt: new Date().toISOString(), error: null,
+          findings: [{ source: 'RESUME', severity: 'MEDIUM', title: 'Explain your practical experience', evidence: 'Amina Rahman\nSkills\nJava',
+            explanation: 'The sample lists Java without a project example.', action: 'Describe a Java project you actually built.' }], caveats: ['Fixture review, not a real AI call.'] });
+      }
+      return json(resumeReviews.get(id) || { status: 'NOT_REQUESTED', summary: null, findings: [], caveats: [], error: null, reviewedAt: null });
+    }
     if (path.startsWith('/api/v1/resume/scans/')) {
       const scan = resumeScans.find((scan) => path.endsWith('/' + scan.id));
       if (!scan) return error(404, 'RESUME_NOT_FOUND', 'Report not found');

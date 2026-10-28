@@ -23,6 +23,22 @@ import org.springframework.web.multipart.MultipartFile;
 public class ResumeController {
     private final ResumeScanService scans;
     private final RateLimitService limits;
+    private final com.jachai.resume.service.ResumeReviewService reviews;
+
+    public record ReviewRequest(@AssertTrue(message = "Permission is required for AI review") boolean consent) { }
+
+    @GetMapping("/{id}/review")
+    public com.jachai.resume.service.ResumeReviewService.View reviewStatus(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        return reviews.get(jwt.getSubject(), id);
+    }
+
+    @PostMapping("/{id}/review")
+    public com.jachai.resume.service.ResumeReviewService.View review(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
+            @jakarta.validation.Valid @RequestBody ReviewRequest request) {
+        if (!request.consent()) throw new ApiException(HttpStatus.BAD_REQUEST, "RESUME_REVIEW_CONSENT_REQUIRED", "Permission is required for AI review.");
+        limits.consume(RateLimitPolicy.AI_ACTOR, "resume:" + jwt.getSubject());
+        return reviews.review(jwt.getSubject(), id, request.consent());
+    }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.ACCEPTED)

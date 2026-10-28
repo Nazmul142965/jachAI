@@ -105,7 +105,12 @@ class PlatformOperationsServiceTests {
 
         PlatformSandboxPaymentSummary result = service.sandboxPaymentSummary("admin1", null, null, PaymentProvider.BKASH);
 
-        assertEquals(10L, result.totalOrders());
+        assertEquals(3L, result.totalOrders());
+        assertEquals(new BigDecimal("3000.00"), result.totalAmountBdt());
+        result.byDateRange().forEach(bucket -> {
+            assertEquals(3L, bucket.count());
+            assertEquals(new BigDecimal("3000.00"), bucket.sumBdt());
+        });
         assertEquals(1, result.byProvider().size());
         assertEquals(PaymentProvider.BKASH, result.byProvider().get(0).provider());
         assertEquals(3L, result.byProvider().get(0).count());

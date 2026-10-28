@@ -320,12 +320,24 @@ the call exists.
 
 ## 5. `app.js` — how the workspace works
 
+The customer Support screen now opens ticket conversations, pages public replies,
+sends replies and reopens resolved tickets. Instructor feedback loads existing
+drafts/publications with unsaved-edit confirmation and published-state locking.
+Guided practice keeps an account-scoped marker in sessionStorage and resumes via
+the server's session read endpoint. Platform panels expose filtered sandbox payment
+activity and paged audit recovery with explicit confirmation. These use existing
+panels/lists/buttons, not a new design system. See
+[coverage and verification](docs/FRONTEND_API_COVERAGE.md).
+
 The personal `resume` screen uses the same panel, metrics, list, dialog and theme
 components. All signed-in users can navigate to it, but the server requires a
 verified, active account, including demo accounts. A shared-demo notice explains
 that other users of the same identity can access its reports. Uploads use the host `request` helper with
 `FormData`; report polling stops on navigation/sign-out. Sign-out clears report,
-text, baseline and history. Scores are server-owned. English/Bangla shell labels
+text, baseline and history. Scores are server-owned. The separate AI content-review
+panel requires a checked consent disclosure before POSTing; viewing it only reads
+saved status. It shows validated source quotes and specific AI suggestions, separately
+from the basic rule findings. English/Bangla shell labels
 are in `i18n.js`; original resume content is never translated. The React Practice
 pilot in `frontend/` remains optional and is not used for this screen.
 

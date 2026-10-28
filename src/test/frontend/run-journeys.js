@@ -162,6 +162,64 @@ async function main() {
     await shot(`overview-${role}${storage === 'ok' ? '' : `-${storage}`}`);
   }
 
+  if (process.argv.includes('--missing-flows-only')) {
+    await load('no-workspace');
+    await ev(`document.querySelector('#account-menu-support').click()`); await wait(350);
+    await clickText('#support-tickets', 'Open conversation'); await wait(350);
+    check('support', 'customer sees ticket description and public replies', await ev(`document.querySelector('#customer-ticket-detail').textContent.includes('Please help')
+      && document.querySelector('#customer-ticket-replies').textContent.includes('checked your assignment')`));
+    await ev(`document.querySelector('#customer-ticket-reopen').click()`); await wait(100); await clickDialog('primary'); await wait(350);
+    check('support', 'resolved ticket can be reopened', await ev(`window.__calls.includes('POST /api/v1/support/tickets/ticket-1/reopen')`));
+    await ev(`(() => { const f=document.querySelector('#customer-reply-form'); f.elements.body.value='Thanks, I can continue now.'; f.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true})); })()`); await wait(350);
+    check('support', 'customer reply is submitted and rendered', await ev(`document.querySelector('#customer-ticket-replies').textContent.includes('Thanks, I can continue now.')`));
+    await shotBoth('customer-support');
+    await view('Practice'); await wait(450);
+    await ev(`document.querySelector('#guided-paths button').click()`); await wait(350);
+    await ev(`(() => { const f=document.querySelector('#guided-session form'); f.querySelector('input').checked=true; f.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true})); })()`); await wait(350);
+    await clickText('#guided-session', 'Leave this session'); await wait(350);
+    check('practice-resume', 'saved session is offered after leaving', await ev(`!document.querySelector('#guided-resume').classList.contains('hidden')`));
+    await clickText('#guided-resume', 'Continue session'); await wait(350);
+    check('practice-resume', 'resume reads saved answers without creating another session', await ev(`window.__calls.includes('GET /api/v1/practice/sessions/ps-1')
+      && window.__calls.filter(c=>c==='POST /api/v1/practice/sessions').length===1
+      && document.querySelector('#guided-session').textContent.includes('Question 2')`));
+    await load('academy-staff'); await view('Create tests'); await tab('Review & release'); await wait(350);
+    await clickText('#review-queue', 'Inspect answers'); await wait(450);
+    check('feedback', 'saved draft is loaded when inspecting an attempt', await ev(`document.querySelector('#feedback-form').elements.summary.value==='Saved draft summary'`));
+    await ev(`(() => {const f=document.querySelector('#feedback-form'); f.elements.summary.value='Unsaved change'; f.elements.summary.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#load-feedback-draft').click();})()`); await wait(120);
+    await clickDialog('quiet');
+    check('feedback', 'cancel reload preserves unsaved draft', await ev(`document.querySelector('#feedback-form').elements.summary.value==='Unsaved change'`));
+    await ev(`document.querySelector('#load-feedback-draft').click()`); await wait(100); await clickDialog('primary'); await wait(350);
+    check('feedback', 'confirmed reload restores the saved draft', await ev(`document.querySelector('#feedback-form').elements.summary.value==='Saved draft summary'`));
+    await shotBoth('saved-feedback');
+    await load('platform-admin'); await view('Platform'); await wait(450);
+    await ev(`(() => { const f=document.querySelector('#platform-payment-filter'); f.elements.provider.value='DEMO'; f.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true})); })()`); await wait(350);
+    check('payments', 'provider filter reaches the API and renders its totals', await ev(`window.__calls.some(c=>c.includes('sandbox-payments?provider=DEMO'))
+      && document.querySelector('#platform-payment-report').textContent.includes('2')`));
+    await tab('Organizations'); await wait(350); await clickText('#platform-organizations', 'Inspect'); await wait(500);
+    check('audit-recovery', 'inspection shows bounded recovery preview', await ev(`document.querySelector('#platform-audit-report').textContent.includes('Recoverable: 1')
+      && !document.querySelector('#platform-audit-repair').disabled`));
+    await ev(`document.querySelector('#platform-audit-repair').click()`); await wait(100);
+    check('audit-recovery', 'repair asks for explicit confirmation', (await dialogText()).includes('Recover missing audit events'));
+    await clickDialog('primary'); await wait(450);
+    check('audit-recovery', 'repair posts only the displayed page and refreshes its preview', await ev(`window.__calls.includes('POST /api/v1/platform/organizations/org-a/audit-recovery?page=0')
+      && document.querySelector('#platform-audit-repair').disabled`));
+    await clickText('#platform-audit-pagination', 'Next'); await wait(350);
+    check('audit-recovery', 'ambiguous page remains read-only', await ev(`document.querySelector('#platform-audit-report').textContent.includes('Needs manual review: 1')
+      && document.querySelector('#platform-audit-repair').disabled`));
+    await shotBoth('audit-recovery');
+    for (const width of [320,375]) {
+      await page.send('Emulation.setDeviceMetricsOverride',{width,height:760,deviceScaleFactor:1,mobile:false}); await wait(200);
+      check('missing-flows','audit panels fit at '+width,await ev(`document.documentElement.scrollWidth<=innerWidth+1`),await ev(`JSON.stringify([...document.querySelectorAll('#platform-tenants-view *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,4).map(e=>e.tagName+'#'+e.id))`));
+      await tab('Overview'); await wait(300);
+      check('missing-flows','payment filters fit at '+width,await ev(`document.documentElement.scrollWidth<=innerWidth+1`),await ev(`JSON.stringify([...document.querySelectorAll('#platform-view *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,4).map(e=>e.tagName+'#'+e.id))`));
+      await tab('Organizations'); await wait(300);
+    }
+    await page.send('Emulation.clearDeviceMetricsOverride');
+    check('missing-flows', 'no uncaught JavaScript exceptions', page.errors.length === 0, page.errors.join(' | '));
+    fs.mkdirSync(EVIDENCE_DIR,{recursive:true});fs.writeFileSync(path.join(EVIDENCE_DIR,'missing-flows.json'),JSON.stringify({note:'Real browser, mocked API fixtures; not a live database test.',checks:all},null,2));
+    console.log(all.length-failures+'/'+all.length+' missing-flow checks passed');
+    page.close();browser.child.kill();await server.close();process.exit(failures?1:0);
+  }
   if (process.argv.includes('--resume-only')) {
     await load('no-workspace');
     check('resume', 'personal checker is available without an organization', await view('Resume checker'));
@@ -181,12 +239,20 @@ async function main() {
       && document.querySelector('#resume-issues').textContent.includes('Email was not found')`));
     check('resume', 'document content is rendered as text', await ev(`!window.resumeInjected
       && document.querySelector('#resume-text').textContent.includes('<script>')`));
+    await ev(`document.querySelector('#resume-ai-form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}))`); await wait(100);
+    check('resume', 'no provider request is made without permission', await ev(`!window.__calls.some(c=>c.startsWith('POST ')&&c.endsWith('/review'))`));
+    await ev(`(() => {const f=document.querySelector('#resume-ai-form');f.elements.consent.checked=true;f.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));})()`); await wait(350);
+    check('resume', 'content review shows source evidence and specific advice', await ev(`document.querySelector('#resume-ai-content').textContent.includes('Describe a Java project')
+      && document.querySelector('#resume-ai-content blockquote').textContent.includes('Amina Rahman')`));
     await ev(`document.querySelector('#resume-report').scrollIntoView({ block: 'start' })`); await wait(150);
     await shotBoth('resume-report');
     await ev(`document.querySelector('#resume-check-again').click()`);
     await upload('improved.pdf'); await wait(2900);
     check('resume', 'improved upload compares resolved checks', await ev(`document.querySelector('#resume-comparison').textContent.includes('+10')
       && document.querySelector('#resume-comparison').textContent.includes('Resolved checks: 1')`));
+    await ev(`(() => {window.__resumeReviewUnavailable=true; const f=document.querySelector('#resume-ai-form');f.elements.consent.checked=true;f.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));})()`); await wait(350);
+    check('resume', 'provider failure shows an honest error without invented review findings', await ev(`document.querySelector('#resume-ai-content').textContent.includes('not turned on')
+      && !document.querySelector('#resume-ai-content blockquote') && document.querySelector('#resume-scores').textContent.includes('95/100')`));
     await ev(`document.querySelector('#lang-switch [data-lang="bn"]').click()`); await wait(250);
     check('resume', 'Bangla screen labels are available', await ev(`document.querySelector('#resume-heading').textContent.includes('রিজিউমে')`));
     await ev(`document.querySelector('#lang-switch [data-lang="en"]').click()`);

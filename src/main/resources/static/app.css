@@ -2370,6 +2370,9 @@ body[data-restoring]::before {
 #resume-view .item-main { min-width: 0; overflow-wrap: anywhere; }
 #resume-view textarea { min-width: 0; width: 100%; box-sizing: border-box; }
 #resume-status { overflow-wrap: anywhere; }
+.resume-evidence { margin: var(--sp-3) 0; padding-inline-start: var(--sp-4); border-inline-start: 3px solid var(--brand); white-space: pre-wrap; overflow-wrap: anywhere; }
+#customer-ticket-panel .item-meta, #customer-ticket-detail > p { white-space: pre-wrap; overflow-wrap: anywhere; }
+#platform-view input, #platform-tenants-view input { min-width: 0; max-width: 100%; }
 /* ---- Welcome card ------------------------------------------------------------------------------------------ */
 .link-button { padding: 0; border: 0; background: none; font: inherit; color: var(--brand-ink); text-decoration: underline; cursor: pointer; }
 .link-button:hover { color: var(--brand-600); }

@@ -40,7 +40,9 @@ and review/delete retained reports. It does not rank applicants or make hiring
 decisions. Demo identities may run checks with sample resumes; their reports are
 shared by everyone using that demo identity. Reports and
 extracted text expire after 30 days; original uploads are transient. The initial
-engine uses no external AI. See [Resume Checker](docs/RESUME_CHECKER.md) for
+engine uses no external AI for basic checks. An optional, explicitly consented
+content review uses the configured AI providers and validates source quotes;
+it never changes the deterministic scores. See [Resume Checker](docs/RESUME_CHECKER.md) for
 scoring, runtime setup and the remaining roadmap.
 
 ### Explicitly outside the first release

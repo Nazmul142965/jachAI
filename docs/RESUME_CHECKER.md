@@ -2,7 +2,9 @@
 
 The first delivery is an account-owned resume checker, not a complete recruitment
 ATS. It uses the existing Spring Boot app and plain HTML/CSS/ES-module UI. It
-does not call an external parser, AI provider or payment service.
+does not call an external parser or payment service. Basic checks are local;
+the separate content-review action calls the existing configured AI providers
+only after explicit user permission.
 
 ## Delivered flow
 
@@ -43,6 +45,37 @@ history after a page refresh. No original-file download or storage is provided.
 | `GET /api/v1/resume/scans?page=0` | Owner's summaries, 10 per page |
 | `GET /api/v1/resume/scans/{id}` | Owner's status, report or readable failure |
 | `DELETE /api/v1/resume/scans/{id}` | Delete the owner's report/text; 204 |
+| `GET /api/v1/resume/scans/{id}/review` | Read the owner's saved AI content review/status; never calls AI |
+| `POST /api/v1/resume/scans/{id}/review` | JSON `{"consent":true}`; review actual extracted text and JD using configured AI |
+
+## Evidence-based content review
+
+The report separates **Basic document checks** (the deterministic score below)
+from **Review the actual resume content** (AI advice). The latter sends the actual
+extracted resume text and stored job description as JSON through `AiService` with
+`AiUseCase.RESUME_REVIEW`. It uses `AI_PROVIDER` and `AI_QUESTION_FALLBACK`, already
+used for question drafting. No new API key is required when that provider works.
+If AI is disabled or unavailable, it returns an honest failure rather than canned
+advice. No external call is made just by uploading a resume or opening a report.
+
+The user must check the disclosure and explicitly request review. The controller
+and service both reject missing/false consent before provider access. Requests
+are limited to five attempts per account and 100 per deployment in a rolling
+24-hour rate window, including failed attempts; the existing rate-limit backend
+enforces these policies. Shared demos share their allowance and reviews. Each
+provider attempt has the existing primary timeout, including the last fallback.
+
+Findings contain a title, severity, exact source quote, explanation and concrete
+action. The server validates field sizes, allowed values and every quote against
+the chosen source (resume or JD), rejecting fabricated quotes and duplicates.
+This validates provenance, not the truth of the AI interpretation. The advice is
+still labelled fallible. AI never assigns or modifies the readiness/keyword score.
+
+Completed reviews are cached against immutable scan IDs. New uploads get a new
+review; concurrent calls cannot duplicate the same active review. Saved reviews
+are account-scoped in `resume_reviews`, expire with the source scan and are removed
+when it is deleted. Interrupted reviews can be retried after three minutes. Inputs
+over 40,000 extracted characters are refused rather than silently truncated.
 
 JWT subject supplies ownership. Disabled/unverified accounts are rejected. Verified
 demo accounts are allowed; their reports are shared by everyone using that demo
@@ -123,7 +156,8 @@ anonymized representative resume set with human-labelled expected findings.
 No external customer database is needed or authorized for these checks.
 
 Later phases: richer skills taxonomy and required/preferred handling; layout and
-reading-order checks; explicit work-history parsing; optional AI critique/rewrite
-through a dedicated `AiUseCase` and quota; user-approved edits; template/export;
-and permissioned Talent integration. The existing support/feedback/practice UI
-gaps are separate work and were not changed in this delivery.
+reading-order checks; explicit work-history parsing; user-approved AI rewrites;
+template/export; and permissioned Talent integration. AI critique is now delivered
+as described above; rewrite and third-party ATS integration are not implemented.
+The former support/feedback/practice/platform UI gaps are documented in
+[Frontend API coverage](FRONTEND_API_COVERAGE.md).

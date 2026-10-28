@@ -165,6 +165,7 @@ class JachAiApplicationTests {
     @MockitoBean WorkspaceJoinRedemptionRepository workspaceJoinRedemptionRepository;
     @MockitoBean SupportTicketService supportTicketService;
     @MockitoBean com.jachai.resume.service.ResumeScanService resumeScanService;
+    @MockitoBean com.jachai.resume.service.ResumeReviewService resumeReviewService;
 
     @Test
     void resumeReportsRequireAuthenticationAndUseTheJwtOwner() throws Exception {
@@ -176,6 +177,19 @@ class JachAiApplicationTests {
         org.mockito.Mockito.verify(resumeScanService).history("resume-owner", 0);
         mvc.perform(get("/api/v1/resume/scans?page=-1").with(jwt()))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resumeAiReviewRequiresPermissionAndUsesTheSignedInOwner() throws Exception {
+        mvc.perform(post("/api/v1/resume/scans/report-1/review").with(jwt())
+                .contentType("application/json").content("{\"consent\":false}"))
+                .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(resumeReviewService);
+        mvc.perform(post("/api/v1/resume/scans/report-1/review")
+                .with(jwt().jwt(token -> token.subject("resume-owner")))
+                .contentType("application/json").content("{\"consent\":true}"))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(resumeReviewService).review("resume-owner", "report-1", true);
     }
 
     @Test

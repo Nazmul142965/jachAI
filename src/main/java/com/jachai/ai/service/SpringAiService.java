@@ -62,7 +62,7 @@ public class SpringAiService implements AiService {
      */
     @Override
     public String generate(AiUseCase useCase, String systemInstruction, String userInput) {
-        boolean draft = useCase == AiUseCase.QUESTION_DRAFT;
+        boolean draft = useCase == AiUseCase.QUESTION_DRAFT || useCase == AiUseCase.RESUME_REVIEW;
         String primary = draft
                 ? environment.getProperty("spring.ai.model.chat", "none")
                 : environment.getProperty("app.ai.tutor-provider", "none");
@@ -109,7 +109,8 @@ public class SpringAiService implements AiService {
                 throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_NOT_CONFIGURED",
                         "AI is not turned on for this site yet.");
             }
-            String response = timed ? callWithDeadline(model, useCase, system, user) : call(model, useCase, system, user);
+            String response = timed || useCase == AiUseCase.RESUME_REVIEW
+                    ? callWithDeadline(model, useCase, system, user) : call(model, useCase, system, user);
             int maxLength = useCase == AiUseCase.TUTOR || useCase == AiUseCase.ASSISTANT ? 3000 : 12000;
             if (response == null || response.isBlank() || response.length() > maxLength) {
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_INVALID_OUTPUT", "AI returned unusable content");
@@ -127,7 +128,7 @@ public class SpringAiService implements AiService {
 
     private String call(ChatModel model, AiUseCase useCase, String system, String user) {
         var prompt = ChatClient.builder(model).build().prompt().system(system).user(user);
-        if (model instanceof OpenAiChatModel && useCase == AiUseCase.QUESTION_DRAFT) {
+        if (model instanceof OpenAiChatModel && (useCase == AiUseCase.QUESTION_DRAFT || useCase == AiUseCase.RESUME_REVIEW)) {
             // The Groq model is configured with a short limit for tutoring; a drafted question needs more room.
             prompt = prompt.options(OpenAiChatOptions.builder().maxCompletionTokens(3000).build());
         }

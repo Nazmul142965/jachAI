@@ -86,10 +86,15 @@ public class PlatformOperationsService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE",
                     "From date must be before to date");
         }
+        if (Duration.between(effectiveFrom, effectiveTo).compareTo(Duration.ofDays(366)) > 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "Choose a payment report range of at most 366 days");
+        }
 
         // Overall totals
-        long totalOrders = paymentOrders.countByStatusAndCreatedAtBetween(applied, effectiveFrom, effectiveTo);
-        BigDecimal totalAmount = paymentOrders.sumAmountBdtByStatusAndCreatedAtBetween(applied, effectiveFrom, effectiveTo);
+        long totalOrders = provider == null ? paymentOrders.countByStatusAndCreatedAtBetween(applied, effectiveFrom, effectiveTo)
+                : paymentOrders.countByStatusAndProviderAndCreatedAtBetween(applied, provider, effectiveFrom, effectiveTo);
+        BigDecimal totalAmount = provider == null ? paymentOrders.sumAmountBdtByStatusAndCreatedAtBetween(applied, effectiveFrom, effectiveTo)
+                : paymentOrders.sumAmountBdtByStatusAndProviderAndCreatedAtBetween(applied, provider, effectiveFrom, effectiveTo);
         if (totalAmount == null) totalAmount = BigDecimal.ZERO;
 
         // By provider breakdown
@@ -116,9 +121,11 @@ public class PlatformOperationsService {
         while (bucketFrom.isBefore(effectiveTo)) {
             Instant bucketTo = bucketFrom.plus(Duration.ofDays(7));
             if (bucketTo.isAfter(effectiveTo)) bucketTo = effectiveTo;
-            long count = paymentOrders.countByStatusAndCreatedAtBetween(applied, bucketFrom, bucketTo);
+            long count = provider == null ? paymentOrders.countByStatusAndCreatedAtBetween(applied, bucketFrom, bucketTo)
+                    : paymentOrders.countByStatusAndProviderAndCreatedAtBetween(applied, provider, bucketFrom, bucketTo);
             if (count > 0) {
-                BigDecimal sum = paymentOrders.sumAmountBdtByStatusAndCreatedAtBetween(applied, bucketFrom, bucketTo);
+                BigDecimal sum = provider == null ? paymentOrders.sumAmountBdtByStatusAndCreatedAtBetween(applied, bucketFrom, bucketTo)
+                        : paymentOrders.sumAmountBdtByStatusAndProviderAndCreatedAtBetween(applied, provider, bucketFrom, bucketTo);
                 if (sum == null) sum = BigDecimal.ZERO;
                 byDateRange.add(new PlatformSandboxPaymentSummary.DateRangeBreakdown(
                         bucketFrom.toString().substring(0, 10) + " to " + bucketTo.toString().substring(0, 10),

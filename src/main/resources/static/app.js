@@ -31,6 +31,9 @@ const state = { accessToken: null, refreshToken: null, organizations: [], organi
   detailAssignment: null, detailAssignmentId: null, assessmentDetailToken: 0,
   certificateDesign: null,
   versionsAssessment: null, versionsToken: 0,
+  supportTicketId: null, supportToken: 0, supportHistoryToken: 0,
+  feedbackToken: 0, feedbackDirty: false, paymentReportToken: 0, auditToken: 0,
+  guidedToken: 0, guidedStarting: false,
   orderDetailId: null, orderDetailToken: 0,
   practiceQuestions: [], practiceAnswers: [], practiceRequestId: null, practiceRemaining: 0,
   homeAction: null, homeLoadToken: 0, profile: null,
@@ -426,6 +429,7 @@ function setActiveAttempt(attempt) {
 }
 const SIGNED_OUT_TITLE = document.title;
 function showSignedOut() {
+  resetMissingFlows();
   resetResume();
   assistant?.reset();
   sessionHint.clear();
@@ -675,6 +679,7 @@ async function setOrganization() {
   $('#review-output').classList.add('hidden');
   $('#review-output').textContent = '';
   $('#feedback-form')?.reset();
+  state.feedbackToken++; state.feedbackDirty = false; setFeedbackPublished(false);
   $('#feedback-output').textContent = '';
   $('#feedback-output').classList.add('hidden');
   $('#feedback-audit-list')?.replaceChildren();
@@ -1065,7 +1070,7 @@ async function loadAccount() {
   }
 }
 
-async function loadSupport() {
+async function loadSupport(pageNumber = 0) {
   const organization = state.organization;
   const select = $('#support-organization');
   if (select) {
@@ -1075,13 +1080,80 @@ async function loadSupport() {
     }
     if (organization) select.value = organization.id;
   }
+  const token = ++state.supportHistoryToken;
   await loadList('#support-tickets', async () => {
-    const page = await request('/support/tickets?page=0');
+    const page = await request(`/support/tickets?page=${pageNumber}`);
+    if (token !== state.supportHistoryToken) return;
     setList('#support-tickets', (page.content || []).map((ticket) => item(
       `${ticket.referenceNumber} · ${ticket.status}`,
-      `${ticket.subject} · ${ticket.category}`)), 'No support tickets yet.');
+      `${ticket.subject} · ${ticket.category}`, [button(t('Open conversation'), () => openCustomerTicket(ticket.id))])), 'No support tickets yet.');
+    renderPageControls('#support-tickets-pagination', page, loadSupport);
   }, 'Support tickets could not be loaded.');
 }
+
+function resetMissingFlows() {
+  state.supportTicketId = null; state.supportToken++; state.supportHistoryToken++;
+  state.feedbackToken++; state.feedbackDirty = false; state.paymentReportToken++; state.auditToken++;
+  state.guided = null;
+  state.guidedToken++; state.guidedStarting = false;
+  $('#customer-ticket-panel').classList.add('hidden');
+  for (const id of ['customer-ticket-detail', 'customer-ticket-replies', 'customer-ticket-pagination', 'support-tickets',
+    'support-tickets-pagination', 'platform-payment-report', 'platform-audit-report', 'platform-audit-pagination']) $(`#${id}`).replaceChildren();
+  $('#customer-reply-form').reset(); $('#feedback-form').reset();
+  setFeedbackPublished(false);
+  $('#feedback-output').textContent = ''; $('#platform-audit-repair').disabled = true;
+  $('#guided-session').replaceChildren(); $('#guided-resume').replaceChildren();
+}
+async function openCustomerTicket(id, pageNumber = 0) {
+  const token = ++state.supportToken;
+  state.supportTicketId = id;
+  $('#customer-ticket-panel').classList.remove('hidden');
+  $('#customer-reply-form').classList.add('hidden');
+  $('#customer-ticket-reopen').classList.add('hidden');
+  $('#customer-ticket-pagination').replaceChildren();
+  $('#customer-ticket-replies').replaceChildren();
+  await loadList('#customer-ticket-detail', async () => {
+    const [ticket, replies] = await Promise.all([
+      request(`/support/tickets/${encodeURIComponent(id)}`),
+      request(`/support/tickets/${encodeURIComponent(id)}/replies?page=${pageNumber}`)
+    ]);
+    if (token !== state.supportToken) return;
+    setList('#customer-ticket-detail', [item(`${ticket.referenceNumber} · ${ticket.status}`, ticket.subject), node('p', ticket.description)], '');
+    setList('#customer-ticket-replies', (replies.content || []).map(reply => item(
+      `${t(reply.authorUserId === state.platformUserId ? 'You' : 'Support team')} · ${new Date(reply.createdAt).toLocaleString(getLocale())}`, reply.body)), t('No replies yet.'));
+    renderPageControls('#customer-ticket-pagination', replies, page => openCustomerTicket(id, page));
+    $('#customer-reply-form').classList.toggle('hidden', ticket.status === 'CLOSED');
+    $('#customer-ticket-reopen').classList.toggle('hidden', ticket.status !== 'RESOLVED');
+  }, t('The support conversation could not be loaded.'));
+}
+$('#customer-ticket-close').addEventListener('click', () => {
+  state.supportToken++; state.supportTicketId = null;
+  $('#customer-ticket-panel').classList.add('hidden'); $('#customer-reply-form').reset();
+});
+$('#customer-reply-form').addEventListener('submit', event => {
+  event.preventDefault(); const form = event.currentTarget;
+  run(async () => {
+    const id = state.supportTicketId, token = state.supportToken;
+    if (!id) return;
+    const control = form.querySelector('button'); control.disabled = true;
+    try {
+      await request(`/support/tickets/${encodeURIComponent(id)}/replies`, { method: 'POST', body: { body: form.elements.body.value.trim(), publicReply: true } });
+      if (token !== state.supportToken) return;
+      form.reset(); await openCustomerTicket(id); await loadSupport(); notice(t('Reply saved.'));
+    } finally { control.disabled = false; }
+  });
+});
+$('#customer-ticket-reopen').addEventListener('click', () => run(async () => {
+  const id = state.supportTicketId, token = state.supportToken;
+  if (!id || !await confirmDialog(t('Reopen this resolved ticket so you can continue the conversation?'))) return;
+  if (token !== state.supportToken) return;
+  const control = $('#customer-ticket-reopen'); control.disabled = true;
+  try {
+    await request(`/support/tickets/${encodeURIComponent(id)}/reopen`, { method: 'POST' });
+    if (token !== state.supportToken) return;
+    await openCustomerTicket(id); await loadSupport(); notice(t('Ticket reopened.'));
+  } finally { control.disabled = false; }
+}));
 
 $('#account-profile-form').addEventListener('submit', (event) => {
   event.preventDefault();
@@ -1585,7 +1657,7 @@ $('#nav-toggle').addEventListener('click', () => {
 
 // Personal resume reports share the host's authentication and UI helpers.
 const resumeState = { id: null, report: null, baseline: null, timer: null, token: 0, historyToken: 0,
-  session: 0, requestId: null };
+  session: 0, requestId: null, reviewToken: 0, reviewBusy: false };
 function stopResumePolling() {
   window.clearTimeout(resumeState.timer);
   resumeState.timer = null;
@@ -1594,6 +1666,8 @@ function stopResumePolling() {
 function resetResume() {
   stopResumePolling();
   resumeState.session++; resumeState.historyToken++;
+  resumeState.reviewToken++; resumeState.reviewBusy = false;
+  $('#resume-ai-form').reset(); $('#resume-ai-submit').disabled = false; $('#resume-ai-content').replaceChildren();
   resumeState.id = null; resumeState.report = null; resumeState.baseline = null; resumeState.requestId = null;
   $('#resume-upload-form').reset();
   $('#resume-submit').disabled = false;
@@ -1630,6 +1704,7 @@ async function loadResumeHistory(pageNumber = 0) {
         if (resumeState.id === scan.id) {
           stopResumePolling(); resumeState.id = null; resumeState.report = null;
           $('#resume-report').classList.add('hidden');
+          resumeState.reviewToken++; $('#resume-ai-content').replaceChildren(); $('#resume-ai-form').reset();
           for (const id of ['resume-text', 'resume-issues', 'resume-breakdown', 'resume-skills', 'resume-warnings', 'resume-scores', 'resume-report-meta', 'resume-comparison']) $(`#${id}`).replaceChildren();
           $('#resume-status').textContent = t('Report deleted.');
         }
@@ -1649,6 +1724,7 @@ async function openResume(id) {
   stopResumePolling();
   resumeState.id = id;
   resumeState.report = null;
+  resumeState.reviewToken++; $('#resume-ai-content').replaceChildren(); $('#resume-ai-form').reset();
   const token = resumeState.token;
   $('#resume-report').classList.remove('hidden');
   $('#resume-report-meta').textContent = t('Loading…');
@@ -1719,7 +1795,53 @@ function paintResumeScan(scan) {
   setList('#resume-warnings', (report.warnings || []).map((warning) => node('p', t(warning), 'muted')), t('None found'));
   $('#resume-text').textContent = report.extractedText;
   renderResumeComparison(scan);
+  void loadResumeContentReview(scan.id);
 }
+async function loadResumeContentReview(id) {
+  const token = ++resumeState.reviewToken;
+  await loadList('#resume-ai-content', async () => {
+    const review = await request(`/resume/scans/${encodeURIComponent(id)}/review`);
+    if (id !== resumeState.id || token !== resumeState.reviewToken) return;
+    paintResumeContentReview(review);
+  }, t('The content review could not be loaded.'));
+}
+function paintResumeContentReview(review) {
+  if (review.status !== 'COMPLETED') {
+    const message = review.status === 'FAILED' ? review.error : t(review.status === 'PROCESSING'
+      ? 'Your AI review is running. Check its status shortly.' : 'No AI content review has been requested. Basic checks below are separate.');
+    setList('#resume-ai-content', [node('p', message, 'muted')], ''); return;
+  }
+  const rows = [node('p', review.summary), node('p', t('AI advice can be mistaken. Source quotes were checked; review the recommendations yourself.'), 'muted')];
+  for (const finding of review.findings || []) {
+    const row = node('article', '', 'subpanel');
+    row.append(node('h4', finding.title), node('span', `${t(finding.severity)} · ${t(finding.source === 'JOB' ? 'Job description' : 'Your resume')}`, 'pill'),
+      node('blockquote', finding.evidence, 'resume-evidence'), node('p', finding.explanation),
+      node('strong', t('Suggested change')), node('p', finding.action)); rows.push(row);
+  }
+  if (!(review.findings || []).length) rows.push(node('p', t('No specific content issues were returned. This is not a guarantee of resume quality.'), 'muted'));
+  for (const caveat of review.caveats || []) rows.push(node('p', caveat, 'muted'));
+  setList('#resume-ai-content', rows, '');
+}
+$('#resume-ai-refresh').addEventListener('click', () => run(async () => {
+  if (resumeState.id && !resumeState.reviewBusy) await loadResumeContentReview(resumeState.id);
+}));
+$('#resume-ai-form').addEventListener('submit', event => {
+  event.preventDefault(); const consent = event.currentTarget.elements.consent.checked;
+  run(async () => {
+    if (!consent || !resumeState.id || resumeState.reviewBusy) return;
+    const id = resumeState.id, token = ++resumeState.reviewToken;
+    const session = resumeState.session;
+    resumeState.reviewBusy = true; $('#resume-ai-submit').disabled = true;
+    setList('#resume-ai-content', [node('p', t('Reviewing your actual resume text…'), 'muted')], '');
+    try {
+      const review = await request(`/resume/scans/${encodeURIComponent(id)}/review`, { method: 'POST', body: { consent } });
+      if (id === resumeState.id && token === resumeState.reviewToken) paintResumeContentReview(review);
+    } catch (error) {
+      if (id === resumeState.id && token === resumeState.reviewToken) setList('#resume-ai-content', [node('p', error.message, 'muted')], '');
+      throw error;
+    } finally { if (session === resumeState.session) { resumeState.reviewBusy = false; $('#resume-ai-submit').disabled = false; } }
+  });
+});
 function renderResumeComparison(scan) {
   const box = $('#resume-comparison');
   const previous = resumeState.baseline;
@@ -2179,6 +2301,7 @@ async function loadPlatformView() {
   ensurePlatformSupportPanel();
   await Promise.all([
     loadPlatformDashboard(),
+    loadSandboxPayments(),
     loadList('#platform-operations', () => loadPlatformOperations(), 'Operational counts could not be loaded.'),
     loadList('#platform-storage', () => loadPlatformStorage(), 'Storage metrics could not be loaded.'),
     loadList('#platform-organizations', () => loadPlatformOrganizations(0), 'Organizations could not be loaded.')
@@ -2403,6 +2526,7 @@ async function inspectPlatformOrganization(organizationId) {
   if (!id) throw new Error('Choose an organization first.');
   const token = ++state.platformLoadToken;
   state.platformOrganizationId = id;
+  state.auditToken++; state.auditPreview = null; $('#platform-audit-repair').disabled = true;
   state.platformOrganizationName = state.platformOrganizationNames?.[id] || null;
   $('#platform-organization-id').value = id;
   $('#platform-repair-usage').disabled = true;
@@ -2417,12 +2541,71 @@ async function inspectPlatformOrganization(organizationId) {
       loadPlatformBilling(id, token), loadPlatformOrders(id, 0, token),
       loadPlatformUsageReport(id, token), loadPlatformUsageAudit(id, 0, token),
       loadPlatformManualPlan(id, token), loadPlatformManualPlanAudit(id, 0, token),
-      loadPlatformSupportAudit(id, 0, token)
+      loadPlatformSupportAudit(id, 0, token), loadAuditRecovery(0)
     ]);
   } finally {
     if (token === state.platformLoadToken) $('#platform-repair-usage').disabled = false;
   }
 }
+async function loadSandboxPayments() {
+  const token = ++state.paymentReportToken;
+  const form = $('#platform-payment-filter'), query = new URLSearchParams();
+  for (const name of ['from', 'to']) {
+    const value = form.elements[name].value;
+    if (value) query.set(name, new Date(value).toISOString());
+  }
+  if (form.elements.provider.value) query.set('provider', form.elements.provider.value);
+  await loadList('#platform-payment-report', async () => {
+    const data = await request(`/platform/operations/sandbox-payments?${query}`);
+    if (token !== state.paymentReportToken) return;
+    const amount = value => `৳${Number(value || 0).toLocaleString(getLocale(), { maximumFractionDigits: 2 })}`;
+    setList('#platform-payment-report', [item(t('Applied sandbox orders'), `${data.totalOrders} · ${amount(data.totalAmountBdt)}`),
+      node('p', `${t('Updated')}: ${new Date(data.generatedAt).toLocaleString(getLocale())}`, 'muted'),
+      ...(data.byProvider || []).map(row => item(row.provider, `${row.count} · ${amount(row.sumBdt)}`)),
+      node('h3', t('Weekly activity')),
+      ...(data.byDateRange || []).map(row => item(row.rangeLabel, `${row.count} · ${amount(row.sumBdt)}`))], t('No applied sandbox orders in this range.'));
+  }, t('Sandbox payment report could not be loaded.'));
+}
+$('#platform-payment-filter').addEventListener('submit', event => {
+  event.preventDefault(); run(loadSandboxPayments);
+});
+async function loadAuditRecovery(pageNumber = 0) {
+  const id = state.platformOrganizationId;
+  if (!id) throw new Error(t('Choose an organization first.'));
+  const token = ++state.auditToken;
+  state.auditPreview = null; $('#platform-audit-repair').disabled = true;
+  $('#platform-audit-pagination').replaceChildren();
+  await loadList('#platform-audit-report', async () => {
+    const data = await request(`/platform/organizations/${encodeURIComponent(id)}/audit-recovery?page=${pageNumber}`);
+    if (token !== state.auditToken || id !== state.platformOrganizationId) return;
+    state.auditPreview = { id, pageNumber, token, data };
+    const pages = Math.max(1, data.membershipTotalPages);
+    setList('#platform-audit-report', [item(t('Audit recovery preview'),
+      `${t('Recoverable')}: ${data.recoverableCount} · ${t('Needs manual review')}: ${data.ambiguousCount}`),
+      node('p', `${t('Page')} ${data.membershipPage + 1} / ${pages} · ${t('Ownership checked')}: ${t(data.ownershipScanned ? 'Yes' : 'No')}`, 'muted'),
+      ...(data.entries || []).map(row => item(`${row.targetType} · ${row.targetId} · ${t(row.status)}`, row.detail)),
+      node('p', t('This report covers only the displayed page. Check other pages before drawing conclusions about the whole organization.'), 'muted')], '');
+    renderPageControls('#platform-audit-pagination', { number: data.membershipPage, totalPages: pages,
+      first: data.membershipPage === 0, last: data.membershipPage + 1 >= pages }, loadAuditRecovery);
+    $('#platform-audit-repair').disabled = data.recoverableCount === 0;
+  }, t('Audit history could not be checked.'));
+}
+$('#platform-audit-refresh').addEventListener('click', () => run(() => loadAuditRecovery(0)));
+$('#platform-audit-repair').addEventListener('click', () => run(async () => {
+  const preview = state.auditPreview;
+  if (!preview || preview.id !== state.platformOrganizationId || preview.token !== state.auditToken) return;
+  if (!await confirmDialog(`${t('Recover missing audit events for this page?')}\n${preview.id} · ${t('Page')} ${preview.pageNumber + 1}\n${t('Unclear records will be left unchanged. Existing records are not deleted or rewritten.')}`)) return;
+  if (preview !== state.auditPreview || preview.id !== state.platformOrganizationId) return;
+  $('#platform-audit-repair').disabled = true;
+  try {
+    await request(`/platform/organizations/${encodeURIComponent(preview.id)}/audit-recovery?page=${preview.pageNumber}`, { method: 'POST' });
+    if (preview !== state.auditPreview || preview.id !== state.platformOrganizationId) return;
+    await loadAuditRecovery(preview.pageNumber); notice(t('Recovery finished. The fresh preview shows any remaining gaps.'));
+  } catch (error) {
+    if (preview === state.auditPreview) $('#platform-audit-repair').disabled = false;
+    throw error;
+  }
+}));
 async function loadPlatformBilling(id, token) {
   const billing = await request(`/platform/organizations/${encodeURIComponent(id)}/billing`);
   if (token !== state.platformLoadToken) return;
@@ -3157,6 +3340,8 @@ async function loadReviewQueue(pageNumber) {
   $('#review-next').onclick = () => run(() => loadReviewQueue(page.number + 1));
 }
 async function showStaffReview(attemptId) {
+  if (state.feedbackDirty && $('#feedback-form').elements.attemptId.value !== attemptId
+      && !await confirmDialog(t('Discard unsaved feedback and open the selected attempt?'))) return;
   const organizationId = state.organization.id;
   const loadToken = ++state.reviewLoadToken;
   const review = await request(ownOrg(`/attempts/${encodeURIComponent(attemptId)}/review`));
@@ -3164,10 +3349,17 @@ async function showStaffReview(attemptId) {
   state.activeReviewAttemptId = review.attemptId;
   $('#review-attempt-id').value = review.attemptId;
   if ($('#feedback-form').elements.attemptId.value !== review.attemptId) {
+    $('#feedback-form').elements.summary.value = ''; $('#feedback-form').elements.nextSteps.value = '';
+    setFeedbackPublished(false);
     $('#feedback-audit-list')?.replaceChildren();
     $('#feedback-audit-pagination')?.replaceChildren();
   }
   $('#feedback-form').elements.attemptId.value = review.attemptId;
+  if (!state.feedbackDirty) void loadSavedFeedback().catch(error => {
+    if (state.organization?.id === organizationId && $('#feedback-form').elements.attemptId.value === review.attemptId) {
+      $('#feedback-output').textContent = error.message; $('#feedback-output').classList.remove('hidden');
+    }
+  });
   $('#attempt-review-summary').textContent = `${review.assessmentTitle} · ${participantName(review)} · ${participantIdNote(review)} · ${review.percentage == null ? 'Score pending' : `${review.percentage}% · ${review.passed ? 'Passed' : 'Not passed'}`} · ${review.resultReleasedAt ? 'Released' : 'Not released'}`;
   const answerText = (question, ids) => {
     const selected = question.options.filter((option) => (ids || []).includes(option.id))
@@ -5253,12 +5445,25 @@ const GUIDED_PATH_TEXT = {
   mongodb: ['MongoDB', 'Indexes, expiry and document identity.']
 };
 function guidedPathTitle(path) { return t((GUIDED_PATH_TEXT[path.id] || [path.title])[0]); }
+function savedGuidedSession() {
+  try { const marker = JSON.parse(sessionStorage.getItem('jachaiGuidedSession') || 'null');
+    return marker?.userId === state.platformUserId ? marker.sessionId : null;
+  } catch { return null; }
+}
+function rememberGuidedSession(session) {
+  try {
+    if (session.complete) sessionStorage.removeItem('jachaiGuidedSession');
+    else sessionStorage.setItem('jachaiGuidedSession', JSON.stringify({ userId: state.platformUserId, sessionId: session.id }));
+  } catch { /* Session resume remains available until this tab reloads. */ }
+}
 async function loadGuidedPractice() {
+  const token = ++state.guidedToken, userId = state.platformUserId;
   const next = $('#guided-next');
   const holder = $('#guided-paths');
   if (!holder) return;
   holder.setAttribute('aria-busy', 'true');
   const [pathsResult, nextResult] = await Promise.allSettled([request('/practice/paths'), request('/practice/next')]);
+  if (token !== state.guidedToken || userId !== state.platformUserId) return;
   holder.setAttribute('aria-busy', 'false');
   if (pathsResult.status !== 'fulfilled') {
     holder.replaceChildren(node('p', 'Guided practice could not be loaded. Reopen Practice to retry.', 'empty'),
@@ -5267,6 +5472,26 @@ async function loadGuidedPractice() {
     return;
   }
   const paths = pathsResult.value;
+  const saved = savedGuidedSession(), resume = $('#guided-resume');
+  resume.replaceChildren(); resume.classList.toggle('hidden', !saved);
+  if (saved) resume.append(node('h3', t('Continue your practice session')),
+    node('p', t('Your answered questions are saved. Continue where you left off.'), 'muted'),
+    button(t('Continue session'), async () => {
+      const token = ++state.guidedToken, userId = state.platformUserId;
+      try {
+        const session = await request(`/practice/sessions/${encodeURIComponent(saved)}`);
+        if (token !== state.guidedToken || userId !== state.platformUserId) return;
+        const path = paths.find(path => path.id === session.pathId);
+        if (!path) throw new Error(t('This practice path is no longer available.'));
+        state.guided = { path, session }; rememberGuidedSession(session); renderGuidedSession();
+      } catch (error) {
+        if (error.status === 404 && userId === state.platformUserId) {
+          try { sessionStorage.removeItem('jachaiGuidedSession'); } catch { /* optional storage */ }
+          resume.classList.add('hidden');
+        }
+        throw error;
+      }
+    }, 'button primary small'));
   if (nextResult.status === 'fulfilled') {
     const suggestion = nextResult.value;
     const target = paths.find((path) => path.id === suggestion.pathId);
@@ -5293,11 +5518,17 @@ async function loadGuidedPractice() {
   }));
 }
 async function startGuidedSession(path) {
+  if (state.guidedStarting) return;
+  state.guidedStarting = true;
+  const token = ++state.guidedToken, userId = state.platformUserId;
   const count = path.id === 'baseline' ? path.questionCount : Math.min(4, path.questionCount);
-  const session = await request('/practice/sessions', { method: 'POST', body: { pathId: path.id, questionCount: count } });
-  state.guided = { path, session, picked: null, reviewing: false };
-  renderGuidedSession();
-  $('#guided-session').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try {
+    const session = await request('/practice/sessions', { method: 'POST', body: { pathId: path.id, questionCount: count } });
+    if (token !== state.guidedToken || userId !== state.platformUserId) return;
+    state.guided = { path, session, picked: null, reviewing: false }; rememberGuidedSession(session);
+    renderGuidedSession();
+    $('#guided-session').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } finally { if (userId === state.platformUserId) state.guidedStarting = false; }
 }
 function guidedOptionText(question, optionId) {
   return question.options.find((option) => option.id === optionId)?.text || optionId;
@@ -5307,6 +5538,7 @@ function renderGuidedSession() {
   const guided = state.guided;
   if (!guided) { box.classList.add('hidden'); box.replaceChildren(); return; }
   const { session, path } = guided;
+  $('#guided-resume').classList.add('hidden');
   box.classList.remove('hidden');
   $('#guided-paths').classList.add('hidden');
   $('#guided-next').classList.add('hidden');
@@ -5343,6 +5575,8 @@ function renderGuidedSession() {
       try {
         guided.session = await request(`/practice/sessions/${encodeURIComponent(session.id)}/answers`,
           { method: 'POST', body: { questionId: question.id, optionId: chosen.value } });
+        if (state.guided !== guided) return;
+        rememberGuidedSession(guided.session);
         const result = guided.session.results.find((entry) => entry.questionId === question.id);
         notice(result?.correct ? 'Correct.' : 'Not quite. You will see the answers in the recap.');
         renderGuidedSession();
@@ -5382,7 +5616,8 @@ async function loadPractice() {
   // When the pilot is on it owns this screen entirely; the code below is what
   // everyone else still sees, unchanged.
   if (pilotRequested() && await mountPracticePilot()) return;
-  if (!state.guided) { $('#guided-paths')?.classList.remove('hidden'); void loadGuidedPractice(); }
+  if (!state.guided) { $('#guided-paths')?.classList.remove('hidden'); await loadGuidedPractice(); }
+  else renderGuidedSession();
   const [questionsResult, usageResult, historyResult] = await Promise.allSettled([
     request('/practice/questions'), request('/practice/usage'), request('/practice/answers/mine?page=0')
   ]);
@@ -5911,33 +6146,70 @@ $('#certificate-audit').addEventListener('click', () => run(async () => {
 $('#review-certificate-id').addEventListener('input', () => {
   $('#certificate-audit-pagination').replaceChildren();
 });
+function setFeedbackPublished(published) {
+  const form = $('#feedback-form');
+  form.elements.summary.readOnly = published; form.elements.nextSteps.readOnly = published;
+  form.querySelector('button[type="submit"]').disabled = published;
+  $('#publish-feedback').disabled = published;
+}
+async function loadSavedFeedback() {
+  const form = $('#feedback-form'), id = form.elements.attemptId.value.trim(), org = state.organization?.id;
+  if (!id || !org) throw new Error(t('Enter an attempt ID first.'));
+  const token = ++state.feedbackToken;
+  const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(id)}/feedback`), { optional404: true });
+  if (token !== state.feedbackToken || org !== state.organization?.id || id !== form.elements.attemptId.value.trim()) return;
+  form.elements.summary.value = feedback?.summary || ''; form.elements.nextSteps.value = feedback?.nextSteps || '';
+  state.feedbackDirty = false; setFeedbackPublished(feedback?.status === 'PUBLISHED');
+  $('#feedback-output').textContent = feedback ? t(feedback.status === 'PUBLISHED'
+    ? 'Published feedback loaded. It cannot be edited.' : 'Saved feedback draft loaded.') : t('No saved feedback yet. Write a draft below.');
+  $('#feedback-output').classList.remove('hidden');
+}
+$('#load-feedback-draft').addEventListener('click', () => run(async () => {
+  if (state.feedbackDirty && !await confirmDialog(t('Replace unsaved feedback with the saved version?'))) return;
+  await loadSavedFeedback();
+}));
+$('#feedback-form').addEventListener('input', event => {
+  state.feedbackToken++;
+  if (event.target.name === 'attemptId') {
+    event.currentTarget.elements.summary.value = ''; event.currentTarget.elements.nextSteps.value = '';
+    setFeedbackPublished(false); state.feedbackDirty = false;
+  } else state.feedbackDirty = true;
+});
 $('#feedback-form').addEventListener('submit', (event) => { event.preventDefault(); run(async () => {
   const form = new FormData(event.currentTarget);
   const attemptId = form.get('attemptId').trim();
+  const org = state.organization?.id, token = ++state.feedbackToken;
   const control = event.currentTarget.querySelector('button[type="submit"]');
   if (control) control.disabled = true;
   try {
     const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback`),
       { method: 'PUT', body: { summary: form.get('summary').trim(), nextSteps: form.get('nextSteps').trim() } });
+    if (token !== state.feedbackToken || org !== state.organization?.id) return;
+    state.feedbackDirty = false;
     $('#feedback-output').textContent = `Draft saved for attempt ${feedback.attemptId}.`;
     $('#feedback-output').classList.remove('hidden'); notice('Feedback draft saved.');
   } finally { if (control) control.disabled = false; }
 }); });
 $('#publish-feedback').addEventListener('click', () => run(async () => {
+  if (state.feedbackDirty) throw new Error(t('Save your draft before publishing feedback.'));
   const attemptId = new FormData($('#feedback-form')).get('attemptId').trim();
+  const org = state.organization?.id, token = ++state.feedbackToken;
   if (!attemptId) throw new Error('Enter an attempt ID first.');
   if (!await confirmDialog(`Publish this feedback for attempt ${attemptId}?\n\nPublished feedback is immutable and the learner can read it immediately. The result must already be released.`)) return;
+  if (token !== state.feedbackToken || org !== state.organization?.id || attemptId !== $('#feedback-form').elements.attemptId.value.trim()) return;
   const control = $('#publish-feedback');
   control.disabled = true;
   try {
     const feedback = await request(ownOrg(`/academy/attempts/${encodeURIComponent(attemptId)}/feedback/publish`),
       { method: 'POST' });
+    if (token !== state.feedbackToken || org !== state.organization?.id || attemptId !== $('#feedback-form').elements.attemptId.value.trim()) return;
+    state.feedbackDirty = false; setFeedbackPublished(true);
     $('#feedback-output').textContent = `Feedback published for attempt ${feedback.attemptId}. The learner can now read it; email delivery is not confirmed.`;
     $('#feedback-output').classList.remove('hidden');
     try { await loadFeedbackAudit(attemptId, 0); }
     catch (_) { setList('#feedback-audit-list', [], 'Feedback is published; audit history could not be loaded. Retry the history view.'); }
     notice('Feedback published. The learner can view it; email delivery is not confirmed.');
-  } finally { control.disabled = false; }
+  } finally { control.disabled = $('#feedback-form').elements.summary.readOnly; }
 }));
 function ensureFeedbackAuditPanel() {
   if ($('#feedback-audit-panel')) return;

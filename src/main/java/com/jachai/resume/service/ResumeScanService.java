@@ -113,6 +113,20 @@ public class ResumeScanService {
     public void delete(String userId, String id) {
         requireAccount(userId);
         if (mongo.remove(owned(userId, id), ResumeScan.class).getDeletedCount() == 0) throw missing();
+        mongo.remove(owned(userId, id), com.jachai.resume.model.ResumeReview.class);
+    }
+
+    public record ReviewInput(String text, String jobDescription, Instant expiresAt) { }
+
+    public ReviewInput reviewInput(String userId, String id) {
+        requireAccount(userId);
+        ResumeScan scan = mongo.findOne(owned(userId, id), ResumeScan.class);
+        if (scan == null) throw missing();
+        if (!"COMPLETED".equals(scan.status()) || scan.report() == null)
+            throw new ApiException(HttpStatus.CONFLICT, "RESUME_NOT_READY", "Wait for the resume scan to finish before requesting a content review.");
+        if (scan.report().extractedText().length() > 40000)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "RESUME_REVIEW_TOO_LONG", "For a detailed review, upload a resume with at most 40000 extracted characters.");
+        return new ReviewInput(scan.report().extractedText(), scan.jobDescription(), scan.expiresAt());
     }
 
     private View view(ResumeScan scan) {

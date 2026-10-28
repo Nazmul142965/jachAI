@@ -24,6 +24,8 @@ public enum RateLimitPolicy {
     AI_ACTOR(10, Duration.ofMinutes(1)),
     PRACTICE_SESSION_ACTOR(30, Duration.ofHours(1)),
     RESUME_SCAN_ACTOR(10, Duration.ofHours(1)),
+    RESUME_REVIEW_ACCOUNT(5, Duration.ofHours(24)),
+    RESUME_REVIEW_PLATFORM(100, Duration.ofHours(24)),
     MESSAGE_ACTOR(30, Duration.ofMinutes(1));
 
     private final long limit;
